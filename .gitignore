@@ -1,0 +1,20 @@
+# Task-/Handover-/Scan-Dateien (Master-Worker-Artefakte)
+T*_task.md
+T*_prompt.md
+Handover_T*.md
+Scan_T*.md
+
+# IDE / Build
+.idea/
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+/captures
+.externalNativeBuild
+.cxx
+
+# OS
+Thumbs.db
+.DS_Store
