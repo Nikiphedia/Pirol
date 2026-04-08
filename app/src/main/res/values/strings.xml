@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PIROL</string>
+    <string name="tab_live">Live</string>
+    <string name="tab_analysis">Analyse</string>
+    <string name="tab_reference">Referenzen</string>
+    <string name="tab_map">Karte</string>
+    <string name="tab_settings">Settings</string>
+</resources>

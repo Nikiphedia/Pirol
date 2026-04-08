@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Sessions-Ordner (filesDir/sessions/) -->
+    <files-path name="sessions" path="sessions/" />
+    <!-- Export-Ordner (filesDir/export/) fuer temporaere KML-Dateien -->
+    <files-path name="export" path="export/" />
+</paths>
