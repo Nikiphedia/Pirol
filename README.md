@@ -1,2 +1,2 @@
 # Pirol
-Android app for geotagged Birdnet Chuncks
+Android app for geotagged Birdnet Chunks
