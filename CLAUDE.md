@@ -18,6 +18,8 @@
 | Min SDK | 26 | Android 8.0 |
 | Target/Compile SDK | 35 | |
 | ABI Filters | arm64-v8a, armeabi-v7a, x86_64 | |
+| AndroidX Security Crypto | 1.1.0-alpha06 | EncryptedSharedPreferences |
+| osmdroid | 6.1.18 | Offline-Karten |
 
 ## Package
 
@@ -80,7 +82,8 @@ app/src/main/
 │   │   └── dsp/            # FFT, Mel, Resampler, Spectrogram
 │   ├── data/
 │   │   ├── repository/     # SessionManager, ReferenceRepository, KmlExporter, WavWriter
-│   │   └── sync/           # UploadManager, UploadTarget, SessionUploadWorker
+│   │   ├── sync/           # UploadManager, UploadTarget, SessionUploadWorker
+│   │   └── SecurePreferences.kt  # EncryptedSharedPreferences fuer API-Keys
 │   ├── di/                 # Koin AppModule (9 ViewModel-Parameter)
 │   ├── location/           # LocationProvider, LocationPermissionHandler
 │   ├── ml/                 # BirdNET, Inference, Embedding, Filter, Verification
@@ -113,6 +116,23 @@ app/src/main/
 ./gradlew installDebug
 ```
 
+## Sicherheit — API-Keys & Secrets
+
+| Regel | Detail |
+|-------|--------|
+| **Storage** | API-Keys in `SecurePreferences` (EncryptedSharedPreferences), NICHT in `AppPreferences` |
+| **Klasse** | `ch.etasystems.pirol.data.SecurePreferences` — eigene Klasse, getrennt von AppPreferences |
+| **UI-Eingabe** | Maskiert (`PasswordVisualTransformation`), Toggle "Key anzeigen" |
+| **Transport** | Nur HTTPS — Ktor OkHttp Default, keine HTTP-Fallbacks |
+| **Source Code** | Keine Keys, Tokens oder Secrets in .kt, Assets, oder Ressourcen |
+| **Logging** | Keys nie in Log.d/e/w/i — bei Debug nur `"key=***"` oder `key.take(4) + "..."` |
+| **Git** | `.gitignore`: `*.keystore`, `local.properties`, `secrets/`, `*.jks` |
+| **Koin** | `SecurePreferences` als Singleton, separat von AppPreferences |
+
+### Betroffene Keys
+- `xenoCantoApiKey` — Xeno-Canto API (optional, User-eingegeben)
+- `swisstopoApiKey` — swisstopo WMTS (falls noetig, User-eingegeben)
+
 ## Verbotene Patterns
 
 - Kein `any` ohne Kommentar warum
@@ -120,6 +140,8 @@ app/src/main/
 - Keine hardcodierten Pfade — `context.filesDir` / `context.assets`
 - Keine Plattform-Threads für Audio — Oboe NDK + Coroutines
 - Kein `GlobalScope` — strukturierte Coroutines via ViewModel/Service Scope
+- **Keine API-Keys in Plain-Text SharedPreferences** — `SecurePreferences` verwenden
+- **Keine Secrets in Log-Statements** — maskieren oder weglassen
 
 ## Commit-Format
 

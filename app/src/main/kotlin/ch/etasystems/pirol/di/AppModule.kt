@@ -3,6 +3,7 @@ package ch.etasystems.pirol.di
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.OboeAudioEngine
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.SecurePreferences
 import ch.etasystems.pirol.data.StorageManager
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
@@ -74,6 +75,9 @@ val appModule = module {
 
     // AppPreferences — Singleton, SharedPreferences-Wrapper (T22)
     single { AppPreferences(get()) }
+
+    // SecurePreferences — Singleton, verschluesselte SharedPreferences fuer API-Keys (T48)
+    single { SecurePreferences(get()) }
 
     // SpeciesNameResolver — Singleton, uebersetzt Artnamen in gewaehlte Sprache (T26)
     single { SpeciesNameResolver(get()) }

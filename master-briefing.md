@@ -31,6 +31,9 @@
 | P17 Feld-Bugfixes | T32 Artennamen+Rotation ✅ · T33 Detektionsliste ✅ | ✅ |
 | P18 Audio+Storage | T34 HPF+Norm · T35 Preroll · T36 Loeschen · T37 Modell · T38 SD · T39 ChunkJump · T40 Cleanup · T41 Migration | ✅ |
 | P19 Code-Scan+Fix | T42 Scan (8 Funde) · T43 6 Fixes (Build gruen) | ✅ |
+| P20 Detektions-UX V2 | T44 Workflow V0.0.4 | **⏳ NAECHSTER** |
+| P21 Offline-Karten | T45 Tile-Sources · T46 Download · T47 Management | ⬜ |
+| P22 Xeno-Canto + UX | T48 SecurePrefs · T49 API · T50 Download · T51 Autocomplete | ⬜ |
 
 **Letzter erfolgreicher Build:** T43 — `compileDebugKotlin` BUILD SUCCESSFUL
 
@@ -161,6 +164,7 @@ AMSEL implementiert ein vollständiges Embedding- und Similarity-System:
 | 2026-04-07 | ROTATION — Kontext voll. Feld-Feedback in `Pirol_Pull_V0.0.3.md` | Naechster Master: Pull-Datei lesen, 9 APs formulieren, offene Entscheidungen klaeren |
 | 2026-04-08 | P18 komplett (T34–T41). Alle Reviews bestanden, Build gruen. | — |
 | **2026-04-08** | **P19 komplett (T42–T43). Code-Scan 8 Funde, 6 gefixt, 2 akzeptiert. ROTATION.** | Naechster Master: Scan_T42.md lesen (Beobachtungen), findCommonName() toter Code offen. Offene Pendings: BOM-Upgrade (menuAnchor), Preroll 96kHz (Feldtest) |
+| 2026-04-10 | Neuer Master. P20–P22 geplant (Workflow V2, Offline-Karten, Xeno-Canto). Security-Architektur fuer API-Keys definiert (EncryptedSharedPreferences). CLAUDE.md + .gitignore aktualisiert. | Welle 1 starten: T44 + T48 + T51 parallel |
 
 ---
 
@@ -256,13 +260,73 @@ AMSEL implementiert ein vollständiges Embedding- und Similarity-System:
 
 ---
 
+## Roadmap P20–P22 (Ideenspeicher-Umsetzung + Offline-Karten)
+
+| Phase | Tasks | Status |
+|-------|-------|--------|
+| P20 Detektions-UX V2 | T44 Workflow V0.0.4 (States, Promotion, Fragezeichen) | **⏳ T44 NAECHSTER** |
+| P21 Offline-Karten | T45 Tile-Sources · T46 Download · T47 Management-UI | ⬜ |
+| P22 Xeno-Canto + UX | T48 SecurePrefs+ApiKey · T49 API-Client · T50 ReferenceDownloader · T51 Autocomplete | ⬜ |
+
+### P20 — Detektions-UX V2 (Workflow V0.0.4)
+
+Umsetzung des Workflow-Dokuments `Pirol_Workflow_V0.0.4.md`.
+
+| Task | Inhalt | Abhaengigkeit |
+|------|--------|---------------|
+| **T44** | VerificationStatus erweitern (UNCERTAIN, REPLACED), Re-Detection-Promotion (nach oben), Fragezeichen-Button, State-Transitions | — |
+
+**Delta zum Ist-Stand (10/16 bereits implementiert):**
+- VerificationStatus: +UNCERTAIN, +REPLACED
+- DetectionListState: Re-detektierte Art nach oben verschieben (statt in-place update)
+- SpeciesCard: Fragezeichen-Button (?) fuer "unsicher"
+- State-Machine: Transition-Regeln (z.B. CONFIRMED darf nicht direkt zu REPLACED)
+
+### P21 — Offline-Karten (OSM + swisstopo)
+
+| Task | Inhalt | Abhaengigkeit |
+|------|--------|---------------|
+| **T45** | Tile-Source-Abstraktion: OSM + swisstopo WMTS, auswaehlbar in Settings. swisstopo-Key in SecurePreferences (falls noetig). | T48 (SecurePrefs) |
+| **T46** | Offline-Download: Region-Auswahl (Bounding Box auf Karte zeichnen), Zoom-Stufen waehlbar, Download in lokalen Ordner (`filesDir/tiles/` oder SD). Fortschrittsanzeige. | T45 |
+| **T47** | Download-Management-UI: Liste heruntergeladener Regionen (Name, Groesse, Datum), Loeschen einzelner Regionen, Speicherplatz-Anzeige. | T46 |
+
+**Tile-Quellen:**
+- OpenStreetMap: Frei, kein API-Key
+- swisstopo: WMTS-Endpunkt, moeglicherweise API-Key noetig (abklaeren)
+
+**Speicherformat:**
+- osmdroid-eigenes Tile-Caching (`SqlTileWriter`) oder MBTiles
+- Ordner: `filesDir/tiles/{source}/{region}/` oder SD-Karte (T38-Logik nutzen)
+
+### P22 — Xeno-Canto Integration + UX-Polish
+
+| Task | Inhalt | Abhaengigkeit |
+|------|--------|---------------|
+| **T48** | `SecurePreferences` (EncryptedSharedPreferences) + xenoCantoApiKey in Settings (maskiert, Toggle) + Koin-Singleton | — |
+| **T49** | Xeno-Canto API Client (Ktor OkHttp, AMSEL `XenoCantoClient` als Vorlage). Suche nach Art, Qualitaets-Filter, Paging. HTTPS-only. Key aus SecurePreferences. | T48 |
+| **T50** | ReferenceDownloader: Audio-Download von Xeno-Canto, Speicherung in ReferenceRepository, Integration in ReferenceScreen (Suche + Download-Button). | T49 |
+| **T51** | Autocomplete im Korrektur-Dialog: RegionalSpeciesFilter + SpeciesNameResolver als Quelle, Dropdown mit Filterung waehrend Tippen. | — |
+
+### Sicherheitsarchitektur (Querschnitt)
+
+Alle API-Keys werden in `SecurePreferences` (EncryptedSharedPreferences) gespeichert.
+Regeln siehe CLAUDE.md Abschnitt "Sicherheit — API-Keys & Secrets".
+
+### Parallelisierungsplan
+
+```
+Welle 1 (parallel): T44 + T48 + T51
+Welle 2 (parallel): T45 (nach T48) + T49 (nach T48)
+Welle 3 (parallel): T46 (nach T45) + T50 (nach T49)
+Welle 4:            T47 (nach T46)
+```
+
+---
+
 ## Ideenspeicher [Master only]
 
-- **Xeno-Canto Integration:** Ktor API Client + ReferenceDownloader (AMSEL als Vorlage)
 - KMP-Extraktion: Core-Module zwischen AMSEL und PIROL teilen
 - Bat-Modus: Ultraschall-Erkennung (>15kHz), eigenes Embedding-Modell
 - Wear OS Companion: Notifications auf Smartwatch
 - WorkInfo-Observer: UploadManager Status-Tracking via WorkManager LiveData
-- Autocomplete im Korrektur-Dialog (RegionalSpeciesFilter als Quelle)
 - BirdNET V2.4 TFLite Runtime (Alternative zu ONNX-Konvertierung)
-- xenoCantoApiKey Feld in Settings (ging bei T22 unter)

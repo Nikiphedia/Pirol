@@ -41,6 +41,7 @@ import ch.etasystems.pirol.ml.DetectionListState
  * @param onConfirm Callback fuer Bestaetigung (detectionId)
  * @param onReject Callback fuer Ablehnung (detectionId)
  * @param onCorrect Callback fuer Korrektur (detectionId, correctedSpecies)
+ * @param onUncertain Callback fuer Unsicher-Markierung (detectionId) (T44)
  * @param modifier Modifier fuer die aeussere Box
  */
 @Composable
@@ -50,8 +51,10 @@ fun DetectionList(
     onConfirm: ((String) -> Unit)? = null,
     onReject: ((String) -> Unit)? = null,
     onCorrect: ((String, String) -> Unit)? = null,
+    onUncertain: ((String) -> Unit)? = null,
     onSaveAsReference: ((String) -> Unit)? = null,
     watchlistSpecies: Set<String> = emptySet(),
+    speciesSuggestions: List<Pair<String, String>> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     // version lesen => Recomposition bei Aenderung
@@ -131,10 +134,12 @@ fun DetectionList(
                         onConfirm = onConfirm?.let { callback -> { callback(detection.id) } },
                         onReject = onReject?.let { callback -> { callback(detection.id) } },
                         onCorrect = onCorrect?.let { callback -> { name -> callback(detection.id, name) } },
+                        onUncertain = onUncertain?.let { callback -> { callback(detection.id) } },
                         onSaveAsReference = onSaveAsReference?.let { callback -> { callback(detection.id) } },
                         isWatchlisted = watchlistSpecies.contains(
                             detection.scientificName.replace(' ', '_')
                         ),
+                        speciesSuggestions = speciesSuggestions,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }

@@ -59,6 +59,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.SecurePreferences
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import ch.etasystems.pirol.data.StorageManager
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.sync.UploadManager
@@ -86,10 +91,15 @@ fun SettingsScreen(
     classifier: AudioClassifier = koinInject(),
     modelManager: ModelManager = koinInject(),
     storageManager: StorageManager = koinInject(),
-    sessionManager: SessionManager = koinInject()
+    sessionManager: SessionManager = koinInject(),
+    securePreferences: SecurePreferences = koinInject()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // API-Key State (T48)
+    var xenoCantoKey by remember { mutableStateOf(securePreferences.xenoCantoApiKey) }
+    var keyVisible by remember { mutableStateOf(false) }
 
     // Lokaler State fuer Recomposition bei Toggle-Aenderung
     var wifiOnly by remember { mutableStateOf(uploadManager.wifiOnly) }
@@ -847,6 +857,43 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- API-Keys (T48) ---
+        Text("API-Keys", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = xenoCantoKey,
+            onValueChange = { xenoCantoKey = it },
+            label = { Text("Xeno-Canto API-Key") },
+            singleLine = true,
+            visualTransformation = if (keyVisible) VisualTransformation.None
+                                   else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { keyVisible = !keyVisible }) {
+                    Icon(
+                        imageVector = if (keyVisible) Icons.Filled.VisibilityOff
+                                      else Icons.Filled.Visibility,
+                        contentDescription = if (keyVisible) "Verbergen" else "Anzeigen"
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedButton(
+            onClick = {
+                securePreferences.xenoCantoApiKey = xenoCantoKey
+                Toast.makeText(context, "API-Key gespeichert", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.padding(top = 4.dp)
+        ) {
+            Text("Speichern")
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()

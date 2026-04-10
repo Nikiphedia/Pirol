@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
+import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.SessionCard
 import ch.etasystems.pirol.ui.components.SpeciesCard
@@ -55,12 +57,22 @@ import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @Composable
 fun AnalysisScreen(
     viewModel: AnalysisViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    // Autocomplete-Vorschlaege fuer Korrektur-Dialog (T51)
+    val regionalFilter: RegionalSpeciesFilter = koinInject()
+    val speciesNameResolver: SpeciesNameResolver = koinInject()
+    val speciesSuggestions = remember(regionalFilter, speciesNameResolver) {
+        regionalFilter.getSpeciesList().map { scientificName ->
+            scientificName to speciesNameResolver.resolve(scientificName)
+        }.sortedBy { it.second }
+    }
 
     // 3-Ebenen-Navigation: Liste → Detail → Vergleich
     val navLevel = when {
@@ -86,7 +98,7 @@ fun AnalysisScreen(
     ) { level ->
         when (level) {
             2 -> CompareView(state = state, viewModel = viewModel)
-            1 -> SessionDetailView(state = state, viewModel = viewModel)
+            1 -> SessionDetailView(state = state, viewModel = viewModel, speciesSuggestions = speciesSuggestions)
             else -> SessionListView(state = state, viewModel = viewModel)
         }
     }
@@ -203,7 +215,8 @@ private fun SessionListView(
 @Composable
 private fun SessionDetailView(
     state: AnalysisUiState,
-    viewModel: AnalysisViewModel
+    viewModel: AnalysisViewModel,
+    speciesSuggestions: List<Pair<String, String>> = emptyList()
 ) {
     val session = state.selectedSession ?: return
 
@@ -340,8 +353,15 @@ private fun SessionDetailView(
                                 correctedName
                             )
                         },
+                        onUncertain = {
+                            viewModel.verifyDetection(
+                                detection.id,
+                                VerificationStatus.UNCERTAIN
+                            )
+                        },
                         onCompare = { viewModel.openCompare(detection) },
-                        onJumpToChunk = { viewModel.jumpToDetection(detection) }
+                        onJumpToChunk = { viewModel.jumpToDetection(detection) },
+                        speciesSuggestions = speciesSuggestions
                     )
                 }
             }
