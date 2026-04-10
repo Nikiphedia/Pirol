@@ -106,6 +106,9 @@ dependencies {
     // WorkManager (Background-Uploads)
     implementation(libs.work.runtime.ktx)
 
+    // AndroidX Security (EncryptedSharedPreferences fuer API-Keys)
+    implementation(libs.security.crypto)
+
     // osmdroid (OpenStreetMap Karte)
     implementation(libs.osmdroid.android)
 }

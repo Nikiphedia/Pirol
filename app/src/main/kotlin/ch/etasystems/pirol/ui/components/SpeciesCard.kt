@@ -5,6 +5,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.AlertDialog
@@ -85,10 +90,12 @@ fun SpeciesCard(
     onConfirm: (() -> Unit)? = null,
     onReject: (() -> Unit)? = null,
     onCorrect: ((String) -> Unit)? = null,
+    onUncertain: (() -> Unit)? = null,  // T44: Fragezeichen-Button
     onSaveAsReference: (() -> Unit)? = null,
     onCompare: (() -> Unit)? = null,
     onJumpToChunk: (() -> Unit)? = null,
     isWatchlisted: Boolean = false,
+    speciesSuggestions: List<Pair<String, String>> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val confidencePercent = (detection.confidence * 100).toInt()
@@ -106,6 +113,8 @@ fun SpeciesCard(
         VerificationStatus.CONFIRMED -> BorderStroke(2.dp, Color(0xFF4CAF50))
         VerificationStatus.REJECTED -> BorderStroke(2.dp, MaterialTheme.colorScheme.error)
         VerificationStatus.CORRECTED -> BorderStroke(2.dp, Color(0xFF2196F3))
+        VerificationStatus.UNCERTAIN -> BorderStroke(2.dp, Color(0xFFFF9800))  // Orange (T44)
+        VerificationStatus.REPLACED -> BorderStroke(2.dp, Color(0xFF9E9E9E))   // Grau (T44)
         VerificationStatus.UNVERIFIED -> null
     }
 
@@ -119,8 +128,9 @@ fun SpeciesCard(
         label = "recentHighlight"
     )
 
-    // REJECTED: leicht ausgegraut
-    val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED) 0.6f else 1f
+    // REJECTED und REPLACED: leicht ausgegraut (T44)
+    val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED ||
+                        detection.verificationStatus == VerificationStatus.REPLACED) 0.6f else 1f
 
     // Korrektur-Dialog State
     var showCorrectionDialog by remember { mutableStateOf(false) }
@@ -256,6 +266,22 @@ fun SpeciesCard(
                             color = Color(0xFF2196F3)
                         )
                     }
+                    VerificationStatus.UNCERTAIN -> {
+                        Text(
+                            text = "Unsicher",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF9800)
+                        )
+                    }
+                    VerificationStatus.REPLACED -> {
+                        Text(
+                            text = "Ersetzt",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF9E9E9E)
+                        )
+                    }
                     VerificationStatus.UNVERIFIED -> { /* kein Badge */ }
                 }
             }
@@ -297,6 +323,23 @@ fun SpeciesCard(
                                 contentDescription = "Ablehnen",
                                 tint = if (detection.verificationStatus == VerificationStatus.REJECTED)
                                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    // Unsicher markieren (T44)
+                    if (onUncertain != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onUncertain,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.QuestionMark,
+                                contentDescription = "Unsicher",
+                                tint = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
+                                    Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -377,6 +420,8 @@ fun SpeciesCard(
                             VerificationStatus.CONFIRMED -> "\u2713"
                             VerificationStatus.REJECTED -> "\u2717"
                             VerificationStatus.CORRECTED -> "\u270E"
+                            VerificationStatus.UNCERTAIN -> "?"
+                            VerificationStatus.REPLACED -> "\u2194"
                             else -> ""
                         }
                         Text(
@@ -429,18 +474,63 @@ fun SpeciesCard(
         }
     }
 
-    // Korrektur-Dialog
+    // Korrektur-Dialog mit Autocomplete (T51)
     if (showCorrectionDialog && onCorrect != null) {
+        // Gefilterte Vorschlaege basierend auf Eingabe
+        val query = correctedName.lowercase()
+        val filteredSuggestions = remember(correctedName, speciesSuggestions) {
+            if (query.length < 2) emptyList()
+            else speciesSuggestions
+                .filter { (sci, common) ->
+                    common.lowercase().contains(query) ||
+                    sci.replace('_', ' ').lowercase().contains(query)
+                }
+                .take(8)
+        }
+
         AlertDialog(
             onDismissRequest = { showCorrectionDialog = false },
             title = { Text("Art korrigieren") },
             text = {
-                OutlinedTextField(
-                    value = correctedName,
-                    onValueChange = { correctedName = it },
-                    label = { Text("Artname") },
-                    singleLine = true
-                )
+                Column {
+                    OutlinedTextField(
+                        value = correctedName,
+                        onValueChange = { correctedName = it },
+                        label = { Text("Artname") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // Vorschlagsliste
+                    if (filteredSuggestions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 200.dp)
+                        ) {
+                            items(filteredSuggestions) { (scientificName, commonName) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            correctedName = commonName
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = commonName,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = scientificName.replace('_', ' '),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontStyle = FontStyle.Italic,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

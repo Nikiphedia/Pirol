@@ -45,13 +45,16 @@ class DetectionListState(
             }
 
             if (existingIndex >= 0) {
-                // Art bereits vorhanden → aktualisieren (Position bleibt! T33)
+                // Art bereits vorhanden → aktualisieren + Promotion nach oben (T44)
                 val existing = detections[existingIndex]
                 val now = System.currentTimeMillis()
-                detections[existingIndex] = if (detection.confidence > existing.confidence) {
+                val updated = if (detection.confidence > existing.confidence) {
                     // Hoeherer Confidence → Detektion ersetzen, Count erhoehen, ID beibehalten (T33-AP4)
                     detection.copy(
                         id = existing.id,
+                        verificationStatus = existing.verificationStatus,
+                        correctedSpecies = existing.correctedSpecies,
+                        verifiedAtMs = existing.verifiedAtMs,
                         detectionCount = existing.detectionCount + 1,
                         lastDetectedMs = now
                     )
@@ -63,6 +66,9 @@ class DetectionListState(
                         lastDetectedMs = now
                     )
                 }
+                // Promotion: Art nach oben verschieben (T44)
+                detections.removeAt(existingIndex)
+                detections.add(0, updated)
             } else {
                 // Neue Art → vorne einfuegen (T33: lastDetectedMs setzen)
                 detections.add(0, detection.copy(lastDetectedMs = System.currentTimeMillis()))

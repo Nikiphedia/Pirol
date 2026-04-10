@@ -10,7 +10,9 @@ enum class VerificationStatus {
     UNVERIFIED,    // Standard: Automatische Detektion, nicht geprueft
     CONFIRMED,     // Nutzer hat bestaetigt: Art stimmt
     REJECTED,      // Nutzer hat abgelehnt: Falsch-Positiv
-    CORRECTED      // Nutzer hat korrigiert: Andere Art zugewiesen
+    CORRECTED,     // Nutzer hat korrigiert: Andere Art zugewiesen
+    UNCERTAIN,     // Nutzer hat als unsicher markiert (Fragezeichen)
+    REPLACED       // Originalart wurde durch Korrektur einer anderen Detektion ersetzt
 }
 
 /**

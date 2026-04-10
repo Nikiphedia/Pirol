@@ -61,6 +61,8 @@ import ch.etasystems.pirol.location.LocationPermissionState
 import ch.etasystems.pirol.location.areLocationPermissionsGranted
 import ch.etasystems.pirol.data.sync.UploadStatus
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
+import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.DetectionList
 import ch.etasystems.pirol.ui.components.SimilarityPanel
@@ -68,6 +70,7 @@ import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.ui.components.SpectrogramOverlay
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import kotlin.math.roundToInt
 
 @Composable
@@ -131,6 +134,15 @@ fun LiveScreen(
         }
     }
 
+    // --- Autocomplete-Vorschlaege fuer Korrektur-Dialog (T51) ---
+    val regionalFilter: RegionalSpeciesFilter = koinInject()
+    val speciesNameResolver: SpeciesNameResolver = koinInject()
+    val speciesSuggestions = remember(regionalFilter, speciesNameResolver) {
+        regionalFilter.getSpeciesList().map { scientificName ->
+            scientificName to speciesNameResolver.resolve(scientificName)
+        }.sortedBy { it.second }
+    }
+
     // --- Adaptives Layout basierend auf WindowWidthSizeClass ---
     when (widthSizeClass) {
         WindowWidthSizeClass.Expanded -> {
@@ -139,7 +151,8 @@ fun LiveScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onRequestPermission = { permissionTrigger = true },
-                onExport = onExport
+                onExport = onExport,
+                speciesSuggestions = speciesSuggestions
             )
         }
         WindowWidthSizeClass.Medium -> {
@@ -148,7 +161,8 @@ fun LiveScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onRequestPermission = { permissionTrigger = true },
-                onExport = onExport
+                onExport = onExport,
+                speciesSuggestions = speciesSuggestions
             )
         }
         else -> {
@@ -157,7 +171,8 @@ fun LiveScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onRequestPermission = { permissionTrigger = true },
-                onExport = onExport
+                onExport = onExport,
+                speciesSuggestions = speciesSuggestions
             )
         }
     }
@@ -172,7 +187,8 @@ private fun CompactLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
     onRequestPermission: () -> Unit,
-    onExport: () -> Unit = {}
+    onExport: () -> Unit = {},
+    speciesSuggestions: List<Pair<String, String>> = emptyList()
 ) {
     Column(
         modifier = Modifier
@@ -214,8 +230,10 @@ private fun CompactLiveLayout(
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
+                onUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 watchlistSpecies = uiState.watchlistSpecies,
+                speciesSuggestions = speciesSuggestions,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -251,7 +269,8 @@ private fun MediumLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
     onRequestPermission: () -> Unit,
-    onExport: () -> Unit = {}
+    onExport: () -> Unit = {},
+    speciesSuggestions: List<Pair<String, String>> = emptyList()
 ) {
     Row(
         modifier = Modifier
@@ -300,8 +319,10 @@ private fun MediumLiveLayout(
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
+                onUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 watchlistSpecies = uiState.watchlistSpecies,
+                speciesSuggestions = speciesSuggestions,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -336,7 +357,8 @@ private fun ExpandedLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
     onRequestPermission: () -> Unit,
-    onExport: () -> Unit = {}
+    onExport: () -> Unit = {},
+    speciesSuggestions: List<Pair<String, String>> = emptyList()
 ) {
     Row(
         modifier = Modifier
@@ -385,8 +407,10 @@ private fun ExpandedLiveLayout(
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
+                onUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 watchlistSpecies = uiState.watchlistSpecies,
+                speciesSuggestions = speciesSuggestions,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
