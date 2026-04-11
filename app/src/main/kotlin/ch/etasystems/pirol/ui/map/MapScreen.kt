@@ -11,8 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,9 +30,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +64,11 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.io.File
+import java.text.NumberFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -177,14 +192,24 @@ fun MapScreen(
             )
         }
 
-        // --- FAB: Offline speichern ---
-        FloatingActionButton(
-            onClick = { viewModel.showDownloadSheet() },
+        // --- FABs: Download + Verwaltung ---
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.End
         ) {
-            Icon(Icons.Default.Download, contentDescription = "Offline speichern")
+            SmallFloatingActionButton(
+                onClick = { viewModel.showManagementSheet() }
+            ) {
+                Icon(Icons.Default.Storage, contentDescription = "Offline-Karten verwalten")
+            }
+            FloatingActionButton(
+                onClick = { viewModel.showDownloadSheet() }
+            ) {
+                Icon(Icons.Default.Download, contentDescription = "Offline speichern")
+            }
         }
 
         // --- Snackbar ---
@@ -207,6 +232,17 @@ fun MapScreen(
                 },
                 onCancel = { viewModel.cancelDownload() },
                 onDismiss = { viewModel.hideDownloadSheet() }
+            )
+        }
+
+        // --- Management Bottom Sheet ---
+        if (state.showManagementSheet) {
+            ManagementBottomSheet(
+                records = state.downloadRecords,
+                cacheSizeMb = state.cacheSizeMb,
+                onDeleteRecord = { id -> viewModel.deleteRecord(id) },
+                onClearAll = { viewModel.clearAllTiles() },
+                onDismiss = { viewModel.hideManagementSheet() }
             )
         }
     }
@@ -376,5 +412,182 @@ private fun DownloadBottomSheet(
 
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+/**
+ * Bottom Sheet zur Verwaltung heruntergeladener Offline-Karten-Regionen.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManagementBottomSheet(
+    records: List<TileDownloadRecord>,
+    cacheSizeMb: Double,
+    onDeleteRecord: (String) -> Unit,
+    onClearAll: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var confirmDeleteId by remember { mutableStateOf<String?>(null) }
+    var confirmClearAll by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember {
+        DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm")
+            .withZone(ZoneId.systemDefault())
+    }
+    val numberFormat = remember { NumberFormat.getInstance(Locale("de", "CH")) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+        ) {
+            Text(
+                text = "Offline-Karten verwalten",
+                style = MaterialTheme.typography.headlineSmall
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            Text(
+                text = "Gesamt: ${"%.1f".format(cacheSizeMb)} MB",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            if (records.isEmpty()) {
+                Text(
+                    text = "Keine offline Karten gespeichert",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 24.dp)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(records, key = { it.id }) { record ->
+                        val sourceName = MapTileSource.fromId(record.source).displayName
+                        val dateText = try {
+                            dateFormatter.format(Instant.parse(record.downloadedAt))
+                        } catch (_: Exception) {
+                            record.downloadedAt
+                        }
+                        val tileCountText = numberFormat.format(record.tileCount)
+
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        if (record.label.isNotBlank()) {
+                                            Text(
+                                                text = record.label,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                        }
+                                        Text(
+                                            text = sourceName,
+                                            style = MaterialTheme.typography.titleSmall
+                                        )
+                                        Text(
+                                            text = "Zoom ${record.zoomMin}–${record.zoomMax} · $tileCountText Tiles",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = dateText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(onClick = { confirmDeleteId = record.id }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Entfernen",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { confirmClearAll = true },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = records.isNotEmpty()
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text("Gesamten Cache loeschen")
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+
+    // --- Bestaetigungs-Dialog: Einzelnen Eintrag entfernen ---
+    confirmDeleteId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { confirmDeleteId = null },
+            title = { Text("Eintrag entfernen?") },
+            text = { Text("Der Eintrag wird aus der Liste entfernt. Die heruntergeladenen Tiles bleiben im Cache erhalten.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteRecord(id)
+                    confirmDeleteId = null
+                }) {
+                    Text("Entfernen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteId = null }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
+    }
+
+    // --- Bestaetigungs-Dialog: Gesamten Cache loeschen ---
+    if (confirmClearAll) {
+        AlertDialog(
+            onDismissRequest = { confirmClearAll = false },
+            title = { Text("Gesamten Cache loeschen?") },
+            text = { Text("Alle offline Karten loeschen? Dies kann nicht rueckgaengig gemacht werden.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClearAll()
+                    confirmClearAll = false
+                }) {
+                    Text("Loeschen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearAll = false }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
     }
 }
