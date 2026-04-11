@@ -18,7 +18,7 @@ enum class Screen(
     Analysis("analysis", "Analyse", Icons.Filled.Analytics),
     Reference("reference", "Referenzen", Icons.AutoMirrored.Filled.LibraryBooks),
     Map("map", "Karte", Icons.Filled.Map),
-    Settings("settings", "Settings", Icons.Filled.Settings)
+    Settings("settings", "Einstellungen", Icons.Filled.Settings)
 }
 
 /** Route fuer den Onboarding-Screen (nicht im Tab-Bar sichtbar) */

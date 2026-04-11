@@ -488,7 +488,7 @@ private fun CompareView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = ref.wavFileName,
+                    text = ref.audioFileName.substringBeforeLast('.'),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(modifier = Modifier.weight(1f))
@@ -526,7 +526,7 @@ private fun CompareView(
                             selected = ref.id == state.selectedReference.id,
                             onClick = { viewModel.selectReference(ref) },
                             label = {
-                                Text("${ref.wavFileName.take(7)} (${(ref.confidence * 100).toInt()}%)")
+                                Text("${ref.audioFileName.take(7)} (${(ref.confidence * 100).toInt()}%)")
                             }
                         )
                     }

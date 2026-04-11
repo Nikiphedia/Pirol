@@ -40,7 +40,7 @@ object AudioDspUtils {
      * Direct Form II Transposed.
      * Filtert Wind-Rumpeln und Trittschall unterhalb cutoffHz.
      */
-    fun highpassFilter(samples: FloatArray, sampleRate: Int = 48000, cutoffHz: Float = 200f) {
+    fun highpassFilter(samples: FloatArray, sampleRate: Int, cutoffHz: Float = 200f) {
         val w0 = 2.0 * Math.PI * cutoffHz / sampleRate
         val alpha = Math.sin(w0) / (2.0 * 0.7071) // Q = sqrt(2)/2 fuer Butterworth
         val cosW0 = Math.cos(w0)

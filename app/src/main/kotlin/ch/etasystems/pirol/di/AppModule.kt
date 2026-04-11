@@ -1,10 +1,11 @@
 package ch.etasystems.pirol.di
 
 import ch.etasystems.pirol.audio.AudioPlayer
-import ch.etasystems.pirol.audio.OboeAudioEngine
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.SecurePreferences
+import ch.etasystems.pirol.data.api.XenoCantoClient
 import ch.etasystems.pirol.data.StorageManager
+import ch.etasystems.pirol.data.repository.ReferenceDownloader
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.sync.UploadManager
@@ -23,14 +24,12 @@ import ch.etasystems.pirol.audio.AlarmService
 import ch.etasystems.pirol.ui.analysis.AnalysisViewModel
 import ch.etasystems.pirol.ui.live.LiveViewModel
 import ch.etasystems.pirol.ui.map.MapViewModel
+import ch.etasystems.pirol.ui.map.TileDownloadManager
 import ch.etasystems.pirol.ui.reference.ReferenceViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
-    // Audio Engine — Singleton fuer die gesamte App-Laufzeit
-    single { OboeAudioEngine() }
-
     // BirdNET V3.0 Classifier — Singleton, lazy ONNX Session (T28: als AudioClassifier registriert)
     single<AudioClassifier> { BirdNetV3Classifier(get(), get()) }
 
@@ -52,7 +51,7 @@ val appModule = module {
     // GPS-Location-Provider — Singleton, Context kommt von Koin androidContext()
     single { LocationProvider(get()) }
 
-    // StorageManager — Singleton, ermittelt verfuegbare Speicherorte (T38)
+    // StorageManager — Singleton, via koinInject() in UI-Composables (T38)
     single { StorageManager(get()) }
 
     // Session-Manager — Singleton, verwaltet Aufnahme-Sessions auf Disk
@@ -79,6 +78,12 @@ val appModule = module {
     // SecurePreferences — Singleton, verschluesselte SharedPreferences fuer API-Keys (T48)
     single { SecurePreferences(get()) }
 
+    // XenoCantoClient — Singleton, API v3 Client (T49)
+    single { XenoCantoClient(get()) }
+
+    // ReferenceDownloader — Singleton, Xeno-Canto Download + Speicherung (T50)
+    single { ReferenceDownloader(get(), get()) }
+
     // SpeciesNameResolver — Singleton, uebersetzt Artnamen in gewaehlte Sprache (T26)
     single { SpeciesNameResolver(get()) }
 
@@ -88,12 +93,15 @@ val appModule = module {
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-    // ReferenceViewModel — Referenzbibliothek-UI
-    viewModel { ReferenceViewModel(get(), get()) }
+    // ReferenceViewModel — Referenzbibliothek-UI + Xeno-Canto-Suche (T50)
+    viewModel { ReferenceViewModel(get(), get(), get(), get()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
     viewModel { AnalysisViewModel(get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository
 
-    // MapViewModel — Detektionen auf OSM-Karte (T31)
-    viewModel { MapViewModel(get()) }  // SessionManager
+    // TileDownloadManager — Offline-Tile-Download (T46)
+    single { TileDownloadManager(get()) }
+
+    // MapViewModel — Detektionen auf OSM-Karte (T31), Offline-Download (T46)
+    viewModel { MapViewModel(get(), get()) }  // SessionManager, TileDownloadManager
 }

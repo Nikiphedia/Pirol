@@ -241,7 +241,7 @@ class AnalysisViewModel(
     /** Referenz-Audio abspielen */
     fun playReference() {
         val entry = _uiState.value.selectedReference ?: return
-        val wavFile = referenceRepository.getWavFile(entry) ?: return
+        val wavFile = referenceRepository.getAudioFile(entry) ?: return
         audioPlayer.play(wavFile)
         _uiState.update { it.copy(playingSource = PlayingSource.REFERENCE) }
     }
@@ -262,7 +262,7 @@ class AnalysisViewModel(
 
     /** Referenz-Sonogramm rendern */
     private fun renderReferenceSonogram(entry: ReferenceEntry) {
-        val wavFile = referenceRepository.getWavFile(entry) ?: return
+        val wavFile = referenceRepository.getAudioFile(entry) ?: return
         viewModelScope.launch(Dispatchers.Default) {
             val samples = readWavSamples(wavFile) ?: return@launch
             val state = SpectrogramState(maxFrames = 2048)

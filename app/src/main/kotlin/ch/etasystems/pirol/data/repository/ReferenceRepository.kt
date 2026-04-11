@@ -76,10 +76,10 @@ class ReferenceRepository(private val context: Context) {
         // 3. Naechste ID + Dateiname
         val existingCount = getBySpecies(speciesName).size
         val refId = UUID.randomUUID().toString().take(8)
-        val wavFileName = "ref_${String.format("%03d", existingCount + 1)}_${speciesName}.wav"
+        val audioFileName = "ref_${String.format("%03d", existingCount + 1)}_${speciesName}.wav"
 
         // 4. WAV kopieren
-        val targetWav = File(speciesDir, wavFileName)
+        val targetWav = File(speciesDir, audioFileName)
         try {
             sourceWav.copyTo(targetWav, overwrite = false)
         } catch (e: Exception) {
@@ -93,7 +93,7 @@ class ReferenceRepository(private val context: Context) {
             scientificName = speciesName,
             commonName = detection.commonName,
             confidence = detection.confidence,
-            wavFileName = wavFileName,
+            audioFileName = audioFileName,
             sourceSessionId = sessionDir.name,
             sourceDetectionId = detection.id,
             recordedAtMs = detection.timestampMs,
@@ -105,17 +105,17 @@ class ReferenceRepository(private val context: Context) {
 
         entries.add(entry)
         saveIndex()
-        Log.i(TAG, "Referenz gespeichert: ${entry.commonName} → ${targetWav.name}")
+        Log.i(TAG, "Referenz gespeichert: ${entry.commonName} -> ${targetWav.name}")
         entry
     }
 
-    /** Einzelne Referenz loeschen (WAV + Index-Eintrag) */
+    /** Einzelne Referenz loeschen (Audio + Index-Eintrag) */
     suspend fun deleteReference(entry: ReferenceEntry): Boolean = withContext(Dispatchers.IO) {
-        val wavFile = getWavFile(entry)
-        wavFile?.delete()
+        val audioFile = getAudioFile(entry)
+        audioFile?.delete()
         entries.removeAll { it.id == entry.id }
         saveIndex()
-        Log.i(TAG, "Referenz geloescht: ${entry.commonName} (${entry.wavFileName})")
+        Log.i(TAG, "Referenz geloescht: ${entry.commonName} (${entry.audioFileName})")
         true
     }
 
@@ -159,10 +159,70 @@ class ReferenceRepository(private val context: Context) {
         }
     }
 
-    /** WAV-Datei fuer eine Referenz holen */
-    fun getWavFile(entry: ReferenceEntry): File? {
+    /** Audio-Datei fuer eine Referenz holen (WAV oder MP3) */
+    fun getAudioFile(entry: ReferenceEntry): File? {
+        if (entry.audioFileName.isBlank()) return null
         val speciesDir = File(File(context.filesDir, REFERENCES_DIR), entry.scientificName)
-        val wavFile = File(speciesDir, entry.wavFileName)
-        return if (wavFile.exists()) wavFile else null
+        val audioFile = File(speciesDir, entry.audioFileName)
+        return if (audioFile.exists()) audioFile else null
+    }
+
+    /**
+     * Fuegt eine Xeno-Canto-Aufnahme als Referenz hinzu.
+     *
+     * @param scientificName z.B. "Turdus_merula"
+     * @param commonName z.B. "Blackbird"
+     * @param audioData MP3-Bytes von Xeno-Canto
+     * @param xenoCantoId z.B. "XC123456"
+     * @param recordist Name des Aufnehmenden
+     * @param lat Breitengrad (optional)
+     * @param lon Laengengrad (optional)
+     * @return ReferenceEntry oder null bei Fehler
+     */
+    suspend fun addFromXenoCanto(
+        scientificName: String,
+        commonName: String,
+        audioData: ByteArray,
+        xenoCantoId: String,
+        recordist: String,
+        lat: Double? = null,
+        lon: Double? = null
+    ): ReferenceEntry? = withContext(Dispatchers.IO) {
+        val speciesName = scientificName.replace(' ', '_')
+        val refsRoot = File(context.filesDir, REFERENCES_DIR)
+        val speciesDir = File(refsRoot, speciesName)
+        speciesDir.mkdirs()
+
+        val existingCount = getBySpecies(speciesName).size
+        val refId = UUID.randomUUID().toString().take(8)
+        val audioFileName = "ref_${String.format("%03d", existingCount + 1)}_${speciesName}.mp3"
+
+        val targetFile = File(speciesDir, audioFileName)
+        try {
+            targetFile.writeBytes(audioData)
+        } catch (e: Exception) {
+            Log.e(TAG, "XC-Audio speichern fehlgeschlagen", e)
+            return@withContext null
+        }
+
+        val entry = ReferenceEntry(
+            id = refId,
+            scientificName = speciesName,
+            commonName = commonName,
+            confidence = 0f,
+            audioFileName = audioFileName,
+            recordedAtMs = System.currentTimeMillis(),
+            addedAtMs = System.currentTimeMillis(),
+            latitude = lat,
+            longitude = lon,
+            source = "xeno-canto",
+            xenoCantoId = xenoCantoId,
+            recordist = recordist
+        )
+
+        entries.add(entry)
+        saveIndex()
+        Log.i(TAG, "XC-Referenz gespeichert: $commonName -> ${targetFile.name}")
+        entry
     }
 }

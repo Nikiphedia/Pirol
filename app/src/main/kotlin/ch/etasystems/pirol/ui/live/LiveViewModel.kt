@@ -47,7 +47,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 
 /**
@@ -222,10 +221,8 @@ class LiveViewModel(
         Log.d(TAG, "Regionaler Filter geladen: ${regionalFilter.getCurrentRegionId()} " +
                 "(${regionalFilter.getSpeciesList().size} Arten)")
 
-        // Artennamen-Sprache laden + species_master.json parsen (T26, T32-Fix)
-        // Synchron laden: species_master.json ist in assets (~200ms), muss VOR erster
-        // Inference abgeschlossen sein, sonst werden lateinische Namen angezeigt.
-        runBlocking(Dispatchers.IO) { speciesNameResolver.load() }
+        // SpeciesNameResolver wird in PirolApp.onCreate() vorab geladen (T53)
+        // Falls noch nicht fertig: Fallback auf lateinischen Namen, kein ANR
         speciesNameResolver.language = appPreferences.speciesLanguage
         Log.i(TAG, "SpeciesNameResolver: ${speciesNameResolver.resolve("Turdus merula")}")
 
@@ -473,7 +470,7 @@ class LiveViewModel(
 
             val result = referenceRepository.addFromDetection(detection, sessionDir, chunkIndex)
             if (result != null) {
-                Log.i(TAG, "Referenz gespeichert: ${result.commonName} (${result.wavFileName})")
+                Log.i(TAG, "Referenz gespeichert: ${result.commonName} (${result.audioFileName})")
             }
         }
     }
@@ -799,16 +796,15 @@ class LiveViewModel(
         val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         cleanupScope.launch {
             try {
-                sessionManager.endSession()
-                // Finale Embedding-DB Sicherung
-                val file = getEmbeddingDbFile() ?: return@launch
-                file.parentFile?.mkdirs()
-                try {
+                kotlinx.coroutines.withTimeout(5_000L) {
+                    sessionManager.endSession()
+                    val file = getEmbeddingDbFile() ?: return@withTimeout
+                    file.parentFile?.mkdirs()
                     embeddingDatabase.save(file)
                     Log.d(TAG, "Embedding-DB gespeichert: ${embeddingDatabase.size} Eintraege")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Embedding-DB speichern fehlgeschlagen", e)
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Cleanup fehlgeschlagen oder Timeout", e)
             } finally {
                 cleanupScope.cancel()
             }

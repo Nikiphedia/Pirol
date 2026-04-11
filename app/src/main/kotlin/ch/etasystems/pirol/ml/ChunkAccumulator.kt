@@ -38,11 +38,9 @@ data class AccumulatedBlock(
  * der interne Buffer zurueckgesetzt.
  *
  * @param targetDurationMs Zieldauer pro Block in Millisekunden (Standard: 3000)
- * @param overlapMs Overlap zwischen Bloecken (Standard: 0, spaeter konfigurierbar)
  */
 class ChunkAccumulator(
-    private val targetDurationMs: Int = CHUNK_DURATION_MS.toInt(),
-    @Suppress("unused") private val overlapMs: Int = 0
+    private val targetDurationMs: Int = CHUNK_DURATION_MS.toInt()
 ) {
     // Interne Sample-Sammlung
     private val sampleBuffer = mutableListOf<ShortArray>()

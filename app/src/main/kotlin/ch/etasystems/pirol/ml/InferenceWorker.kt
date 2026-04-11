@@ -130,7 +130,7 @@ class InferenceWorker(
                 val detections = filteredResults.map { cr ->
                     DetectionResult(
                         id = UUID.randomUUID().toString(),
-                        scientificName = cr.scientificName,
+                        scientificName = cr.scientificName.replace(' ', '_'),
                         commonName = cr.commonName,
                         confidence = cr.confidence,
                         timestampMs = now,
