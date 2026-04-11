@@ -31,11 +31,13 @@
 | P17 Feld-Bugfixes | T32 Artennamen+Rotation ✅ · T33 Detektionsliste ✅ | ✅ |
 | P18 Audio+Storage | T34 HPF+Norm · T35 Preroll · T36 Loeschen · T37 Modell · T38 SD · T39 ChunkJump · T40 Cleanup · T41 Migration | ✅ |
 | P19 Code-Scan+Fix | T42 Scan (8 Funde) · T43 6 Fixes (Build gruen) | ✅ |
-| P20 Detektions-UX V2 | T44 Workflow V0.0.4 | **⏳ NAECHSTER** |
-| P21 Offline-Karten | T45 Tile-Sources · T46 Download · T47 Management | ⬜ |
-| P22 Xeno-Canto + UX | T48 SecurePrefs · T49 API · T50 Download · T51 Autocomplete | ⬜ |
+| P20 Detektions-UX V2 | T44 Workflow V0.0.4 | ✅ |
+| P21 Offline-Karten | T45 Tile-Sources ✅ · T46 Download ✅ · T47 Management ✅ | ✅ |
+| P22 Xeno-Canto + UX | T48 SecurePrefs ✅ · T49 API ✅ · T50 Download ✅ · T51 Autocomplete ✅ | ✅ |
+| P23 Code-Qualitaet | T52 Scan ✅ · T53 Fixes ✅ | ✅ |
+| P24 Integration + Infra | T54 Merge ✅ · T55 SDK ✅ | ✅ |
 
-**Letzter erfolgreicher Build:** T43 — `compileDebugKotlin` BUILD SUCCESSFUL
+**Letzter erfolgreicher Build:** T47 — `compileDebugKotlin` BUILD SUCCESSFUL (20s)
 
 ---
 
@@ -164,7 +166,14 @@ AMSEL implementiert ein vollständiges Embedding- und Similarity-System:
 | 2026-04-07 | ROTATION — Kontext voll. Feld-Feedback in `Pirol_Pull_V0.0.3.md` | Naechster Master: Pull-Datei lesen, 9 APs formulieren, offene Entscheidungen klaeren |
 | 2026-04-08 | P18 komplett (T34–T41). Alle Reviews bestanden, Build gruen. | — |
 | **2026-04-08** | **P19 komplett (T42–T43). Code-Scan 8 Funde, 6 gefixt, 2 akzeptiert. ROTATION.** | Naechster Master: Scan_T42.md lesen (Beobachtungen), findCommonName() toter Code offen. Offene Pendings: BOM-Upgrade (menuAnchor), Preroll 96kHz (Feldtest) |
-| 2026-04-10 | Neuer Master. P20–P22 geplant (Workflow V2, Offline-Karten, Xeno-Canto). Security-Architektur fuer API-Keys definiert (EncryptedSharedPreferences). CLAUDE.md + .gitignore aktualisiert. | Welle 1 starten: T44 + T48 + T51 parallel |
+| 2026-04-10 | Neuer Master. P20–P22 geplant. Security-Architektur definiert. CLAUDE.md + .gitignore aktualisiert. | Welle 1 starten: T44 + T48 + T51 parallel |
+| **2026-04-10** | **ROTATION.** Welle 1 (T44+T48+T51) committed. Welle 2 (T45+T49) in Worktrees fertig, NICHT gemergt. Prozessfehler: Master hat bei Welle 1 selbst Code geschrieben statt Integrations-Worker zu dispatchen. | Naechster Master: Worktrees reviewen+mergen (T45: `agent-a0216525`, T49: `agent-aed509af`), dann T46+T50 planen, dann T47. Build-Verifikation offen (Android SDK fehlt auf dieser Maschine). |
+| **2026-04-10** | **ROTATION.** T45+T49 reviewed, Worker haben Code auf master geschrieben (NICHT korrekt gemergt — Neuimplementierung statt Worktree-Merge). Aenderungen uncommitted auf master. `Arbeitspaket_T52.md` erstellt (Code-Scan). Prozessfehler: Master hat Worker Code diktiert statt Merge-Auftrag gegeben. | Naechster Master: (1) Pruefen ob uncommitted Code auf master mit Worktree-Originalen uebereinstimmt, (2) Build verifizieren, (3) committen, (4) `Arbeitspaket_T52.md` an Worker geben, (5) Welle 3 planen (T46+T50). Stale Worktrees aufraeumen (5 Stueck). |
+| 2026-04-11 | Neuer Master. T45+T49 Code reviewed (sauber). T52 (Scan) an Worker gegeben. Welle 3 geplant: T46+T50+T53 Arbeitspakete geschrieben. | T52-Scan reviewed, T53/T46/T50 Handovers reviewed und akzeptiert. |
+| **2026-04-11** | **T52+T53+T46+T50 Handovers reviewed.** T52: 14 Funde. T53: 13/14 Fixes (Fix 10 begruendet uebersprungen). T46: Offline-Download komplett. T50: XC-Download komplett (Option A: MP3 direkt). 7 Merge-Konflikte identifiziert. Pflicht-Fixes: audioFileName Default + removeSuffix MP3. T54 (Integration) + T55 (SDK) Arbeitspakete geschrieben. | T55 zuerst (SDK), dann T54 (Integration+Build). 5 stale Worktrees offen. |
+| **2026-04-11** | **T54+T55 akzeptiert.** Integration committed (2 Commits: `636826b` T45+T49, `7946694` T53+T46+T50). SDK installiert, Build gruen. P21–P24 aktualisiert. | Naechster Schritt: T47 (Download-Management-UI), stale Worktrees aufraeumen. |
+| **2026-04-11** | **T47 akzeptiert.** P21 (Offline-Karten) komplett. P22 (Xeno-Canto) komplett. Build gruen (20s). | P20–P24 alle abgeschlossen. Stale Worktrees offen. Naechstes: Ideenspeicher oder neues Feld-Feedback. |
+| **2026-04-11** | **T56 Smoketest akzeptiert.** Statische Analyse 4/4 OK. assembleDebug BUILD SUCCESSFUL (APK 76 MB Debug). Funktionale Tests SKIP (kein Geraet). Release v0.0.4b auf GitHub gepusht. | Feldtest auf Geraet als naechstes. |
 
 ---
 
@@ -264,9 +273,11 @@ AMSEL implementiert ein vollständiges Embedding- und Similarity-System:
 
 | Phase | Tasks | Status |
 |-------|-------|--------|
-| P20 Detektions-UX V2 | T44 Workflow V0.0.4 (States, Promotion, Fragezeichen) | **⏳ T44 NAECHSTER** |
-| P21 Offline-Karten | T45 Tile-Sources · T46 Download · T47 Management-UI | ⬜ |
-| P22 Xeno-Canto + UX | T48 SecurePrefs+ApiKey · T49 API-Client · T50 ReferenceDownloader · T51 Autocomplete | ⬜ |
+| P20 Detektions-UX V2 | T44 Workflow V0.0.4 (States, Promotion, Fragezeichen) | ✅ |
+| P21 Offline-Karten | T45 Tile-Sources ✅ · T46 Download ✅ · T47 Management-UI ⬜ | 🔄 |
+| P22 Xeno-Canto + UX | T48 SecurePrefs ✅ · T49 API ✅ · T50 ReferenceDownloader ✅ · T51 Autocomplete ✅ | 🔄 |
+| P23 Code-Qualitaet | T52 Scan ✅ · T53 Fixes ✅ | ✅ |
+| P24 Integration + Infra | T54 Merge ⬜ · T55 SDK ⬜ | ⬜ |
 
 ### P20 — Detektions-UX V2 (Workflow V0.0.4)
 
@@ -315,10 +326,11 @@ Regeln siehe CLAUDE.md Abschnitt "Sicherheit — API-Keys & Secrets".
 ### Parallelisierungsplan
 
 ```
-Welle 1 (parallel): T44 + T48 + T51
-Welle 2 (parallel): T45 (nach T48) + T49 (nach T48)
-Welle 3 (parallel): T46 (nach T45) + T50 (nach T49)
-Welle 4:            T47 (nach T46)
+Welle 1 (parallel): T44 + T48 + T51              ✅ committed
+Welle 2 (parallel): T45 (nach T48) + T49 (nach T48) ✅ uncommitted auf master
+Welle 3 (parallel): T46 + T50 + T52 + T53           ✅ Handovers reviewed
+Integration:         T54 (Merge) + T55 (SDK)         ⬜ naechster Schritt
+Welle 4:             T47 (nach T46+T54)              ⬜
 ```
 
 ---
