@@ -101,6 +101,10 @@ fun SettingsScreen(
     var xenoCantoKey by remember { mutableStateOf(securePreferences.xenoCantoApiKey) }
     var keyVisible by remember { mutableStateOf(false) }
 
+    // swisstopo API-Key State (T45)
+    var swisstopoKey by remember { mutableStateOf(securePreferences.swisstopoApiKey) }
+    var swisstopoKeyVisible by remember { mutableStateOf(false) }
+
     // Lokaler State fuer Recomposition bei Toggle-Aenderung
     var wifiOnly by remember { mutableStateOf(uploadManager.wifiOnly) }
     var autoUpload by remember { mutableStateOf(uploadManager.autoUpload) }
@@ -895,6 +899,38 @@ fun SettingsScreen(
             Text("Speichern")
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- swisstopo API-Key (T45) ---
+        OutlinedTextField(
+            value = swisstopoKey,
+            onValueChange = { swisstopoKey = it },
+            label = { Text("swisstopo API-Key (optional)") },
+            singleLine = true,
+            visualTransformation = if (swisstopoKeyVisible) VisualTransformation.None
+                                   else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { swisstopoKeyVisible = !swisstopoKeyVisible }) {
+                    Icon(
+                        imageVector = if (swisstopoKeyVisible) Icons.Filled.VisibilityOff
+                                      else Icons.Filled.Visibility,
+                        contentDescription = if (swisstopoKeyVisible) "Verbergen" else "Anzeigen"
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedButton(
+            onClick = {
+                securePreferences.swisstopoApiKey = swisstopoKey
+                Toast.makeText(context, "swisstopo-Key gespeichert", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.padding(top = 4.dp)
+        ) {
+            Text("Speichern")
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
@@ -926,9 +962,9 @@ fun SettingsScreen(
                         text = entry.priority.name,
                         style = MaterialTheme.typography.labelSmall,
                         color = when (entry.priority) {
-                            WatchlistPriority.high -> MaterialTheme.colorScheme.error
-                            WatchlistPriority.normal -> MaterialTheme.colorScheme.primary
-                            WatchlistPriority.low -> MaterialTheme.colorScheme.onSurfaceVariant
+                            WatchlistPriority.HIGH -> MaterialTheme.colorScheme.error
+                            WatchlistPriority.NORMAL -> MaterialTheme.colorScheme.primary
+                            WatchlistPriority.LOW -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
                     IconButton(onClick = {
@@ -1045,7 +1081,7 @@ fun SettingsScreen(
                                                 WatchlistEntry(
                                                     scientificName = species,
                                                     commonName = "",
-                                                    priority = WatchlistPriority.normal
+                                                    priority = WatchlistPriority.NORMAL
                                                 )
                                             )
                                         }

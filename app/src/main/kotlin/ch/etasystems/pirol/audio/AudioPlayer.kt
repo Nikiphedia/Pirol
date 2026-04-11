@@ -18,7 +18,7 @@ class AudioPlayer {
     private val _state = MutableStateFlow(PlaybackState.IDLE)
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
-    /** WAV-Datei abspielen */
+    /** Audio-Datei abspielen (WAV oder MP3) */
     fun play(file: File) {
         stop()
         mediaPlayer = MediaPlayer().apply {
@@ -30,6 +30,26 @@ class AudioPlayer {
             }
         }
         _state.value = PlaybackState.PLAYING
+    }
+
+    /** Audio von URL streamen (fuer Xeno-Canto Preview) */
+    fun playFromUrl(url: String) {
+        stop()
+        mediaPlayer = MediaPlayer().apply {
+            setDataSource(url)
+            setOnPreparedListener { mp ->
+                mp.start()
+                _state.value = PlaybackState.PLAYING
+            }
+            setOnCompletionListener {
+                _state.value = PlaybackState.IDLE
+            }
+            setOnErrorListener { _, _, _ ->
+                _state.value = PlaybackState.IDLE
+                true
+            }
+            prepareAsync()
+        }
     }
 
     /** Pause/Resume Toggle */
@@ -51,8 +71,4 @@ class AudioPlayer {
         _state.value = PlaybackState.IDLE
     }
 
-    /** Aufraemen (in onCleared aufrufen) */
-    fun release() {
-        stop()
-    }
 }

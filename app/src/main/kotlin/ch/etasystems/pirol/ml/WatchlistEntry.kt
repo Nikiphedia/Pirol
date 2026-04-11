@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ml
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -10,7 +11,9 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 enum class WatchlistPriority {
-    high, normal, low
+    @SerialName("high") HIGH,
+    @SerialName("normal") NORMAL,
+    @SerialName("low") LOW
 }
 
 /**
@@ -21,7 +24,7 @@ enum class WatchlistPriority {
 data class WatchlistEntry(
     val scientificName: String,
     val commonName: String = "",
-    val priority: WatchlistPriority = WatchlistPriority.normal,
+    val priority: WatchlistPriority = WatchlistPriority.NORMAL,
     val notes: String? = null
 )
 

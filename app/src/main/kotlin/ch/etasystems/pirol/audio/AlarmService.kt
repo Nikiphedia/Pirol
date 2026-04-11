@@ -74,17 +74,17 @@ class AlarmService(private val context: Context) {
         lastAlarmTimes[detection.scientificName] = now
 
         when (priority) {
-            WatchlistPriority.high -> {
+            WatchlistPriority.HIGH -> {
                 showNotification(detection)
                 vibrate()
                 Log.i(TAG, "HIGH-Alarm: ${detection.commonName}")
             }
-            WatchlistPriority.normal -> {
+            WatchlistPriority.NORMAL -> {
                 showNotification(detection)
                 vibrate()
                 Log.i(TAG, "NORMAL-Alarm: ${detection.commonName}")
             }
-            WatchlistPriority.low -> {
+            WatchlistPriority.LOW -> {
                 // Nur visuelles Badge, kein Alarm
                 Log.d(TAG, "LOW-Watchlist-Match: ${detection.commonName} (nur Badge)")
             }
