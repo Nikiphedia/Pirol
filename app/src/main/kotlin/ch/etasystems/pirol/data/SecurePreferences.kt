@@ -18,6 +18,7 @@ class SecurePreferences(context: Context) {
         private const val TAG = "SecurePrefs"
         private const val FILE_NAME = "pirol_secure_prefs"
         private const val KEY_XENO_CANTO_API_KEY = "xeno_canto_api_key"
+        private const val KEY_SWISSTOPO_API_KEY = "swisstopo_api_key"
     }
 
     private val prefs: SharedPreferences
@@ -45,4 +46,13 @@ class SecurePreferences(context: Context) {
     /** Prueft ob ein Xeno-Canto API-Key konfiguriert ist */
     val hasXenoCantoApiKey: Boolean
         get() = xenoCantoApiKey.isNotBlank()
+
+    /** swisstopo WMTS API-Key (leer = nicht konfiguriert, seit 2021 frei zugaenglich) */
+    var swisstopoApiKey: String
+        get() = prefs.getString(KEY_SWISSTOPO_API_KEY, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SWISSTOPO_API_KEY, value).apply()
+
+    /** Prueft ob ein swisstopo API-Key konfiguriert ist */
+    val hasSwisstopoApiKey: Boolean
+        get() = swisstopoApiKey.isNotBlank()
 }
