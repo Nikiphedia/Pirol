@@ -180,6 +180,53 @@ class TileDownloadManager(private val context: Context) {
         _progress.update { DownloadProgress() }
     }
 
+    /** Alle gespeicherten Download-Records laden */
+    fun loadDownloadRecords(): List<TileDownloadRecord> {
+        return try {
+            val cacheDir = Configuration.getInstance().osmdroidTileCache
+            val file = File(cacheDir, "downloads.json")
+            if (file.exists()) {
+                json.decodeFromString<List<TileDownloadRecord>>(file.readText())
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TileDownloadManager", "Fehler beim Laden der Download-Records", e)
+            emptyList()
+        }
+    }
+
+    /** Einen Download-Record loeschen (nur Metadaten — Tiles bleiben im Cache) */
+    fun deleteDownloadRecord(id: String) {
+        try {
+            val cacheDir = Configuration.getInstance().osmdroidTileCache
+            val file = File(cacheDir, "downloads.json")
+            if (!file.exists()) return
+            val existing = json.decodeFromString<List<TileDownloadRecord>>(file.readText())
+            val updated = existing.filter { it.id != id }
+            file.writeText(json.encodeToString(updated))
+        } catch (e: Exception) {
+            android.util.Log.e("TileDownloadManager", "Fehler beim Loeschen des Download-Records", e)
+        }
+    }
+
+    /** Gesamtgroesse des Tile-Cache-Verzeichnisses in Bytes */
+    fun getCacheSizeBytes(): Long {
+        val cacheDir = Configuration.getInstance().osmdroidTileCache
+        return cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }
+
+    /** Gesamten Tile-Cache loeschen (alle Tiles + downloads.json) */
+    fun clearCache() {
+        try {
+            val cacheDir = Configuration.getInstance().osmdroidTileCache
+            cacheDir.deleteRecursively()
+            cacheDir.mkdirs()
+        } catch (e: Exception) {
+            android.util.Log.e("TileDownloadManager", "Fehler beim Loeschen des Caches", e)
+        }
+    }
+
     /**
      * Speichert Download-Metadaten in downloads.json im Tile-Cache-Verzeichnis.
      */

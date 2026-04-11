@@ -36,7 +36,10 @@ class MapViewModel(
         val isLoading: Boolean = false,
         val showDownloadSheet: Boolean = false,
         val estimatedTiles: Int = 0,
-        val downloadFinishedMessage: String? = null
+        val downloadFinishedMessage: String? = null,
+        val showManagementSheet: Boolean = false,
+        val downloadRecords: List<TileDownloadRecord> = emptyList(),
+        val cacheSizeMb: Double = 0.0
     )
 
     private val _uiState = MutableStateFlow(MapUiState())
@@ -140,5 +143,49 @@ class MapViewModel(
     /** Download abbrechen */
     fun cancelDownload() {
         tileDownloadManager.cancelDownload()
+    }
+
+    // --- Management-Sheet ---
+
+    /** Records laden und Management-Sheet oeffnen */
+    fun showManagementSheet() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val records = tileDownloadManager.loadDownloadRecords()
+            val sizeBytes = tileDownloadManager.getCacheSizeBytes()
+            _uiState.update {
+                it.copy(
+                    showManagementSheet = true,
+                    downloadRecords = records,
+                    cacheSizeMb = sizeBytes / 1_048_576.0
+                )
+            }
+        }
+    }
+
+    fun hideManagementSheet() {
+        _uiState.update { it.copy(showManagementSheet = false) }
+    }
+
+    /** Einzelnen Download-Record entfernen (nur Metadaten) */
+    fun deleteRecord(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            tileDownloadManager.deleteDownloadRecord(id)
+            val records = tileDownloadManager.loadDownloadRecords()
+            _uiState.update { it.copy(downloadRecords = records) }
+        }
+    }
+
+    /** Gesamten Tile-Cache loeschen */
+    fun clearAllTiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            tileDownloadManager.clearCache()
+            _uiState.update {
+                it.copy(
+                    showManagementSheet = false,
+                    downloadRecords = emptyList(),
+                    cacheSizeMb = 0.0
+                )
+            }
+        }
     }
 }
