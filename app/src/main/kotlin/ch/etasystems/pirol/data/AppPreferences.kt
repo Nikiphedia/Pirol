@@ -77,6 +77,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_storage_path", null)
         set(value) = prefs.edit().putString("pirol_storage_path", value).apply()
 
+    // --- Karten-Quelle (T45) ---
+    var mapTileSourceId: String
+        get() = prefs.getString("pirol_map_tile_source", "osm") ?: "osm"
+        set(value) = prefs.edit().putString("pirol_map_tile_source", value).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)
