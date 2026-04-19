@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
@@ -85,9 +88,14 @@ fun SpeciesCard(
     onConfirm: (() -> Unit)? = null,
     onReject: (() -> Unit)? = null,
     onCorrect: ((String) -> Unit)? = null,
+    onMarkUncertain: (() -> Unit)? = null,
     onSaveAsReference: (() -> Unit)? = null,
     onCompare: (() -> Unit)? = null,
     onJumpToChunk: (() -> Unit)? = null,
+    onPlay: (() -> Unit)? = null,
+    isPlayEnabled: Boolean = true,
+    playTimeLabel: String? = null,
+    onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
     isWatchlisted: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -106,6 +114,8 @@ fun SpeciesCard(
         VerificationStatus.CONFIRMED -> BorderStroke(2.dp, Color(0xFF4CAF50))
         VerificationStatus.REJECTED -> BorderStroke(2.dp, MaterialTheme.colorScheme.error)
         VerificationStatus.CORRECTED -> BorderStroke(2.dp, Color(0xFF2196F3))
+        VerificationStatus.UNCERTAIN -> BorderStroke(2.dp, Color(0xFFFF9800))
+        VerificationStatus.REPLACED -> BorderStroke(2.dp, MaterialTheme.colorScheme.error)
         VerificationStatus.UNVERIFIED -> null
     }
 
@@ -119,8 +129,9 @@ fun SpeciesCard(
         label = "recentHighlight"
     )
 
-    // REJECTED: leicht ausgegraut
-    val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED) 0.6f else 1f
+    // REJECTED / REPLACED: leicht ausgegraut
+    val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED ||
+                        detection.verificationStatus == VerificationStatus.REPLACED) 0.6f else 1f
 
     // Korrektur-Dialog State
     var showCorrectionDialog by remember { mutableStateOf(false) }
@@ -218,17 +229,27 @@ fun SpeciesCard(
                 )
             }
 
-            // Zeile 3: Zeitstempel + Status-Badge
+            // Zeile 3: Zeitstempel + Zeit-Offset-Label + Status-Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = timestamp,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = timestamp,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (playTimeLabel != null) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = playTimeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
 
                 // Status-Badge
                 when (detection.verificationStatus) {
@@ -256,12 +277,28 @@ fun SpeciesCard(
                             color = Color(0xFF2196F3)
                         )
                     }
+                    VerificationStatus.UNCERTAIN -> {
+                        Text(
+                            text = "Unsicher",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF9800)
+                        )
+                    }
+                    VerificationStatus.REPLACED -> {
+                        Text(
+                            text = "Ersetzt \u2192 ${detection.correctedSpecies ?: "?"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     VerificationStatus.UNVERIFIED -> { /* kein Badge */ }
                 }
             }
 
-            // Zeile 4: Verifikations-Buttons (nur wenn Callbacks vorhanden)
-            if (onConfirm != null || onReject != null || onCorrect != null) {
+            // Zeile 4: Verifikations-Buttons + Play (nur wenn Callbacks vorhanden)
+            if (onConfirm != null || onMarkUncertain != null || onReject != null || onCorrect != null || onPlay != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -279,6 +316,24 @@ fun SpeciesCard(
                                 contentDescription = "Bestaetigen",
                                 tint = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
                                     Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Unsicher markieren (T44)
+                    if (onMarkUncertain != null) {
+                        IconButton(
+                            onClick = onMarkUncertain,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Help,
+                                contentDescription = "Unsicher",
+                                tint = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
+                                    Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -370,6 +425,24 @@ fun SpeciesCard(
                         }
                     }
 
+                    // Play-Button (T48): ab chunkStartSec abspielen
+                    if (onPlay != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onPlay,
+                            enabled = isPlayEnabled,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = "Abspielen",
+                                tint = if (isPlayEnabled) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
                     // Status-Text neben Buttons (kompakt)
                     if (detection.verificationStatus != VerificationStatus.UNVERIFIED) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -377,6 +450,8 @@ fun SpeciesCard(
                             VerificationStatus.CONFIRMED -> "\u2713"
                             VerificationStatus.REJECTED -> "\u2717"
                             VerificationStatus.CORRECTED -> "\u270E"
+                            VerificationStatus.UNCERTAIN -> "?"
+                            VerificationStatus.REPLACED -> "\u2717"
                             else -> ""
                         }
                         Text(
@@ -397,6 +472,7 @@ fun SpeciesCard(
                 ) {
                     Text(
                         text = if (candidatesExpanded) "Alternativen ausblenden"
+                               else if (onSelectAlternative != null) "\u25B8 Alternative waehlen (${detection.candidates.size})"
                                else "Alternativen (${detection.candidates.size})",
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -408,7 +484,12 @@ fun SpeciesCard(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 16.dp, top = 2.dp),
+                                    .padding(start = 16.dp, top = 2.dp)
+                                    .then(
+                                        if (onSelectAlternative != null)
+                                            Modifier.clickable { onSelectAlternative(candidate) }
+                                        else Modifier
+                                    ),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(

@@ -45,15 +45,20 @@ class DetectionListState(
             }
 
             if (existingIndex >= 0) {
-                // Art bereits vorhanden → aktualisieren (Position bleibt! T33)
+                // Art bereits vorhanden → aktualisieren
                 val existing = detections[existingIndex]
                 val now = System.currentTimeMillis()
-                detections[existingIndex] = if (detection.confidence > existing.confidence) {
-                    // Hoeherer Confidence → Detektion ersetzen, Count erhoehen, ID beibehalten (T33-AP4)
+                val timeSinceLastDetection = now - existing.lastDetectedMs
+
+                val updatedDetection = if (detection.confidence > existing.confidence) {
+                    // Hoeherer Confidence → Detektion ersetzen, verificationStatus beibehalten (T44)
                     detection.copy(
                         id = existing.id,
                         detectionCount = existing.detectionCount + 1,
-                        lastDetectedMs = now
+                        lastDetectedMs = now,
+                        verificationStatus = existing.verificationStatus,
+                        correctedSpecies = existing.correctedSpecies,
+                        verifiedAtMs = existing.verifiedAtMs
                     )
                 } else {
                     // Niedrigerer Confidence → nur Count erhoehen + lastDetectedMs aktualisieren
@@ -62,6 +67,15 @@ class DetectionListState(
                         timestampMs = detection.timestampMs,
                         lastDetectedMs = now
                     )
+                }
+
+                if (timeSinceLastDetection >= 10_000L) {
+                    // Art zuletzt vor >= 10s gesehen → an Index 0 verschieben (T44)
+                    detections.removeAt(existingIndex)
+                    detections.add(0, updatedDetection)
+                } else {
+                    // Art zuletzt vor < 10s gesehen → Position beibehalten
+                    detections[existingIndex] = updatedDetection
                 }
             } else {
                 // Neue Art → vorne einfuegen (T33: lastDetectedMs setzen)
@@ -120,6 +134,69 @@ class DetectionListState(
             correctedSpecies = if (status == VerificationStatus.CORRECTED) correctedSpecies else null,
             verifiedAtMs = System.currentTimeMillis()
         )
+        _version.intValue++
+        return true
+    }
+
+    /**
+     * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative.
+     *
+     * - Original-Detektion wird als REPLACED markiert (bleibt an ihrer Position, ausgegraut)
+     * - Alternative wird als neue Detektion an Index 0 eingefuegt (5s-Highlight)
+     * - Falls die Alternative bereits in der Liste war, wird sie vorher entfernt (kein Duplikat)
+     *
+     * @param originalDetectionId UUID der zu ersetzenden Detektion
+     * @param candidate Vom Nutzer gewaehlte Alternative
+     * @return true wenn erfolgreich, false wenn originalDetectionId nicht gefunden
+     */
+    @Synchronized
+    fun selectAlternative(
+        originalDetectionId: String,
+        candidate: DetectionCandidate
+    ): Boolean {
+        val originalIndex = detections.indexOfFirst { it.id == originalDetectionId }
+        if (originalIndex < 0) return false
+
+        val original = detections[originalIndex]
+        val now = System.currentTimeMillis()
+
+        // 1. Original als REPLACED markieren (bleibt an Position)
+        detections[originalIndex] = original.copy(
+            verificationStatus = VerificationStatus.REPLACED,
+            correctedSpecies = candidate.scientificName,
+            verifiedAtMs = now
+        )
+
+        // 2. Falls die Alternative-Art schon woanders in der Liste ist → entfernen
+        detections.removeAll {
+            it.id != originalDetectionId &&
+            it.scientificName == candidate.scientificName
+        }
+
+        // 3. Alternative als neue Detektion an Index 0
+        val alternativeDetection = DetectionResult(
+            id = java.util.UUID.randomUUID().toString(),
+            scientificName = candidate.scientificName,
+            commonName = candidate.commonName,
+            confidence = candidate.confidence,
+            timestampMs = now,
+            chunkStartSec = original.chunkStartSec,
+            chunkEndSec = original.chunkEndSec,
+            sampleRate = original.sampleRate,
+            latitude = original.latitude,
+            longitude = original.longitude,
+            verificationStatus = VerificationStatus.UNVERIFIED,
+            candidates = emptyList(),
+            detectionCount = 1,
+            lastDetectedMs = now
+        )
+        detections.add(0, alternativeDetection)
+
+        // 4. Max-Limit einhalten
+        while (detections.size > maxDetections) {
+            detections.removeAt(detections.lastIndex)
+        }
+
         _version.intValue++
         return true
     }

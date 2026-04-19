@@ -26,7 +26,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Card
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +37,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -206,6 +210,15 @@ private fun SessionDetailView(
     viewModel: AnalysisViewModel
 ) {
     val session = state.selectedSession ?: return
+    val context = LocalContext.current
+
+    // Raven-Export Feedback
+    LaunchedEffect(state.ravenExportMessage) {
+        state.ravenExportMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.consumeRavenExportMessage()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -230,31 +243,42 @@ private fun SessionDetailView(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Sonogramm + Chunk-Navigation (nur wenn Audio-Chunks vorhanden)
-        if (state.audioChunks.isNotEmpty()) {
-            // Chunk-Navigation
+        // Banner: alte Session ohne recording.wav (chunk_*.wav Format vor T46)
+        if (state.recordingFile == null) {
+            val audioDir = java.io.File(session.sessionDir, "audio")
+            val hasOldChunks = audioDir.exists() &&
+                audioDir.listFiles()?.any { it.name.startsWith("chunk_") } == true
+            if (hasOldChunks) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "Diese Session wurde im alten Chunk-Format gespeichert. " +
+                               "Audio-Wiedergabe nicht verfuegbar \u2014 Detektions-Daten sind weiterhin sichtbar.",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Sonogramm + Aufnahme-Wiedergabe
+        if (state.recordingFile != null) {
+            // Play/Stop fuer gesamte Aufnahme (Chunk-Navigation entfernt in T46, kommt in T48)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(
-                    onClick = { viewModel.navigateChunk(-1) },
-                    enabled = state.currentChunkIndex > 0
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Vorheriger Chunk")
-                }
-                Text(
-                    text = "Chunk ${state.currentChunkIndex + 1} / ${state.audioChunks.size}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                IconButton(
-                    onClick = { viewModel.navigateChunk(1) },
-                    enabled = state.currentChunkIndex < state.audioChunks.size - 1
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, "Naechster Chunk")
-                }
                 Spacer(modifier = Modifier.weight(1f))
-                // Play/Stop
+                Button(
+                    onClick = { viewModel.exportRavenTable() },
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("Raven (.txt)")
+                }
                 IconButton(onClick = {
                     if (state.playbackState == AudioPlayer.PlaybackState.PLAYING) {
                         viewModel.stopPlayback()
@@ -341,7 +365,10 @@ private fun SessionDetailView(
                             )
                         },
                         onCompare = { viewModel.openCompare(detection) },
-                        onJumpToChunk = { viewModel.jumpToDetection(detection) }
+                        onJumpToChunk = { viewModel.jumpToDetection(detection) },
+                        onPlay = { viewModel.playDetection(detection) },
+                        isPlayEnabled = state.recordingFile != null,
+                        playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec)
                     )
                 }
             }
@@ -411,7 +438,7 @@ private fun CompareView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Chunk ${(state.compareDetectionChunkIndex ?: 0) + 1}",
+                    text = formatSecondsAsMinSec(det.chunkStartSec),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -524,4 +551,17 @@ private fun CompareView(
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+// ── Hilfsfunktionen ─────────────────────────────────────────────
+
+/**
+ * Wandelt Sekunden (Float) in "MM:SS" um.
+ * Beispiel: 74.3f → "01:14"
+ */
+private fun formatSecondsAsMinSec(s: Float): String {
+    val total = s.toInt()
+    val mm = total / 60
+    val ss = total % 60
+    return String.format("%02d:%02d", mm, ss)
 }

@@ -212,9 +212,11 @@ private fun CompactLiveLayout(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
+                onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 watchlistSpecies = uiState.watchlistSpecies,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
@@ -298,9 +300,11 @@ private fun MediumLiveLayout(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
+                onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 watchlistSpecies = uiState.watchlistSpecies,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
@@ -383,9 +387,11 @@ private fun ExpandedLiveLayout(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
+                onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 watchlistSpecies = uiState.watchlistSpecies,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )

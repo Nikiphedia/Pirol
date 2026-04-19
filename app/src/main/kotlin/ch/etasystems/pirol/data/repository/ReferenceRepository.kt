@@ -60,8 +60,8 @@ class ReferenceRepository(private val context: Context) {
         sessionDir: File,
         chunkIndex: Int
     ): ReferenceEntry? = withContext(Dispatchers.IO) {
-        // 1. Quell-WAV finden
-        val sourceWav = File(sessionDir, "audio/chunk_${String.format("%03d", chunkIndex)}.wav")
+        // 1. Quell-WAV finden (T46: ganze recording.wav; T48/T49 schneidet mit Zeitoffset)
+        val sourceWav = File(sessionDir, "audio/recording.wav")
         if (!sourceWav.exists()) {
             Log.e(TAG, "WAV nicht gefunden: ${sourceWav.absolutePath}")
             return@withContext null

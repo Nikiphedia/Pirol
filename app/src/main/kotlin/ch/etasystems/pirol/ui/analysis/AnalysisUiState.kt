@@ -31,10 +31,10 @@ data class AnalysisUiState(
     // Ausgewaehlte Session (null = Liste anzeigen)
     val selectedSession: SessionSummary? = null,
     val detections: List<DetectionResult> = emptyList(),
-    val audioChunks: List<File> = emptyList(),
+    val recordingFile: File? = null,
+    val recordingDurationSec: Float = 0f,
 
-    // Chunk-Navigation + Sonogramm
-    val currentChunkIndex: Int = 0,
+    // Sonogramm
     val spectrogramState: SpectrogramState = SpectrogramState(),
 
     // Scroll-Signal (T39: nach Jump zum Chunk soll Sonogramm sichtbar sein)
@@ -52,5 +52,8 @@ data class AnalysisUiState(
     val referenceEntries: List<ReferenceEntry> = emptyList(),
     val selectedReference: ReferenceEntry? = null,
     val referenceSpectrogramState: SpectrogramState = SpectrogramState(),
-    val playingSource: PlayingSource? = null
+    val playingSource: PlayingSource? = null,
+
+    // Raven-Export Feedback
+    val ravenExportMessage: String? = null
 )

@@ -16,6 +16,6 @@ data class SessionMetadata(
     val longitude: Double? = null,
     val regionFilter: String? = null,
     val confidenceThreshold: Float,
-    val totalChunks: Int = 0,
+    val totalRecordedSamples: Long = 0L,
     val totalDetections: Int = 0
 )
