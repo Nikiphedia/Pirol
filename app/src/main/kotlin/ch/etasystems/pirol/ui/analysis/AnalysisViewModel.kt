@@ -84,17 +84,18 @@ class AnalysisViewModel(
     fun openSession(summary: SessionSummary) {
         viewModelScope.launch(Dispatchers.IO) {
             val detections = sessionManager.loadDetectionsWithVerifications(summary.sessionDir)
-            val chunks = sessionManager.getAudioChunks(summary.sessionDir)
+            val recFile = sessionManager.getRecordingFile(summary.sessionDir)
+            val durationSec = recFile?.let { readWavDurationSec(it) } ?: 0f
             _uiState.update {
                 it.copy(
                     selectedSession = summary,
                     detections = detections,
-                    audioChunks = chunks,
-                    currentChunkIndex = 0
+                    recordingFile = recFile,
+                    recordingDurationSec = durationSec
                 )
             }
-            // Erstes Chunk-Sonogramm generieren
-            if (chunks.isNotEmpty()) {
+            // Sonogramm der Recording-Datei generieren
+            if (recFile != null) {
                 renderChunkSonogram(0)
             }
         }
@@ -107,54 +108,43 @@ class AnalysisViewModel(
             it.copy(
                 selectedSession = null,
                 detections = emptyList(),
-                audioChunks = emptyList(),
+                recordingFile = null,
                 spectrogramState = SpectrogramState()
             )
         }
     }
 
-    /** Chunk-Navigation: Vorwaerts/Rueckwaerts */
-    fun navigateChunk(delta: Int) {
-        val state = _uiState.value
-        val newIndex = (state.currentChunkIndex + delta)
-            .coerceIn(0, (state.audioChunks.size - 1).coerceAtLeast(0))
-        if (newIndex != state.currentChunkIndex) {
-            _uiState.update { it.copy(currentChunkIndex = newIndex) }
-            renderChunkSonogram(newIndex)
-        }
-    }
+    /** Chunk-Navigation: No-op in T46 — Timeline-Navigation kommt in T48. */
+    fun navigateChunk(delta: Int) { /* T48: Timeline-Navigation */ }
 
-    /** Audio-Chunk abspielen */
+    /** Aufnahme-Datei abspielen (T46: ganze Datei; T48: mit Zeitoffset) */
     fun playChunk(chunkIndex: Int) {
-        val chunks = _uiState.value.audioChunks
-        if (chunkIndex !in chunks.indices) return
-        audioPlayer.play(chunks[chunkIndex])
-        _uiState.update { it.copy(playingChunkIndex = chunkIndex) }
+        val f = _uiState.value.recordingFile ?: return
+        audioPlayer.play(f)
+        _uiState.update { it.copy(playingChunkIndex = 0) }
     }
 
-    /** Aktuellen Chunk abspielen */
+    /** Aufnahme abspielen (spielt recording.wav) */
     fun playCurrentChunk() {
-        playChunk(_uiState.value.currentChunkIndex)
+        playChunk(0)
     }
 
-    /** Zur Detektion springen: Chunk mit ~5s Vorlauf ansteuern, Sonogramm rendern + abspielen (T39) */
+    /**
+     * Zur Detektion springen und ab chunkStartSec abspielen.
+     * Wird von onJumpToChunk in der Detektionsliste aufgerufen.
+     */
     fun jumpToDetection(detection: DetectionResult) {
-        val session = _uiState.value.selectedSession ?: return
-        val startMs = try {
-            java.time.Instant.parse(session.metadata.startedAt).toEpochMilli()
-        } catch (_: Exception) { return }
+        playDetection(detection)
+    }
 
-        val detectionOffsetMs = detection.timestampMs - startMs
-        val chunkIndex = (detectionOffsetMs / CHUNK_DURATION_MS).toInt()
-
-        // 2 Chunks Vorlauf = 6s (naechste Annaeherung an 5s bei 3s-Chunks)
-        val vorlaufChunks = 2
-        val targetChunk = (chunkIndex - vorlaufChunks).coerceAtLeast(0)
-            .coerceAtMost((_uiState.value.audioChunks.size - 1).coerceAtLeast(0))
-
-        _uiState.update { it.copy(currentChunkIndex = targetChunk, scrollToTop = true) }
-        renderChunkSonogram(targetChunk)
-        playChunk(targetChunk)
+    /**
+     * Detektion ab chunkStartSec bis chunkEndSec abspielen.
+     * Pro Klick auf Play-Button in der Detektionsliste.
+     */
+    fun playDetection(detection: DetectionResult) {
+        val f = _uiState.value.recordingFile ?: return
+        audioPlayer.playFromOffset(f, startSec = detection.chunkStartSec, endSec = detection.chunkEndSec)
+        _uiState.update { it.copy(playingChunkIndex = null) }
     }
 
     /** Scroll-to-Top Flag zuruecksetzen (nach consume durch UI) */
@@ -184,7 +174,7 @@ class AnalysisViewModel(
             java.time.Instant.parse(session.metadata.startedAt).toEpochMilli()
         } catch (_: Exception) { return }
         val chunkIndex = ((detection.timestampMs - startMs) / CHUNK_DURATION_MS).toInt()
-            .coerceIn(0, (state.audioChunks.size - 1).coerceAtLeast(0))
+            .coerceAtLeast(0)
 
         _uiState.update {
             it.copy(
@@ -229,12 +219,11 @@ class AnalysisViewModel(
         renderReferenceSonogram(entry)
     }
 
-    /** Detektions-Audio abspielen */
+    /** Detektions-Audio abspielen (CompareView: chunkStartSec bis chunkEndSec) */
     fun playDetection() {
-        val state = _uiState.value
-        val chunkIndex = state.compareDetectionChunkIndex ?: return
-        if (chunkIndex !in state.audioChunks.indices) return
-        audioPlayer.play(state.audioChunks[chunkIndex])
+        val f = _uiState.value.recordingFile ?: return
+        val det = _uiState.value.compareDetection ?: return
+        audioPlayer.playFromOffset(f, startSec = det.chunkStartSec, endSec = det.chunkEndSec)
         _uiState.update { it.copy(playingSource = PlayingSource.DETECTION) }
     }
 
@@ -246,12 +235,11 @@ class AnalysisViewModel(
         _uiState.update { it.copy(playingSource = PlayingSource.REFERENCE) }
     }
 
-    /** Detektions-Sonogramm rendern */
+    /** Detektions-Sonogramm rendern (T46: ganze recording.wav; T48: mit Zeitoffset) */
     private fun renderDetectionSonogram(chunkIndex: Int) {
-        val chunks = _uiState.value.audioChunks
-        if (chunkIndex !in chunks.indices) return
+        val wavFile = _uiState.value.recordingFile ?: return
         viewModelScope.launch(Dispatchers.Default) {
-            val samples = readWavSamples(chunks[chunkIndex]) ?: return@launch
+            val samples = readWavSamples(wavFile) ?: return@launch
             val state = SpectrogramState(maxFrames = 2048)
             val mel = MelSpectrogram(sampleRate = 48000)
             val frames = mel.process(samples)
@@ -276,15 +264,12 @@ class AnalysisViewModel(
     // ── Bestehende Methoden ─────────────────────────────────────────
 
     /**
-     * Sonogramm fuer einen WAV-Chunk rendern.
-     * Liest WAV, konvertiert zu Samples, prozessiert durch MelSpectrogram.
+     * Sonogramm fuer die Recording-Datei rendern (T46: ganze Datei; T48: mit Zeitoffset).
      */
     private fun renderChunkSonogram(chunkIndex: Int) {
-        val chunks = _uiState.value.audioChunks
-        if (chunkIndex !in chunks.indices) return
+        val wavFile = _uiState.value.recordingFile ?: return
 
         viewModelScope.launch(Dispatchers.Default) {
-            val wavFile = chunks[chunkIndex]
             val samples = readWavSamples(wavFile) ?: return@launch
 
             // MelSpectrogram auf gesamten Chunk anwenden
@@ -297,6 +282,22 @@ class AnalysisViewModel(
 
             _uiState.update { it.copy(spectrogramState = newSpectrogramState) }
         }
+    }
+
+    /**
+     * Liest Gesamtdauer einer WAV-Datei aus dem Header.
+     * Bytes 24-27: sampleRate, Bytes 40-43: dataSize (PCM-Nutzdaten).
+     * Dauer = dataSize / (sampleRate * bytesPerSample).
+     */
+    private fun readWavDurationSec(file: File): Float {
+        return try {
+            val header = ByteArray(44)
+            file.inputStream().use { it.read(header) }
+            val buf = java.nio.ByteBuffer.wrap(header).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            val sampleRate = buf.getInt(24)
+            val dataSize   = buf.getInt(40)  // Bytes 40-43: data-Chunk Groesse
+            if (sampleRate <= 0) 0f else dataSize / (sampleRate * 2f)  // 16-bit Mono = 2 Bytes/Sample
+        } catch (_: Exception) { 0f }
     }
 
     /**
@@ -353,6 +354,22 @@ class AnalysisViewModel(
             )
             veriFile.appendText(Json.encodeToString(event) + "\n")
         }
+    }
+
+    /** Raven Selection Table exportieren */
+    fun exportRavenTable() {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val file = sessionManager.exportRavenSelectionTable(dir)
+            val msg = if (file != null) "Raven-Tabelle gespeichert: ${file.name}"
+                      else "Kein recording.wav — Export nicht moeglich"
+            _uiState.update { it.copy(ravenExportMessage = msg) }
+        }
+    }
+
+    /** Raven-Export-Feedback nach Anzeige zuruecksetzen */
+    fun consumeRavenExportMessage() {
+        _uiState.update { it.copy(ravenExportMessage = null) }
     }
 
     override fun onCleared() {

@@ -10,7 +10,9 @@ enum class VerificationStatus {
     UNVERIFIED,    // Standard: Automatische Detektion, nicht geprueft
     CONFIRMED,     // Nutzer hat bestaetigt: Art stimmt
     REJECTED,      // Nutzer hat abgelehnt: Falsch-Positiv
-    CORRECTED      // Nutzer hat korrigiert: Andere Art zugewiesen
+    CORRECTED,     // Nutzer hat korrigiert: Andere Art zugewiesen
+    UNCERTAIN,     // Nutzer hat als unsicher markiert (T44)
+    REPLACED       // Nutzer hat Alternative gewaehlt: Diese Detektion wurde ersetzt (T45)
 }
 
 /**
@@ -37,8 +39,8 @@ data class DetectionResult(
     val commonName: String,      // z.B. "Amsel"
     val confidence: Float,       // 0.0 - 1.0
     val timestampMs: Long,       // System.currentTimeMillis() zum Detektions-Zeitpunkt
-    val chunkStartSec: Float,    // Relative Position im 3s-Fenster
-    val chunkEndSec: Float,
+    val chunkStartSec: Float,    // Sekunden seit Session-Start (Position in recording.wav)
+    val chunkEndSec: Float,      // Sekunden seit Session-Start (Ende des Inference-Fensters)
     val sampleRate: Int,         // Rate der Aufnahme (48k/96k)
     val latitude: Double? = null,   // GPS Breitengrad (WGS84)
     val longitude: Double? = null,  // GPS Laengengrad (WGS84)

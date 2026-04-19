@@ -1,4 +1,4 @@
-# PIROL — Projektuebersicht (Stand 2026-04-06)
+# PIROL — Projektuebersicht (Stand 2026-04-19 · T49)
 
 ## Was ist PIROL?
 
@@ -37,15 +37,15 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 
 | Tab | Status | Inhalt |
 |-----|--------|--------|
-| **Live** | ✅ voll | Sonogramm, Detektionsliste, FAB, GPS-Bar, Status-Zeile |
-| **Analyse** | ✅ voll | Session-Browser, Chunk-Navigation, Sonogramm aus WAV, Verifikation, Dual-Vergleich (Detektion vs Referenz) |
+| **Live** | ✅ voll | Sonogramm, Detektionsliste (Dedup + 10s Re-detection), FAB, GPS-Bar, Status-Zeile, Alternativwahl |
+| **Analyse** | ✅ voll | Session-Browser, durchgehende `recording.wav` mit Zeit-Offset-Wiedergabe, MM:SS-Labels pro Detektion, Verifikation, Dual-Vergleich, KML- und Raven-Export |
 | **Referenzen** | ✅ voll | Artenliste → Aufnahmen → AudioPlayer, "Als Referenz speichern" auf SpeciesCards |
 | **Karte** | ✅ voll | osmdroid OSM-Karte, Detektions-Marker mit Popup |
 | **Settings** | ✅ voll | Sonogramm-Config, Farbpalette, Confidence, Region, Presets, Energieprofil, Modell-Info, Artennamen-Sprache, Export-Toggles, Watchlist-Editor mit SAF + Autocomplete |
 
 ---
 
-## Implementierte Features (T1–T31)
+## Implementierte Features (T1–T49)
 
 ### Audio & DSP (P1-P2)
 - Oboe NDK Low-Latency (48k/96k Hz)
@@ -76,20 +76,24 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 - LocationBar im LiveScreen
 - Permission-Handling (analog Audio)
 
-### Sessions & Persistenz (P7)
+### Sessions & Persistenz (P7, überarbeitet T46)
 - SessionManager: Start/Stop mit Recording-Lifecycle
 - Ordnerstruktur: filesDir/sessions/{iso-date}_{uuid6}/
-- session.json (Metadaten), detections.jsonl, verifications.jsonl, audio/chunk_NNN.wav
-- WAV: 16-bit PCM Mono, 48kHz, 3s pro Chunk
+- session.json (Metadaten inkl. `totalRecordedSamples`), detections.jsonl, verifications.jsonl
+- **Eine durchgehende `audio/recording.wav`** pro Session (16-bit PCM Mono, inkl. Preroll)
+- StreamingWavWriter: Header-Finalisierung via RandomAccessFile beim Stop
 
-### Verifikation (P8)
-- VerificationStatus: UNVERIFIED, CONFIRMED, REJECTED, CORRECTED
-- Buttons auf SpeciesCard (✓ / ✗ / ✎ mit Korrektur-Dialog)
+### Verifikation (P8, erweitert P20)
+- VerificationStatus: UNVERIFIED, CONFIRMED, REJECTED, CORRECTED, **UNCERTAIN** (T44), **REPLACED** (T45)
+- Buttons auf SpeciesCard: ✓ / ? / ✗ / ✎ mit Korrektur-Dialog
+- **Alternative wählen**: Klick auf Kandidaten-Zeile ersetzt Hauptart (Original als REPLACED ausgegraut, rotem Rand)
+- **10s Re-detection Rule** (T44): Art rückt nur nach ≥10s Pause an Index 0 der Liste
 - Verifikation nachtraeglich in Analyse-Tab
 - verifications.jsonl (separate Persistierung, Rohdaten unveraendert)
 
-### Export (P8)
+### Export (P8, erweitert T47)
 - KML-Export mit Placemarks pro Detektion (lon,lat,alt)
+- **Raven Selection Table** (T47) — `recording.selections.txt` neben `recording.wav`; TSV-Format, direkt in Cornell Raven / Audacity / Sonic Visualiser öffenbar
 - FileProvider + Share Intent
 - ZIP-Export via WorkManager (Session → Downloads/PIROL/)
 - WLAN-only Constraint konfigurierbar
@@ -107,13 +111,16 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 - AudioPlayer (MediaPlayer-Wrapper, StateFlow)
 - ReferenceScreen: Artenliste → Aufnahmen → Play/Stop
 
-### Analyse (P12)
+### Analyse (P12, erweitert T48)
 - Session-Browser (alle Sessions, sortiert, Metadaten)
-- Session-Detail: Chunk-Navigation, Sonogramm aus WAV
-- Audio-Playback pro Chunk
+- Session-Detail: durchgehende `recording.wav`, Zeit-Offset-Wiedergabe via `AudioPlayer.playFromOffset`
+- Play-Button pro Detektion springt zur exakten Sekunde (T49 session-relative Offsets)
+- MM:SS-Zeit-Label pro Detektion
+- Banner für alte Chunk-Sessions (keine Audio-Wiedergabe)
 - Verifikation nachtraeglich
 - Dual-Sonogramm-Vergleich (Detektion vs Referenz)
 - Referenz-Auswahl per FilterChip
+- KML- und Raven-Export-Buttons
 
 ### Watchlist & Alarm (P10)
 - watchlist.json Import (Downloads/PIROL/ Auto-Scan + SAF File-Picker)
@@ -153,7 +160,8 @@ ch.etasystems.pirol/
 │   └── dsp/            # FFT, MelFilterbank, MelSpectrogram, AudioResampler, SpectrogramConfig
 ├── data/
 │   ├── AppPreferences  # SharedPreferences Wrapper
-│   ├── repository/     # SessionManager, ReferenceRepository, KmlExporter, WavWriter, ShareHelper
+│   ├── export/         # RavenExporter (T47)
+│   ├── repository/     # SessionManager, ReferenceRepository, KmlExporter, WavWriter (+StreamingWavWriter), ShareHelper
 │   └── sync/           # UploadManager, UploadTarget, LocalExportTarget, SessionUploadWorker
 ├── di/                 # AppModule (Koin, 13 ViewModel-Parameter)
 ├── location/           # LocationProvider, LocationPermissionHandler
@@ -179,8 +187,9 @@ ch.etasystems.pirol/
 
 | Typ | Format | Beispiel |
 |-----|--------|---------|
-| Audio | WAV 16-bit PCM Mono 48kHz | chunk_000.wav (3s) |
-| Detektionen | JSONL (@Serializable) | detections.jsonl |
+| Audio | WAV 16-bit PCM Mono 48kHz | recording.wav (eine Datei pro Session, inkl. Preroll) |
+| Detektionen | JSONL (@Serializable, session-relative Zeitoffsets) | detections.jsonl |
+| Raven-Export | TSV (Tab-getrennt, UTF-8) | recording.selections.txt |
 | Verifikationen | JSONL | verifications.jsonl |
 | Session-Meta | JSON (prettyPrint) | session.json |
 | Embeddings | Binary BSED (AMSEL-kompatibel) | embeddings.bsed |
@@ -197,17 +206,18 @@ ch.etasystems.pirol/
 
 ## Bekannte Pendenzen / Ideen
 
+- **T50 — Marker-Leiste im Analyse-Tab** (Canvas-Striche an `chunkStartSec / recordingDurationSec`) + Cleanup `compareDetectionChunkIndex`
+- **Feldtest T46–T49:** Runtime-Verifikation (Session-relative Offsets, Preroll in recording.wav, Raven-Export, Play-Button-Sprung)
+- Alte Chunk-Sessions bleiben im Analyse-Tab ohne Audio-Wiedergabe
 - xenoCantoApiKey Feld in Settings (fehlt, API wird noch nicht genutzt)
 - Xeno-Canto Referenz-Download (Ktor Client bereit, API-Key noetig)
 - BirdNET V2.4 TFLite Runtime (AudioClassifier Interface steht)
 - Zenodo-Download URLs verifizieren (Redirects testen)
 - viewModelScope in onCleared (Session-Save bei App-Kill)
-- T27 Dedup-Verhalten klären (nur Top-1 vs Top-K separat listen)
 - Koin Compose-Warning (KoinContext)
 - menuAnchor() Deprecation (Material3 API Migration)
 - Offline-Tiles fuer osmdroid
 - Marker-Clustering bei vielen Detektionen
-- Session-Loeschen
 - Bat-Modus (Ultraschall >15kHz)
 - Wear OS Companion
 - KMP Code-Sharing AMSEL ↔ PIROL

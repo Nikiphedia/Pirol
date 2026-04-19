@@ -16,6 +16,7 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import ch.etasystems.pirol.data.export.RavenExporter
 import ch.etasystems.pirol.ml.VerificationStatus
 
 /**
@@ -44,7 +45,7 @@ data class MigrationResult(
  * - detections.jsonl (Detektionen, eine pro Zeile)
  * - audio/chunk_NNN.wav (3-Sekunden Audio-Chunks)
  *
- * Lifecycle: startSession() → appendDetections() / writeAudioChunk() → endSession()
+ * Lifecycle: startSession() → appendDetections() / appendAudioSamples() → endSession()
  */
 class SessionManager(
     private val context: Context,
@@ -69,7 +70,7 @@ class SessionManager(
     private var activeSessionDir: File? = null
     private var activeMetadata: SessionMetadata? = null
     private var detectionWriter: FileWriter? = null
-    private var chunkCounter: Int = 0
+    private var recordingWriter: StreamingWavWriter? = null
     private var detectionCounter: Int = 0
 
     /** Ob eine Session aktiv ist */
@@ -126,9 +127,12 @@ class SessionManager(
         // JSONL-Writer oeffnen (append-Modus)
         detectionWriter = FileWriter(File(sessionDir, "detections.jsonl"), true)
 
+        // Recording-WAV oeffnen (Streaming-Writer)
+        val recordingFile = File(audioDir, "recording.wav")
+        recordingWriter = StreamingWavWriter(recordingFile, sampleRate).also { it.open() }
+
         activeSessionDir = sessionDir
         activeMetadata = metadata
-        chunkCounter = 0
         detectionCounter = 0
 
         Log.i(TAG, "Session gestartet: $sessionId → ${sessionDir.absolutePath}")
@@ -160,26 +164,45 @@ class SessionManager(
     }
 
     /**
-     * Audio-Chunk als WAV speichern.
-     * Wird vom LiveViewModel fuer jeden 3s-Block aufgerufen.
+     * Audio-Samples an recording.wav anhaengen.
+     * Wird vom LiveViewModel fuer jeden Inference-Block aufgerufen.
      *
-     * @param samples Audio-Daten als ShortArray (Original-Samplerate)
-     * @param sampleRate Sample Rate
+     * @param samples Audio-Daten als ShortArray (16-bit PCM)
      */
-    suspend fun writeAudioChunk(samples: ShortArray, sampleRate: Int) = withContext(Dispatchers.IO) {
-        val audioDir = activeSessionDir?.let { File(it, "audio") } ?: return@withContext
-        val fileName = String.format("chunk_%03d.wav", chunkCounter)
-        val wavFile = File(audioDir, fileName)
-        WavWriter.write(wavFile, samples, sampleRate)
-        chunkCounter++
+    suspend fun appendAudioSamples(samples: ShortArray) = withContext(Dispatchers.IO) {
+        recordingWriter?.append(samples)
     }
 
     /**
-     * Aktive Session beenden. Schliesst JSONL-Writer, aktualisiert session.json.
+     * Aktueller Schreib-Offset in recording.wav in Sekunden.
+     *
+     * Ist gleich der Sekunden-Position ab der der naechste appendAudioSamples()-Block
+     * in der WAV-Datei landen wird. Enthaelt bereits Preroll-Samples wenn diese
+     * ueber appendAudioSamples() geschrieben wurden.
+     *
+     * @return Offset in Sekunden, oder 0f wenn keine Session aktiv
+     */
+    fun getCurrentRecordingOffsetSec(): Float {
+        val writer = recordingWriter ?: return 0f
+        val sampleRate = activeMetadata?.sampleRate ?: return 0f
+        return writer.sampleCount.toFloat() / sampleRate.toFloat()
+    }
+
+    /**
+     * Aktive Session beenden. Schliesst WAV-Writer + JSONL-Writer, aktualisiert session.json.
      */
     suspend fun endSession() = withContext(Dispatchers.IO) {
         val dir = activeSessionDir ?: return@withContext
         val metadata = activeMetadata ?: return@withContext
+
+        // WAV-Writer schliessen (zuerst, damit finale dataSize korrekt ist)
+        val recordedSamples = recordingWriter?.sampleCount ?: 0L
+        try {
+            recordingWriter?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "WAV close failed", e)
+        }
+        recordingWriter = null
 
         // JSONL-Writer schliessen
         try {
@@ -192,7 +215,7 @@ class SessionManager(
         // session.json aktualisieren (endedAt, Zaehler)
         val updatedMetadata = metadata.copy(
             endedAt = Instant.now().toString(),
-            totalChunks = chunkCounter,
+            totalRecordedSamples = recordedSamples,
             totalDetections = detectionCounter
         )
         val prettyJson = Json { prettyPrint = true }
@@ -201,11 +224,10 @@ class SessionManager(
         )
 
         Log.i(TAG, "Session beendet: ${metadata.sessionId} " +
-                "($chunkCounter Chunks, $detectionCounter Detektionen)")
+                "($recordedSamples samples, $detectionCounter Detektionen)")
 
         activeSessionDir = null
         activeMetadata = null
-        chunkCounter = 0
         detectionCounter = 0
     }
 
@@ -298,15 +320,23 @@ class SessionManager(
         }
 
     /**
-     * Gibt die Audio-Chunk-Dateien einer Session zurueck (sortiert nach Name).
+     * Gibt die Recording-Datei einer Session zurueck (oder null wenn nicht vorhanden).
      */
-    fun getAudioChunks(sessionDir: File): List<File> {
-        val audioDir = File(sessionDir, "audio")
-        if (!audioDir.exists()) return emptyList()
-        return audioDir.listFiles()
-            ?.filter { it.extension == "wav" }
-            ?.sortedBy { it.name }
-            ?: emptyList()
+    fun getRecordingFile(sessionDir: File): File? {
+        val f = File(sessionDir, "audio/recording.wav")
+        return if (f.exists()) f else null
+    }
+
+    /**
+     * Schreibt eine Raven Selection Table neben recording.wav.
+     * @return Pfad zur erzeugten Datei oder null wenn keine recording.wav existiert
+     */
+    suspend fun exportRavenSelectionTable(sessionDir: File): File? = withContext(Dispatchers.IO) {
+        val recording = getRecordingFile(sessionDir) ?: return@withContext null
+        val outputFile = File(sessionDir, "audio/recording.selections.txt")
+        val detections = loadDetectionsWithVerifications(sessionDir)
+        RavenExporter.export(outputFile, detections)
+        outputFile
     }
 
     // ── Migrations-Methoden (T41) ────────────────────────────────────

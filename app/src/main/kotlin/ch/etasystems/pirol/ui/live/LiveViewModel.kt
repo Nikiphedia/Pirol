@@ -116,6 +116,9 @@ class LiveViewModel(
     // Session-ID der aktuellen/letzten Aufnahme (T15)
     private var currentSessionId: String? = null
 
+    // Preroll-Samples die nach startSession() angehaengt werden (T46)
+    private var pendingPrerollSamples: ShortArray = ShortArray(0)
+
     // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt
     private val spectrogramState = SpectrogramState(maxFrames = 2048)
 
@@ -153,10 +156,28 @@ class LiveViewModel(
                 }
             )
         }
-        detectionListState.addDetections(geoDetections)
+        // Session-relative Zeitstempel setzen (T49)
+        // chunkStartSec/chunkEndSec vom InferenceWorker sind relativ zum 3s-Fenster (0.0-3.0).
+        // Hier werden sie auf Sekunden seit Session-Start umgerechnet.
+        val sessionRelativeDetections = if (sessionManager.isActive && audioBlock != null) {
+            val startSec = sessionManager.getCurrentRecordingOffsetSec()
+            val durationSec = audioBlock.samples.size.toFloat() / audioBlock.sampleRate.toFloat()
+            geoDetections.map { det ->
+                det.copy(
+                    chunkStartSec = startSec,
+                    chunkEndSec = startSec + durationSec
+                )
+            }
+        } else {
+            geoDetections
+        }
+        if (Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
+        }
+        detectionListState.addDetections(sessionRelativeDetections)
 
         // Watchlist-Check: Alarm ausloesen fuer Watchlist-Arten (T20)
-        for (detection in geoDetections) {
+        for (detection in sessionRelativeDetections) {
             val priority = watchlistManager.getPriority(detection.scientificName)
             if (priority != null) {
                 Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
@@ -165,9 +186,9 @@ class LiveViewModel(
         }
 
         // Detektionen in JSONL schreiben
-        if (sessionManager.isActive && geoDetections.isNotEmpty()) {
+        if (sessionManager.isActive && sessionRelativeDetections.isNotEmpty()) {
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.appendDetections(geoDetections)
+                sessionManager.appendDetections(sessionRelativeDetections)
             }
         }
 
@@ -179,15 +200,15 @@ class LiveViewModel(
                 ).toShort()
             }
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.writeAudioChunk(shortSamples, audioBlock.sampleRate)
+                sessionManager.appendAudioSamples(shortSamples)
             }
         }
 
         // Embedding-Arm: Bei erfolgreicher Detektion Embedding extrahieren
-        if (audioBlock != null && geoDetections.isNotEmpty()) {
+        if (audioBlock != null && sessionRelativeDetections.isNotEmpty()) {
             viewModelScope.launch(Dispatchers.Default) {
                 val embedding = embeddingExtractor.extract(audioBlock.samples, audioBlock.sampleRate)
-                val topDetection = geoDetections.maxByOrNull { it.confidence }!!
+                val topDetection = sessionRelativeDetections.maxByOrNull { it.confidence }!!
                 embeddingDatabase.add(
                     recordingId = topDetection.id,
                     species = topDetection.scientificName,
@@ -342,11 +363,10 @@ class LiveViewModel(
         ctx.startForegroundService(intent)
         svc.startRecording(sampleRate)
 
-        // Preroll als ersten Chunk speichern + im Sonogramm darstellen (T35)
+        // Preroll vormerken: wird nach startSession() angehaengt (T46 — Reihenfolge sicherstellen)
+        // Sonogramm-Darstellung passiert hier, Datei-Schreiben in observeRecordingState
         if (prerollSamples.isNotEmpty()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.writeAudioChunk(prerollSamples, sampleRate)
-            }
+            pendingPrerollSamples = prerollSamples
             // Preroll im Sonogramm darstellen
             val config = _uiState.value.spectrogramConfig
             val rate = svc.actualSampleRate.let { if (it > 0) it else sampleRate }
@@ -436,6 +456,28 @@ class LiveViewModel(
                         detectionId = detectionId,
                         status = status,
                         correctedSpecies = correctedSpecies,
+                        verifiedAtMs = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative (T45).
+     *
+     * Markiert das Original als REPLACED, fuegt die Alternative als neue Detektion
+     * an Index 0 ein und schreibt ein VerificationEvent in verifications.jsonl.
+     */
+    fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
+        val success = detectionListState.selectAlternative(detectionId, candidate)
+        if (success) {
+            viewModelScope.launch(Dispatchers.IO) {
+                sessionManager.appendVerification(
+                    VerificationEvent(
+                        detectionId = detectionId,
+                        status = VerificationStatus.REPLACED,
+                        correctedSpecies = candidate.scientificName,
                         verifiedAtMs = System.currentTimeMillis()
                     )
                 )
@@ -637,7 +679,7 @@ class LiveViewModel(
                     locationProvider.start()
                     startCollectionPipeline()
                     startInferencePipeline()
-                    // Session starten
+                    // Session starten + Preroll anhaengen (sequentiell, damit recordingWriter offen ist)
                     viewModelScope.launch(Dispatchers.IO) {
                         val loc = locationProvider.location.value
                         val config = _uiState.value.inferenceConfig
@@ -649,6 +691,12 @@ class LiveViewModel(
                             confidenceThreshold = config.confidenceThreshold
                         )
                         currentSessionId = sessionId
+                        // Preroll nach startSession() anhaengen (T46)
+                        val preroll = pendingPrerollSamples
+                        pendingPrerollSamples = ShortArray(0)
+                        if (preroll.isNotEmpty()) {
+                            sessionManager.appendAudioSamples(preroll)
+                        }
                     }
                 } else {
                     locationProvider.stop()

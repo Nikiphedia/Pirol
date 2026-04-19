@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
 
 /**
@@ -48,9 +49,11 @@ fun DetectionList(
     detectionState: DetectionListState,
     isModelAvailable: Boolean = true,
     onConfirm: ((String) -> Unit)? = null,
+    onMarkUncertain: ((String) -> Unit)? = null,
     onReject: ((String) -> Unit)? = null,
     onCorrect: ((String, String) -> Unit)? = null,
     onSaveAsReference: ((String) -> Unit)? = null,
+    onSelectAlternative: ((String, DetectionCandidate) -> Unit)? = null,
     watchlistSpecies: Set<String> = emptySet(),
     modifier: Modifier = Modifier
 ) {
@@ -129,9 +132,13 @@ fun DetectionList(
                     SpeciesCard(
                         detection = detection,
                         onConfirm = onConfirm?.let { callback -> { callback(detection.id) } },
+                        onMarkUncertain = onMarkUncertain?.let { callback -> { callback(detection.id) } },
                         onReject = onReject?.let { callback -> { callback(detection.id) } },
                         onCorrect = onCorrect?.let { callback -> { name -> callback(detection.id, name) } },
                         onSaveAsReference = onSaveAsReference?.let { callback -> { callback(detection.id) } },
+                        onSelectAlternative = onSelectAlternative?.let { cb ->
+                            { candidate -> cb(detection.id, candidate) }
+                        },
                         isWatchlisted = watchlistSpecies.contains(
                             detection.scientificName.replace(' ', '_')
                         ),

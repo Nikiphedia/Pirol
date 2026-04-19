@@ -31,6 +31,7 @@
 | P17 Feld-Bugfixes | T32 Artennamen+Rotation ✅ · T33 Detektionsliste ✅ | ✅ |
 | P18 Audio+Storage | T34 HPF+Norm · T35 Preroll · T36 Loeschen · T37 Modell · T38 SD · T39 ChunkJump · T40 Cleanup · T41 Migration | ✅ |
 | P19 Code-Scan+Fix | T42 Scan (8 Funde) · T43 6 Fixes (Build gruen) | ✅ |
+| P20 Workflow-Logik | T44 UNCERTAIN+10s-Rule ✅ · T45 Alternative ersetzt Hauptart ✅ | ✅ |
 
 **Letzter erfolgreicher Build:** T43 — `compileDebugKotlin` BUILD SUCCESSFUL
 
@@ -161,6 +162,9 @@ AMSEL implementiert ein vollständiges Embedding- und Similarity-System:
 | 2026-04-07 | ROTATION — Kontext voll. Feld-Feedback in `Pirol_Pull_V0.0.3.md` | Naechster Master: Pull-Datei lesen, 9 APs formulieren, offene Entscheidungen klaeren |
 | 2026-04-08 | P18 komplett (T34–T41). Alle Reviews bestanden, Build gruen. | — |
 | **2026-04-08** | **P19 komplett (T42–T43). Code-Scan 8 Funde, 6 gefixt, 2 akzeptiert. ROTATION.** | Naechster Master: Scan_T42.md lesen (Beobachtungen), findCommonName() toter Code offen. Offene Pendings: BOM-Upgrade (menuAnchor), Preroll 96kHz (Feldtest) |
+| **2026-04-14** | **P20 geplant (T44–T45). Workflow-Dokument analysiert, Arbeitspakete formuliert.** | T44 (UNCERTAIN + 10s Re-detection) zuerst; T45 (Alternative ersetzt Hauptart + REPLACED) danach. Prompt_Thread_Uebergabe.md aktualisiert. |
+| 2026-04-14 | T44 abgeschlossen + reviewed (UNCERTAIN + 10s Re-detection Rule, Build gruen). Worker fand+fixte zusaetzlich einen Bug: verificationStatus wurde bei Re-detection mit hoeherer Confidence ueberschrieben. | T45 (Alternative ersetzt Hauptart + REPLACED) naechster Task |
+| 2026-04-14 | **T45 abgeschlossen + reviewed. P20 komplett — Workflow-Dokument V0.0.4 vollstaendig implementiert.** Build gruen. | Feldtest der neuen Interaktions-Logik (?-Button, Alternative-Auswahl, 10s-Regel). |
 
 ---
 
