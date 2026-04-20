@@ -119,6 +119,11 @@ class LiveViewModel(
     // Preroll-Samples die nach startSession() angehaengt werden (T46)
     private var pendingPrerollSamples: ShortArray = ShortArray(0)
 
+    // T54-Fix: Sequentieller Dispatcher fuer Session-Lifecycle-Operationen.
+    // startSession+appendPreroll und endSession laufen auf demselben Single-Thread-Kontext,
+    // damit endSession() niemals vor appendPreroll() ausgefuehrt wird (Race-Condition fix).
+    private val sessionDispatcher = Dispatchers.IO.limitedParallelism(1)
+
     // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt
     private val spectrogramState = SpectrogramState(maxFrames = 2048)
 
@@ -370,16 +375,28 @@ class LiveViewModel(
             // Preroll im Sonogramm darstellen
             val config = _uiState.value.spectrogramConfig
             val rate = svc.actualSampleRate.let { if (it > 0) it else sampleRate }
-            if (melSpectrogram == null || currentSampleRate != rate) {
-                currentSampleRate = rate
-                melSpectrogram = MelSpectrogram(sampleRate = rate, config = config)
+            // currentSampleRate setzen damit startCollectionPipeline() den Buffer nicht cleared (T54)
+            currentSampleRate = rate
+            // T54-Fix: Eigenes MelSpectrogram nur fuer einmalige Preroll-Anzeige verwenden.
+            // Das shared melSpectrogram-Feld NICHT benutzen: observeRecordingState() kann via
+            // Dispatchers.Main.immediate bereits waehrend svc.startRecording() feuern und dort
+            // startCollectionPipeline() starten, welche mel.process() auf Dispatchers.Default ruft.
+            // Zwei concurrent process()-Aufrufe auf demselben Objekt → ArrayIndexOutOfBoundsException.
+            //
+            // T54-Fix-2: Sonogramm-Darstellung auf max. 5 s begrenzen.
+            // process() laeuft synchron auf dem Main-Thread. Bei 30 s Preroll (1.440.000 Samples)
+            // blockiert es den Main-Thread mehrere Sekunden → ANR. Die WAV enthaelt weiterhin alle
+            // Preroll-Samples; nur die Darstellung wird auf die letzten 5 s gekuerzt.
+            val maxDisplaySamples = 5 * rate
+            val displaySamples = if (prerollSamples.size > maxDisplaySamples) {
+                prerollSamples.copyOfRange(prerollSamples.size - maxDisplaySamples, prerollSamples.size)
+            } else {
+                prerollSamples
             }
-            val mel = melSpectrogram
-            if (mel != null) {
-                val frames = mel.process(prerollSamples)
-                if (frames.isNotEmpty()) {
-                    spectrogramState.appendFrames(frames)
-                }
+            val prerollMel = MelSpectrogram(sampleRate = rate, config = config)
+            val frames = prerollMel.process(displaySamples)
+            if (frames.isNotEmpty()) {
+                spectrogramState.appendFrames(frames)
             }
         }
 
@@ -679,8 +696,8 @@ class LiveViewModel(
                     locationProvider.start()
                     startCollectionPipeline()
                     startInferencePipeline()
-                    // Session starten + Preroll anhaengen (sequentiell, damit recordingWriter offen ist)
-                    viewModelScope.launch(Dispatchers.IO) {
+                    // Session starten + Preroll anhaengen (sessionDispatcher: sequentiell mit endSession, T54)
+                    viewModelScope.launch(sessionDispatcher) {
                         val loc = locationProvider.location.value
                         val config = _uiState.value.inferenceConfig
                         val sessionId = sessionManager.startSession(
@@ -708,8 +725,9 @@ class LiveViewModel(
                     // Detektionsliste leeren — jede Aufnahme startet frisch (T33-AP5)
                     detectionListState.clear()
                     // Session beenden + lastSessionId setzen (T15)
+                    // sessionDispatcher: wartet auf startSession+appendPreroll, bevor endSession laeuft (T54)
                     val finishedSessionId = currentSessionId
-                    viewModelScope.launch(Dispatchers.IO) {
+                    viewModelScope.launch(sessionDispatcher) {
                         sessionManager.endSession()
                         if (finishedSessionId != null) {
                             _uiState.update { it.copy(lastSessionId = finishedSessionId) }
