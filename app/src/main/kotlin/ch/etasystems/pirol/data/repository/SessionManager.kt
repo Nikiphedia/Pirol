@@ -1,17 +1,27 @@
 package ch.etasystems.pirol.data.repository
 
 import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.os.ParcelFileDescriptor
+import android.provider.DocumentsContract
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.export.RavenExporter
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
+import ch.etasystems.pirol.ml.VerificationStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileWriter
-import java.time.Instant
+import java.io.OutputStreamWriter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -19,8 +29,6 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
-import ch.etasystems.pirol.data.export.RavenExporter
-import ch.etasystems.pirol.ml.VerificationStatus
 
 /**
  * Info ueber vorhandene Sessions am aktuellen Speicherort.
@@ -41,12 +49,18 @@ data class MigrationResult(
 )
 
 /**
- * Verwaltet Aufnahme-Sessions.
+ * Verwaltet Aufnahme-Sessions (T51: SAF + Flat-Struktur + Tages-Unterordner).
  *
- * Jede Session = ein Ordner unter filesDir/sessions/ mit:
- * - session.json (Metadaten)
- * - detections.jsonl (Detektionen, eine pro Zeile)
- * - audio/chunk_NNN.wav (3-Sekunden Audio-Chunks)
+ * Neue Struktur ab T51:
+ * [base]/PIROL/YYYY-MM-DD/{sessionId}/
+ *   session.json, detections.jsonl, verifications.jsonl,
+ *   recording.wav, recording.selections.txt
+ *
+ * Kein audio/-Unterordner mehr (Rueckwaertskompatibilitaet: getRecordingFile() prueft beides).
+ *
+ * Storage-Modi:
+ * - SAF (storageBaseUri gesetzt): DocumentFile fuer Writes, File-API fuer Reads (primaerer Speicher)
+ * - FileBased (kein SAF): File-API fuer alles; Basis = getExternalFilesDir/PIROL oder legacyPath/PIROL
  *
  * Lifecycle: startSession() → appendDetections() / appendAudioSamples() → endSession()
  */
@@ -57,36 +71,120 @@ class SessionManager(
 
     companion object {
         private const val TAG = "SessionManager"
-        private const val SESSIONS_DIR = "sessions"
-    }
-
-    /** Basispfad: gespeicherter Speicherort oder interner Speicher */
-    private fun getBaseDir(): File {
-        val customPath = appPreferences.storagePath
-        return if (customPath != null) File(customPath) else context.filesDir
+        private const val PIROL_DIR = "PIROL"
+        /** Veraltetes Sessions-Verzeichnis (pre-T51, fuer Rueckwaertskompatibilitaet) */
+        private const val LEGACY_SESSIONS_DIR = "sessions"
     }
 
     private val json = Json { prettyPrint = false }
     private val jsonLenient = Json { ignoreUnknownKeys = true }
 
-    // Aktive Session (null = keine Session laeuft)
+    // ── Aktive Session State ──────────────────────────────────────────
+
+    /** Aktives Session-Verzeichnis (File-Modus) */
     private var activeSessionDir: File? = null
+    /** Aktives Session-Verzeichnis (SAF-Modus) */
+    private var activeSessionDoc: DocumentFile? = null
+    /** SAF-URI fuer detections.jsonl (SAF-Modus) */
+    private var activeDetectionsUri: Uri? = null
+    /** Offene PFD fuer detections.jsonl Appends (SAF-Modus) */
+    private var activeDetectionsFd: ParcelFileDescriptor? = null
     private var activeMetadata: SessionMetadata? = null
-    private var detectionWriter: FileWriter? = null
+    private var detectionWriter: java.io.Writer? = null
     private var recordingWriter: StreamingWavWriter? = null
     private var detectionCounter: Int = 0
 
+    // ── Session-ended Signal (T51: Analyse-Tab Auto-Refresh via Commit 8) ──
+
+    private val _sessionEnded = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
+    /** Emittiert Unit nach jedem endSession()-Aufruf. Subscriber koennen loadSessions() aufrufen. */
+    val sessionEnded: SharedFlow<Unit> = _sessionEnded.asSharedFlow()
+
+    /** Ob gerade ein Session-Stop laeuft und der Speicherort nicht erreichbar war (Fallback). */
+    var lastStartUsedFallback: Boolean = false
+        private set
+
     /** Ob eine Session aktiv ist */
-    val isActive: Boolean get() = activeSessionDir != null
+    val isActive: Boolean get() = activeSessionDir != null || activeSessionDoc != null
+
+    // ── Storage-Aufloesung ────────────────────────────────────────────
+
+    /**
+     * Gibt das Basis-Verzeichnis zurueck (File-Modus).
+     * Fuer SAF-Modus gibt es kein File-Basisverzeichnis — nutze resolveBaseDocFile().
+     */
+    private fun resolveBaseFile(): File {
+        val safUri = appPreferences.storageBaseUri
+        if (safUri != null) {
+            // SAF-URI in Dateipfad umwandeln (nur primaerer Speicher)
+            val resolved = safUriToFile(Uri.parse(safUri))
+            if (resolved != null) return resolved
+        }
+        // Fallback: Legacy-Pfad oder getExternalFilesDir
+        val legacyPath = appPreferences.storagePath
+        val base = if (legacyPath != null) File(legacyPath) else (context.getExternalFilesDir(null) ?: context.filesDir)
+        return File(base, PIROL_DIR)
+    }
+
+    /**
+     * Gibt die DocumentFile-Basis fuer SAF-Schreiboperationen zurueck.
+     * Nur relevant wenn storageBaseUri gesetzt ist.
+     */
+    private fun resolveBaseDocFile(): DocumentFile? {
+        val safUri = appPreferences.storageBaseUri ?: return null
+        return DocumentFile.fromTreeUri(context, Uri.parse(safUri))
+    }
+
+    /**
+     * Konvertiert eine SAF-Tree-URI in einen File-Pfad (nur primaerer Speicher).
+     * Gibt null zurueck bei SD-Karte oder unbekanntem Schema.
+     */
+    private fun safUriToFile(uri: Uri): File? {
+        return try {
+            val docId = DocumentsContract.getTreeDocumentId(uri)
+            val parts = docId.split(":")
+            if (parts.size < 2) return null
+            val storageType = parts[0]
+            val relativePath = parts[1]
+            if (storageType.equals("primary", ignoreCase = true)) {
+                File(Environment.getExternalStorageDirectory(), relativePath)
+            } else {
+                null  // SD-Karte: kein direkter Pfad moeglich
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "SAF URI → File-Pfad fehlgeschlagen: $uri", e)
+            null
+        }
+    }
+
+    /**
+     * Gibt den Tages-Unterordner-Namen zurueck (YYYY-MM-DD, Lokalzeit)
+     * oder null wenn der Toggle deaktiviert ist.
+     */
+    private fun dailySubdirName(): String? {
+        if (!appPreferences.storageDailySubfolder) return null
+        return LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+    }
+
+    /**
+     * Findet oder erstellt ein DocumentFile-Unterverzeichnis.
+     */
+    private fun DocumentFile.findOrCreateDir(name: String): DocumentFile? {
+        return findFile(name) ?: createDirectory(name)
+    }
+
+    // ── Session-Lifecycle ─────────────────────────────────────────────
 
     /**
      * Neue Session starten. Erstellt Ordnerstruktur + session.json.
+     * Unterstuetzt SAF- und File-Modus.
      *
      * @param sampleRate Sample Rate der Aufnahme
      * @param latitude Startposition Breitengrad (kann null sein)
      * @param longitude Startposition Laengengrad (kann null sein)
      * @param regionFilter Aktiver Regionalfilter (z.B. "ch_breeding")
      * @param confidenceThreshold Aktuelle Confidence-Schwelle
+     * @return Session-ID
      */
     suspend fun startSession(
         sampleRate: Int,
@@ -97,20 +195,16 @@ class SessionManager(
     ): String = withContext(Dispatchers.IO) {
         // Alte Session sicherheitshalber schliessen
         if (isActive) endSession()
+        lastStartUsedFallback = false
 
-        // Session-ID: ISO-Datum + UUID-Prefix
-        val now = LocalDateTime.now(ZoneOffset.UTC)
-        val dateStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss"))
+        // Session-ID: ISO-Datum (UTC) + UUID-Prefix (unveraendert, CLAUDE.md)
+        val nowUtc = LocalDateTime.now(ZoneOffset.UTC)
+        val dateStr = nowUtc.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss"))
         val uuidShort = UUID.randomUUID().toString().take(6)
         val sessionId = "${dateStr}_${uuidShort}"
 
-        // Ordner erstellen
-        val sessionsRoot = File(getBaseDir(), SESSIONS_DIR)
-        val sessionDir = File(sessionsRoot, sessionId)
-        val audioDir = File(sessionDir, "audio")
-        audioDir.mkdirs()
+        val daySubdir = dailySubdirName()
 
-        // Metadaten
         val metadata = SessionMetadata(
             sessionId = sessionId,
             startedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
@@ -121,25 +215,95 @@ class SessionManager(
             confidenceThreshold = confidenceThreshold
         )
 
+        val safUri = appPreferences.storageBaseUri
+        val baseDoc = if (safUri != null) resolveBaseDocFile() else null
+
+        if (baseDoc != null && baseDoc.canWrite()) {
+            // ── SAF-Modus ──────────────────────────────────────────────
+            startSessionSaf(sessionId, daySubdir, metadata, sampleRate, baseDoc)
+        } else {
+            // ── File-Modus (inkl. SAF-Fallback wenn canWrite() false) ──
+            if (safUri != null && baseDoc?.canWrite() == false) {
+                Log.w(TAG, "SAF-URI nicht erreichbar — Fallback auf getExternalFilesDir")
+                lastStartUsedFallback = true
+            }
+            startSessionFile(sessionId, daySubdir, metadata, sampleRate)
+        }
+
+        sessionId
+    }
+
+    private fun startSessionFile(
+        sessionId: String,
+        daySubdir: String?,
+        metadata: SessionMetadata,
+        sampleRate: Int
+    ) {
+        val base = resolveBaseFile()
+        val parentDir = if (daySubdir != null) File(base, daySubdir) else base
+        val sessionDir = File(parentDir, sessionId)
+        sessionDir.mkdirs()
+
         // session.json schreiben
         val prettyJson = Json { prettyPrint = true }
-        File(sessionDir, "session.json").writeText(
-            prettyJson.encodeToString(metadata)
-        )
+        File(sessionDir, "session.json").writeText(prettyJson.encodeToString(metadata))
 
         // JSONL-Writer oeffnen (append-Modus)
         detectionWriter = FileWriter(File(sessionDir, "detections.jsonl"), true)
 
-        // Recording-WAV oeffnen (Streaming-Writer)
-        val recordingFile = File(audioDir, "recording.wav")
-        recordingWriter = StreamingWavWriter(recordingFile, sampleRate).also { it.open() }
+        // Recording-WAV oeffnen (File-basierter Streaming-Writer)
+        val recordingFile = File(sessionDir, "recording.wav")
+        recordingWriter = StreamingWavWriter.forFile(recordingFile, sampleRate).also { it.open() }
 
         activeSessionDir = sessionDir
         activeMetadata = metadata
         detectionCounter = 0
 
-        Log.i(TAG, "Session gestartet: $sessionId → ${sessionDir.absolutePath}")
-        sessionId
+        Log.i(TAG, "Session gestartet (File): $sessionId → ${sessionDir.absolutePath}")
+    }
+
+    private fun startSessionSaf(
+        sessionId: String,
+        daySubdir: String?,
+        metadata: SessionMetadata,
+        sampleRate: Int,
+        baseDoc: DocumentFile
+    ) {
+        val parentDoc = if (daySubdir != null) baseDoc.findOrCreateDir(daySubdir) ?: baseDoc else baseDoc
+        val sessionDoc = parentDoc.createDirectory(sessionId)
+            ?: throw IllegalStateException("SAF: Session-Ordner konnte nicht erstellt werden: $sessionId")
+
+        // session.json schreiben
+        val jsonDocFile = sessionDoc.createFile("application/json", "session.json")
+            ?: throw IllegalStateException("SAF: session.json konnte nicht erstellt werden")
+        val prettyJson = Json { prettyPrint = true }
+        context.contentResolver.openOutputStream(jsonDocFile.uri, "wt")?.use { os ->
+            os.write(prettyJson.encodeToString(metadata).toByteArray(Charsets.UTF_8))
+        }
+
+        // detections.jsonl: Datei erstellen + im Append-Modus oeffnen
+        val detectionsDocFile = sessionDoc.createFile("application/jsonlines", "detections.jsonl")
+            ?: throw IllegalStateException("SAF: detections.jsonl konnte nicht erstellt werden")
+        val detectionsFd = context.contentResolver.openFileDescriptor(detectionsDocFile.uri, "wa")
+            ?: throw IllegalStateException("SAF: detections.jsonl nicht beschreibbar")
+        val detectionsWriter = OutputStreamWriter(
+            java.io.FileOutputStream(detectionsFd.fileDescriptor), Charsets.UTF_8
+        )
+
+        // recording.wav: Datei erstellen + SAF-Writer
+        val wavDocFile = sessionDoc.createFile("audio/wav", "recording.wav")
+            ?: throw IllegalStateException("SAF: recording.wav konnte nicht erstellt werden")
+        val wavWriter = StreamingWavWriter.forSaf(context, wavDocFile.uri, sampleRate).also { it.open() }
+
+        activeSessionDoc = sessionDoc
+        activeDetectionsUri = detectionsDocFile.uri
+        activeDetectionsFd = detectionsFd
+        detectionWriter = detectionsWriter
+        recordingWriter = wavWriter
+        activeMetadata = metadata
+        detectionCounter = 0
+
+        Log.i(TAG, "Session gestartet (SAF): $sessionId → ${sessionDoc.uri}")
     }
 
     /**
@@ -150,7 +314,8 @@ class SessionManager(
         val writer = detectionWriter ?: return@withContext
         for (detection in detections) {
             val line = json.encodeToString(detection)
-            writer.appendLine(line)
+            writer.append(line)
+            writer.append('\n')
             detectionCounter++
         }
         writer.flush()
@@ -161,14 +326,27 @@ class SessionManager(
      * Separate Datei von detections.jsonl (append-only, crash-sicher).
      */
     suspend fun appendVerification(event: VerificationEvent) = withContext(Dispatchers.IO) {
-        val sessionDir = activeSessionDir ?: return@withContext
-        val file = File(sessionDir, "verifications.jsonl")
-        file.appendText(json.encodeToString(event) + "\n")
+        val line = json.encodeToString(event) + "\n"
+        val sessionDoc = activeSessionDoc
+        if (sessionDoc != null) {
+            // SAF-Modus: verifications.jsonl via ContentResolver appendieren
+            val veriFile = sessionDoc.findFile("verifications.jsonl")
+                ?: sessionDoc.createFile("application/jsonlines", "verifications.jsonl")
+            veriFile?.let { docFile ->
+                context.contentResolver.openOutputStream(docFile.uri, "wa")?.use { os ->
+                    os.write(line.toByteArray(Charsets.UTF_8))
+                }
+            }
+        } else {
+            // File-Modus
+            val sessionDir = activeSessionDir ?: return@withContext
+            File(sessionDir, "verifications.jsonl").appendText(line)
+        }
     }
 
     /**
      * Audio-Samples an recording.wav anhaengen.
-     * Wird vom LiveViewModel fuer jeden Inference-Block aufgerufen.
+     * Wird vom LiveViewModel fuer jeden Chunk aufgerufen (Daueraufnahme, T51).
      *
      * @param samples Audio-Daten als ShortArray (16-bit PCM)
      */
@@ -178,10 +356,7 @@ class SessionManager(
 
     /**
      * Aktueller Schreib-Offset in recording.wav in Sekunden.
-     *
-     * Ist gleich der Sekunden-Position ab der der naechste appendAudioSamples()-Block
-     * in der WAV-Datei landen wird. Enthaelt bereits Preroll-Samples wenn diese
-     * ueber appendAudioSamples() geschrieben wurden.
+     * Wird VOR appendAudioSamples() aufgerufen fuer korrekte Detection-Zeitstempel.
      *
      * @return Offset in Sekunden, oder 0f wenn keine Session aktiv
      */
@@ -192,28 +367,24 @@ class SessionManager(
     }
 
     /**
-     * Aktive Session beenden. Schliesst WAV-Writer + JSONL-Writer, aktualisiert session.json.
+     * Aktive Session beenden. Schliesst WAV-Writer + Writer, aktualisiert session.json.
+     * Schreibt automatisch recording.selections.txt (Auto-Raven-Export, T51).
      */
     suspend fun endSession() = withContext(Dispatchers.IO) {
-        val dir = activeSessionDir ?: return@withContext
+        val dir = activeSessionDir
+        val doc = activeSessionDoc
         val metadata = activeMetadata ?: return@withContext
 
-        // WAV-Writer schliessen (zuerst, damit finale dataSize korrekt ist)
+        // WAV-Writer schliessen
         val recordedSamples = recordingWriter?.sampleCount ?: 0L
-        try {
-            recordingWriter?.close()
-        } catch (e: Exception) {
-            Log.e(TAG, "WAV close failed", e)
-        }
+        try { recordingWriter?.close() } catch (e: Exception) { Log.e(TAG, "WAV close failed", e) }
         recordingWriter = null
 
         // JSONL-Writer schliessen
-        try {
-            detectionWriter?.close()
-        } catch (e: Exception) {
-            Log.e(TAG, "JSONL-Writer schliessen fehlgeschlagen", e)
-        }
+        try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
         detectionWriter = null
+        try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
+        activeDetectionsFd = null
 
         // session.json aktualisieren (endedAt, Zaehler)
         val updatedMetadata = metadata.copy(
@@ -222,28 +393,114 @@ class SessionManager(
             totalDetections = detectionCounter
         )
         val prettyJson = Json { prettyPrint = true }
-        File(dir, "session.json").writeText(
-            prettyJson.encodeToString(updatedMetadata)
-        )
+        val updatedJson = prettyJson.encodeToString(updatedMetadata)
 
-        Log.i(TAG, "Session beendet: ${metadata.sessionId} " +
-                "($recordedSamples samples, $detectionCounter Detektionen)")
+        if (doc != null) {
+            // SAF-Modus: session.json ueberschreiben
+            val jsonFile = doc.findFile("session.json")
+            jsonFile?.let { context.contentResolver.openOutputStream(it.uri, "wt")?.use { os ->
+                os.write(updatedJson.toByteArray(Charsets.UTF_8))
+            }}
+        } else if (dir != null) {
+            File(dir, "session.json").writeText(updatedJson)
+        }
 
+        Log.i(TAG, "Session beendet: ${metadata.sessionId} ($recordedSamples samples, $detectionCounter Detektionen)")
+
+        // Auto-Raven-Export (T51): recording.selections.txt schreiben
+        // Detektionen werden direkt aus dem geschlossenen Writer-Stand gelesen
+        val sessionDirForExport = dir ?: doc?.let { resolveSessionDirFromDoc(it) }
+        if (sessionDirForExport != null) {
+            try {
+                val detections = loadDetectionsWithVerifications(sessionDirForExport)
+                val selectionsFile = File(sessionDirForExport, "recording.selections.txt")
+                RavenExporter.export(selectionsFile, detections)
+                Log.i(TAG, "Auto-Raven-Export: ${selectionsFile.name} (${detections.size} Detektionen)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
+            }
+        }
+
+        // State zuruecksetzen
         activeSessionDir = null
+        activeSessionDoc = null
+        activeDetectionsUri = null
         activeMetadata = null
         detectionCounter = 0
+
+        // Signal fuer AnalysisViewModel (T51, Commit 8)
+        _sessionEnded.tryEmit(Unit)
     }
 
     /**
+     * Leitet einen DocumentFile-Session-Ordner zu einem File-Pfad auf (primaerer Speicher).
+     * Nur fuer Auto-Raven-Export nach endSession() benoetigt.
+     */
+    private fun resolveSessionDirFromDoc(sessionDoc: DocumentFile): File? {
+        val safUri = appPreferences.storageBaseUri ?: return null
+        val baseFile = safUriToFile(Uri.parse(safUri)) ?: return null
+        // Session-Name aus DocumentFile-Name extrahieren
+        val sessionName = sessionDoc.name ?: return null
+        // Alle Tagesdirs durchsuchen
+        val allDirs = mutableListOf<File>()
+        if (appPreferences.storageDailySubfolder) {
+            baseFile.listFiles()?.forEach { dayDir ->
+                if (dayDir.isDirectory) allDirs.add(File(dayDir, sessionName))
+            }
+        } else {
+            allDirs.add(File(baseFile, sessionName))
+        }
+        return allDirs.firstOrNull { it.exists() }
+    }
+
+    // ── Listierungs- und Lese-Methoden ────────────────────────────────
+
+    /**
      * Gibt alle vorhandenen Session-Ordner zurueck (neueste zuerst).
+     * Scannt neue Struktur (PIROL/YYYY-MM-DD/sessionId) + alte Sessions fuer Rueckwaertskompatibilitaet.
      */
     fun listSessions(): List<File> {
-        val sessionsRoot = File(getBaseDir(), SESSIONS_DIR)
-        if (!sessionsRoot.exists()) return emptyList()
-        return sessionsRoot.listFiles()
-            ?.filter { it.isDirectory }
-            ?.sortedByDescending { it.name }
-            ?: emptyList()
+        val results = mutableListOf<File>()
+
+        // 1. Neue Struktur: [base]/PIROL/YYYY-MM-DD/{sessionId}/
+        val base = resolveBaseFile()
+        if (base.exists()) {
+            if (appPreferences.storageDailySubfolder || base.listFiles()?.any { it.isDirectory && looksLikeDateDir(it.name) } == true) {
+                // Mit Tages-Unterordnern: tief scannen
+                base.listFiles()?.forEach { dayDir ->
+                    if (dayDir.isDirectory) {
+                        dayDir.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
+                    }
+                }
+            }
+            // Direkt im base liegende Session-Dirs (kein Tages-Unterordner)
+            base.listFiles()?.filter { it.isDirectory && !looksLikeDateDir(it.name) }
+                ?.let { results.addAll(it) }
+        }
+
+        // 2. Legacy-Pfad: [oldBase]/sessions/{sessionId}/ (pre-T51)
+        addLegacySessions(results)
+
+        // Duplikate entfernen (nach absolutePath), sortieren (neueste zuerst nach Session-ID)
+        return results.distinctBy { it.absolutePath }
+            .sortedByDescending { it.name }
+    }
+
+    private fun looksLikeDateDir(name: String): Boolean {
+        return name.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))
+    }
+
+    private fun addLegacySessions(results: MutableList<File>) {
+        // Interner Speicher (pre-T51 default)
+        val internalLegacy = File(context.filesDir, LEGACY_SESSIONS_DIR)
+        internalLegacy.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
+
+        // Externer legacy-Pfad (SD-Karte, T38)
+        val legacyPath = appPreferences.storagePath
+        if (legacyPath != null) {
+            val externalLegacy = File(legacyPath, LEGACY_SESSIONS_DIR)
+            externalLegacy.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
+        }
     }
 
     /** Loescht eine Session (Ordner + alle Dateien) */
@@ -253,8 +510,6 @@ class SessionManager(
         Log.i(TAG, "Session geloescht: ${sessionDir.name} (erfolg=$deleted)")
         deleted
     }
-
-    // ── Lese-Methoden fuer abgeschlossene Sessions ───────────────────
 
     /**
      * Laedt Metadaten einer Session aus session.json.
@@ -291,7 +546,6 @@ class SessionManager(
 
     /**
      * Laedt Verifikations-Events und wendet sie auf Detektionen an.
-     * Gibt die Detektionen mit aktualisiertem VerificationStatus zurueck.
      */
     suspend fun loadDetectionsWithVerifications(sessionDir: File): List<DetectionResult> =
         withContext(Dispatchers.IO) {
@@ -308,7 +562,6 @@ class SessionManager(
                     }
             } catch (_: Exception) { emptyList() }
 
-            // Verifikationen auf Detektionen anwenden
             for (v in verifications) {
                 val idx = detections.indexOfFirst { it.id == v.detectionId }
                 if (idx >= 0) {
@@ -323,103 +576,81 @@ class SessionManager(
         }
 
     /**
-     * Gibt die Recording-Datei einer Session zurueck (oder null wenn nicht vorhanden).
+     * Gibt die Recording-Datei einer Session zurueck.
+     * Prueft zuerst flache Struktur (T51), dann Legacy-Pfad audio/ (pre-T51).
      */
     fun getRecordingFile(sessionDir: File): File? {
-        val f = File(sessionDir, "audio/recording.wav")
-        return if (f.exists()) f else null
+        // Neue flache Struktur (T51)
+        val flat = File(sessionDir, "recording.wav")
+        if (flat.exists()) return flat
+        // Legacy: audio/recording.wav (pre-T51)
+        val legacy = File(sessionDir, "audio/recording.wav")
+        return if (legacy.exists()) legacy else null
     }
 
     /**
-     * Schreibt eine Raven Selection Table neben recording.wav.
-     * @return Pfad zur erzeugten Datei oder null wenn keine recording.wav existiert
+     * Schreibt eine Raven Selection Table neben recording.wav (fuer manuellen Re-Export).
+     * @return Pfad zur erzeugten Datei oder null wenn keine Aufnahme vorhanden
      */
     suspend fun exportRavenSelectionTable(sessionDir: File): File? = withContext(Dispatchers.IO) {
-        val recording = getRecordingFile(sessionDir) ?: return@withContext null
-        val outputFile = File(sessionDir, "audio/recording.selections.txt")
+        getRecordingFile(sessionDir) ?: return@withContext null
+        val outputFile = File(sessionDir, "recording.selections.txt")
         val detections = loadDetectionsWithVerifications(sessionDir)
         RavenExporter.export(outputFile, detections)
         outputFile
     }
 
-    // ── Migrations-Methoden (T41) ────────────────────────────────────
+    // ── Migrations-Methoden (T41, erweitert T51) ──────────────────────
 
     /**
      * Zaehlt Sessions und berechnet Gesamtgroesse am aktuellen Speicherort.
      */
     fun getMigrationInfo(): MigrationInfo {
-        val sessionsRoot = File(getBaseDir(), SESSIONS_DIR)
-        if (!sessionsRoot.exists()) return MigrationInfo(0, 0L)
-        val dirs = sessionsRoot.listFiles()?.filter { it.isDirectory } ?: emptyList()
-        val totalSize = dirs.sumOf { dir ->
+        val sessions = listSessions()
+        val totalSize = sessions.sumOf { dir ->
             dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
         }
-        return MigrationInfo(dirs.size, totalSize)
+        return MigrationInfo(sessions.size, totalSize)
     }
 
     /**
-     * Kopiert alle Sessions vom aktuellen Speicherort zum Zielort.
-     *
-     * - Duplikate (gleiche sessionId am Ziel) werden uebersprungen
+     * Kopiert alle Sessions zum File-basierten Zielort.
+     * - Duplikate werden uebersprungen (Idempotenz)
      * - Quell-Sessions werden NICHT geloescht
-     * - Fortschritt wird als Float 0..1 gemeldet
-     *
-     * @param targetBaseDir Neues Basisverzeichnis (z.B. SD-Karte oder filesDir)
-     * @param onProgress Callback fuer Fortschritt (0.0 .. 1.0)
-     * @return MigrationResult mit Statistik und eventuellen Fehlern
      */
     suspend fun migrateSessionsTo(
         targetBaseDir: File,
         onProgress: (Float) -> Unit = {}
     ): MigrationResult = withContext(Dispatchers.IO) {
-        val sourceRoot = File(getBaseDir(), SESSIONS_DIR)
-        val targetRoot = File(targetBaseDir, SESSIONS_DIR)
-        targetRoot.mkdirs()
-
-        if (!sourceRoot.exists()) {
-            return@withContext MigrationResult(0, 0L, emptyList())
-        }
-
-        val sessionDirs = sourceRoot.listFiles()?.filter { it.isDirectory } ?: emptyList()
-        if (sessionDirs.isEmpty()) {
-            return@withContext MigrationResult(0, 0L, emptyList())
-        }
+        val sessionDirs = listSessions()
+        if (sessionDirs.isEmpty()) return@withContext MigrationResult(0, 0L, emptyList())
 
         var copied = 0
         var bytesCopied = 0L
         val errors = mutableListOf<String>()
 
         sessionDirs.forEachIndexed { index, sessionDir ->
-            val targetDir = File(targetRoot, sessionDir.name)
-
-            // Duplikat pruefen: wenn Ziel-Ordner existiert, ueberspringen
+            val targetDir = File(targetBaseDir, sessionDir.name)
             if (targetDir.exists()) {
                 Log.i(TAG, "Session ${sessionDir.name} existiert am Ziel — uebersprungen")
                 onProgress((index + 1).toFloat() / sessionDirs.size)
                 return@forEachIndexed
             }
-
             try {
                 val success = sessionDir.copyRecursively(targetDir, overwrite = false)
                 if (success) {
-                    val sessionSize = targetDir.walkTopDown()
-                        .filter { it.isFile }
-                        .sumOf { it.length() }
-                    bytesCopied += sessionSize
+                    bytesCopied += targetDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
                     copied++
-                    Log.i(TAG, "Session kopiert: ${sessionDir.name} ($sessionSize Bytes)")
+                    Log.i(TAG, "Session kopiert: ${sessionDir.name}")
                 } else {
                     errors.add("${sessionDir.name}: Kopieren fehlgeschlagen")
-                    // Teilkopie aufraemen
                     targetDir.deleteRecursively()
                 }
             } catch (e: Exception) {
                 errors.add("${sessionDir.name}: ${e.message}")
-                // Teilkopie aufraemen
                 targetDir.deleteRecursively()
                 Log.e(TAG, "Session-Migration fehlgeschlagen: ${sessionDir.name}", e)
             }
-
             onProgress((index + 1).toFloat() / sessionDirs.size)
         }
 
