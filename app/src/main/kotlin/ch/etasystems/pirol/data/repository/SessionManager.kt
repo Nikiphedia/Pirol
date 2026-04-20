@@ -12,8 +12,11 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileWriter
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import ch.etasystems.pirol.data.export.RavenExporter
@@ -110,7 +113,7 @@ class SessionManager(
         // Metadaten
         val metadata = SessionMetadata(
             sessionId = sessionId,
-            startedAt = Instant.now().toString(),
+            startedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             sampleRate = sampleRate,
             latitude = latitude,
             longitude = longitude,
@@ -214,7 +217,7 @@ class SessionManager(
 
         // session.json aktualisieren (endedAt, Zaehler)
         val updatedMetadata = metadata.copy(
-            endedAt = Instant.now().toString(),
+            endedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             totalRecordedSamples = recordedSamples,
             totalDetections = detectionCounter
         )
