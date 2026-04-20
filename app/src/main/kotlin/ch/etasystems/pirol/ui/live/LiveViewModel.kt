@@ -126,77 +126,14 @@ class LiveViewModel(
     private val spectrogramState = SpectrogramState(maxFrames = 2048)
 
     // ML-Pipeline: InferenceWorker mit Callback → DetectionListState + Embedding-Arm
-    private val inferenceWorker = InferenceWorker(classifier, regionalFilter) { detections, audioBlock ->
-        // GPS-Position an Detektionen anhaengen
-        val loc = locationProvider.location.value
-        val locDetections = if (loc != null) {
-            detections.map { it.copy(latitude = loc.latitude, longitude = loc.longitude) }
-        } else {
-            detections
-        }
-        // Top-Ergebnis mit Kandidaten bestücken (T27)
-        // InferenceWorker liefert Top-K als separate DetectionResults.
-        // Nur das Top-Ergebnis behalten, Rest wird zu Kandidaten.
-        val topWithCandidates = if (locDetections.size > 1) {
-            val top = locDetections.first()
-            val candidates = locDetections.drop(1).map { alt ->
-                DetectionCandidate(
-                    scientificName = alt.scientificName,
-                    commonName = alt.commonName,
-                    confidence = alt.confidence
-                )
-            }
-            listOf(top.copy(candidates = candidates))
-        } else {
-            locDetections
-        }
-        // Artnamen in gewaehlter Sprache uebersetzen (T26) + Kandidaten-Namen (T27)
-        val geoDetections = topWithCandidates.map { det ->
-            det.copy(
-                commonName = speciesNameResolver.resolve(det.scientificName),
-                candidates = det.candidates.map { cand ->
-                    cand.copy(commonName = speciesNameResolver.resolve(cand.scientificName))
-                }
-            )
-        }
-        // Session-relative Zeitstempel setzen (T49)
-        // chunkStartSec/chunkEndSec vom InferenceWorker sind relativ zum 3s-Fenster (0.0-3.0).
-        // Hier werden sie auf Sekunden seit Session-Start umgerechnet.
-        val sessionRelativeDetections = if (sessionManager.isActive && audioBlock != null) {
-            val startSec = sessionManager.getCurrentRecordingOffsetSec()
-            val durationSec = audioBlock.samples.size.toFloat() / audioBlock.sampleRate.toFloat()
-            geoDetections.map { det ->
-                det.copy(
-                    chunkStartSec = startSec,
-                    chunkEndSec = startSec + durationSec
-                )
-            }
-        } else {
-            geoDetections
-        }
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
-        }
-        detectionListState.addDetections(sessionRelativeDetections)
+    // T51: Callback wird bei jedem vollstaendigen 3s-Block aufgerufen (Daueraufnahme).
+    // detections == null → Interval-Skip oder keine Treffer; Audio wird trotzdem geschrieben.
+    private val inferenceWorker = InferenceWorker(classifier, regionalFilter) { audioBlock, detections ->
 
-        // Watchlist-Check: Alarm ausloesen fuer Watchlist-Arten (T20)
-        for (detection in sessionRelativeDetections) {
-            val priority = watchlistManager.getPriority(detection.scientificName)
-            if (priority != null) {
-                Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
-                alarmService.triggerAlarm(detection, priority)
-            }
-        }
-
-        // Detektionen in JSONL schreiben
-        if (sessionManager.isActive && sessionRelativeDetections.isNotEmpty()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.appendDetections(sessionRelativeDetections)
-            }
-        }
-
-        // Audio-Chunk als WAV speichern (Float → Short Rueckkonvertierung)
-        if (audioBlock != null && sessionManager.isActive) {
+        // --- Audio immer speichern (T51: Daueraufnahme) ---
+        // startSec VOR dem Append erfassen fuer korrekte Detection-Zeitstempel.
+        val startSec = if (sessionManager.isActive) sessionManager.getCurrentRecordingOffsetSec() else 0f
+        if (sessionManager.isActive) {
             val shortSamples = ShortArray(audioBlock.samples.size) { i ->
                 (audioBlock.samples[i] * Short.MAX_VALUE).toInt().coerceIn(
                     Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()
@@ -207,8 +144,75 @@ class LiveViewModel(
             }
         }
 
-        // Embedding-Arm: Bei erfolgreicher Detektion Embedding extrahieren
-        if (audioBlock != null && sessionRelativeDetections.isNotEmpty()) {
+        // --- Detektionsverarbeitung (nur wenn Ergebnisse vorliegen) ---
+        if (detections != null && detections.isNotEmpty()) {
+            // GPS-Position an Detektionen anhaengen
+            val loc = locationProvider.location.value
+            val locDetections = if (loc != null) {
+                detections.map { it.copy(latitude = loc.latitude, longitude = loc.longitude) }
+            } else {
+                detections
+            }
+            // Top-Ergebnis mit Kandidaten bestücken (T27)
+            // InferenceWorker liefert Top-K als separate DetectionResults.
+            // Nur das Top-Ergebnis behalten, Rest wird zu Kandidaten.
+            val topWithCandidates = if (locDetections.size > 1) {
+                val top = locDetections.first()
+                val candidates = locDetections.drop(1).map { alt ->
+                    DetectionCandidate(
+                        scientificName = alt.scientificName,
+                        commonName = alt.commonName,
+                        confidence = alt.confidence
+                    )
+                }
+                listOf(top.copy(candidates = candidates))
+            } else {
+                locDetections
+            }
+            // Artnamen in gewaehlter Sprache uebersetzen (T26) + Kandidaten-Namen (T27)
+            val geoDetections = topWithCandidates.map { det ->
+                det.copy(
+                    commonName = speciesNameResolver.resolve(det.scientificName),
+                    candidates = det.candidates.map { cand ->
+                        cand.copy(commonName = speciesNameResolver.resolve(cand.scientificName))
+                    }
+                )
+            }
+            // Session-relative Zeitstempel setzen (T49)
+            // startSec wurde vor dem Audio-Append erfasst → korrekte Offset-Berechnung.
+            val durationSec = audioBlock.samples.size.toFloat() / audioBlock.sampleRate.toFloat()
+            val sessionRelativeDetections = if (sessionManager.isActive) {
+                geoDetections.map { det ->
+                    det.copy(
+                        chunkStartSec = startSec,
+                        chunkEndSec = startSec + durationSec
+                    )
+                }
+            } else {
+                geoDetections
+            }
+            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
+            }
+            detectionListState.addDetections(sessionRelativeDetections)
+
+            // Watchlist-Check: Alarm ausloesen fuer Watchlist-Arten (T20)
+            for (detection in sessionRelativeDetections) {
+                val priority = watchlistManager.getPriority(detection.scientificName)
+                if (priority != null) {
+                    Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
+                    alarmService.triggerAlarm(detection, priority)
+                }
+            }
+
+            // Detektionen in JSONL schreiben
+            if (sessionManager.isActive) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    sessionManager.appendDetections(sessionRelativeDetections)
+                }
+            }
+
+            // Embedding-Arm: Bei erfolgreicher Detektion Embedding extrahieren
             viewModelScope.launch(Dispatchers.Default) {
                 val embedding = embeddingExtractor.extract(audioBlock.samples, audioBlock.sampleRate)
                 val topDetection = sessionRelativeDetections.maxByOrNull { it.confidence }!!
