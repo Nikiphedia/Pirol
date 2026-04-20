@@ -1,10 +1,13 @@
 package ch.etasystems.pirol.data.repository
 
+import android.content.Context
+import android.net.Uri
+import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.FileOutputStream
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 
 /**
  * Schreibt 16-bit PCM Mono WAV Dateien.
@@ -68,19 +71,48 @@ object WavWriter {
  * beim close() werden RIFF-fileSize und data-dataSize im Header aktualisiert.
  *
  * 16-bit PCM Mono. Nicht thread-safe — Aufrufer muss serialisieren.
+ *
+ * Unterstuetzt sowohl File-basierte als auch SAF-basierte Ausgabe via FileChannel.
+ * Periodisches Flush (alle FLUSH_INTERVAL_APPENDS Aufrufe) sichert die Datei
+ * bei langen Sessions gegen App-Kills.
  */
-class StreamingWavWriter(
-    private val file: File,
-    private val sampleRate: Int
+class StreamingWavWriter private constructor(
+    private val channel: FileChannel,
+    private val sampleRate: Int,
+    private val onClose: (() -> Unit)? = null
 ) {
-    private var raf: RandomAccessFile? = null
+    companion object {
+        private const val FLUSH_INTERVAL_APPENDS = 20  // ~60s bei 3s-Chunks
+
+        /**
+         * Writer fuer File-basierte Aufnahme (getExternalFilesDir oder interner Speicher).
+         */
+        fun forFile(file: File, sampleRate: Int): StreamingWavWriter {
+            val channel = FileOutputStream(file).channel
+            return StreamingWavWriter(channel, sampleRate)
+        }
+
+        /**
+         * Writer fuer SAF-basierte Aufnahme.
+         * @param context Context fuer ContentResolver
+         * @param uri DocumentFile-URI der Zieldatei (muss bereits existieren)
+         * @param sampleRate Sample Rate in Hz
+         */
+        fun forSaf(context: Context, uri: Uri, sampleRate: Int): StreamingWavWriter {
+            val pfd = context.contentResolver.openFileDescriptor(uri, "rw")
+                ?: throw IllegalStateException("SAF-URI nicht beschreibbar: $uri")
+            val channel = FileOutputStream(pfd.fileDescriptor).channel
+            return StreamingWavWriter(channel, sampleRate, onClose = { pfd.close() })
+        }
+    }
+
     private var dataBytesWritten: Long = 0L
+    private var appendCount: Int = 0
     private val numChannels = 1
     private val bitsPerSample = 16
 
-    /** Oeffnet die Datei und schreibt einen 44-Byte-Header mit Platzhaltern. */
+    /** Schreibt einen 44-Byte-Header mit Platzhaltern. */
     fun open() {
-        raf = RandomAccessFile(file, "rw")
         val byteRate = sampleRate * numChannels * bitsPerSample / 8
         val blockAlign = numChannels * bitsPerSample / 8
         val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
@@ -97,34 +129,48 @@ class StreamingWavWriter(
         header.putShort(bitsPerSample.toShort())
         header.put("data".toByteArray())
         header.putInt(0)            // Platzhalter dataSize = 0
-        raf!!.write(header.array())
+        header.flip()
+        channel.write(header, 0L)
         dataBytesWritten = 0L
+        appendCount = 0
     }
 
     /** Haengt Samples an. open() muss vorher aufgerufen worden sein. */
     fun append(samples: ShortArray) {
-        val r = raf ?: return
         val buf = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
         for (s in samples) buf.putShort(s)
-        r.write(buf.array())
+        buf.flip()
+        channel.write(buf)
         dataBytesWritten += samples.size * 2L
+        appendCount++
+        // Periodisches Flush: sichert Datei bei App-Kills in langen Sessions
+        if (appendCount % FLUSH_INTERVAL_APPENDS == 0) {
+            channel.force(false)
+        }
     }
 
-    /** Aktualisiert RIFF-fileSize (Offset 4) und data-dataSize (Offset 40), schliesst Datei. */
+    /**
+     * Aktualisiert RIFF-fileSize (Offset 4) und data-dataSize (Offset 40), schliesst Channel.
+     * Nutzt absolute Channel-Writes ohne Positionswechsel (FileChannel.write(buf, pos)).
+     */
     fun close() {
-        val r = raf ?: return
-        // RIFF fileSize @ Offset 4 (Little Endian)
-        r.seek(4)
-        r.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            .putInt((36 + dataBytesWritten).toInt()).array())
-        // data dataSize @ Offset 40 (Little Endian)
-        r.seek(40)
-        r.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            .putInt(dataBytesWritten.toInt()).array())
-        r.close()
-        raf = null
+        // RIFF fileSize @ Offset 4
+        val riffSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        riffSizeBuf.putInt((36 + dataBytesWritten).toInt())
+        riffSizeBuf.flip()
+        channel.write(riffSizeBuf, 4L)
+
+        // data dataSize @ Offset 40
+        val dataSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        dataSizeBuf.putInt(dataBytesWritten.toInt())
+        dataSizeBuf.flip()
+        channel.write(dataSizeBuf, 40L)
+
+        channel.force(true)
+        channel.close()
+        onClose?.invoke()
     }
 
-    /** Aktuell geschriebene Sample-Anzahl (fuer Logging). */
+    /** Aktuell geschriebene Sample-Anzahl. */
     val sampleCount: Long get() = dataBytesWritten / 2
 }

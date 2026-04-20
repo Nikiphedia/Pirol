@@ -108,4 +108,7 @@ dependencies {
 
     // osmdroid (OpenStreetMap Karte)
     implementation(libs.osmdroid.android)
+
+    // DocumentFile (SAF-Unterstuetzung fuer oeffentlichen Speicher, T51)
+    implementation(libs.documentfile)
 }

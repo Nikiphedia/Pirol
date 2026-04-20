@@ -72,10 +72,21 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_active_model", "birdnet_v3.onnx") ?: "birdnet_v3.onnx"
         set(value) = prefs.edit().putString("pirol_active_model", value).apply()
 
-    // --- Speicherort (T38) ---
+    // --- Speicherort (T38, erweitert T51) ---
+    /** Veralteter Pfad-Key (pre-T51). Wird noch fuer einen Release als Fallback genutzt. */
     var storagePath: String?
         get() = prefs.getString("pirol_storage_path", null)
         set(value) = prefs.edit().putString("pirol_storage_path", value).apply()
+
+    /** SAF-URI als String fuer user-konfigurierten Speicherort (null = Fallback auf getExternalFilesDir). */
+    var storageBaseUri: String?
+        get() = prefs.getString("pirol_storage_base_uri", null)
+        set(value) = prefs.edit().putString("pirol_storage_base_uri", value).apply()
+
+    /** Tages-Unterordner YYYY-MM-DD aktivieren (default true). */
+    var storageDailySubfolder: Boolean
+        get() = prefs.getBoolean("pirol_storage_daily_subfolder", true)
+        set(value) = prefs.edit().putBoolean("pirol_storage_daily_subfolder", value).apply()
 
     // --- Upload ---
     var wifiOnly: Boolean

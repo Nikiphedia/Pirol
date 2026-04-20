@@ -15,6 +15,7 @@ onnxruntime = "1.19.0"
 play-services-location = "21.3.0"
 work = "2.10.0"
 osmdroid = "6.1.18"
+documentfile = "1.0.1"
 
 [libraries]
 # Compose
@@ -62,6 +63,9 @@ work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "w
 
 # osmdroid (OpenStreetMap)
 osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
+
+# DocumentFile (SAF-Unterstuetzung, T51)
+documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
