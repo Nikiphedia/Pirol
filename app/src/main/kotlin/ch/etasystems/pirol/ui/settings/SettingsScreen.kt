@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,7 +61,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
-import ch.etasystems.pirol.data.StorageManager
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.ml.AudioClassifier
@@ -85,7 +86,6 @@ fun SettingsScreen(
     speciesNameResolver: SpeciesNameResolver = koinInject(),
     classifier: AudioClassifier = koinInject(),
     modelManager: ModelManager = koinInject(),
-    storageManager: StorageManager = koinInject(),
     sessionManager: SessionManager = koinInject()
 ) {
     val context = LocalContext.current
@@ -618,180 +618,189 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Speicher (T38 + T41: Migration) ---
-        Text("Speicher", style = MaterialTheme.typography.titleMedium)
+        // --- Speicherort (T51: SAF + Tages-Unterordner) ---
+        Text("Speicherort", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(4.dp))
+
+        // Anzeige des aktuellen Pfads
+        var currentBaseUri by remember { mutableStateOf(appPreferences.storageBaseUri) }
+        val currentPathDisplay = if (currentBaseUri != null) {
+            Uri.parse(currentBaseUri).lastPathSegment ?: currentBaseUri ?: "?"
+        } else {
+            "Android/data/ch.etasystems.pirol/files/PIROL/"
+        }
         Text(
-            text = "Sessions werden am gewaehlten Ort gespeichert",
+            text = "Aktuell: $currentPathDisplay",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
         Spacer(modifier = Modifier.height(8.dp))
 
-        val storageLocations = remember { storageManager.getAvailableStorageLocations() }
-        var selectedStoragePath by remember {
-            mutableStateOf(appPreferences.storagePath ?: storageLocations.first().path.absolutePath)
-        }
-
-        // T41: Migrations-Dialog State
+        // SAF-Picker (T51)
+        var migrationTargetUri by remember { mutableStateOf<Uri?>(null) }
         var showMigrationDialog by remember { mutableStateOf(false) }
-        var migrationTargetLocation by remember { mutableStateOf<ch.etasystems.pirol.data.StorageLocation?>(null) }
         var migrationSessionCount by remember { mutableIntStateOf(0) }
         var migrationSizeMB by remember { mutableLongStateOf(0L) }
         var isMigrating by remember { mutableStateOf(false) }
         var migrationProgress by remember { mutableFloatStateOf(0f) }
 
-        storageLocations.forEach { location ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val currentPath = appPreferences.storagePath
-                            ?: storageLocations.first().path.absolutePath
-                        if (location.path.absolutePath != currentPath) {
-                            // T41: Vor dem Wechsel Migration anbieten
-                            val info = sessionManager.getMigrationInfo()
-                            migrationSessionCount = info.sessionCount
-                            migrationSizeMB = info.totalSizeBytes / 1_000_000
-                            migrationTargetLocation = location
-                            showMigrationDialog = true
-                        }
-                    }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = selectedStoragePath == location.path.absolutePath,
-                    onClick = {
-                        val currentPath = appPreferences.storagePath
-                            ?: storageLocations.first().path.absolutePath
-                        if (location.path.absolutePath != currentPath) {
-                            val info = sessionManager.getMigrationInfo()
-                            migrationSessionCount = info.sessionCount
-                            migrationSizeMB = info.totalSizeBytes / 1_000_000
-                            migrationTargetLocation = location
-                            showMigrationDialog = true
-                        }
-                    }
+        val safLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree()
+        ) { uri ->
+            if (uri != null) {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
-                Column(modifier = Modifier.padding(start = 4.dp)) {
-                    Text(location.name, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        text = "${location.freeSpaceMB} MB frei",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                val info = sessionManager.getMigrationInfo()
+                migrationSessionCount = info.sessionCount
+                migrationSizeMB = info.totalSizeBytes / 1_000_000
+                if (info.sessionCount > 0) {
+                    migrationTargetUri = uri
+                    showMigrationDialog = true
+                } else {
+                    appPreferences.storageBaseUri = uri.toString()
+                    currentBaseUri = uri.toString()
+                    Toast.makeText(context, "Speicherort gespeichert", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        if (storageLocations.size == 1) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Keine SD-Karte erkannt",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        OutlinedButton(onClick = { safLauncher.launch(null) }) {
+            Text("Anderen Ordner waehlen")
         }
 
-        // T41: Fortschrittsanzeige waehrend Migration
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Tages-Unterordner Toggle
+        var dailySubfolder by remember { mutableStateOf(appPreferences.storageDailySubfolder) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Switch(
+                checked = dailySubfolder,
+                onCheckedChange = { enabled ->
+                    dailySubfolder = enabled
+                    appPreferences.storageDailySubfolder = enabled
+                }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text("Tages-Unterordner (YYYY-MM-DD)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Sessions nach Datum gruppieren",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Preview-Zeile
+        Spacer(modifier = Modifier.height(4.dp))
+        val todayStr = java.time.LocalDate.now().toString()
+        val examplePath = if (dailySubfolder) {
+            "$currentPathDisplay/$todayStr/2026-04-20T08-30-00_a1b2c3/"
+        } else {
+            "$currentPathDisplay/2026-04-20T08-30-00_a1b2c3/"
+        }
+        Text(
+            text = "Beispiel: $examplePath",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Migration-Button
+        OutlinedButton(onClick = {
+            val info = sessionManager.getMigrationInfo()
+            migrationSessionCount = info.sessionCount
+            migrationSizeMB = info.totalSizeBytes / 1_000_000
+            if (info.sessionCount > 0) showMigrationDialog = true
+            else Toast.makeText(context, "Keine Sessions vorhanden", Toast.LENGTH_SHORT).show()
+        }) {
+            Text("Bestehende Sessions verschieben")
+        }
+
+        // Fortschrittsanzeige waehrend Migration
         if (isMigrating) {
             Spacer(modifier = Modifier.height(8.dp))
             Text("Sessions werden kopiert...", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { migrationProgress },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(progress = { migrationProgress }, modifier = Modifier.fillMaxWidth())
             Text(
                 text = "${(migrationProgress * 100).toInt()}%",
                 style = MaterialTheme.typography.bodySmall
             )
         }
 
-        // T41: Bestaetigungsdialog
-        if (showMigrationDialog && migrationTargetLocation != null) {
-            val targetLoc = migrationTargetLocation!!
-
+        // Bestaetigungsdialog fuer Migration
+        if (showMigrationDialog) {
             AlertDialog(
                 onDismissRequest = {
-                    // Abbrechen — nichts tun
                     showMigrationDialog = false
-                    migrationTargetLocation = null
+                    migrationTargetUri = null
                 },
-                title = { Text("Speicherort wechseln") },
+                title = { Text("Sessions verschieben") },
                 text = {
-                    if (migrationSessionCount > 0) {
-                        Text(
-                            "$migrationSessionCount Sessions ($migrationSizeMB MB) " +
-                            "zum neuen Speicherort kopieren?"
-                        )
-                    } else {
-                        Text("Keine Sessions vorhanden. Speicherort wechseln?")
-                    }
+                    Text("$migrationSessionCount Sessions ($migrationSizeMB MB) an neuen Speicherort kopieren?")
                 },
                 confirmButton = {
-                    if (migrationSessionCount > 0) {
-                        TextButton(onClick = {
-                            showMigrationDialog = false
-                            isMigrating = true
-                            migrationProgress = 0f
-                            scope.launch {
-                                val result = sessionManager.migrateSessionsTo(
-                                    targetBaseDir = targetLoc.path
-                                ) { progress ->
-                                    migrationProgress = progress
+                    TextButton(onClick = {
+                        showMigrationDialog = false
+                        isMigrating = true
+                        migrationProgress = 0f
+                        val targetUri = migrationTargetUri
+                        scope.launch {
+                            // Migration zu File-Pfad (aus SAF-URI) oder bestehender Struktur
+                            val targetFile = if (targetUri != null) {
+                                // SAF-URI in File-Pfad umwandeln falls moeglich, sonst internal
+                                try {
+                                    val docId = android.provider.DocumentsContract.getTreeDocumentId(targetUri)
+                                    val parts = docId.split(":")
+                                    if (parts.size >= 2 && parts[0].equals("primary", ignoreCase = true)) {
+                                        java.io.File(android.os.Environment.getExternalStorageDirectory(), parts[1])
+                                    } else null
+                                } catch (_: Exception) { null }
+                            } else null
+
+                            if (targetFile != null) {
+                                val result = sessionManager.migrateSessionsTo(targetFile) { p ->
+                                    migrationProgress = p
                                 }
                                 isMigrating = false
                                 if (result.errors.isEmpty()) {
-                                    // Erfolg: Speicherort umstellen
-                                    selectedStoragePath = targetLoc.path.absolutePath
-                                    appPreferences.storagePath =
-                                        if (targetLoc.isInternal) null else targetLoc.path.absolutePath
-                                    Toast.makeText(
-                                        context,
-                                        "${result.sessionsCopied} Sessions kopiert",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    appPreferences.storageBaseUri = targetUri.toString()
+                                    currentBaseUri = targetUri.toString()
+                                    Toast.makeText(context, "${result.sessionsCopied} Sessions kopiert", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    // Fehler: alter Pfad bleibt aktiv
-                                    Toast.makeText(
-                                        context,
-                                        "Migration fehlgeschlagen: ${result.errors.first()}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                    Toast.makeText(context, "Fehler: ${result.errors.first()}", Toast.LENGTH_LONG).show()
                                 }
-                                migrationTargetLocation = null
+                            } else {
+                                isMigrating = false
+                                Toast.makeText(context, "Zielordner nicht auflösbar", Toast.LENGTH_LONG).show()
                             }
-                        }) { Text("Kopieren") }
-                    } else {
-                        // Keine Sessions — einfach wechseln
-                        TextButton(onClick = {
-                            showMigrationDialog = false
-                            selectedStoragePath = targetLoc.path.absolutePath
-                            appPreferences.storagePath =
-                                if (targetLoc.isInternal) null else targetLoc.path.absolutePath
-                            migrationTargetLocation = null
-                        }) { Text("Wechseln") }
-                    }
+                            migrationTargetUri = null
+                        }
+                    }) { Text("Kopieren") }
                 },
                 dismissButton = {
                     Row {
-                        if (migrationSessionCount > 0) {
-                            // Ohne Kopieren wechseln
-                            TextButton(onClick = {
-                                showMigrationDialog = false
-                                selectedStoragePath = targetLoc.path.absolutePath
-                                appPreferences.storagePath =
-                                    if (targetLoc.isInternal) null else targetLoc.path.absolutePath
-                                migrationTargetLocation = null
-                            }) { Text("Ohne Kopieren") }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
+                        TextButton(onClick = {
+                            // Ohne Migration wechseln — nur URI speichern
+                            showMigrationDialog = false
+                            migrationTargetUri?.let { uri ->
+                                appPreferences.storageBaseUri = uri.toString()
+                                currentBaseUri = uri.toString()
+                            }
+                            migrationTargetUri = null
+                        }) { Text("Nur wechseln") }
+                        Spacer(modifier = Modifier.width(4.dp))
                         TextButton(onClick = {
                             showMigrationDialog = false
-                            migrationTargetLocation = null
+                            migrationTargetUri = null
                         }) { Text("Abbrechen") }
                     }
                 }
