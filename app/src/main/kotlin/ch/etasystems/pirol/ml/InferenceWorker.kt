@@ -10,28 +10,34 @@ import java.util.UUID
  * Coroutine-basierter Worker fuer die Inference-Pipeline.
  *
  * Orchestriert den gesamten Ablauf:
- * AudioChunk → ChunkAccumulator (3s) → Intervall-Check → AudioResampler (→32kHz) → AudioClassifier → DetectionResult
+ * AudioChunk → ChunkAccumulator (3s) → AudioBlock (immer) → Intervall-Check → Inference
  *
  * Wird pro Chunk vom LiveViewModel aufgerufen (suspend fuer cooperative Cancellation).
- * Der onDetections-Callback liefert Ergebnisse an den DetectionListState.
+ * Der onChunkProcessed-Callback liefert den AudioBlock bei jedem vollstaendigen 3s-Block,
+ * unabhaengig davon ob Inference stattfand oder Detektionen gefunden wurden.
  *
  * Ab T12: Der Callback erhaelt zusaetzlich den AudioBlock (48kHz Float-Samples),
  * damit die Embedding-Pipeline darauf zugreifen kann.
  *
- * Ab T29: Intervall-Steuerung — Chunks werden uebersprungen wenn das konfigurierte
- * Mindest-Intervall (inferenceIntervalMs) nicht erreicht ist. Audio wird trotzdem
- * gespeichert (SessionManager), nur die CPU-intensive Inference wird uebersprungen.
+ * Ab T29: Intervall-Steuerung — Inference wird uebersprungen wenn das konfigurierte
+ * Mindest-Intervall (inferenceIntervalMs) nicht erreicht ist. Audio wird IMMER
+ * gespeichert (Daueraufnahme, T51).
+ *
+ * Ab T51: Daueraufnahme — onChunkProcessed wird bei jedem vollstaendigen 3s-Block
+ * aufgerufen, auch wenn keine Detektionen vorliegen. detections == null bedeutet:
+ * kein Inference-Ergebnis (Intervall-Skip oder keine Treffer).
  *
  * @param classifier Audio-Klassifizierer (via Koin injiziert)
  * @param regionalFilter Filter fuer regionale Artenliste (Plausibilitaetspruefung)
  * @param config Laufzeit-Konfiguration fuer Inference-Parameter (topK, Schwellwert, Regionalfilter, Intervall)
- * @param onDetections Callback fuer neue Detektionen + Audio-Block (wird auf dem Aufrufer-Scope ausgefuehrt)
+ * @param onChunkProcessed Callback fuer jeden vollstaendigen 3s-Block: AudioBlock (immer)
+ *   + optionale Detektionsliste (null = kein Inference-Ergebnis)
  */
 class InferenceWorker(
     private val classifier: AudioClassifier,
     private val regionalFilter: RegionalSpeciesFilter,
     var config: InferenceConfig = InferenceConfig.DEFAULT,
-    private val onDetections: (List<DetectionResult>, AudioBlock?) -> Unit
+    private val onChunkProcessed: (AudioBlock, List<DetectionResult>?) -> Unit
 ) {
     companion object {
         private const val TAG = "InferenceWorker"
@@ -48,13 +54,15 @@ class InferenceWorker(
      * Verarbeitet einen AudioChunk.
      *
      * Akkumuliert Chunks bis 3s voll sind, dann:
-     * 0. Intervall-Check: Zu frueh seit letzter Inference? → Chunk verwerfen
-     * 1. Resampling auf 32 kHz (fuer BirdNET)
-     * 2. ONNX-Klassifizierung
-     * 3. Optionaler Regionalfilter (Plausibilitaetspruefung)
-     * 4. Mapping auf DetectionResult
-     * 5. Konvertierung der Original-Samples zu Float (48kHz) fuer Embedding-Pipeline
-     * 6. Callback mit Ergebnissen + AudioBlock
+     * 0. AudioBlock erstellen (48kHz Float — immer, unabhaengig von Inference)
+     * 1. Intervall-Check: Zu frueh seit letzter Inference? → onChunkProcessed(block, null), return
+     * 2. Resampling auf 32 kHz (fuer BirdNET)
+     * 3. ONNX-Klassifizierung
+     * 4. Optionaler Regionalfilter (Plausibilitaetspruefung)
+     * 5. Mapping auf DetectionResult
+     * 6. Callback mit AudioBlock + Ergebnissen
+     *
+     * Jeder vollstaendige Block fuehrt zu GENAU EINEM onChunkProcessed-Aufruf.
      */
     suspend fun processChunk(chunk: AudioChunk) {
         val block = try {
@@ -68,11 +76,21 @@ class InferenceWorker(
         // Kein Block fertig — weiter sammeln
         if (block == null) return
 
+        // AudioBlock immer erstellen (T51: Daueraufnahme)
+        val floatSamples = FloatArray(block.samples.size) { i ->
+            block.samples[i].toFloat() / Short.MAX_VALUE.toFloat()
+        }
+        val audioBlock = AudioBlock(
+            samples = floatSamples,
+            sampleRate = block.sampleRate
+        )
+
         // T29: Intervall-Check — zu frueh fuer naechste Inference?
+        // Audio wird trotzdem geschrieben (onChunkProcessed mit null-Detektionen).
         val now = System.currentTimeMillis()
         if (now - lastInferenceMs < config.inferenceIntervalMs) {
-            // Chunk verwerfen (Audio wird trotzdem vom SessionManager gespeichert)
-            Log.d(TAG, "Inference uebersprungen (Intervall ${config.inferenceIntervalMs}ms nicht erreicht)")
+            Log.d(TAG, "Inference uebersprungen (Intervall ${config.inferenceIntervalMs}ms) — Audio wird gespeichert")
+            onChunkProcessed(audioBlock, null)
             return
         }
         lastInferenceMs = now
@@ -98,7 +116,11 @@ class InferenceWorker(
                 threshold = config.confidenceThreshold
             )
 
-            if (classifierResults.isEmpty()) return
+            if (classifierResults.isEmpty()) {
+                // Keine Ergebnisse ueber Schwellwert — Audio trotzdem speichern
+                onChunkProcessed(audioBlock, null)
+                return
+            }
 
             // 3. Regionalfilter anwenden (falls konfiguriert)
             val filteredResults = if (config.regionFilter != null && config.showOnlyFiltered) {
@@ -125,7 +147,7 @@ class InferenceWorker(
                 classifierResults
             }
 
-            // 4. Mapping: ClassifierResult → DetectionResult
+            // 4. Mapping: ClassifierResult → DetectionResult (nur bei Treffern)
             if (filteredResults.isNotEmpty()) {
                 val detections = filteredResults.map { cr ->
                     DetectionResult(
@@ -144,20 +166,16 @@ class InferenceWorker(
                         "(Top: ${detections.first().commonName} " +
                         "${(detections.first().confidence * 100).toInt()}%)")
 
-                // 5. Original-Samples als Float konvertieren (48kHz fuer Embedding)
-                val floatSamples = FloatArray(block.samples.size) { i ->
-                    block.samples[i].toFloat() / Short.MAX_VALUE.toFloat()
-                }
-                val audioBlock = AudioBlock(
-                    samples = floatSamples,
-                    sampleRate = block.sampleRate
-                )
-
-                // 6. Ergebnisse + AudioBlock an Consumer liefern
-                onDetections(detections, audioBlock)
+                // 5. Ergebnisse + AudioBlock an Consumer liefern
+                onChunkProcessed(audioBlock, detections)
+            } else {
+                // Nach Regionalfilter keine Treffer mehr — Audio trotzdem speichern
+                onChunkProcessed(audioBlock, null)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)
+            // Audio trotzdem sichern, auch bei Inference-Fehler
+            onChunkProcessed(audioBlock, null)
         }
     }
 
