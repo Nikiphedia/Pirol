@@ -63,11 +63,41 @@ AMSEL Desktop (`D:\80002\AMSEL`) — Compose Desktop, Kotlin 2.1. Gemeinsame For
 | Embedding-Vektoren | FloatArray, L2-normalisiert | |
 | Embedding-DB | Binary BSED (AMSEL-kompatibel) | `embeddings.bsed` |
 | Artenlisten | Unterstrich-Format | `Parus_major` |
-| Zeitstempel | ISO 8601 | `2026-04-04T14:30:00Z` |
+| Zeitstempel | ISO 8601 mit **Offset** (Lokalzeit) | `2026-04-20T14:30:00+02:00` |
 | Session-Metadaten | JSON (`@Serializable`) | `session.json` |
 | Detektionen | JSONL (eine Zeile pro Detektion) | `detections.jsonl` |
-| Audio-Chunks | WAV 16-bit PCM Mono | `chunk_000.wav` (3s, 48kHz) |
+| Verifikationen | JSONL (eine Zeile pro Aktion) | `verifications.jsonl` |
+| Audio-Aufnahme | WAV 16-bit PCM Mono 48 kHz | `recording.wav` (eine Datei pro Session, inkl. Preroll) |
+| Raven-Export | TSV (Tab-getrennt, UTF-8) | `recording.selections.txt` (auto, neben WAV) |
 | GPS-Koordinaten | WGS84, Double | `47.3769, 8.5417` |
+
+**Zeitzone-Regel:** Alle Timestamps in `session.json`, `detections.jsonl` und `verifications.jsonl` werden in **lokaler Zeit mit Zonen-Offset** geschrieben. Kein reines UTC (`Z`), kein nacktes Datetime ohne Offset. Grund: Feldornithologen lesen Raven-Exporte direkt, lokale Zeit muss ohne Konversion erkennbar sein.
+
+## Session-Speicher (V0.0.6+)
+
+| Ebene | Pfad | Hinweis |
+|-------|------|---------|
+| Default-Basis | `Downloads/PIROL/` | öffentlich, per USB/MTP sichtbar |
+| Tages-Unterordner | `Downloads/PIROL/YYYY-MM-DD/` | an/aus in Settings, default an |
+| Session-Ordner | `Downloads/PIROL/YYYY-MM-DD/{sessionId}/` | `{sessionId}` = `{iso-date}_{uuid6}` |
+| Fallback | `context.filesDir/sessions/…` | wenn SAF-URI nicht zugreifbar |
+
+Alle Session-Dateien liegen **direkt** im Session-Ordner, kein `audio/`-Unterordner: `session.json`, `detections.jsonl`, `verifications.jsonl`, `recording.wav`, `recording.selections.txt`.
+
+## Export-Formate
+
+| Status | Format | Hinweis |
+|--------|--------|---------|
+| **Aktiv** | Raven Selection Table (`recording.selections.txt`) | kanonisch, wird bei Session-Stop **automatisch** geschrieben, öffnet direkt in Cornell Raven / Audacity / Sonic Visualiser |
+| **Obsolet ab V0.0.6** | KML (`.kml`) | wird aus Code und UI entfernt (Feldtest-Feedback: nicht mehr benötigt, da Raven + GPS in Raven-TSV integrierbar) |
+| **Aktiv** | ZIP-Session-Paket | via `SessionUploadWorker` nach `Downloads/PIROL/` |
+
+## UI-Konventionen
+
+- **Minimum Tap-Target:** 48 dp (Material 3 Accessibility). Im Feld-Kontext bevorzugt 56 dp für Verifikations-Aktionen.
+- **Feedback-Regel:** Jede zerstörbare oder semantik-ändernde Aktion (Verifikation, Lösche, Alternative wählen) zeigt Snackbar mit Undo (≥ 5 s).
+- **Sprache auf UI:** Artnamen immer via `SpeciesNameResolver` in der in Settings gewählten Anzeigesprache. Wissenschaftlicher Name nur als Subtitle/Tooltip. Gilt auch für Top-N-Kandidaten.
+- **Farbkodierung Verifikationsstatus** (nicht ändern ohne Abstimmung): CONFIRMED grün, UNCERTAIN orange, REJECTED ausgegraut (alpha 0.6), CORRECTED ersetzt Namen, REPLACED ausgegraut + rotem Rand.
 
 ## Verzeichnisstruktur
 
@@ -79,7 +109,8 @@ app/src/main/
 │   ├── audio/              # Oboe-Engine, RecordingService, AudioPlayer, Permissions
 │   │   └── dsp/            # FFT, Mel, Resampler, Spectrogram
 │   ├── data/
-│   │   ├── repository/     # SessionManager, ReferenceRepository, KmlExporter, WavWriter
+│   │   ├── repository/     # SessionManager, ReferenceRepository, WavWriter, ShareHelper
+│   │   ├── export/         # RavenExporter (auto on session stop)
 │   │   └── sync/           # UploadManager, UploadTarget, SessionUploadWorker
 │   ├── di/                 # Koin AppModule (9 ViewModel-Parameter)
 │   ├── location/           # LocationProvider, LocationPermissionHandler
