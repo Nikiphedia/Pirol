@@ -13,11 +13,9 @@ import ch.etasystems.pirol.audio.RecordingService
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
-import ch.etasystems.pirol.data.repository.KmlExporter
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.repository.SessionMetadata
-import ch.etasystems.pirol.data.repository.ShareHelper
 import ch.etasystems.pirol.data.sync.UploadManager
 import kotlinx.serialization.json.Json as KJson
 import ch.etasystems.pirol.location.LocationProvider
@@ -421,27 +419,6 @@ class LiveViewModel(
         } else {
             startRecording(sampleRate)
         }
-    }
-
-    /**
-     * Exportiert die letzte Session als KML und gibt einen Share Intent zurueck.
-     * @return Share Intent oder null wenn kein Export moeglich
-     */
-    fun exportLastSessionAsKml(): Intent? {
-        val sessions = sessionManager.listSessions()
-        if (sessions.isEmpty()) return null
-
-        val lastSessionDir = sessions.first()
-        val ctx = applicationContext ?: return null
-
-        // Export-Ordner erstellen
-        val exportDir = File(ctx.filesDir, "export")
-        exportDir.mkdirs()
-
-        // KML generieren
-        val kmlFile = KmlExporter.export(lastSessionDir, exportDir) ?: return null
-
-        return ShareHelper.shareKml(ctx, kmlFile)
     }
 
     /**

@@ -2,6 +2,4 @@
 <paths>
     <!-- Sessions-Ordner (filesDir/sessions/) -->
     <files-path name="sessions" path="sessions/" />
-    <!-- Export-Ordner (filesDir/export/) fuer temporaere KML-Dateien -->
-    <files-path name="export" path="export/" />
 </paths>

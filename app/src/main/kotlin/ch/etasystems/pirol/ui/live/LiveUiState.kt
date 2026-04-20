@@ -49,7 +49,7 @@ data class LiveUiState(
     val currentLongitude: Double? = null,
     val locationAccuracyM: Float? = null,
     val isLocationAvailable: Boolean = false,
-    // KML-Export (T15)
+    // Letzte Session-ID (fuer Upload-Button, T17)
     val lastSessionId: String? = null,
     // Upload-Status (T17)
     val uploadStatus: UploadStatus = UploadStatus.Idle,
