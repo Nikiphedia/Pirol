@@ -1,6 +1,5 @@
 package ch.etasystems.pirol.ui.live
 
-import android.content.Intent
 import android.widget.Chronometer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
@@ -27,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.CircularProgressIndicator
@@ -123,14 +121,6 @@ fun LiveScreen(
         }
     }
 
-    // KML-Export Handler (T15)
-    val onExport: () -> Unit = {
-        val intent = viewModel.exportLastSessionAsKml()
-        if (intent != null) {
-            context.startActivity(Intent.createChooser(intent, "KML exportieren"))
-        }
-    }
-
     // --- Adaptives Layout basierend auf WindowWidthSizeClass ---
     when (widthSizeClass) {
         WindowWidthSizeClass.Expanded -> {
@@ -138,8 +128,7 @@ fun LiveScreen(
             ExpandedLiveLayout(
                 uiState = uiState,
                 viewModel = viewModel,
-                onRequestPermission = { permissionTrigger = true },
-                onExport = onExport
+                onRequestPermission = { permissionTrigger = true }
             )
         }
         WindowWidthSizeClass.Medium -> {
@@ -147,8 +136,7 @@ fun LiveScreen(
             MediumLiveLayout(
                 uiState = uiState,
                 viewModel = viewModel,
-                onRequestPermission = { permissionTrigger = true },
-                onExport = onExport
+                onRequestPermission = { permissionTrigger = true }
             )
         }
         else -> {
@@ -156,8 +144,7 @@ fun LiveScreen(
             CompactLiveLayout(
                 uiState = uiState,
                 viewModel = viewModel,
-                onRequestPermission = { permissionTrigger = true },
-                onExport = onExport
+                onRequestPermission = { permissionTrigger = true }
             )
         }
     }
@@ -171,8 +158,7 @@ fun LiveScreen(
 private fun CompactLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
-    onRequestPermission: () -> Unit,
-    onExport: () -> Unit = {}
+    onRequestPermission: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -188,7 +174,7 @@ private fun CompactLiveLayout(
             Spacer(modifier = Modifier.height(4.dp))
 
             // Kompakte Status-Zeile (T30) + Export-Buttons
-            ScanStatusRow(uiState = uiState, viewModel = viewModel, onExport = onExport)
+            ScanStatusRow(uiState = uiState, viewModel = viewModel)
 
             LocationBar(uiState = uiState)
 
@@ -252,8 +238,7 @@ private fun CompactLiveLayout(
 private fun MediumLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
-    onRequestPermission: () -> Unit,
-    onExport: () -> Unit = {}
+    onRequestPermission: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -272,7 +257,7 @@ private fun MediumLiveLayout(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            ScanStatusRow(uiState = uiState, viewModel = viewModel, onExport = onExport)
+            ScanStatusRow(uiState = uiState, viewModel = viewModel)
 
             LocationBar(uiState = uiState)
 
@@ -339,8 +324,7 @@ private fun MediumLiveLayout(
 private fun ExpandedLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
-    onRequestPermission: () -> Unit,
-    onExport: () -> Unit = {}
+    onRequestPermission: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -359,7 +343,7 @@ private fun ExpandedLiveLayout(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            ScanStatusRow(uiState = uiState, viewModel = viewModel, onExport = onExport)
+            ScanStatusRow(uiState = uiState, viewModel = viewModel)
 
             LocationBar(uiState = uiState)
 
@@ -492,8 +476,7 @@ private fun LiveHeader(
 @Composable
 private fun ScanStatusRow(
     uiState: LiveUiState,
-    viewModel: LiveViewModel,
-    onExport: () -> Unit = {}
+    viewModel: LiveViewModel
 ) {
     val configLabel = when (uiState.spectrogramConfig) {
         SpectrogramConfig.BIRDS -> "Voegel"
@@ -522,29 +505,20 @@ private fun ScanStatusRow(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
         )
 
-        // Export-Buttons (T15 + T17): nur sichtbar nach abgeschlossener Session
+        // Upload-Button (T17): nur sichtbar nach abgeschlossener Session
         if (uiState.lastSessionId != null && !uiState.isRecording) {
-            Row {
-                IconButton(onClick = onExport) {
+            IconButton(onClick = { viewModel.uploadLastSession() }) {
+                if (uiState.uploadStatus is UploadStatus.InProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
                     Icon(
-                        imageVector = Icons.Filled.Share,
-                        contentDescription = "KML exportieren",
+                        imageVector = Icons.Filled.Upload,
+                        contentDescription = "Session exportieren",
                         tint = MaterialTheme.colorScheme.primary
                     )
-                }
-                IconButton(onClick = { viewModel.uploadLastSession() }) {
-                    if (uiState.uploadStatus is UploadStatus.InProgress) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Upload,
-                            contentDescription = "Session exportieren",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
         }
