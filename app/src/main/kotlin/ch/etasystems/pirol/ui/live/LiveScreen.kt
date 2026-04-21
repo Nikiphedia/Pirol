@@ -28,13 +28,17 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -122,29 +126,71 @@ fun LiveScreen(
     }
 
     // --- Adaptives Layout basierend auf WindowWidthSizeClass ---
-    when (widthSizeClass) {
-        WindowWidthSizeClass.Expanded -> {
-            // Tablet: Dual-Pane nebeneinander
-            ExpandedLiveLayout(
-                uiState = uiState,
-                viewModel = viewModel,
-                onRequestPermission = { permissionTrigger = true }
-            )
+    Column {
+        // Fallback-Banner: SAF-URI nicht erreichbar (T51)
+        if (uiState.storageUnavailableFallback) {
+            StorageFallbackBanner()
         }
-        WindowWidthSizeClass.Medium -> {
-            // Phone Landscape / kleines Tablet: gewichtetes Layout
-            MediumLiveLayout(
-                uiState = uiState,
-                viewModel = viewModel,
-                onRequestPermission = { permissionTrigger = true }
-            )
+
+        when (widthSizeClass) {
+            WindowWidthSizeClass.Expanded -> {
+                // Tablet: Dual-Pane nebeneinander
+                ExpandedLiveLayout(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onRequestPermission = { permissionTrigger = true }
+                )
+            }
+            WindowWidthSizeClass.Medium -> {
+                // Phone Landscape / kleines Tablet: gewichtetes Layout
+                MediumLiveLayout(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onRequestPermission = { permissionTrigger = true }
+                )
+            }
+            else -> {
+                // Phone Portrait: Standard-Layout
+                CompactLiveLayout(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onRequestPermission = { permissionTrigger = true }
+                )
+            }
         }
-        else -> {
-            // Phone Portrait: Standard-Layout
-            CompactLiveLayout(
-                uiState = uiState,
-                viewModel = viewModel,
-                onRequestPermission = { permissionTrigger = true }
+    }
+}
+
+/**
+ * Fallback-Banner: Wird angezeigt wenn der konfigurierte SAF-Speicherort nicht erreichbar war
+ * und stattdessen getExternalFilesDir() verwendet wurde (T51).
+ */
+@Composable
+private fun StorageFallbackBanner() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                text = "Speicherort nicht erreichbar — Aufnahme im Fallback-Ordner gespeichert.",
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
             )
         }
     }

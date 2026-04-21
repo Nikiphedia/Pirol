@@ -51,6 +51,8 @@ data class LiveUiState(
     val isLocationAvailable: Boolean = false,
     // Letzte Session-ID (fuer Upload-Button, T17)
     val lastSessionId: String? = null,
+    // Speicherort-Fallback (T51): true wenn SAF-URI nicht erreichbar war
+    val storageUnavailableFallback: Boolean = false,
     // Upload-Status (T17)
     val uploadStatus: UploadStatus = UploadStatus.Idle,
     // Watchlist-State (T20)
