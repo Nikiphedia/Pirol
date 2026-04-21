@@ -55,6 +55,7 @@ fun DetectionList(
     onSaveAsReference: ((String) -> Unit)? = null,
     onSelectAlternative: ((String, DetectionCandidate) -> Unit)? = null,
     watchlistSpecies: Set<String> = emptySet(),
+    showTopNCandidates: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // version lesen => Recomposition bei Aenderung
@@ -142,6 +143,7 @@ fun DetectionList(
                         isWatchlisted = watchlistSpecies.contains(
                             detection.scientificName.replace(' ', '_')
                         ),
+                        showTopNCandidates = showTopNCandidates,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }

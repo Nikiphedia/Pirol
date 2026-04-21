@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -184,6 +185,122 @@ fun SettingsScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- Sonogramm-Dynamik (T56): Auto-Kontrast + manueller dB-Range ---
+        var autoContrast by remember { mutableStateOf(appPreferences.spectrogramAutoContrast) }
+        var manualMinDb by remember { mutableFloatStateOf(appPreferences.spectrogramMinDb) }
+        var manualMaxDb by remember { mutableFloatStateOf(appPreferences.spectrogramMaxDb) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Auto-Kontrast", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Passt die Helligkeit laufend an (5./95. Perzentil, 5 s Fenster)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = autoContrast,
+                onCheckedChange = {
+                    autoContrast = it
+                    appPreferences.spectrogramAutoContrast = it
+                }
+            )
+        }
+
+        if (!autoContrast) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "dB-Bereich: ${manualMinDb.roundToInt()} dB bis ${manualMaxDb.roundToInt()} dB",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            RangeSlider(
+                value = manualMinDb..manualMaxDb,
+                onValueChange = { range ->
+                    // Mindestens 1 dB Abstand, sonst teilt der Canvas durch 0
+                    val lo = range.start
+                    val hi = if (range.endInclusive - lo < 1f) lo + 1f else range.endInclusive
+                    manualMinDb = lo
+                    manualMaxDb = hi
+                    appPreferences.spectrogramMinDb = lo
+                    appPreferences.spectrogramMaxDb = hi
+                },
+                valueRange = -100f..10f,
+                steps = 21 // 5 dB Raster
+            )
+        }
+
+        // T56b: Gamma-Kompression — immer aktiv, unabhaengig vom Auto-Kontrast-Toggle
+        Spacer(modifier = Modifier.height(12.dp))
+
+        var gamma by remember { mutableFloatStateOf(appPreferences.spectrogramGamma) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Kontrast-Kompression (Gamma)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Hebt leise Anteile an. 1.0 = aus, 0.5 = Standard fuer leise Voegel, 0.3 = stark.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "\u03B3 = ${String.format("%.2f", gamma)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = gamma,
+            onValueChange = { v ->
+                gamma = v
+                appPreferences.spectrogramGamma = v
+            },
+            valueRange = 0.3f..1.0f,
+            steps = 14
+        )
+
+        // T56b: Lautstärke-Deckel (Ceiling) — immer aktiv
+        Spacer(modifier = Modifier.height(12.dp))
+
+        var ceilingDb by remember { mutableFloatStateOf(appPreferences.spectrogramCeilingDb) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Lautstärke-Deckel (Ceiling)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Schneidet laute Anteile ab. 0 dB = aus, -10 dB = laute Impulse kappen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (ceilingDb >= 0f) "aus" else "${ceilingDb.roundToInt()} dB",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = ceilingDb,
+            onValueChange = { v ->
+                ceilingDb = v
+                appPreferences.spectrogramCeilingDb = v
+            },
+            valueRange = -50f..0f,
+            steps = 9  // 5 dB Raster: -50, -45, -40, -35, -30, -25, -20, -15, -10, -5, 0
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
@@ -291,6 +408,32 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // T52: Artvorschlaege (Top-N Kandidaten) Toggle
+        var showTopNCandidates by remember { mutableStateOf(appPreferences.showTopNCandidates) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Artvorschlaege anzeigen")
+                Text(
+                    "Alternativen unter jeder Detektion aufklappbar",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = showTopNCandidates,
+                onCheckedChange = {
+                    showTopNCandidates = it
+                    appPreferences.showTopNCandidates = it
+                }
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()

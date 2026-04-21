@@ -41,10 +41,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -102,6 +105,7 @@ fun SpeciesCard(
     playTimeLabel: String? = null,
     onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
     isWatchlisted: Boolean = false,
+    showTopNCandidates: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val confidencePercent = (detection.confidence * 100).toInt()
@@ -142,8 +146,8 @@ fun SpeciesCard(
     var showCorrectionDialog by remember { mutableStateOf(false) }
     var correctedName by remember(detection.id) { mutableStateOf(detection.commonName) }
 
-    // Kandidaten aufklappbar (T27)
-    var candidatesExpanded by remember { mutableStateOf(false) }
+    // Kandidaten aufklappbar (T27) — rememberSaveable stabil bei Re-Sort (T52)
+    var candidatesExpanded by rememberSaveable(key = detection.id) { mutableStateOf(false) }
 
     // Haptisches Feedback (T52: ✎ und Kandidaten-Tap)
     val haptic = LocalHapticFeedback.current
@@ -491,8 +495,8 @@ fun SpeciesCard(
                 }
             }
 
-            // Zeile 5: Aufklappbare Kandidaten-Liste (T27)
-            if (detection.candidates.isNotEmpty()) {
+            // Zeile 5: Aufklappbare Kandidaten-Liste (T27, T52: showTopNCandidates-Guard)
+            if (showTopNCandidates && detection.candidates.isNotEmpty()) {
                 TextButton(
                     onClick = { candidatesExpanded = !candidatesExpanded },
                     modifier = Modifier.padding(top = 2.dp)
@@ -506,12 +510,13 @@ fun SpeciesCard(
                 }
 
                 AnimatedVisibility(visible = candidatesExpanded) {
-                    Column {
+                    Column(modifier = Modifier.animateContentSize()) {
                         detection.candidates.forEach { candidate ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 16.dp, top = 2.dp)
+                                    .heightIn(min = 48.dp)
+                                    .padding(start = 16.dp, end = 4.dp)
                                     .then(
                                         if (onSelectAlternative != null)
                                             Modifier.clickable {
@@ -520,13 +525,22 @@ fun SpeciesCard(
                                             }
                                         else Modifier
                                     ),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = candidate.commonName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = candidate.commonName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = candidate.scientificName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontStyle = FontStyle.Italic,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                }
                                 Text(
                                     text = "${(candidate.confidence * 100).toInt()}%",
                                     style = MaterialTheme.typography.labelSmall,
