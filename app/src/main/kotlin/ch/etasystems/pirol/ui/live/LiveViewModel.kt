@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.RecordingService
+import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
@@ -37,9 +38,11 @@ import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import ch.etasystems.pirol.ui.components.SpectrogramState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -94,6 +97,28 @@ class LiveViewModel(
         private const val TAG = "LiveViewModel"
     }
 
+    // --- Snackbar-Infrastruktur (T52) ---
+
+    /** Snackbar-Ereignis fuer LiveScreen. */
+    data class SnackbarEvent(
+        val message: String,
+        val actionLabel: String? = null,
+        val onAction: (() -> Unit)? = null
+    )
+
+    private data class UndoEntry(
+        val detectionId: String,
+        val previousStatus: VerificationStatus,
+        val previousCorrected: String?
+    )
+
+    private val _snackbarChannel = Channel<SnackbarEvent>(Channel.CONFLATED)
+    val snackbarEvents = _snackbarChannel.receiveAsFlow()
+    private var pendingUndo: UndoEntry? = null
+
+    // FAB-Debounce (T52): verhindert Doppel-Taps innerhalb 500 ms
+    private var lastFabTapAt = 0L
+
     // --- Oeffentlicher State ---
     private val _uiState = MutableStateFlow(LiveUiState())
     val uiState: StateFlow<LiveUiState> = _uiState.asStateFlow()
@@ -122,8 +147,11 @@ class LiveViewModel(
     // damit endSession() niemals vor appendPreroll() ausgefuehrt wird (Race-Condition fix).
     private val sessionDispatcher = Dispatchers.IO.limitedParallelism(1)
 
-    // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt
-    private val spectrogramState = SpectrogramState(maxFrames = 2048)
+    // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt.
+    // T56: DynamicRangeMapper haengt an den State, wird ueber appendFrames() gefuettert.
+    private val spectrogramState = SpectrogramState(maxFrames = 2048).apply {
+        dynamicRangeMapper = DynamicRangeMapper()
+    }
 
     // ML-Pipeline: InferenceWorker mit Callback → DetectionListState + Embedding-Arm
     // T51: Callback wird bei jedem vollstaendigen 3s-Block aufgerufen (Daueraufnahme).
@@ -273,6 +301,14 @@ class LiveViewModel(
             SpectrogramPalette.MAGMA
         }
 
+        // T56: Sonogramm-Dynamik (Auto-Kontrast / manuelle Range) aus Prefs.
+        val savedAutoContrast = appPreferences.spectrogramAutoContrast
+        val savedMinDb = appPreferences.spectrogramMinDb
+        val savedMaxDb = appPreferences.spectrogramMaxDb
+        // T56b: Gamma-Kompression + Lautstärke-Deckel aus Prefs.
+        val savedGamma = appPreferences.spectrogramGamma
+        val savedCeilingDb = appPreferences.spectrogramCeilingDb
+
         // Initiale State-Werte setzen
         _uiState.update {
             it.copy(
@@ -283,7 +319,12 @@ class LiveViewModel(
                 isModelAvailable = modelAvailable,
                 inferenceConfig = savedConfig,
                 isEmbeddingAvailable = modelAvailable,
-                embeddingDbSize = embeddingDatabase.size
+                embeddingDbSize = embeddingDatabase.size,
+                spectrogramAutoContrast = savedAutoContrast,
+                spectrogramMinDb = savedMinDb,
+                spectrogramMaxDb = savedMaxDb,
+                spectrogramGamma = savedGamma,
+                spectrogramCeilingDb = savedCeilingDb
             )
         }
 
@@ -437,14 +478,38 @@ class LiveViewModel(
     /**
      * Verifiziert eine Detektion (Bestaetigen/Ablehnen/Korrigieren).
      * Aktualisiert DetectionListState + persistiert in verifications.jsonl.
+     * Zeigt Snackbar mit Undo-Action (T52).
      */
     fun verifyDetection(
         detectionId: String,
         status: VerificationStatus,
         correctedSpecies: String? = null
     ) {
+        // Aktuellen Zustand fuer Undo merken
+        val detection = detectionListState.getDetections().find { it.id == detectionId }
+        pendingUndo = detection?.let {
+            UndoEntry(detectionId, it.verificationStatus, it.correctedSpecies)
+        }
+
         // In-Memory aktualisieren
         detectionListState.updateVerification(detectionId, status, correctedSpecies)
+
+        // Snackbar senden (T52)
+        val name = detection?.commonName ?: ""
+        val message = when (status) {
+            VerificationStatus.CONFIRMED  -> "\u2713 $name bestaetigt"
+            VerificationStatus.REJECTED   -> "\u2717 $name abgelehnt"
+            VerificationStatus.UNCERTAIN  -> "? $name als unsicher markiert"
+            VerificationStatus.CORRECTED  -> "\u270E $name \u2192 ${correctedSpecies ?: "?"}"
+            else -> name
+        }
+        viewModelScope.launch {
+            _snackbarChannel.send(SnackbarEvent(
+                message = message,
+                actionLabel = "R\u00FCckg\u00E4ngig",
+                onAction = { undoLastVerification() }
+            ))
+        }
 
         // Persistieren (falls Session aktiv)
         if (sessionManager.isActive) {
@@ -462,14 +527,55 @@ class LiveViewModel(
     }
 
     /**
+     * Macht die letzte Verifikations-Aktion rueckgaengig (T52).
+     * Stellt vorherigen Status wieder her + entfernt letzten verifications.jsonl-Eintrag.
+     */
+    fun undoLastVerification() {
+        val undo = pendingUndo ?: return
+        pendingUndo = null
+        detectionListState.updateVerification(undo.detectionId, undo.previousStatus, undo.previousCorrected)
+        if (sessionManager.isActive) {
+            viewModelScope.launch(Dispatchers.IO) {
+                sessionManager.removeLastVerification(undo.detectionId)
+            }
+        }
+    }
+
+    /**
+     * FAB-Tap mit 500 ms Debounce (T52).
+     * @return true wenn der Tap verarbeitet werden soll, false wenn gedebounct.
+     */
+    fun onFabTap(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastFabTapAt < 500L) return false
+        lastFabTapAt = now
+        return true
+    }
+
+    /**
      * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative (T45).
      *
      * Markiert das Original als REPLACED, fuegt die Alternative als neue Detektion
      * an Index 0 ein und schreibt ein VerificationEvent in verifications.jsonl.
+     * Zeigt Snackbar mit Undo-Action (T52).
      */
     fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
+        // Aktuellen Zustand fuer Undo merken
+        val original = detectionListState.getDetections().find { it.id == detectionId }
+        pendingUndo = original?.let {
+            UndoEntry(detectionId, it.verificationStatus, it.correctedSpecies)
+        }
+
         val success = detectionListState.selectAlternative(detectionId, candidate)
         if (success) {
+            // Snackbar senden (T52)
+            viewModelScope.launch {
+                _snackbarChannel.send(SnackbarEvent(
+                    message = "Alternative: ${candidate.commonName} gew\u00E4hlt",
+                    actionLabel = "R\u00FCckg\u00E4ngig",
+                    onAction = { undoLastVerification() }
+                ))
+            }
             viewModelScope.launch(Dispatchers.IO) {
                 sessionManager.appendVerification(
                     VerificationEvent(
@@ -542,6 +648,28 @@ class LiveViewModel(
     /** Sonogramm leeren (ohne Aufnahme zu stoppen). */
     fun clearSpectrogram() {
         spectrogramState.clear()
+    }
+
+    /**
+     * T56/T56b: Liest die Sonogramm-Dynamik-Einstellungen erneut aus den SharedPreferences
+     * und pusht sie in den UiState. Wird vom LiveScreen bei ON_RESUME aufgerufen, damit
+     * Settings-Aenderungen ohne App-Neustart wirksam werden.
+     */
+    fun reloadSpectrogramPrefs() {
+        val autoContrast = appPreferences.spectrogramAutoContrast
+        val minDb = appPreferences.spectrogramMinDb
+        val maxDb = appPreferences.spectrogramMaxDb
+        val gamma = appPreferences.spectrogramGamma
+        val ceilingDb = appPreferences.spectrogramCeilingDb
+        _uiState.update {
+            it.copy(
+                spectrogramAutoContrast = autoContrast,
+                spectrogramMinDb = minDb,
+                spectrogramMaxDb = maxDb,
+                spectrogramGamma = gamma,
+                spectrogramCeilingDb = ceilingDb
+            )
+        }
     }
 
     /** Permission-Status setzen (vom PermissionHandler aufgerufen). */

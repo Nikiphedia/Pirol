@@ -35,6 +35,10 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
@@ -55,6 +59,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import ch.etasystems.pirol.audio.AudioPermissionHandler
 import ch.etasystems.pirol.audio.PermissionState
 import ch.etasystems.pirol.audio.areAudioPermissionsGranted
@@ -86,6 +93,21 @@ fun LiveScreen(
         viewModel.setPermissionGranted(areAudioPermissionsGranted(context))
         onDispose {
             viewModel.unbindService(context)
+        }
+    }
+
+    // --- T56: Sonogramm-Dynamik-Prefs bei ON_RESUME neu einlesen.
+    // Greift wenn der Nutzer von Settings zurueck zum Live-Tab wechselt — ohne App-Neustart.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.reloadSpectrogramPrefs()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -125,39 +147,60 @@ fun LiveScreen(
         }
     }
 
-    // --- Adaptives Layout basierend auf WindowWidthSizeClass ---
-    Column {
-        // Fallback-Banner: SAF-URI nicht erreichbar (T51)
-        if (uiState.storageUnavailableFallback) {
-            StorageFallbackBanner()
+    // --- Snackbar-Infrastruktur (T52) ---
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.snackbarEvents.collect { event ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = event.message,
+                actionLabel = event.actionLabel,
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) event.onAction?.invoke()
         }
+    }
 
-        when (widthSizeClass) {
-            WindowWidthSizeClass.Expanded -> {
-                // Tablet: Dual-Pane nebeneinander
-                ExpandedLiveLayout(
-                    uiState = uiState,
-                    viewModel = viewModel,
-                    onRequestPermission = { permissionTrigger = true }
-                )
+    // --- Adaptives Layout basierend auf WindowWidthSizeClass ---
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column {
+            // Fallback-Banner: SAF-URI nicht erreichbar (T51)
+            if (uiState.storageUnavailableFallback) {
+                StorageFallbackBanner()
             }
-            WindowWidthSizeClass.Medium -> {
-                // Phone Landscape / kleines Tablet: gewichtetes Layout
-                MediumLiveLayout(
-                    uiState = uiState,
-                    viewModel = viewModel,
-                    onRequestPermission = { permissionTrigger = true }
-                )
-            }
-            else -> {
-                // Phone Portrait: Standard-Layout
-                CompactLiveLayout(
-                    uiState = uiState,
-                    viewModel = viewModel,
-                    onRequestPermission = { permissionTrigger = true }
-                )
+
+            when (widthSizeClass) {
+                WindowWidthSizeClass.Expanded -> {
+                    // Tablet: Dual-Pane nebeneinander
+                    ExpandedLiveLayout(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onRequestPermission = { permissionTrigger = true }
+                    )
+                }
+                WindowWidthSizeClass.Medium -> {
+                    // Phone Landscape / kleines Tablet: gewichtetes Layout
+                    MediumLiveLayout(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onRequestPermission = { permissionTrigger = true }
+                    )
+                }
+                else -> {
+                    // Phone Portrait: Standard-Layout
+                    CompactLiveLayout(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onRequestPermission = { permissionTrigger = true }
+                    )
+                }
             }
         }
+        // Snackbar (T52): Verifikations-Feedback + Undo
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -595,6 +638,11 @@ private fun SpectrogramBox(
                     spectrogramState = uiState.spectrogramState,
                     config = uiState.spectrogramConfig,
                     palette = uiState.palette,
+                    autoContrast = uiState.spectrogramAutoContrast,
+                    manualMinDb = uiState.spectrogramMinDb,
+                    manualMaxDb = uiState.spectrogramMaxDb,
+                    gamma = uiState.spectrogramGamma,
+                    ceilingDb = uiState.spectrogramCeilingDb,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -722,16 +770,19 @@ private fun RecordingFab(
     Box(modifier = ringModifier.padding(4.dp)) {
         FloatingActionButton(
             onClick = {
-                when (fabState) {
-                    RecordingFabState.RECORDING -> viewModel.stopRecording()
-                    RecordingFabState.IDLE, RecordingFabState.READY -> {
-                        if (uiState.permissionGranted) {
-                            viewModel.startRecording()
-                        } else {
-                            onRequestPermission()
+                // T52: 500ms Debounce-Gate im ViewModel
+                if (viewModel.onFabTap()) {
+                    when (fabState) {
+                        RecordingFabState.RECORDING -> viewModel.stopRecording()
+                        RecordingFabState.IDLE, RecordingFabState.READY -> {
+                            if (uiState.permissionGranted) {
+                                viewModel.startRecording()
+                            } else {
+                                onRequestPermission()
+                            }
                         }
+                        else -> { /* CONNECTING oder PREROLL_BUFFERING: disabled */ }
                     }
-                    RecordingFabState.CONNECTING -> { /* disabled */ }
                 }
             },
             containerColor = fabColor,
