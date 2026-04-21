@@ -58,6 +58,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_species_language", "de") ?: "de"
         set(value) = prefs.edit().putString("pirol_species_language", value).apply()
 
+    // --- Top-N Kandidaten-Anzeige (T52) ---
+    /** true = Alternativen in SpeciesCard aufklappbar; false = Expand-Bereich verborgen. */
+    var showTopNCandidates: Boolean
+        get() = prefs.getBoolean("pirol_show_top_n_candidates", true)
+        set(value) = prefs.edit().putBoolean("pirol_show_top_n_candidates", value).apply()
+
     // --- Sonogramm-Config (T30) ---
     var spectrogramConfigName: String
         get() = prefs.getString("pirol_spectrogram_config", "BIRDS") ?: "BIRDS"
@@ -66,6 +72,37 @@ class AppPreferences(context: Context) {
     var paletteName: String
         get() = prefs.getString("pirol_palette", "GRAYSCALE") ?: "GRAYSCALE"
         set(value) = prefs.edit().putString("pirol_palette", value).apply()
+
+    // --- Sonogramm-Dynamik (T56: Auto-Kontrast + manueller dB-Bereich) ---
+    /** Auto-Kontrast aktiv → Perzentil-basiertes Mapping; AUS → fester manualMin/MaxDb-Bereich. */
+    var spectrogramAutoContrast: Boolean
+        get() = prefs.getBoolean("pirol_spectrogram_auto_contrast", true)
+        set(value) = prefs.edit().putBoolean("pirol_spectrogram_auto_contrast", value).apply()
+
+    /** Manuelle Untergrenze (nur aktiv wenn Auto-Kontrast AUS). Default -80 dB wie altes Mapping. */
+    var spectrogramMinDb: Float
+        get() = prefs.getFloat("pirol_spectrogram_min_db", -80f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_min_db", value).apply()
+
+    /** Manuelle Obergrenze (nur aktiv wenn Auto-Kontrast AUS). Default 0 dB wie altes Mapping. */
+    var spectrogramMaxDb: Float
+        get() = prefs.getFloat("pirol_spectrogram_max_db", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_max_db", value).apply()
+
+    /** Gamma-Kompression fuer Sonogramm-Anzeige (T56b). < 1.0 = leise Anteile heller. Default 0.5. */
+    var spectrogramGamma: Float
+        get() = prefs.getFloat("pirol_spectrogram_gamma", 0.5f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_gamma", value).apply()
+
+    /**
+     * Lautstärke-Deckel (Ceiling) fuer Sonogramm-Anzeige (T56b).
+     * Signale ueber diesem dB-Wert werden auf die hellste Palette-Farbe geclippt.
+     * 0 dB = kein Effekt (Mel-Werte sind bereits <= 0 dBFS).
+     * Negativer Wert (z.B. -10) = Lautes abschneiden, mehr Kontrast fuer leise Signale.
+     */
+    var spectrogramCeilingDb: Float
+        get() = prefs.getFloat("pirol_spectrogram_ceiling_db", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_ceiling_db", value).apply()
 
     // --- Aktives Modell (T37) ---
     var activeModelFileName: String

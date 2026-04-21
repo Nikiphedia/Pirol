@@ -309,6 +309,8 @@ class LiveViewModel(
         // T56b: Gamma-Kompression + Lautstärke-Deckel aus Prefs.
         val savedGamma = appPreferences.spectrogramGamma
         val savedCeilingDb = appPreferences.spectrogramCeilingDb
+        // T52: Top-N Kandidaten-Anzeige aus Prefs.
+        val savedShowTopN = appPreferences.showTopNCandidates
 
         // Initiale State-Werte setzen
         _uiState.update {
@@ -325,7 +327,8 @@ class LiveViewModel(
                 spectrogramMinDb = savedMinDb,
                 spectrogramMaxDb = savedMaxDb,
                 spectrogramGamma = savedGamma,
-                spectrogramCeilingDb = savedCeilingDb
+                spectrogramCeilingDb = savedCeilingDb,
+                showTopNCandidates = savedShowTopN
             )
         }
 
@@ -662,13 +665,15 @@ class LiveViewModel(
         val maxDb = appPreferences.spectrogramMaxDb
         val gamma = appPreferences.spectrogramGamma
         val ceilingDb = appPreferences.spectrogramCeilingDb
+        val showTopN = appPreferences.showTopNCandidates  // T52: bei Resume neu lesen
         _uiState.update {
             it.copy(
                 spectrogramAutoContrast = autoContrast,
                 spectrogramMinDb = minDb,
                 spectrogramMaxDb = maxDb,
                 spectrogramGamma = gamma,
-                spectrogramCeilingDb = ceilingDb
+                spectrogramCeilingDb = ceilingDb,
+                showTopNCandidates = showTopN
             )
         }
     }

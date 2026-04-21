@@ -66,6 +66,8 @@ data class LiveUiState(
     val lastLocationFixMs: Long? = null,
     // T52: Location-Permission-Status fuer GPS-Bar Tap-Aktion
     val locationPermissionGranted: Boolean = false,
+    // T52: Top-N Kandidaten anzeigen (Toggle aus Settings)
+    val showTopNCandidates: Boolean = true,
     // Sonogramm-Dynamik (T56)
     val spectrogramAutoContrast: Boolean = true,
     val spectrogramMinDb: Float = -80f,

@@ -301,6 +301,7 @@ private fun CompactLiveLayout(
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 watchlistSpecies = uiState.watchlistSpecies,
+                showTopNCandidates = uiState.showTopNCandidates,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -389,6 +390,7 @@ private fun MediumLiveLayout(
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 watchlistSpecies = uiState.watchlistSpecies,
+                showTopNCandidates = uiState.showTopNCandidates,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -476,6 +478,7 @@ private fun ExpandedLiveLayout(
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 watchlistSpecies = uiState.watchlistSpecies,
+                showTopNCandidates = uiState.showTopNCandidates,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
