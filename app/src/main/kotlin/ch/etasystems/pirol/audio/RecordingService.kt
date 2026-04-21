@@ -29,6 +29,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
+ * Aufnahme-Phase fuer FAB-3-State (T52).
+ * IDLE: keine Aufnahme aktiv.
+ * PREROLL_FILLING: Aufnahme gestartet, Ring-Buffer fuellt sich noch (Dauer = prerollDurationSec).
+ * RUNNING: Preroll voll — Aufnahme laeuft stabil.
+ */
+enum class RecordingPhase { IDLE, PREROLL_FILLING, RUNNING }
+
+/**
  * Foreground Service fuer Hintergrund-Aufnahme via Oboe.
  *
  * Lifecycle: Service lebt solange die Aufnahme laeuft.
@@ -59,13 +67,19 @@ class RecordingService : Service() {
     // --- Coroutines ---
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var chunkJob: Job? = null
+    private var prerollPhaseJob: Job? = null  // T52: PREROLL_FILLING → RUNNING Timer
 
     // --- State ---
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
+    // T52: FAB-3-State — exponierter RecordingPhase-Flow
+    private val _recordingPhase = MutableStateFlow(RecordingPhase.IDLE)
+    val recordingPhase: StateFlow<RecordingPhase> = _recordingPhase.asStateFlow()
+
     // Preroll: Engine laeuft fuer Ring-Buffer, auch wenn nicht "aufgenommen" wird (T35)
     private var prerollActive = false
+    private var configuredPrerollSec: Int = 0  // Gespeichert von initPreroll() fuer Phase-Timer
 
     private val _audioChunkFlow = MutableSharedFlow<AudioChunk>(
         replay = 0,
@@ -102,6 +116,9 @@ class RecordingService : Service() {
     }
 
     override fun onDestroy() {
+        prerollPhaseJob?.cancel()
+        prerollPhaseJob = null
+        _recordingPhase.value = RecordingPhase.IDLE
         stopChunkEmitter()
         if (engine.isRecording) {
             engine.stop()
@@ -121,6 +138,7 @@ class RecordingService : Service() {
      */
     fun initPreroll(sampleRate: Int = OboeAudioEngine.SAMPLE_RATE_BIRDS, prerollDurationSec: Int = 0) {
         if (engine.isRecording) return
+        configuredPrerollSec = prerollDurationSec.coerceAtLeast(0)  // T52: merken fuer Phase-Timer
         if (prerollDurationSec <= 0) {
             prerollActive = false
             return
@@ -155,6 +173,15 @@ class RecordingService : Service() {
         recordingStartTimeMs = SystemClock.elapsedRealtime()
         _isRecording.value = true
 
+        // T52: RecordingPhase — PREROLL_FILLING fuer configuredPrerollSec, dann RUNNING
+        _recordingPhase.value = RecordingPhase.PREROLL_FILLING
+        prerollPhaseJob?.cancel()
+        val prerollMs = configuredPrerollSec.toLong() * 1000L
+        prerollPhaseJob = serviceScope.launch {
+            if (prerollMs > 0L) delay(prerollMs)
+            _recordingPhase.value = RecordingPhase.RUNNING
+        }
+
         // Foreground starten
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -174,6 +201,11 @@ class RecordingService : Service() {
     /** Aufnahme stoppen. Engine bleibt fuer Preroll aktiv falls prerollActive. */
     fun stopRecording() {
         if (!_isRecording.value) return
+
+        // T52: Phase-Timer abbrechen + IDLE setzen
+        prerollPhaseJob?.cancel()
+        prerollPhaseJob = null
+        _recordingPhase.value = RecordingPhase.IDLE
 
         stopChunkEmitter()
         if (!prerollActive) {
