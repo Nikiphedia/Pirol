@@ -22,15 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ui.analysis.SessionSummary
+import ch.etasystems.pirol.util.parseInstantCompat
 import java.time.Duration
-import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
  * Card fuer eine Session in der Session-Liste.
- * Zeigt Datum, Dauer, Detektionen, GPS, Region.
+ * Zeigt Datum, Dauer (mm:ss), Detektionen, Dateigrösse, GPS, Region.
+ *
+ * T52: Regress-Fix — nutzt parseInstantCompat() statt Instant.parse()
+ *      damit Stempel mit Offset ("+02:00") korrekt geparst werden.
  */
 @Composable
 fun SessionCard(
@@ -43,21 +46,26 @@ fun SessionCard(
     val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm", Locale.GERMAN)
     val zone = ZoneId.systemDefault()
 
-    // Start-Zeitpunkt formatieren
-    val startInstant = try { Instant.parse(meta.startedAt) } catch (_: Exception) { null }
+    // Start-Zeitpunkt formatieren (T52: parseInstantCompat statt Instant.parse)
+    val startInstant = parseInstantCompat(meta.startedAt)
     val startStr = startInstant?.atZone(zone)?.format(formatter) ?: meta.startedAt
 
-    // End-Zeitpunkt + Dauer berechnen
-    val endInstant = meta.endedAt?.let {
-        try { Instant.parse(it) } catch (_: Exception) { null }
-    }
+    // End-Zeitpunkt + Dauer berechnen (T52: parseInstantCompat)
+    val endInstant = meta.endedAt?.let { parseInstantCompat(it) }
     val endStr = endInstant?.atZone(zone)?.format(
         DateTimeFormatter.ofPattern("HH:mm", Locale.GERMAN)
     ) ?: "–"
 
-    val durationMin = if (startInstant != null && endInstant != null) {
-        Duration.between(startInstant, endInstant).toMinutes()
+    // T52: Dauer als mm:ss statt "X Min" (kein toMinutesPart/toSecondsPart — API 31 Problem vermeiden)
+    val durationLabel: String? = if (startInstant != null && endInstant != null) {
+        val total = Duration.between(startInstant, endInstant).seconds
+        "%02d:%02d".format(total / 60, total % 60)
     } else null
+
+    // T52: WAV-Dateigrösse in MB
+    val sizeLabel = if (summary.recordingSizeBytes > 0)
+        "%.1f MB".format(summary.recordingSizeBytes / 1_048_576f)
+    else null
 
     Card(
         onClick = onClick,
@@ -96,12 +104,13 @@ fun SessionCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Zeile 2: Dauer · Detektionen · Verifizierte
+            // Zeile 2: Dauer mm:ss · Detektionen · Verifizierte · MB
             Row {
                 val parts = mutableListOf<String>()
-                if (durationMin != null) parts.add("$durationMin Min")
+                if (durationLabel != null) parts.add(durationLabel)
                 parts.add("${summary.detectionCount} Detektionen")
                 if (summary.verifiedCount > 0) parts.add("${summary.verifiedCount} \u2713")
+                if (sizeLabel != null) parts.add(sizeLabel)
                 Text(
                     text = parts.joinToString(" \u00B7 "),
                     style = MaterialTheme.typography.bodySmall,
