@@ -21,7 +21,7 @@ Zwei Test-Szenen muessen funktionieren:
 
 **Audio-Pipeline (Kontext):**
 - Oboe NDK liefert 48 kHz / 16-bit PCM.
-- `MelSpectrogram`: FFT 2048, Hop 512, 64 Mel-Baender, Bereich 40–15 000 Hz.
+- `MelSpectrogram`: FFT 2048, Hop 512, **128** Mel-Baender, Bereich 40–15 000 Hz. (CLAUDE.md sagt 64 — das ist falsch, Code ist ground truth.)
 - Live-Display-Pfad und Inference-Pfad laufen auf **getrennten Kopien** — BirdNET-Inference hat eigenen Limiter/Normalisierung (T34). T56 fasst **nur den Display-Pfad** an.
 
 **Aktuelle Anzeige** (Stand V0.0.5 nach T51):
@@ -107,7 +107,7 @@ Die vorhandenen Paletten (MAGMA/VIRIDIS/GRAYSCALE, Auswahl via `SpectrogramPalet
 
 ## Scope-Ausschluss
 
-- **Keine Aenderung an FFT-Parametern** (N_FFT 2048, Hop 512, 64 Mel-Baender) — BirdNET haengt daran.
+- **Keine Aenderung an FFT-Parametern** (N_FFT 2048, Hop 512, 128 Mel-Baender) — BirdNET haengt daran.
 - **Keine Aenderung am Inference-Pfad** (`InferenceWorker`, `AudioResampler`, `AudioDspUtils` — die haben T34-Limiter).
 - **Kein Redesign des Canvas-Layouts** — Groesse, Zeit-Achse, Frequenz-Achse bleiben wie sie sind.
 - **Keine Palette-Aenderung** (MAGMA/VIRIDIS/GRAYSCALE bleiben).

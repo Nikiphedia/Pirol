@@ -57,7 +57,7 @@ AMSEL Desktop (`D:\80002\AMSEL`) — Compose Desktop, Kotlin 2.1. Gemeinsame For
 | Audio Sample Rate | 48000 Hz (Oboe), 32000 Hz (BirdNET) | |
 | Chunk-Dauer | 3.0 Sekunden | 96'000 Samples @32kHz |
 | FFT | N_FFT=2048, Hop=512 | |
-| Mel-Filterbank | 64 Bänder, 40–15000 Hz | |
+| Mel-Filterbank | 128 Bänder, 40–15000 Hz | |
 | MFCC | 13 Koeffizienten | |
 | Konfidenz | Float 0.0–1.0 | 0.85 |
 | Embedding-Vektoren | FloatArray, L2-normalisiert | |
