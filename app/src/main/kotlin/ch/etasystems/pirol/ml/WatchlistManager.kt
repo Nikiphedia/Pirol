@@ -146,7 +146,8 @@ class WatchlistManager(private val context: Context) {
             current.add(entry)
             watchlist = watchlist.copy(
                 species = current,
-                updatedAt = java.time.Instant.now().toString()
+                updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
             )
             save()
             emitFlows()
@@ -159,7 +160,8 @@ class WatchlistManager(private val context: Context) {
         current.removeAll { it.scientificName == scientificName }
         watchlist = watchlist.copy(
             species = current,
-            updatedAt = java.time.Instant.now().toString()
+            updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         )
         save()
         emitFlows()

@@ -49,6 +49,10 @@ class AnalysisViewModel(
                 }
             }
         }
+        // Auto-Refresh nach Session-Stop (T51)
+        viewModelScope.launch {
+            sessionManager.sessionEnded.collect { loadSessions() }
+        }
     }
 
     /** Alle Sessions laden (fuer Liste) */
@@ -170,9 +174,15 @@ class AnalysisViewModel(
         // Chunk-Index berechnen
         val state = _uiState.value
         val session = state.selectedSession ?: return
+        // OffsetDateTime akzeptiert sowohl "+02:00" als auch "Z" (Offset 0).
+        // Fallback auf Instant.parse() fuer sehr alte Sessions ohne Offset.
         val startMs = try {
-            java.time.Instant.parse(session.metadata.startedAt).toEpochMilli()
-        } catch (_: Exception) { return }
+            java.time.OffsetDateTime.parse(session.metadata.startedAt).toInstant().toEpochMilli()
+        } catch (_: Exception) {
+            try {
+                java.time.Instant.parse(session.metadata.startedAt).toEpochMilli()
+            } catch (_: Exception) { return }
+        }
         val chunkIndex = ((detection.timestampMs - startMs) / CHUNK_DURATION_MS).toInt()
             .coerceAtLeast(0)
 

@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.time.Instant
 import java.util.UUID
 
 /**
@@ -145,7 +144,8 @@ class ReferenceRepository(private val context: Context) {
 
         val index = ReferenceIndex(
             version = 1,
-            updatedAt = Instant.now().toString(),
+            updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             totalSpecies = getSpecies().size,
             totalRecordings = entries.size,
             entries = entries.toList()
