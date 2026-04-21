@@ -1,4 +1,4 @@
-# PIROL — Projektuebersicht (Stand 2026-04-19 · T49)
+# PIROL — Projektuebersicht (Stand 2026-04-21 · V0.0.6-WIP: T54 + T51 + T51b + T51c abgenommen)
 
 ## Was ist PIROL?
 
@@ -26,7 +26,7 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
         ├── [EMB]  EmbeddingExtractor (1024-dim ONNX / 43-dim MFCC) → EmbeddingDatabase (BSED)
         │          → findSimilar() → SimilarityPanel
         ├── [GPS]  LocationProvider (FusedLocation, 10s) → DetectionResult.lat/lon
-        ├── [SES]  SessionManager → sessions/{id}/ (session.json + detections.jsonl + audio/*.wav)
+        ├── [SES]  SessionManager → Downloads/PIROL/YYYY-MM-DD/{id}/ (flat: session.json + detections.jsonl + verifications.jsonl + recording.wav + recording.selections.txt)
         ├── [WL]   WatchlistManager → AlarmService (Notification + Vibration, 5min Cooldown)
         └── [UPL]  UploadManager → WorkManager → LocalExportTarget (ZIP → Downloads/PIROL/)
 ```
@@ -38,19 +38,19 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 | Tab | Status | Inhalt |
 |-----|--------|--------|
 | **Live** | ✅ voll | Sonogramm, Detektionsliste (Dedup + 10s Re-detection), FAB, GPS-Bar, Status-Zeile, Alternativwahl |
-| **Analyse** | ✅ voll | Session-Browser, durchgehende `recording.wav` mit Zeit-Offset-Wiedergabe, MM:SS-Labels pro Detektion, Verifikation, Dual-Vergleich, KML- und Raven-Export |
+| **Analyse** | ✅ voll | Session-Browser (Auto-Refresh via ON_RESUME, T51c), durchgehende `recording.wav` mit Zeit-Offset-Wiedergabe, MM:SS-Labels pro Detektion, Verifikation, Dual-Vergleich, Re-Export Raven-TSV |
 | **Referenzen** | ✅ voll | Artenliste → Aufnahmen → AudioPlayer, "Als Referenz speichern" auf SpeciesCards |
 | **Karte** | ✅ voll | osmdroid OSM-Karte, Detektions-Marker mit Popup |
-| **Settings** | ✅ voll | Sonogramm-Config, Farbpalette, Confidence, Region, Presets, Energieprofil, Modell-Info, Artennamen-Sprache, Export-Toggles, Watchlist-Editor mit SAF + Autocomplete |
+| **Settings** | ✅ voll | Sonogramm-Config, Farbpalette, Confidence, Region, Presets, Energieprofil, Modell-Info, Artennamen-Sprache, **Speicherort-Sektion (SAF-Picker + Tages-Unterordner, T51)**, Watchlist-Editor mit SAF + Autocomplete |
 
 ---
 
-## Implementierte Features (T1–T49)
+## Implementierte Features (T1–T49, V0.0.6-WIP: T54 + T51 + T51b + T51c)
 
 ### Audio & DSP (P1-P2)
 - Oboe NDK Low-Latency (48k/96k Hz)
 - Foreground Service mit Notification
-- MelSpectrogram (FFT 2048, Hop 512, 64 Mel-Baender)
+- MelSpectrogram (FFT 2048, Hop 512, **128** Mel-Baender)
 - 3 Presets: BIRDS (125-8kHz), BATS (10k+), WIDEBAND
 - 3 Paletten: MAGMA, VIRIDIS, GRAYSCALE (Default)
 
@@ -76,12 +76,17 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 - LocationBar im LiveScreen
 - Permission-Handling (analog Audio)
 
-### Sessions & Persistenz (P7, überarbeitet T46)
+### Sessions & Persistenz (P7, überarbeitet T46, V0.0.6 T51)
 - SessionManager: Start/Stop mit Recording-Lifecycle
-- Ordnerstruktur: filesDir/sessions/{iso-date}_{uuid6}/
+- **V0.0.6 Default-Pfad:** `Downloads/PIROL/YYYY-MM-DD/{iso-date}_{uuid6}/` (per SAF, User-waehlbar)
+- **Flache Struktur:** alle Dateien direkt im Session-Ordner, kein `audio/`-Unterordner mehr
 - session.json (Metadaten inkl. `totalRecordedSamples`), detections.jsonl, verifications.jsonl
-- **Eine durchgehende `audio/recording.wav`** pro Session (16-bit PCM Mono, inkl. Preroll)
-- StreamingWavWriter: Header-Finalisierung via RandomAccessFile beim Stop
+- **Eine durchgehende `recording.wav`** pro Session (16-bit PCM Mono, inkl. Preroll, **Daueraufnahme** — Audio immer, nicht nur bei Detektionen, T51)
+- **Automatischer Raven-TSV-Export** neben `recording.wav` beim Session-Stop (T51)
+- StreamingWavWriter: FileChannel-basiert (T51), Header-Finalisierung beim Stop
+- Fallback-Banner wenn SAF-Pfad nicht erreichbar → `getExternalFilesDir()/PIROL/`
+- Migration bestehender Sessions via `SessionMigrationWorker` (CoroutineWorker)
+- **Preroll-Crash (T54)** behoben: drei unabhaengige Bugs (MelSpectrogram-Race, IO-Dispatcher-Race, ANR bei 30s-Preroll)
 
 ### Verifikation (P8, erweitert P20)
 - VerificationStatus: UNVERIFIED, CONFIRMED, REJECTED, CORRECTED, **UNCERTAIN** (T44), **REPLACED** (T45)
@@ -91,10 +96,11 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 - Verifikation nachtraeglich in Analyse-Tab
 - verifications.jsonl (separate Persistierung, Rohdaten unveraendert)
 
-### Export (P8, erweitert T47)
-- KML-Export mit Placemarks pro Detektion (lon,lat,alt)
-- **Raven Selection Table** (T47) — `recording.selections.txt` neben `recording.wav`; TSV-Format, direkt in Cornell Raven / Audacity / Sonic Visualiser öffenbar
-- FileProvider + Share Intent
+### Export (P8, erweitert T47, **V0.0.6 T51: KML entfernt, Raven ist kanonisch**)
+- **Raven Selection Table** (T47, T51-Auto) — `recording.selections.txt` **automatisch** beim Session-Stop neben `recording.wav`; TSV-Format, direkt in Cornell Raven / Audacity / Sonic Visualiser öffenbar
+- Re-Export im Analyse-Tab fuer nachtraeglich verifizierte Sessions
+- ~~KML-Export~~ **ab V0.0.6 entfernt** (Feldtest-Feedback: nicht benoetigt, Raven ersetzt es vollstaendig)
+- ~~FileProvider + Share Intent~~ (nicht mehr noetig: Datei liegt direkt im oeffentlichen Ordner)
 - ZIP-Export via WorkManager (Session → Downloads/PIROL/)
 - WLAN-only Constraint konfigurierbar
 
@@ -111,16 +117,17 @@ Mikrofon → Oboe C++ (48k/96k) → RingBuffer (30s, SPSC)
 - AudioPlayer (MediaPlayer-Wrapper, StateFlow)
 - ReferenceScreen: Artenliste → Aufnahmen → Play/Stop
 
-### Analyse (P12, erweitert T48)
-- Session-Browser (alle Sessions, sortiert, Metadaten)
+### Analyse (P12, erweitert T48, V0.0.6 T51/T51c)
+- Session-Browser (alle Sessions, sortiert, Metadaten), **Auto-Refresh via ON_RESUME** (T51c)
 - Session-Detail: durchgehende `recording.wav`, Zeit-Offset-Wiedergabe via `AudioPlayer.playFromOffset`
 - Play-Button pro Detektion springt zur exakten Sekunde (T49 session-relative Offsets)
 - MM:SS-Zeit-Label pro Detektion
 - Banner für alte Chunk-Sessions (keine Audio-Wiedergabe)
+- Rueckwaertskompatibles Laden von `filesDir/sessions/` + `audio/recording.wav`-Legacy
 - Verifikation nachtraeglich
 - Dual-Sonogramm-Vergleich (Detektion vs Referenz)
 - Referenz-Auswahl per FilterChip
-- KML- und Raven-Export-Buttons
+- Re-Export Raven-TSV (fuer nachtraegliche Verifikations-Updates)
 
 ### Watchlist & Alarm (P10)
 - watchlist.json Import (Downloads/PIROL/ Auto-Scan + SAF File-Picker)
@@ -160,8 +167,8 @@ ch.etasystems.pirol/
 │   └── dsp/            # FFT, MelFilterbank, MelSpectrogram, AudioResampler, SpectrogramConfig
 ├── data/
 │   ├── AppPreferences  # SharedPreferences Wrapper
-│   ├── export/         # RavenExporter (T47)
-│   ├── repository/     # SessionManager, ReferenceRepository, KmlExporter, WavWriter (+StreamingWavWriter), ShareHelper
+│   ├── export/         # RavenExporter (T47, Auto-Export T51)
+│   ├── repository/     # SessionManager, SessionMigrationWorker (T51), ReferenceRepository, WavWriter (FileChannel-basiert, T51)
 │   └── sync/           # UploadManager, UploadTarget, LocalExportTarget, SessionUploadWorker
 ├── di/                 # AppModule (Koin, 13 ViewModel-Parameter)
 ├── location/           # LocationProvider, LocationPermissionHandler
@@ -187,27 +194,59 @@ ch.etasystems.pirol/
 
 | Typ | Format | Beispiel |
 |-----|--------|---------|
-| Audio | WAV 16-bit PCM Mono 48kHz | recording.wav (eine Datei pro Session, inkl. Preroll) |
+| Audio | WAV 16-bit PCM Mono 48kHz | recording.wav (eine Datei pro Session, Daueraufnahme inkl. Preroll) |
 | Detektionen | JSONL (@Serializable, session-relative Zeitoffsets) | detections.jsonl |
-| Raven-Export | TSV (Tab-getrennt, UTF-8) | recording.selections.txt |
+| Raven-Export | TSV (Tab-getrennt, UTF-8, **Auto beim Session-Stop** T51) | recording.selections.txt |
 | Verifikationen | JSONL | verifications.jsonl |
 | Session-Meta | JSON (prettyPrint) | session.json |
 | Embeddings | Binary BSED (AMSEL-kompatibel) | embeddings.bsed |
 | Referenz-Index | JSON | index.json |
 | Watchlist | JSON | watchlist.json |
-| Export | KML (Placemarks) + ZIP | {sessionId}.kml |
+| Upload | ZIP | {sessionId}.zip |
 | Labels | CSV (Semikolon, UTF-8 BOM) | birdnet_v3_labels.csv |
 | Arten | JSON (23 Sprachen) | species_master.json |
 | GPS | WGS84 Double | 47.3769, 8.5417 |
-| Zeitstempel | ISO 8601 | 2026-04-05T14:30:00Z |
+| Zeitstempel | ISO 8601 **mit Offset** (Lokalzeit, V0.0.6 T51) | 2026-04-20T14:30:00+02:00 |
 | Artennamen | Unterstrich-Format | Turdus_merula |
+
+**Speicher-Layout (V0.0.6 T51):**
+```
+Downloads/PIROL/                  (oder anderer per SAF gewaehlter Basis-Pfad)
+  YYYY-MM-DD/                     (optional, Toggle "Tages-Unterordner")
+    {iso-date}_{uuid6}/           (Session-Ordner, flache Struktur)
+      session.json
+      detections.jsonl
+      verifications.jsonl
+      recording.wav
+      recording.selections.txt    (Raven-TSV, auto)
+```
+
+---
+
+## V0.0.6-Status (Stand 2026-04-21)
+
+### Abgenommen
+- ✅ **T54** Preroll-Crash (3 Bugs: MelSpectrogram-Race, IO-Dispatcher-Race, ANR)
+- ✅ **T51** Storage-Layout, SAF, Auto-Raven, Daueraufnahme, KML entfernt, Zeitzone mit Offset
+- ✅ **T51b** Timestamp-Leser (AnalysisViewModel.openCompare, ReferenceRepository, WatchlistManager)
+- ✅ **T51c** LiveViewModel.kt:511 OffsetDateTime-Fallback + T51-Completion-Gaps (Fallback-Banner, ON_RESUME-Refresh)
+
+### Laufend / geplant
+- ⏳ **T56** Sonogramm-Dynamik (Perzentil-Mapping + AGC + Settings-Toggle + dB-Slider) — AP steht, Worker bereit
+- ⬜ **T52** Live-UX (Tap-Targets, Snackbar+Undo, FAB 3-State inkl. Preroll-gruen, Analyse-Liste mm:ss + MB, Top-N in Anzeigesprache)
+- ⬜ **T55** Recording-Start-Stabilitaet (evtl. durch T54 miterledigt — vor Start pruefen)
+- ⬜ **T53** GPS-Robustheit (Accuracy-Filter, Smoothing, LastKnown-Fallback, Intervall-Setting)
+
+### V0.0.7 (eigener Planungs-Zyklus)
+- T57 Session-Rotation + BirdNET-Refresh
+- T58 Map V2 (Cluster, Marker-Shift, Verifikation auf Karte, Live-Update)
 
 ---
 
 ## Bekannte Pendenzen / Ideen
 
-- **T50 — Marker-Leiste im Analyse-Tab** (Canvas-Striche an `chunkStartSec / recordingDurationSec`) + Cleanup `compareDetectionChunkIndex`
-- **Feldtest T46–T49:** Runtime-Verifikation (Session-relative Offsets, Preroll in recording.wav, Raven-Export, Play-Button-Sprung)
+- **SessionCard.kt:47,52** `Instant.parse()` — MITTEL, nur Display → "—" (in T52 mitnehmen)
+- **AnalysisViewModel** liest WAV via `File` — SAF-URIs auf SD-Karte funktionieren nicht (Folgetask: `ContentResolver.openInputStream()`)
 - Alte Chunk-Sessions bleiben im Analyse-Tab ohne Audio-Wiedergabe
 - xenoCantoApiKey Feld in Settings (fehlt, API wird noch nicht genutzt)
 - Xeno-Canto Referenz-Download (Ktor Client bereit, API-Key noetig)
@@ -221,6 +260,8 @@ ch.etasystems.pirol/
 - Bat-Modus (Ultraschall >15kHz)
 - Wear OS Companion
 - KMP Code-Sharing AMSEL ↔ PIROL
+- SessionMigrationWorker auf Koin umstellen (laut T51-Handover nice-to-have)
+- Koin ViewModel-Parameter-Anzahl (9 vs. 13 inkonsistent in Altdokumenten) — Code ist ground truth, in Folge-AP nochmal auditieren
 
 ---
 
