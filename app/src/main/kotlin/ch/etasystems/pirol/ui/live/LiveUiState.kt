@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.live
 
+import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.sync.UploadStatus
 import ch.etasystems.pirol.ml.DetectionListState
@@ -18,7 +19,9 @@ enum class RecordingFabState {
     CONNECTING,
     /** Service gebunden, nicht recording — Mic-Icon, primary, enabled */
     READY,
-    /** Aufnahme laeuft — Stop-Icon, rot */
+    /** Aufnahme gestartet, Preroll-Puffer fuellt sich — Mic-Icon, blau, indeterminate Ring (T52) */
+    PREROLL_BUFFERING,
+    /** Aufnahme laeuft, Preroll voll — Stop-Icon, gruen (T52: war rot) */
     RECORDING
 }
 
@@ -56,13 +59,25 @@ data class LiveUiState(
     // Upload-Status (T17)
     val uploadStatus: UploadStatus = UploadStatus.Idle,
     // Watchlist-State (T20)
-    val watchlistSpecies: Set<String> = emptySet()
+    val watchlistSpecies: Set<String> = emptySet(),
+    // T52: RecordingPhase fuer FAB-3-State (PREROLL_FILLING → RUNNING)
+    val recordingPhase: RecordingPhase = RecordingPhase.IDLE,
+    // Sonogramm-Dynamik (T56)
+    val spectrogramAutoContrast: Boolean = true,
+    val spectrogramMinDb: Float = -80f,
+    val spectrogramMaxDb: Float = 0f,
+    // T56b: Gamma-Kompression (< 1.0 = leise Anteile heller, 1.0 = aus)
+    val spectrogramGamma: Float = 1f,
+    // T56b: Lautstärke-Deckel in dBFS (0 = aus, negativ = clippt Lautes)
+    val spectrogramCeilingDb: Float = 0f
 ) {
-    /** Abgeleiteter FAB-State basierend auf Service- und Recording-Zustand */
+    /** Abgeleiteter FAB-State basierend auf Service- und Recording-Zustand (T52: 3-State) */
     val fabState: RecordingFabState
         get() = when {
-            isRecording -> RecordingFabState.RECORDING
-            isServiceBound -> RecordingFabState.READY
-            else -> RecordingFabState.IDLE
+            !isServiceBound -> RecordingFabState.IDLE
+            recordingPhase == RecordingPhase.PREROLL_FILLING -> RecordingFabState.PREROLL_BUFFERING
+            recordingPhase == RecordingPhase.RUNNING -> RecordingFabState.RECORDING
+            isRecording -> RecordingFabState.RECORDING  // Fallback falls Phase noch nicht gesetzt
+            else -> RecordingFabState.READY
         }
 }

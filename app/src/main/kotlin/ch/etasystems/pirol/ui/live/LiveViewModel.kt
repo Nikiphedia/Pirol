@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.RecordingService
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
@@ -794,10 +795,17 @@ class LiveViewModel(
     /**
      * Beobachtet den Recording-State vom Service.
      * Startet/stoppt die Collection-Pipeline entsprechend.
+     * T52: Auch RecordingPhase beobachten fuer FAB-3-State.
      */
     private fun observeRecordingState() {
         recordingObserverJob?.cancel()
         recordingObserverJob = viewModelScope.launch {
+            // T52: RecordingPhase → UiState
+            launch {
+                service?.recordingPhase?.collect { phase ->
+                    _uiState.update { it.copy(recordingPhase = phase) }
+                }
+            }
             service?.isRecording?.collect { recording ->
                 _uiState.update {
                     it.copy(

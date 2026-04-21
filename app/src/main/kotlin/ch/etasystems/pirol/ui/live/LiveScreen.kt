@@ -709,8 +709,10 @@ private fun RecordingFab(
 
     val fabColor by animateColorAsState(
         targetValue = when (fabState) {
-            RecordingFabState.RECORDING -> Color(0xFFD32F2F)
-            RecordingFabState.CONNECTING -> MaterialTheme.colorScheme.surfaceVariant
+            // T52: RECORDING = gruen (war rot), PREROLL_BUFFERING = blau
+            RecordingFabState.RECORDING        -> Color(0xFF2E7D32)
+            RecordingFabState.PREROLL_BUFFERING -> Color(0xFF1565C0)
+            RecordingFabState.CONNECTING       -> MaterialTheme.colorScheme.surfaceVariant
             else -> MaterialTheme.colorScheme.primary
         },
         label = "fabColor"
@@ -722,12 +724,15 @@ private fun RecordingFab(
     }
 
     val fabDescription = when (fabState) {
-        RecordingFabState.RECORDING -> "Aufnahme stoppen"
-        RecordingFabState.CONNECTING -> "Verbinde\u2026"
+        RecordingFabState.RECORDING        -> "Aufnahme stoppen"
+        RecordingFabState.PREROLL_BUFFERING -> "Preroll\u2026"
+        RecordingFabState.CONNECTING       -> "Verbinde\u2026"
         else -> "Aufnahme starten"
     }
 
-    val enabled = fabState != RecordingFabState.CONNECTING
+    // T52: PREROLL_BUFFERING und CONNECTING deaktivieren (kein Tap moeglich)
+    val enabled = fabState != RecordingFabState.CONNECTING &&
+                  fabState != RecordingFabState.PREROLL_BUFFERING
 
     // Pulsierender Schatten bei Aufnahme
     val pulseElevation = if (fabState == RecordingFabState.RECORDING) {
@@ -746,7 +751,7 @@ private fun RecordingFab(
         6.dp
     }
 
-    // Pulsierender Ring bei Aufnahme
+    // Pulsierender Ring bei aktiver Aufnahme (T52: gruen statt rot)
     val ringModifier = if (fabState == RecordingFabState.RECORDING) {
         val infiniteTransition = rememberInfiniteTransition(label = "fabRing")
         val ringAlpha by infiniteTransition.animateFloat(
@@ -760,7 +765,7 @@ private fun RecordingFab(
         )
         Modifier.border(
             width = 3.dp,
-            color = Color(0xFFD32F2F).copy(alpha = ringAlpha),
+            color = Color(0xFF2E7D32).copy(alpha = ringAlpha),
             shape = CircleShape
         )
     } else {
@@ -789,15 +794,31 @@ private fun RecordingFab(
             modifier = Modifier.shadow(pulseElevation, CircleShape, clip = false),
             shape = CircleShape
         ) {
-            Icon(
-                fabIcon,
-                contentDescription = fabDescription,
-                tint = if (fabState == RecordingFabState.CONNECTING) {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                } else {
-                    Color.White
+            // T52: PREROLL_BUFFERING zeigt Mic + indeterminate Progress-Ring
+            if (fabState == RecordingFabState.PREROLL_BUFFERING) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        fabIcon,
+                        contentDescription = fabDescription,
+                        tint = Color.White
+                    )
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(44.dp),
+                        color = Color.White.copy(alpha = 0.7f),
+                        strokeWidth = 3.dp
+                    )
                 }
-            )
+            } else {
+                Icon(
+                    fabIcon,
+                    contentDescription = fabDescription,
+                    tint = if (fabState == RecordingFabState.CONNECTING) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    } else {
+                        Color.White
+                    }
+                )
+            }
         }
     }
 }
