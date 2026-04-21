@@ -678,6 +678,11 @@ class LiveViewModel(
         _uiState.update { it.copy(permissionGranted = granted) }
     }
 
+    /** Location-Permission-Status setzen (T52: GPS-Bar Tap-Aktion). */
+    fun setLocationPermissionGranted(granted: Boolean) {
+        _uiState.update { it.copy(locationPermissionGranted = granted) }
+    }
+
     /** Confidence-Schwelle aendern (0.0 – 1.0) */
     fun setConfidenceThreshold(threshold: Float) {
         val clamped = threshold.coerceIn(0.1f, 0.9f)
@@ -957,7 +962,8 @@ class LiveViewModel(
                         currentLatitude = loc?.latitude,
                         currentLongitude = loc?.longitude,
                         locationAccuracyM = loc?.accuracyM,
-                        isLocationAvailable = loc != null
+                        isLocationAvailable = loc != null,
+                        lastLocationFixMs = loc?.timestampMs  // T52: GPS-Fix-Alter
                     )
                 }
             }

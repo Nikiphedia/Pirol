@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.live
 
+import android.os.SystemClock
 import android.widget.Chronometer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
@@ -137,12 +138,15 @@ fun LiveScreen(
         onPermissionResult = { state ->
             locationPermissionTrigger = false
             locationPermissionGranted = state == LocationPermissionState.Granted
+            viewModel.setLocationPermissionGranted(locationPermissionGranted)  // T52
         }
     )
 
     // Location-Permission beim ersten Composable-Aufbau anfragen
     LaunchedEffect(Unit) {
-        if (!areLocationPermissionsGranted(context)) {
+        val granted = areLocationPermissionsGranted(context)
+        viewModel.setLocationPermissionGranted(granted)  // T52
+        if (!granted) {
             locationPermissionTrigger = true
         }
     }
@@ -175,7 +179,8 @@ fun LiveScreen(
                     ExpandedLiveLayout(
                         uiState = uiState,
                         viewModel = viewModel,
-                        onRequestPermission = { permissionTrigger = true }
+                        onRequestPermission = { permissionTrigger = true },
+                        onRequestLocationPermission = { locationPermissionTrigger = true }
                     )
                 }
                 WindowWidthSizeClass.Medium -> {
@@ -183,7 +188,8 @@ fun LiveScreen(
                     MediumLiveLayout(
                         uiState = uiState,
                         viewModel = viewModel,
-                        onRequestPermission = { permissionTrigger = true }
+                        onRequestPermission = { permissionTrigger = true },
+                        onRequestLocationPermission = { locationPermissionTrigger = true }
                     )
                 }
                 else -> {
@@ -191,7 +197,8 @@ fun LiveScreen(
                     CompactLiveLayout(
                         uiState = uiState,
                         viewModel = viewModel,
-                        onRequestPermission = { permissionTrigger = true }
+                        onRequestPermission = { permissionTrigger = true },
+                        onRequestLocationPermission = { locationPermissionTrigger = true }
                     )
                 }
             }
@@ -247,7 +254,8 @@ private fun StorageFallbackBanner() {
 private fun CompactLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    onRequestLocationPermission: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -265,7 +273,7 @@ private fun CompactLiveLayout(
             // Kompakte Status-Zeile (T30) + Export-Buttons
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
 
-            LocationBar(uiState = uiState)
+            LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -327,7 +335,8 @@ private fun CompactLiveLayout(
 private fun MediumLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    onRequestLocationPermission: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -348,7 +357,7 @@ private fun MediumLiveLayout(
 
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
 
-            LocationBar(uiState = uiState)
+            LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -413,7 +422,8 @@ private fun MediumLiveLayout(
 private fun ExpandedLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    onRequestLocationPermission: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -434,7 +444,7 @@ private fun ExpandedLiveLayout(
 
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
 
-            LocationBar(uiState = uiState)
+            LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -582,13 +592,26 @@ private fun ScanStatusRow(
         else -> uiState.inferenceConfig.regionFilter ?: "?"
     }
 
+    // T52: Session-Laufzeit als mm:ss, 1-Hz-Ticker
+    var elapsedSecs by remember { mutableStateOf(0L) }
+    LaunchedEffect(uiState.isRecording, uiState.recordingStartElapsedRealtime) {
+        if (!uiState.isRecording) { elapsedSecs = 0L; return@LaunchedEffect }
+        while (true) {
+            elapsedSecs = (SystemClock.elapsedRealtime() - uiState.recordingStartElapsedRealtime) / 1000L
+            kotlinx.coroutines.delay(1000L)
+        }
+    }
+    val sessionTimeLabel = if (uiState.isRecording) {
+        " · %02d:%02d".format(elapsedSecs / 60L, elapsedSecs % 60L)
+    } else ""
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "$configLabel · ${(uiState.inferenceConfig.confidenceThreshold * 100).roundToInt()}% · $regionLabel",
+            text = "$configLabel · ${(uiState.inferenceConfig.confidenceThreshold * 100).roundToInt()}% · $regionLabel$sessionTimeLabel",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -824,27 +847,59 @@ private fun RecordingFab(
 }
 
 /**
- * GPS-Koordinaten-Anzeige. Zeigt aktuelle Position oder "GPS nicht verfuegbar".
+ * GPS-Koordinaten-Anzeige mit Fix-Alter und Permission-Tap (T52).
+ * Tap oeffnet Location-Permission-Dialog falls Permission nicht erteilt.
  */
 @Composable
-private fun LocationBar(uiState: LiveUiState) {
+private fun LocationBar(
+    uiState: LiveUiState,
+    onRequestLocationPermission: () -> Unit = {}
+) {
+    // T52: Fix-Alter live berechnen (1-Hz-Ticker)
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000L)
+        }
+    }
+    val fixAgeSeconds = uiState.lastLocationFixMs?.let { (nowMs - it) / 1000L }
+    val fixAgeColor = if (fixAgeSeconds == null || fixAgeSeconds > 30L)
+        MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+
     if (uiState.isLocationAvailable && uiState.currentLatitude != null && uiState.currentLongitude != null) {
-        Text(
-            text = String.format(
-                "\uD83D\uDCCD %.4f\u00B0 N, %.4f\u00B0 E (\u00B1%.0fm)",
-                uiState.currentLatitude, uiState.currentLongitude,
-                uiState.locationAccuracyM ?: 0f
-            ),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-        )
+        Row(
+            modifier = Modifier
+                .padding(start = 4.dp, top = 2.dp)
+                .clickable { if (!uiState.locationPermissionGranted) onRequestLocationPermission() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = String.format(
+                    "\uD83D\uDCCD %.4f\u00B0 N, %.4f\u00B0 E \u00B1%.0fm",
+                    uiState.currentLatitude, uiState.currentLongitude,
+                    uiState.locationAccuracyM ?: 0f
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (fixAgeSeconds != null) {
+                Text(
+                    text = "Fix: vor ${fixAgeSeconds}s",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = fixAgeColor
+                )
+            }
+        }
     } else {
         Text(
             text = "GPS nicht verfuegbar",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+            modifier = Modifier
+                .padding(start = 4.dp, top = 2.dp)
+                .clickable { onRequestLocationPermission() }
         )
     }
 }
