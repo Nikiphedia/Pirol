@@ -4,7 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
+import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.ReferenceEntry
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
@@ -32,13 +34,16 @@ import java.io.File
 class AnalysisViewModel(
     private val sessionManager: SessionManager,
     private val audioPlayer: AudioPlayer,
-    private val referenceRepository: ReferenceRepository
+    private val referenceRepository: ReferenceRepository,
+    private val appPreferences: AppPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
     val uiState: StateFlow<AnalysisUiState> = _uiState.asStateFlow()
 
     init {
+        // T56: Sonogramm-Dynamik-Prefs laden
+        reloadSpectrogramPrefs()
         loadSessions()
         // Playback-State beobachten
         viewModelScope.launch {
@@ -63,13 +68,18 @@ class AnalysisViewModel(
             val summaries = dirs.mapNotNull { dir ->
                 val meta = sessionManager.loadMetadata(dir) ?: return@mapNotNull null
                 val detections = sessionManager.loadDetectionsWithVerifications(dir)
+                // T52: WAV-Dateigrösse ermitteln (recording.wav)
+                val wavBytes = try {
+                    File(dir, "recording.wav").length()
+                } catch (_: Exception) { 0L }
                 SessionSummary(
                     sessionDir = dir,
                     metadata = meta,
                     detectionCount = detections.size,
                     verifiedCount = detections.count {
                         it.verificationStatus != VerificationStatus.UNVERIFIED
-                    }
+                    },
+                    recordingSizeBytes = wavBytes
                 )
             }
             _uiState.update { it.copy(sessions = summaries, isLoading = false) }
@@ -113,7 +123,8 @@ class AnalysisViewModel(
                 selectedSession = null,
                 detections = emptyList(),
                 recordingFile = null,
-                spectrogramState = SpectrogramState()
+                spectrogramState = SpectrogramState(),
+                spectrogramRange = null
             )
         }
     }
@@ -216,7 +227,9 @@ class AnalysisViewModel(
                 referenceEntries = emptyList(),
                 selectedReference = null,
                 detectionSpectrogramState = SpectrogramState(),
+                detectionSpectrogramRange = null,
                 referenceSpectrogramState = SpectrogramState(),
+                referenceSpectrogramRange = null,
                 playingSource = null
             )
         }
@@ -254,7 +267,11 @@ class AnalysisViewModel(
             val mel = MelSpectrogram(sampleRate = 48000)
             val frames = mel.process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
-            _uiState.update { it.copy(detectionSpectrogramState = state) }
+            // T56: Einmal-Perzentil ueber die komplette Frame-Liste (kein Rolling-Window).
+            val range = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
+            _uiState.update {
+                it.copy(detectionSpectrogramState = state, detectionSpectrogramRange = range)
+            }
         }
     }
 
@@ -267,7 +284,11 @@ class AnalysisViewModel(
             val mel = MelSpectrogram(sampleRate = 48000)
             val frames = mel.process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
-            _uiState.update { it.copy(referenceSpectrogramState = state) }
+            // T56: Einmal-Perzentil ueber die komplette Frame-Liste.
+            val range = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
+            _uiState.update {
+                it.copy(referenceSpectrogramState = state, referenceSpectrogramRange = range)
+            }
         }
     }
 
@@ -290,7 +311,32 @@ class AnalysisViewModel(
                 newSpectrogramState.appendFrames(frames)
             }
 
-            _uiState.update { it.copy(spectrogramState = newSpectrogramState) }
+            // T56: Einmal-Perzentil ueber die komplette Session.
+            val range = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
+            _uiState.update {
+                it.copy(spectrogramState = newSpectrogramState, spectrogramRange = range)
+            }
+        }
+    }
+
+    /**
+     * T56/T56b: Liest Sonogramm-Dynamik-Prefs neu ein (Toggle + manueller dB-Range + Gamma aus Settings).
+     * Wird beim ViewModel-Start und bei ON_RESUME des Analyse-Tabs aufgerufen.
+     */
+    fun reloadSpectrogramPrefs() {
+        val autoContrast = appPreferences.spectrogramAutoContrast
+        val minDb = appPreferences.spectrogramMinDb
+        val maxDb = appPreferences.spectrogramMaxDb
+        val gamma = appPreferences.spectrogramGamma
+        val ceilingDb = appPreferences.spectrogramCeilingDb
+        _uiState.update {
+            it.copy(
+                spectrogramAutoContrast = autoContrast,
+                spectrogramMinDb = minDb,
+                spectrogramMaxDb = maxDb,
+                spectrogramGamma = gamma,
+                spectrogramCeilingDb = ceilingDb
+            )
         }
     }
 
