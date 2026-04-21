@@ -508,7 +508,11 @@ class LiveViewModel(
             }
 
             // Chunk-Index: (detectionTime - sessionStart) / 3000ms
-            val startMs = java.time.Instant.parse(metadata.startedAt).toEpochMilli()
+            val startMs = try {
+                java.time.OffsetDateTime.parse(metadata.startedAt).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                java.time.Instant.parse(metadata.startedAt).toEpochMilli()
+            }
             val chunkIndex = ((detection.timestampMs - startMs) / CHUNK_DURATION_MS).toInt().coerceAtLeast(0)
 
             val result = referenceRepository.addFromDetection(detection, sessionDir, chunkIndex)
@@ -689,6 +693,8 @@ class LiveViewModel(
                             confidenceThreshold = config.confidenceThreshold
                         )
                         currentSessionId = sessionId
+                        // Fallback-Banner aktualisieren (T51)
+                        _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
                         // Preroll nach startSession() anhaengen (T46)
                         val preroll = pendingPrerollSamples
                         pendingPrerollSamples = ShortArray(0)
@@ -705,6 +711,8 @@ class LiveViewModel(
                     inferenceWorker.reset()
                     // Detektionsliste leeren — jede Aufnahme startet frisch (T33-AP5)
                     detectionListState.clear()
+                    // Fallback-Banner zuruecksetzen (T51)
+                    _uiState.update { it.copy(storageUnavailableFallback = false) }
                     // Session beenden + lastSessionId setzen (T15)
                     // sessionDispatcher: wartet auf startSession+appendPreroll, bevor endSession laeuft (T54)
                     val finishedSessionId = currentSessionId

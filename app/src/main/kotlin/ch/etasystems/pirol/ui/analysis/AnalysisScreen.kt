@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,6 +58,9 @@ import ch.etasystems.pirol.ui.components.SessionCard
 import ch.etasystems.pirol.ui.components.SpeciesCard
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -65,6 +69,16 @@ fun AnalysisScreen(
     viewModel: AnalysisViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    // ON_RESUME: Sessions neu laden (fuer App-Foregrounding + Tab-Wechsel, T51)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.loadSessions()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // 3-Ebenen-Navigation: Liste → Detail → Vergleich
     val navLevel = when {
