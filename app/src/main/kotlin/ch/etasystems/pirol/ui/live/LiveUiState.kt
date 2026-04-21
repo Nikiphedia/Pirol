@@ -62,6 +62,10 @@ data class LiveUiState(
     val watchlistSpecies: Set<String> = emptySet(),
     // T52: RecordingPhase fuer FAB-3-State (PREROLL_FILLING → RUNNING)
     val recordingPhase: RecordingPhase = RecordingPhase.IDLE,
+    // T52: GPS-Fix-Alter (Unix-ms des letzten Fixes)
+    val lastLocationFixMs: Long? = null,
+    // T52: Location-Permission-Status fuer GPS-Bar Tap-Aktion
+    val locationPermissionGranted: Boolean = false,
     // Sonogramm-Dynamik (T56)
     val spectrogramAutoContrast: Boolean = true,
     val spectrogramMinDb: Float = -80f,
