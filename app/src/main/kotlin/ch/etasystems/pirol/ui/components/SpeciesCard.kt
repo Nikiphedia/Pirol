@@ -30,8 +30,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -46,6 +49,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -139,6 +144,9 @@ fun SpeciesCard(
 
     // Kandidaten aufklappbar (T27)
     var candidatesExpanded by remember { mutableStateOf(false) }
+
+    // Haptisches Feedback (T52: ✎ und Kandidaten-Tap)
+    val haptic = LocalHapticFeedback.current
 
     // T33: Highlight-Border wenn keine Verifikations-Border aktiv
     val effectiveBorder = verificationBorder
@@ -305,72 +313,91 @@ fun SpeciesCard(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Bestaetigen
+                    // Bestaetigen (T52: FilledIconButton 56dp)
                     if (onConfirm != null) {
-                        IconButton(
+                        FilledIconButton(
                             onClick = onConfirm,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(56.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
+                                    Color(0xFF4CAF50) else MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
+                                    Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = "Bestaetigen",
-                                tint = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
-                                    Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    // Unsicher markieren (T44)
+                    // Unsicher markieren (T44, T52: FilledTonalIconButton 56dp)
                     if (onMarkUncertain != null) {
-                        IconButton(
+                        FilledTonalIconButton(
                             onClick = onMarkUncertain,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(56.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
+                                    Color(0xFFFF9800) else MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
+                                    Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Help,
                                 contentDescription = "Unsicher",
-                                tint = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
-                                    Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    // Ablehnen
+                    // Ablehnen (T52: FilledTonalIconButton 56dp)
                     if (onReject != null) {
-                        IconButton(
+                        FilledTonalIconButton(
                             onClick = onReject,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(56.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = if (detection.verificationStatus == VerificationStatus.REJECTED)
+                                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = if (detection.verificationStatus == VerificationStatus.REJECTED)
+                                    MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Close,
                                 contentDescription = "Ablehnen",
-                                tint = if (detection.verificationStatus == VerificationStatus.REJECTED)
-                                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    // Korrigieren
+                    // Korrigieren (T52: FilledTonalIconButton 56dp + Haptik)
                     if (onCorrect != null) {
-                        IconButton(
-                            onClick = { showCorrectionDialog = true },
-                            modifier = Modifier.size(32.dp)
+                        FilledTonalIconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showCorrectionDialog = true
+                            },
+                            modifier = Modifier.size(56.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = if (detection.verificationStatus == VerificationStatus.CORRECTED)
+                                    Color(0xFF2196F3) else MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = if (detection.verificationStatus == VerificationStatus.CORRECTED)
+                                    Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Edit,
                                 contentDescription = "Korrigieren",
-                                tint = if (detection.verificationStatus == VerificationStatus.CORRECTED)
-                                    Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
@@ -487,7 +514,10 @@ fun SpeciesCard(
                                     .padding(start = 16.dp, top = 2.dp)
                                     .then(
                                         if (onSelectAlternative != null)
-                                            Modifier.clickable { onSelectAlternative(candidate) }
+                                            Modifier.clickable {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                onSelectAlternative(candidate)
+                                            }
                                         else Modifier
                                     ),
                                 horizontalArrangement = Arrangement.SpaceBetween

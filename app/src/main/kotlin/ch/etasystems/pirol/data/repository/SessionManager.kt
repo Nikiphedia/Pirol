@@ -345,6 +345,58 @@ class SessionManager(
     }
 
     /**
+     * Entfernt den letzten Verifikations-Eintrag fuer eine Detection-ID aus verifications.jsonl.
+     * Idempotent: kein Fehler falls kein Eintrag fuer die ID vorhanden.
+     * Wird fuer Undo im Live-Tab verwendet (T52).
+     */
+    suspend fun removeLastVerification(detectionId: String) = withContext(Dispatchers.IO) {
+        val sessionDoc = activeSessionDoc
+        if (sessionDoc != null) {
+            // SAF-Modus
+            val veriFile = sessionDoc.findFile("verifications.jsonl") ?: return@withContext
+            val lines = try {
+                context.contentResolver.openInputStream(veriFile.uri)?.use {
+                    it.bufferedReader().readLines()
+                } ?: return@withContext
+            } catch (_: Exception) { return@withContext }
+            val lastMatchIdx = lines.indexOfLast { line ->
+                line.isNotBlank() && try {
+                    jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
+                } catch (_: Exception) { false }
+            }
+            if (lastMatchIdx < 0) return@withContext
+            val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
+            try {
+                context.contentResolver.openOutputStream(veriFile.uri, "wt")?.use { os ->
+                    val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
+                    os.write(content.toByteArray(Charsets.UTF_8))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "removeLastVerification SAF fehlgeschlagen: $detectionId", e)
+            }
+        } else {
+            // File-Modus
+            val sessionDir = activeSessionDir ?: return@withContext
+            val file = File(sessionDir, "verifications.jsonl")
+            if (!file.exists()) return@withContext
+            val lines = try { file.readLines() } catch (_: Exception) { return@withContext }
+            val lastMatchIdx = lines.indexOfLast { line ->
+                line.isNotBlank() && try {
+                    jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
+                } catch (_: Exception) { false }
+            }
+            if (lastMatchIdx < 0) return@withContext
+            val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
+            try {
+                val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
+                file.writeText(content)
+            } catch (e: Exception) {
+                Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
+            }
+        }
+    }
+
+    /**
      * Audio-Samples an recording.wav anhaengen.
      * Wird vom LiveViewModel fuer jeden Chunk aufgerufen (Daueraufnahme, T51).
      *
