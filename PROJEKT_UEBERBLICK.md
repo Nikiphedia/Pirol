@@ -1,4 +1,4 @@
-# PIROL — Projektuebersicht (Stand 2026-04-22 · V0.0.6-WIP: T54 + T51 + T51b + T51c + T52 + T56 + T56b + T53 committet, Feldtest-Abnahme offen)
+# PIROL — Projektuebersicht (Stand 2026-04-22 · **V0.0.6 Release-ready** inkl. T57 Block B · Feldtest-Abnahme erfolgt)
 
 ## Was ist PIROL?
 
@@ -223,35 +223,29 @@ Downloads/PIROL/                  (oder anderer per SAF gewaehlter Basis-Pfad)
 
 ---
 
-## V0.0.6-Status (Stand 2026-04-22)
+## V0.0.6-Status (Stand 2026-04-22, Release)
 
-### Abgenommen (auf master committet, Feldtest teilweise pending)
-- ✅ **T54** Preroll-Crash (3 Bugs: MelSpectrogram-Race, IO-Dispatcher-Race, ANR) — Samsung verifiziert, Fairphone weiter offen (T54b)
+### Release-Inhalt (auf master, Tag `v0.0.6`)
+- ✅ **T54** Preroll-Crash (3 Bugs: MelSpectrogram-Race, IO-Dispatcher-Race, ANR) — Samsung verifiziert
 - ✅ **T51** Storage-Layout, SAF, Auto-Raven, Daueraufnahme, KML entfernt, Zeitzone mit Offset
 - ✅ **T51b** Timestamp-Leser (AnalysisViewModel.openCompare, ReferenceRepository, WatchlistManager)
-- ✅ **T51c** LiveViewModel.kt:511 OffsetDateTime-Fallback + T51-Completion-Gaps (Fallback-Banner, ON_RESUME-Refresh)
-- ✅ **T52** Live-UX (Buttons 56dp, Snackbar+Undo, FAB 3-State blau->gruen, Analyse mm:ss+MB, Top-N in Anzeigesprache, SessionCard.parseInstantCompat) — 22 AC, 6 Commits auf master
-- ✅ **T56** Sonogramm-Auto-Kontrast (Rolling-Perzentil p2/p98, 5s-Window, IIR; manueller dB-Range als Fallback; Analyse-Tab Einmal-Perzentil) — Feldtest 2026-04-22
-- ✅ **T56b** Gamma-Kompression + Ceiling-dB (LUT-Cache kombiniert Gamma+Palette; Ceiling-Scope-Extension orthogonal zu Auto-Kontrast)
+- ✅ **T51c** LiveViewModel OffsetDateTime-Fallback + T51-Completion-Gaps (Fallback-Banner, ON_RESUME-Refresh)
+- ✅ **T52** Live-UX (Buttons 56dp, Snackbar+Undo, FAB 3-State, Analyse mm:ss+MB, Top-N in Anzeigesprache, parseInstantCompat) — 22 AC, 6 Commits
+- ✅ **T56** Sonogramm-Auto-Kontrast (Rolling-Perzentil p2/p98, 5s-Window, IIR; manueller dB-Range als Fallback; Analyse-Tab Einmal-Perzentil)
+- ✅ **T56b** Gamma-Kompression + Ceiling-dB (LUT-Cache kombiniert Gamma+Palette)
 - ✅ **T53** GPS-Robustheit (Accuracy-Filter 50m, LastKnown-Fallback 2min, Median-5, Intervall 2/5/10/20/60s; gpsStats in session.json nullable; 12 Unit-Tests gruen)
+- ✅ **T57 Block B** Session-Rotation (Slider 10-80min, Multi-WAV mit `recordingSegments`), WAV-Header periodisch geupdatet (Windows-kompatibel bei Prozess-Kill), Raven-TSV mit `Begin File` + `Begin Date Time` + Low=150 Hz, FAB-Farben korrigiert (PREROLL gruen, RECORDING rot)
 
-### Offen im V0.0.6-Scope
+### Offen, nicht-blockierend (nach V0.0.6)
 - ⬜ **T54b** Fairphone-Preroll-Crash — auf Hold (User-Prio)
-- ⬜ **T55** Recording-Start-Stabilitaet — vermutlich durch T54 miterledigt, im morgigen Feldtest mit 20x Session-Start verifizieren. Wenn OK: als erledigt abhaken, kein Worker
-- ⬜ **BDA V005 -> V006** — erst nach Feldtest-Abnahme
+- ⬜ **T55** Recording-Start-Stabilitaet — durch T54 wahrscheinlich miterledigt, Feldtest-Verifikation
+- ⬜ BDA V005 → V006
 
-### Feldtest-Pendenzen (User, 2026-04-22 abend)
-- AC17 T52: Top-N-Kandidaten in deutscher Sprache statt Latein
-- T56b: 5 Screenshots (Gamma 1.0 / 0.5 / 0.3, Ceiling -20, FixRange+Gamma)
-- T56b: gfxinfo + Choreographer-Log (Performance-Baseline)
-- T56b: Prefs-Persistenz Force-Stop-Test
-- T53: 6 Manual-Tests (Emu-Geo-Fix, session.json.gpsStats, keine 0/0-Marker, Permission-Revoke)
-- 30-Min-Integrations-Feldtest
-
-### V0.0.7 (eigener Planungs-Zyklus, NICHT V0.0.6)
-- T57 Session-Rotation + BirdNET-Refresh
-- T58 Map V2 (Cluster, Marker-Shift, Verifikation auf Karte, Live-Update)
-- T59 Canvas-Skalierung Merlin-Stil (User-Wunsch 2026-04-21, Scope-Ausschluss T56)
+### V0.0.7-Ideenspeicher
+- T58 Map V2 (Cluster, Session-Filter, Menue, Verifikation auf Karte, Live-Update)
+- T59 Canvas-Skalierung Merlin-Stil
+- T60 BirdNET Multi-Label pro Chunk (aktuell Top-1) + Per-Species-Frequenzen im Raven-Export
+- Per-Species Low/High Freq aus BirdNET-Metadata (TODO-Marker in RavenExporter.kt)
 
 ---
 
