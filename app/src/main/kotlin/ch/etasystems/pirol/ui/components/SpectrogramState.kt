@@ -3,6 +3,7 @@ package ch.etasystems.pirol.ui.components
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 
 /**
  * Thread-safe Ring-Buffer fuer Mel-Spektrogramm-Frames.
@@ -10,11 +11,16 @@ import androidx.compose.runtime.setValue
  * Wird vom ViewModel (Coroutine-Scope) befuellt und vom Canvas (Compose-Recomposition) gelesen.
  * Zugriffe sind ueber @Synchronized abgesichert.
  *
+ * T56: Optionaler [dynamicRangeMapper] wird bei jedem appendFrames()-Aufruf
+ * gefuettert, damit Auto-Kontrast-Perzentile live mitlaufen.
+ *
  * @param maxFrames Maximale Anzahl gespeicherter Frames (~22s bei 93 fps)
  */
 class SpectrogramState(
     val maxFrames: Int = 2048
 ) {
+    /** Optionaler Perzentil-Mapper fuer Auto-Kontrast (T56). */
+    var dynamicRangeMapper: DynamicRangeMapper? = null
     // Ring-Buffer: Array von FloatArray-Referenzen
     private val buffer = arrayOfNulls<FloatArray>(maxFrames)
     private var writeIndex = 0
@@ -42,6 +48,10 @@ class SpectrogramState(
             buffer[writeIndex] = frame
             writeIndex = (writeIndex + 1) % maxFrames
             count++
+        }
+        // T56: DynamicRangeMapper fuettern (falls gesetzt). Mapper ist selbst thread-safe.
+        dynamicRangeMapper?.let { mapper ->
+            for (frame in newFrames) mapper.update(frame)
         }
         // Recomposition-Trigger (muss ausserhalb von synchronized in Compose laufen,
         // aber mutableIntStateOf ist thread-safe fuer primitive Schreibzugriffe)
@@ -83,6 +93,8 @@ class SpectrogramState(
         buffer.fill(null)
         writeIndex = 0
         count = 0
+        // T56: Mapper mit Buffer zuruecksetzen — sonst rollt Auto-Kontrast aus alter Session.
+        dynamicRangeMapper?.reset()
         frameVersion++
     }
 }

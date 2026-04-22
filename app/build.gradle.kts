@@ -111,4 +111,7 @@ dependencies {
 
     // DocumentFile (SAF-Unterstuetzung fuer oeffentlichen Speicher, T51)
     implementation(libs.documentfile)
+
+    // Unit-Tests (T53: AccuracyFilterTest, MedianSmoothingTest)
+    testImplementation("junit:junit:4.13.2")
 }
