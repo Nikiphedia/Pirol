@@ -141,6 +141,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_storage_daily_subfolder", true)
         set(value) = prefs.edit().putBoolean("pirol_storage_daily_subfolder", value).apply()
 
+    // --- Session-Rotation (T57-B1) ---
+    /** Maximale Aufnahmelaenge pro WAV-Datei in Minuten. Default 60. */
+    var maxRecordingMinutes: Int
+        get() = prefs.getInt("pirol_max_recording_minutes", 60)
+        set(value) = prefs.edit().putInt("pirol_max_recording_minutes", value).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)

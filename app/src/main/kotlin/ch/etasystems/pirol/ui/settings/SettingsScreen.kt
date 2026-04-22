@@ -500,6 +500,37 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        // T57-B1: Max. Aufnahmelaenge pro WAV
+        Spacer(modifier = Modifier.height(12.dp))
+
+        var maxRecordingMinutes by remember { mutableIntStateOf(appPreferences.maxRecordingMinutes) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Max. Aufnahmelaenge pro WAV", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Laengere Sessions werden automatisch auf mehrere WAV-Dateien aufgeteilt. BirdNET laeuft dabei durchgehend weiter.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("$maxRecordingMinutes min", style = MaterialTheme.typography.bodyMedium)
+        }
+        Slider(
+            value = maxRecordingMinutes.toFloat(),
+            onValueChange = { v ->
+                val mins = v.roundToInt()
+                maxRecordingMinutes = mins
+                appPreferences.maxRecordingMinutes = mins
+            },
+            valueRange = 10f..80f,
+            steps = 13  // 10,15,20,...,80 = 15 Positionen → 13 Zwischenschritte
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
