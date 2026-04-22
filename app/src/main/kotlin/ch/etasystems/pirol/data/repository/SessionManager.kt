@@ -500,7 +500,8 @@ class SessionManager(
             try {
                 val detections = loadDetectionsWithVerifications(sessionDirForExport)
                 val selectionsFile = File(sessionDirForExport, "recording.selections.txt")
-                RavenExporter.export(selectionsFile, detections)
+                // T57-B3: sessionStartedAt + recordingSegments fuer Begin Date Time + Begin File
+                RavenExporter.export(selectionsFile, detections, metadata.startedAt, updatedMetadata.recordingSegments)
                 Log.i(TAG, "Auto-Raven-Export: ${selectionsFile.name} (${detections.size} Detektionen)")
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
@@ -719,13 +720,20 @@ class SessionManager(
 
     /**
      * Schreibt eine Raven Selection Table neben recording.wav (fuer manuellen Re-Export).
+     * Laedt session.json fuer startedAt + recordingSegments (T57-B3).
      * @return Pfad zur erzeugten Datei oder null wenn keine Aufnahme vorhanden
      */
     suspend fun exportRavenSelectionTable(sessionDir: File): File? = withContext(Dispatchers.IO) {
         getRecordingFile(sessionDir) ?: return@withContext null
         val outputFile = File(sessionDir, "recording.selections.txt")
         val detections = loadDetectionsWithVerifications(sessionDir)
-        RavenExporter.export(outputFile, detections)
+        // Metadaten fuer startedAt + recordingSegments laden (T57-B3)
+        val meta = runCatching {
+            val jsonText = File(sessionDir, "session.json").readText()
+            jsonLenient.decodeFromString<SessionMetadata>(jsonText)
+        }.getOrNull()
+        val startedAt = meta?.startedAt ?: "1970-01-01T00:00:00+00:00"
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments)
         outputFile
     }
 
