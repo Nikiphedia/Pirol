@@ -1,8 +1,11 @@
-# Task-/Handover-/Scan-Dateien (Master-Worker-Artefakte)
+# Task-/Handover-/Scan-Dateien (Master-Worker-Artefakte) — nicht auf GitHub
+T*_Arbeitspaket.md
 T*_task.md
 T*_prompt.md
 Handover_T*.md
 Scan_T*.md
+Master_Uebergabe*.md
+Prompt_Thread_Uebergabe.md
 
 # IDE / Build
 .idea/
