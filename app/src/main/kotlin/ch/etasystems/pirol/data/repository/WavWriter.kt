@@ -145,6 +145,18 @@ class StreamingWavWriter private constructor(
         appendCount++
         // Periodisches Flush: sichert Datei bei App-Kills in langen Sessions
         if (appendCount % FLUSH_INTERVAL_APPENDS == 0) {
+            // T57-B2: Header-Felder aktualisieren damit Windows korrekte Hz + Laenge zeigt
+            // Absolute channel.write(buf, pos) aendert die Channel-Position nicht → Append-Position bleibt korrekt
+            val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+            riffBuf.putInt((36 + dataBytesWritten).toInt())
+            riffBuf.flip()
+            channel.write(riffBuf, 4L)
+
+            val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+            dataBuf.putInt(dataBytesWritten.toInt())
+            dataBuf.flip()
+            channel.write(dataBuf, 40L)
+
             channel.force(false)
         }
     }
