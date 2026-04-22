@@ -718,6 +718,100 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
+        // --- GPS (T53) ---
+        Text("GPS", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // GPS-Intervall
+        var selectedGpsInterval by remember { mutableIntStateOf(appPreferences.gpsIntervalSeconds) }
+        Text("GPS-Intervall", style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Kuerzere Intervalle = genauere Position, hoeherer Akkuverbrauch.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(2 to "2s", 5 to "5s", 10 to "10s", 20 to "20s", 60 to "60s").forEach { (sec, label) ->
+                FilterChip(
+                    selected = selectedGpsInterval == sec,
+                    onClick = {
+                        selectedGpsInterval = sec
+                        appPreferences.gpsIntervalSeconds = sec
+                    },
+                    label = { Text(label) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Wirkt ab naechster Aufnahme.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Accuracy-Filter
+        var gpsMaxAccuracy by remember { mutableFloatStateOf(appPreferences.gpsMaxAccuracyMeters) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Max. GPS-Ungenauigkeit", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Fixes ungenauer als dieser Wert werden verworfen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${gpsMaxAccuracy.roundToInt()} m",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = gpsMaxAccuracy,
+            onValueChange = { v ->
+                gpsMaxAccuracy = v
+                appPreferences.gpsMaxAccuracyMeters = v
+            },
+            valueRange = 10f..200f,
+            steps = 18  // 10 m Raster
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // GPS-Smoothing Toggle
+        var gpsSmoothingEnabled by remember { mutableStateOf(appPreferences.gpsSmoothingEnabled) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("GPS-Smoothing", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Median ueber 5 Fixes — reduziert Ausreisser-Spruenge.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = gpsSmoothingEnabled,
+                onCheckedChange = {
+                    gpsSmoothingEnabled = it
+                    appPreferences.gpsSmoothingEnabled = it
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
         // --- Artennamen-Sprache (T26) ---
         Text("Artennamen", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))

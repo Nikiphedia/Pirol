@@ -70,11 +70,15 @@ fun AnalysisScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    // ON_RESUME: Sessions neu laden (fuer App-Foregrounding + Tab-Wechsel, T51)
+    // ON_RESUME: Sessions neu laden (fuer App-Foregrounding + Tab-Wechsel, T51).
+    // T56: zusaetzlich Sonogramm-Dynamik-Prefs neu einlesen.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.loadSessions()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadSessions()
+                viewModel.reloadSpectrogramPrefs()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -308,11 +312,18 @@ private fun SessionDetailView(
                 }
             }
 
-            // Sonogramm-Canvas
+            // Sonogramm-Canvas (T56: Einmal-Perzentil wenn Toggle AN, sonst manueller Range; T56b: Gamma)
+            val sessionOverride = if (state.spectrogramAutoContrast) state.spectrogramRange else null
             SpectrogramCanvas(
                 spectrogramState = state.spectrogramState,
                 config = SpectrogramConfig.BIRDS,
                 palette = SpectrogramPalette.MAGMA,
+                autoContrast = false,
+                manualMinDb = state.spectrogramMinDb,
+                manualMaxDb = state.spectrogramMaxDb,
+                manualRangeOverride = sessionOverride,
+                gamma = state.spectrogramGamma,
+                ceilingDb = state.spectrogramCeilingDb,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
@@ -429,11 +440,18 @@ private fun CompareView(
         )
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Sonogramm Detektion
+        // Sonogramm Detektion (T56: Einmal-Perzentil wenn Toggle AN; T56b: Gamma)
+        val detectionOverride = if (state.spectrogramAutoContrast) state.detectionSpectrogramRange else null
         SpectrogramCanvas(
             spectrogramState = state.detectionSpectrogramState,
             config = SpectrogramConfig.BIRDS,
             palette = SpectrogramPalette.MAGMA,
+            autoContrast = false,
+            manualMinDb = state.spectrogramMinDb,
+            manualMaxDb = state.spectrogramMaxDb,
+            manualRangeOverride = detectionOverride,
+            gamma = state.spectrogramGamma,
+            ceilingDb = state.spectrogramCeilingDb,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
@@ -487,11 +505,18 @@ private fun CompareView(
         Spacer(modifier = Modifier.height(4.dp))
 
         if (state.selectedReference != null) {
-            // Sonogramm Referenz
+            // Sonogramm Referenz (T56: Einmal-Perzentil wenn Toggle AN; T56b: Gamma)
+            val referenceOverride = if (state.spectrogramAutoContrast) state.referenceSpectrogramRange else null
             SpectrogramCanvas(
                 spectrogramState = state.referenceSpectrogramState,
                 config = SpectrogramConfig.BIRDS,
                 palette = SpectrogramPalette.MAGMA,
+                autoContrast = false,
+                manualMinDb = state.spectrogramMinDb,
+                manualMaxDb = state.spectrogramMaxDb,
+                manualRangeOverride = referenceOverride,
+                gamma = state.spectrogramGamma,
+                ceilingDb = state.spectrogramCeilingDb,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)

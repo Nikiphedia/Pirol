@@ -849,6 +849,10 @@ class LiveViewModel(
                         }
                     }
                 } else {
+                    // T53: GpsStats VOR stop() erfassen — Zaehler bleiben bis naechsten start() erhalten
+                    val gpsStats = locationProvider.buildGpsStats(
+                        appPreferences.gpsIntervalSeconds * 1000L
+                    )
                     locationProvider.stop()
                     stopCollectionJob()
                     stopInferenceJob()
@@ -863,7 +867,7 @@ class LiveViewModel(
                     // sessionDispatcher: wartet auf startSession+appendPreroll, bevor endSession laeuft (T54)
                     val finishedSessionId = currentSessionId
                     viewModelScope.launch(sessionDispatcher) {
-                        sessionManager.endSession()
+                        sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
                         if (finishedSessionId != null) {
                             _uiState.update { it.copy(lastSessionId = finishedSessionId) }
                         }

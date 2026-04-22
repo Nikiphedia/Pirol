@@ -48,8 +48,8 @@ val appModule = module {
     // Detektions-State — Singleton, wird von InferenceWorker befuellt und UI gelesen
     single { DetectionListState() }
 
-    // GPS-Location-Provider — Singleton, Context kommt von Koin androidContext()
-    single { LocationProvider(get()) }
+    // GPS-Location-Provider — Singleton, Context + AppPreferences via Koin (T53)
+    single { LocationProvider(get(), get()) }
 
     // StorageManager — Singleton, ermittelt verfuegbare Speicherorte (T38)
     single { StorageManager(get()) }
@@ -88,7 +88,7 @@ val appModule = module {
     viewModel { ReferenceViewModel(get(), get()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
-    viewModel { AnalysisViewModel(get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository
+    viewModel { AnalysisViewModel(get(), get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences (T56)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
     viewModel { MapViewModel(get()) }  // SessionManager

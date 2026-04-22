@@ -421,8 +421,10 @@ class SessionManager(
     /**
      * Aktive Session beenden. Schliesst WAV-Writer + Writer, aktualisiert session.json.
      * Schreibt automatisch recording.selections.txt (Auto-Raven-Export, T51).
+     *
+     * @param gpsStats GPS-Statistiken der Session (T53). Null wenn GPS nicht verwendet wurde.
      */
-    suspend fun endSession() = withContext(Dispatchers.IO) {
+    suspend fun endSession(gpsStats: GpsStats? = null) = withContext(Dispatchers.IO) {
         val dir = activeSessionDir
         val doc = activeSessionDoc
         val metadata = activeMetadata ?: return@withContext
@@ -438,11 +440,12 @@ class SessionManager(
         try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
         activeDetectionsFd = null
 
-        // session.json aktualisieren (endedAt, Zaehler)
+        // session.json aktualisieren (endedAt, Zaehler, gpsStats)
         val updatedMetadata = metadata.copy(
             endedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             totalRecordedSamples = recordedSamples,
-            totalDetections = detectionCounter
+            totalDetections = detectionCounter,
+            gpsStats = gpsStats  // T53: GPS-Statistiken
         )
         val prettyJson = Json { prettyPrint = true }
         val updatedJson = prettyJson.encodeToString(updatedMetadata)

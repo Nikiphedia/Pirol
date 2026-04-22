@@ -64,6 +64,22 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_show_top_n_candidates", true)
         set(value) = prefs.edit().putBoolean("pirol_show_top_n_candidates", value).apply()
 
+    // --- GPS (T53) ---
+    /** Maximale akzeptierte GPS-Ungenauigkeit in Metern. Fixes schlechter als dieser Wert werden verworfen. */
+    var gpsMaxAccuracyMeters: Float
+        get() = prefs.getFloat("pirol_gps_max_accuracy_m", 50f)
+        set(value) = prefs.edit().putFloat("pirol_gps_max_accuracy_m", value).apply()
+
+    /** Median-Smoothing ueber 5 akzeptierte Fixes — reduziert Ausreisser-Spruenge. */
+    var gpsSmoothingEnabled: Boolean
+        get() = prefs.getBoolean("pirol_gps_smoothing_enabled", true)
+        set(value) = prefs.edit().putBoolean("pirol_gps_smoothing_enabled", value).apply()
+
+    /** GPS-Abfrage-Intervall in Sekunden. Wirkt ab naechster Session. Default 10 s. */
+    var gpsIntervalSeconds: Int
+        get() = prefs.getInt("pirol_gps_interval_sec", 10)
+        set(value) = prefs.edit().putInt("pirol_gps_interval_sec", value).apply()
+
     // --- Sonogramm-Config (T30) ---
     var spectrogramConfigName: String
         get() = prefs.getString("pirol_spectrogram_config", "BIRDS") ?: "BIRDS"
