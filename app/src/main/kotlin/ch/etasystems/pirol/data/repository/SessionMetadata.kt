@@ -15,6 +15,17 @@ data class GpsStats(
 )
 
 /**
+ * Ein WAV-Segment einer Session (T57-B1: Session-Rotation).
+ * Entsteht wenn die maximale Aufnahmelaenge erreicht wird.
+ */
+@Serializable
+data class RecordingSegment(
+    val fileName: String,       // "recording.wav", "recording-002.wav", ...
+    val startSec: Float,        // Offset zum Session-Start in Sekunden
+    val durationSec: Float      // Laenge dieses Segments in Sekunden
+)
+
+/**
  * Metadaten einer Aufnahme-Session.
  * Wird als session.json im Session-Ordner gespeichert.
  */
@@ -30,5 +41,6 @@ data class SessionMetadata(
     val confidenceThreshold: Float,
     val totalRecordedSamples: Long = 0L,
     val totalDetections: Int = 0,
-    val gpsStats: GpsStats? = null  // T53: nullable fuer Rueckwaertskompatibilitaet mit alten Sessions
+    val gpsStats: GpsStats? = null,         // T53: nullable fuer Rueckwaertskompatibilitaet mit alten Sessions
+    val recordingSegments: List<RecordingSegment>? = null  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
 )

@@ -94,6 +94,12 @@ class SessionManager(
     private var recordingWriter: StreamingWavWriter? = null
     private var detectionCounter: Int = 0
 
+    // T57-B1: Rotations-State (pro Session initialisiert in startSession*)
+    private var recordingSegmentIndex: Int = 0
+    private var sessionSegmentStartSec: Float = 0f
+    private val activeSegments = mutableListOf<RecordingSegment>()
+    private var totalSamplesCompleted: Long = 0L
+
     // ── Session-ended Signal (T51: Analyse-Tab Auto-Refresh via Commit 8) ──
 
     private val _sessionEnded = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
@@ -258,6 +264,10 @@ class SessionManager(
         activeSessionDir = sessionDir
         activeMetadata = metadata
         detectionCounter = 0
+        recordingSegmentIndex = 0
+        sessionSegmentStartSec = 0f
+        activeSegments.clear()
+        totalSamplesCompleted = 0L
 
         Log.i(TAG, "Session gestartet (File): $sessionId → ${sessionDir.absolutePath}")
     }
@@ -302,6 +312,10 @@ class SessionManager(
         recordingWriter = wavWriter
         activeMetadata = metadata
         detectionCounter = 0
+        recordingSegmentIndex = 0
+        sessionSegmentStartSec = 0f
+        activeSegments.clear()
+        totalSamplesCompleted = 0L
 
         Log.i(TAG, "Session gestartet (SAF): $sessionId → ${sessionDoc.uri}")
     }
@@ -404,6 +418,13 @@ class SessionManager(
      */
     suspend fun appendAudioSamples(samples: ShortArray) = withContext(Dispatchers.IO) {
         recordingWriter?.append(samples)
+        // T57-B1: Rotation auf Chunk-Grenze pruefen
+        val sampleRate = activeMetadata?.sampleRate?.toFloat() ?: return@withContext
+        val maxSec = appPreferences.maxRecordingMinutes * 60f
+        val writerSec = (recordingWriter?.sampleCount ?: 0L) / sampleRate
+        if (writerSec >= maxSec) {
+            rotateRecordingSync()
+        }
     }
 
     /**
@@ -429,8 +450,17 @@ class SessionManager(
         val doc = activeSessionDoc
         val metadata = activeMetadata ?: return@withContext
 
+        // T57-B1: Letztes Segment abschliessen und Gesamt-Samples summieren
+        val writer = recordingWriter
+        if (writer != null) {
+            val sampleRate = metadata.sampleRate.toFloat()
+            val durationSec = writer.sampleCount.toFloat() / sampleRate
+            activeSegments.add(RecordingSegment(segmentFileName(recordingSegmentIndex), sessionSegmentStartSec, durationSec))
+            totalSamplesCompleted += writer.sampleCount
+        }
+        val recordedSamples = totalSamplesCompleted
+
         // WAV-Writer schliessen
-        val recordedSamples = recordingWriter?.sampleCount ?: 0L
         try { recordingWriter?.close() } catch (e: Exception) { Log.e(TAG, "WAV close failed", e) }
         recordingWriter = null
 
@@ -445,7 +475,8 @@ class SessionManager(
             endedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             totalRecordedSamples = recordedSamples,
             totalDetections = detectionCounter,
-            gpsStats = gpsStats  // T53: GPS-Statistiken
+            gpsStats = gpsStats,  // T53: GPS-Statistiken
+            recordingSegments = if (activeSegments.size > 1) activeSegments.toList() else null  // T57-B1: null bei Single-File
         )
         val prettyJson = Json { prettyPrint = true }
         val updatedJson = prettyJson.encodeToString(updatedMetadata)
@@ -482,6 +513,10 @@ class SessionManager(
         activeDetectionsUri = null
         activeMetadata = null
         detectionCounter = 0
+        recordingSegmentIndex = 0
+        sessionSegmentStartSec = 0f
+        activeSegments.clear()
+        totalSamplesCompleted = 0L
 
         // Signal fuer AnalysisViewModel (T51, Commit 8)
         _sessionEnded.tryEmit(Unit)
@@ -506,6 +541,45 @@ class SessionManager(
             allDirs.add(File(baseFile, sessionName))
         }
         return allDirs.firstOrNull { it.exists() }
+    }
+
+    // ── WAV-Rotation (T57-B1) ─────────────────────────────────────────
+
+    /** Dateiname fuer Segment-Index: 0 → "recording.wav", 1 → "recording-002.wav", ... */
+    private fun segmentFileName(index: Int): String =
+        if (index == 0) "recording.wav" else "recording-${String.format("%03d", index + 1)}.wav"
+
+    /**
+     * Schliesst den aktuellen WAV-Writer, speichert das abgeschlossene Segment,
+     * und oeffnet eine neue WAV-Datei. Laeuft auf Dispatchers.IO (kein suspend noetig).
+     */
+    private fun rotateRecordingSync() {
+        val meta = activeMetadata ?: return
+        val writer = recordingWriter ?: return
+        val sampleRate = meta.sampleRate.toFloat()
+
+        // Aktuelles Segment abschliessen
+        val durationSec = writer.sampleCount.toFloat() / sampleRate
+        activeSegments.add(RecordingSegment(segmentFileName(recordingSegmentIndex), sessionSegmentStartSec, durationSec))
+        totalSamplesCompleted += writer.sampleCount
+        try { writer.close() } catch (e: Exception) { Log.e(TAG, "WAV rotate close failed", e) }
+
+        // Naechstes Segment starten
+        recordingSegmentIndex++
+        sessionSegmentStartSec += durationSec
+        val newName = segmentFileName(recordingSegmentIndex)
+        val dir = activeSessionDir
+        val doc = activeSessionDoc
+        recordingWriter = when {
+            dir != null -> StreamingWavWriter.forFile(File(dir, newName), meta.sampleRate).also { it.open() }
+            doc != null -> {
+                val wavDoc = doc.createFile("audio/wav", newName)
+                    ?: throw IllegalStateException("SAF: $newName konnte nicht erstellt werden")
+                StreamingWavWriter.forSaf(context, wavDoc.uri, meta.sampleRate).also { it.open() }
+            }
+            else -> { Log.e(TAG, "rotateRecordingSync: kein aktives Verzeichnis"); return }
+        }
+        Log.i(TAG, "WAV-Rotation: Segment $recordingSegmentIndex gestartet → $newName")
     }
 
     // ── Listierungs- und Lese-Methoden ────────────────────────────────
