@@ -165,6 +165,7 @@ AMSEL implementiert ein vollständiges Embedding- und Similarity-System:
 | **2026-04-14** | **P20 geplant (T44–T45). Workflow-Dokument analysiert, Arbeitspakete formuliert.** | T44 (UNCERTAIN + 10s Re-detection) zuerst; T45 (Alternative ersetzt Hauptart + REPLACED) danach. Prompt_Thread_Uebergabe.md aktualisiert. |
 | 2026-04-14 | T44 abgeschlossen + reviewed (UNCERTAIN + 10s Re-detection Rule, Build gruen). Worker fand+fixte zusaetzlich einen Bug: verificationStatus wurde bei Re-detection mit hoeherer Confidence ueberschrieben. | T45 (Alternative ersetzt Hauptart + REPLACED) naechster Task |
 | 2026-04-14 | **T45 abgeschlossen + reviewed. P20 komplett — Workflow-Dokument V0.0.4 vollstaendig implementiert.** Build gruen. | Feldtest der neuen Interaktions-Logik (?-Button, Alternative-Auswahl, 10s-Regel). |
+| 2026-04-22 | **V0.0.6-WIP: T54 + T51a/b/c + T52 + T56 + T56b + T53 committet auf master.** Build gruen, 12 Unit-Tests gruen, Feldtest-Abnahme abend offen. Rotations-Grund: neuer Master ("Pirolmaster 6") uebernimmt. `.gitignore` ergaenzt: T*_Arbeitspaket.md / Master_Uebergabe*.md / Prompt_Thread_Uebergabe.md nicht mehr auf GitHub. | PROJEKT_UEBERBLICK.md lesen. Offen: T54b Fairphone (User-Prio aus), T55 im Feldtest verifizieren (20x Start), BDA V006 nach Abnahme, dann Tag v0.0.6. V0.0.7-Ideenspeicher: T57/T58/T59. |
 
 ---
 

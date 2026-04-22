@@ -1,4 +1,4 @@
-# PIROL — Projektuebersicht (Stand 2026-04-21 · V0.0.6-WIP: T54 + T51 + T51b + T51c abgenommen)
+# PIROL — Projektuebersicht (Stand 2026-04-22 · V0.0.6-WIP: T54 + T51 + T51b + T51c + T52 + T56 + T56b + T53 committet, Feldtest-Abnahme offen)
 
 ## Was ist PIROL?
 
@@ -223,29 +223,41 @@ Downloads/PIROL/                  (oder anderer per SAF gewaehlter Basis-Pfad)
 
 ---
 
-## V0.0.6-Status (Stand 2026-04-21)
+## V0.0.6-Status (Stand 2026-04-22)
 
-### Abgenommen
-- ✅ **T54** Preroll-Crash (3 Bugs: MelSpectrogram-Race, IO-Dispatcher-Race, ANR)
+### Abgenommen (auf master committet, Feldtest teilweise pending)
+- ✅ **T54** Preroll-Crash (3 Bugs: MelSpectrogram-Race, IO-Dispatcher-Race, ANR) — Samsung verifiziert, Fairphone weiter offen (T54b)
 - ✅ **T51** Storage-Layout, SAF, Auto-Raven, Daueraufnahme, KML entfernt, Zeitzone mit Offset
 - ✅ **T51b** Timestamp-Leser (AnalysisViewModel.openCompare, ReferenceRepository, WatchlistManager)
 - ✅ **T51c** LiveViewModel.kt:511 OffsetDateTime-Fallback + T51-Completion-Gaps (Fallback-Banner, ON_RESUME-Refresh)
+- ✅ **T52** Live-UX (Buttons 56dp, Snackbar+Undo, FAB 3-State blau->gruen, Analyse mm:ss+MB, Top-N in Anzeigesprache, SessionCard.parseInstantCompat) — 22 AC, 6 Commits auf master
+- ✅ **T56** Sonogramm-Auto-Kontrast (Rolling-Perzentil p2/p98, 5s-Window, IIR; manueller dB-Range als Fallback; Analyse-Tab Einmal-Perzentil) — Feldtest 2026-04-22
+- ✅ **T56b** Gamma-Kompression + Ceiling-dB (LUT-Cache kombiniert Gamma+Palette; Ceiling-Scope-Extension orthogonal zu Auto-Kontrast)
+- ✅ **T53** GPS-Robustheit (Accuracy-Filter 50m, LastKnown-Fallback 2min, Median-5, Intervall 2/5/10/20/60s; gpsStats in session.json nullable; 12 Unit-Tests gruen)
 
-### Laufend / geplant
-- ⏳ **T56** Sonogramm-Dynamik (Perzentil-Mapping + AGC + Settings-Toggle + dB-Slider) — AP steht, Worker bereit
-- ⬜ **T52** Live-UX (Tap-Targets, Snackbar+Undo, FAB 3-State inkl. Preroll-gruen, Analyse-Liste mm:ss + MB, Top-N in Anzeigesprache)
-- ⬜ **T55** Recording-Start-Stabilitaet (evtl. durch T54 miterledigt — vor Start pruefen)
-- ⬜ **T53** GPS-Robustheit (Accuracy-Filter, Smoothing, LastKnown-Fallback, Intervall-Setting)
+### Offen im V0.0.6-Scope
+- ⬜ **T54b** Fairphone-Preroll-Crash — auf Hold (User-Prio)
+- ⬜ **T55** Recording-Start-Stabilitaet — vermutlich durch T54 miterledigt, im morgigen Feldtest mit 20x Session-Start verifizieren. Wenn OK: als erledigt abhaken, kein Worker
+- ⬜ **BDA V005 -> V006** — erst nach Feldtest-Abnahme
 
-### V0.0.7 (eigener Planungs-Zyklus)
+### Feldtest-Pendenzen (User, 2026-04-22 abend)
+- AC17 T52: Top-N-Kandidaten in deutscher Sprache statt Latein
+- T56b: 5 Screenshots (Gamma 1.0 / 0.5 / 0.3, Ceiling -20, FixRange+Gamma)
+- T56b: gfxinfo + Choreographer-Log (Performance-Baseline)
+- T56b: Prefs-Persistenz Force-Stop-Test
+- T53: 6 Manual-Tests (Emu-Geo-Fix, session.json.gpsStats, keine 0/0-Marker, Permission-Revoke)
+- 30-Min-Integrations-Feldtest
+
+### V0.0.7 (eigener Planungs-Zyklus, NICHT V0.0.6)
 - T57 Session-Rotation + BirdNET-Refresh
 - T58 Map V2 (Cluster, Marker-Shift, Verifikation auf Karte, Live-Update)
+- T59 Canvas-Skalierung Merlin-Stil (User-Wunsch 2026-04-21, Scope-Ausschluss T56)
 
 ---
 
 ## Bekannte Pendenzen / Ideen
 
-- **SessionCard.kt:47,52** `Instant.parse()` — MITTEL, nur Display → "—" (in T52 mitnehmen)
+- ~~**SessionCard.kt:47,52** `Instant.parse()`~~ ✅ gefixt in T52 via `util/DateTimeUtils.parseInstantCompat()`
 - **AnalysisViewModel** liest WAV via `File` — SAF-URIs auf SD-Karte funktionieren nicht (Folgetask: `ContentResolver.openInputStream()`)
 - Alte Chunk-Sessions bleiben im Analyse-Tab ohne Audio-Wiedergabe
 - xenoCantoApiKey Feld in Settings (fehlt, API wird noch nicht genutzt)
