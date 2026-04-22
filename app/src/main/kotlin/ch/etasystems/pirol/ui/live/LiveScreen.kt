@@ -736,9 +736,9 @@ private fun RecordingFab(
 
     val fabColor by animateColorAsState(
         targetValue = when (fabState) {
-            // T52: RECORDING = gruen (war rot), PREROLL_BUFFERING = blau
-            RecordingFabState.RECORDING        -> Color(0xFF2E7D32)
-            RecordingFabState.PREROLL_BUFFERING -> Color(0xFF1565C0)
+            // T57-B4: PREROLL = gruen (Buffer laeuft), RECORDING = rot (scharf)
+            RecordingFabState.RECORDING        -> Color(0xFFC62828)  // MaterialRed 800
+            RecordingFabState.PREROLL_BUFFERING -> Color(0xFF2E7D32) // MaterialGreen 800
             RecordingFabState.CONNECTING       -> MaterialTheme.colorScheme.surfaceVariant
             else -> MaterialTheme.colorScheme.primary
         },
@@ -778,7 +778,7 @@ private fun RecordingFab(
         6.dp
     }
 
-    // Pulsierender Ring bei aktiver Aufnahme (T52: gruen statt rot)
+    // Pulsierender Ring bei aktiver Aufnahme (T57-B4: rot)
     val ringModifier = if (fabState == RecordingFabState.RECORDING) {
         val infiniteTransition = rememberInfiniteTransition(label = "fabRing")
         val ringAlpha by infiniteTransition.animateFloat(
@@ -792,7 +792,7 @@ private fun RecordingFab(
         )
         Modifier.border(
             width = 3.dp,
-            color = Color(0xFF2E7D32).copy(alpha = ringAlpha),
+            color = Color(0xFFC62828).copy(alpha = ringAlpha),  // T57-B4: rot wie FAB
             shape = CircleShape
         )
     } else {
