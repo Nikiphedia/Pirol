@@ -868,6 +868,7 @@ class LiveViewModel(
                     val finishedSessionId = currentSessionId
                     viewModelScope.launch(sessionDispatcher) {
                         sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
+                        alarmService.clearCooldowns()  // AC6: Cooldown-Map pro Session leeren
                         if (finishedSessionId != null) {
                             _uiState.update { it.copy(lastSessionId = finishedSessionId) }
                         }
@@ -1006,6 +1007,7 @@ class LiveViewModel(
         cleanupScope.launch {
             try {
                 sessionManager.endSession()
+                alarmService.clearCooldowns()
                 // Finale Embedding-DB Sicherung
                 val file = getEmbeddingDbFile() ?: return@launch
                 file.parentFile?.mkdirs()
