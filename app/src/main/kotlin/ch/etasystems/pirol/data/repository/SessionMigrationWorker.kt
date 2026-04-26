@@ -17,6 +17,7 @@ import java.util.UUID
 
 /**
  * WorkManager CoroutineWorker fuer Session-Migration im Hintergrund.
+ * Aktuell nicht verwendet — Migration laeuft via SettingsScreen-Coroutine mit LiveProgress-Banner.
  *
  * Kopiert alle Sessions vom aktuellen Speicherort zum Zielverzeichnis.
  * Schreibt Fortschritt als Progress-Notification.
