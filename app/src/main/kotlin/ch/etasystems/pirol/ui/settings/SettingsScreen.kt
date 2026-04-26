@@ -15,8 +15,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -64,6 +67,7 @@ import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistEntry
 import ch.etasystems.pirol.ml.WatchlistManager
@@ -78,6 +82,7 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     uploadManager: UploadManager = koinInject(),
     watchlistManager: WatchlistManager = koinInject(),
+    regionalFilter: RegionalSpeciesFilter = koinInject(),
     appPreferences: AppPreferences = koinInject(),
     speciesNameResolver: SpeciesNameResolver = koinInject(),
     classifier: AudioClassifier = koinInject(),
@@ -1266,6 +1271,14 @@ fun SettingsScreen(
 
     // --- Art-Hinzufuegen-Dialog (AP-4) ---
     if (showAddDialog) {
+        // Alle Arten einmalig laden, mit aufgeloestem Anzeigenamen in gewaehlter Sprache
+        val allSpecies = remember {
+            regionalFilter.getSpeciesList().sorted().map { scientific ->
+                val common = speciesNameResolver.resolve(scientific)
+                Pair(scientific, common)  // (Turdus_merula, Kohlmeise)
+            }
+        }
+
         AlertDialog(
             onDismissRequest = {
                 showAddDialog = false
@@ -1277,41 +1290,47 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        label = { Text("Wissenschaftlicher Name") },
-                        placeholder = { Text("Turdus_merula") },
+                        label = { Text("Art suchen...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Gross-/Kleinschreibung beachten. Leerzeichen oder Unterstrich moeglich.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Vorschlaege: Treffer auf Trivialname (gewaehlte Sprache) ODER wissenschaftlicher Name
+                    val suggestions = if (searchQuery.length >= 2) {
+                        allSpecies.filter { (scientific, common) ->
+                            common.contains(searchQuery, ignoreCase = true) ||
+                                scientific.contains(searchQuery, ignoreCase = true)
+                        }.take(8)
+                    } else emptyList()
+
+                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                        items(suggestions) { (scientific, common) ->
+                            Text(
+                                text = "$common (${scientific.replace('_', ' ')})",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch {
+                                            watchlistManager.addSpecies(
+                                                WatchlistEntry(
+                                                    scientificName = scientific,
+                                                    commonName = common,
+                                                    priority = WatchlistPriority.normal
+                                                )
+                                            )
+                                        }
+                                        showAddDialog = false
+                                        searchQuery = ""
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        val name = searchQuery.trim()
-                        if (name.isNotEmpty()) {
-                            scope.launch {
-                                watchlistManager.addSpecies(
-                                    WatchlistEntry(
-                                        scientificName = name,
-                                        commonName = "",
-                                        priority = WatchlistPriority.normal
-                                    )
-                                )
-                            }
-                        }
-                        showAddDialog = false
-                        searchQuery = ""
-                    },
-                    enabled = searchQuery.isNotBlank()
-                ) { Text("Hinzufuegen") }
-            },
-            dismissButton = {
                 TextButton(onClick = {
                     showAddDialog = false
                     searchQuery = ""
