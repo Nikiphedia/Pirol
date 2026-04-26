@@ -1129,9 +1129,11 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Watchlist-Sektion (T20 + T21) ---
+        // --- Watchlist-Sektion (T20 + T21 + T58) ---
         Text("Watchlist", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
+
+        var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
 
         if (entries.isNotEmpty()) {
             Text(
@@ -1224,6 +1226,38 @@ fun SettingsScreen(
                 Text("Neu laden")
             }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Alarm-Cooldown-Slider (T58)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Alarm-Pause", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Pause zwischen Alarmen derselben Art. 0 = jeder Treffer alarmiert.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (cooldownMinutes == 0) "Aus" else "$cooldownMinutes min",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = cooldownMinutes.toFloat(),
+            onValueChange = { v ->
+                val mins = v.roundToInt()
+                cooldownMinutes = mins
+                appPreferences.alarmCooldownMinutes = mins
+            },
+            valueRange = 0f..60f,
+            steps = 59  // 0,1,2,...,60 = 61 Positionen → 59 Zwischenschritte
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
