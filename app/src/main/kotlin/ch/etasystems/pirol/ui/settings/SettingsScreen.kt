@@ -104,6 +104,21 @@ fun SettingsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Alarm-Cooldown State (T58)
+    var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
+
+    // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
+    var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        if (regionalFilter.getSpeciesList().isEmpty()) {
+            regionalFilter.loadRegion(appPreferences.regionFilter ?: "ch_breeding")
+        }
+        speciesNameResolver.load()
+        allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
+            Pair(scientific, speciesNameResolver.resolve(scientific))
+        }
+    }
+
     // T29: Power-Profile State
     var selectedInterval by remember { mutableLongStateOf(appPreferences.inferenceIntervalMs) }
 
@@ -1134,9 +1149,7 @@ fun SettingsScreen(
         Text("Watchlist", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
-        var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
-
-        // Alarm-Pause-Slider (T58) — direkt unter Titel, immer sichtbar
+        // Alarm-Pause-Slider (T58)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -1157,13 +1170,9 @@ fun SettingsScreen(
         }
         Slider(
             value = cooldownMinutes.toFloat(),
-            onValueChange = { v ->
-                val mins = v.roundToInt()
-                cooldownMinutes = mins
-                appPreferences.alarmCooldownMinutes = mins
-            },
-            valueRange = 0f..60f,
-            steps = 59
+            onValueChange = { cooldownMinutes = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.alarmCooldownMinutes = cooldownMinutes },
+            valueRange = 0f..60f
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1271,16 +1280,6 @@ fun SettingsScreen(
 
     // --- Art-Hinzufuegen-Dialog (AP-4) ---
     if (showAddDialog) {
-        // Arten asynchron laden: sicherstellt dass SpeciesNameResolver geladen ist
-        var allSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-        LaunchedEffect(Unit) {
-            speciesNameResolver.load()  // no-op wenn bereits geladen
-            allSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
-                val common = speciesNameResolver.resolve(scientific)
-                Pair(scientific, common)  // (Turdus_merula, Kohlmeise)
-            }
-        }
-
         AlertDialog(
             onDismissRequest = {
                 showAddDialog = false
@@ -1298,9 +1297,9 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Vorschlaege: Treffer auf Trivialname (gewaehlte Sprache) ODER wissenschaftlicher Name
+                    // Vorschlaege: Trivialname (gewaehlte Sprache) ODER wissenschaftlicher Name
                     val suggestions = if (searchQuery.length >= 2) {
-                        allSpecies.filter { (scientific, common) ->
+                        allWatchlistSpecies.filter { (scientific, common) ->
                             common.contains(searchQuery, ignoreCase = true) ||
                                 scientific.contains(searchQuery, ignoreCase = true)
                         }.take(8)
