@@ -1136,6 +1136,37 @@ fun SettingsScreen(
 
         var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
 
+        // Alarm-Pause-Slider (T58) — direkt unter Titel, immer sichtbar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Alarm-Pause", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Pause zwischen Alarmen derselben Art. 0 = jeder Treffer alarmiert.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (cooldownMinutes == 0) "Aus" else "$cooldownMinutes min",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = cooldownMinutes.toFloat(),
+            onValueChange = { v ->
+                val mins = v.roundToInt()
+                cooldownMinutes = mins
+                appPreferences.alarmCooldownMinutes = mins
+            },
+            valueRange = 0f..60f,
+            steps = 59
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
         if (entries.isNotEmpty()) {
             Text(
                 text = "${watchlistManager.name} (${entries.size} Arten)",
@@ -1229,38 +1260,6 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-
-        // Alarm-Cooldown-Slider (T58)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Alarm-Pause", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = "Pause zwischen Alarmen derselben Art. 0 = jeder Treffer alarmiert.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = if (cooldownMinutes == 0) "Aus" else "$cooldownMinutes min",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        Slider(
-            value = cooldownMinutes.toFloat(),
-            onValueChange = { v ->
-                val mins = v.roundToInt()
-                cooldownMinutes = mins
-                appPreferences.alarmCooldownMinutes = mins
-            },
-            valueRange = 0f..60f,
-            steps = 59  // 0,1,2,...,60 = 61 Positionen → 59 Zwischenschritte
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Art hinzufuegen Button (AP-4)
         OutlinedButton(onClick = { showAddDialog = true }) {
