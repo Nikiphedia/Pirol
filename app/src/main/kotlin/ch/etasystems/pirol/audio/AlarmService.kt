@@ -10,6 +10,7 @@ import android.os.Vibrator
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import ch.etasystems.pirol.MainActivity
+import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.WatchlistPriority
 
@@ -25,13 +26,12 @@ import ch.etasystems.pirol.ml.WatchlistPriority
  * - normal: Vibration + Notification
  * - low: Kein Alarm (nur visuelles Badge auf SpeciesCard)
  */
-class AlarmService(private val context: Context) {
+class AlarmService(private val context: Context, private val appPreferences: AppPreferences) {
 
     companion object {
         private const val TAG = "AlarmService"
         private const val CHANNEL_ID = "watchlist_alarm"
         private const val NOTIFICATION_ID_BASE = 1000  // Offset zu RecordingService (1)
-        private const val COOLDOWN_MS = 5 * 60 * 1000L  // 5 Minuten Cooldown pro Art
     }
 
     private var notificationCounter = 0
@@ -63,11 +63,16 @@ class AlarmService(private val context: Context) {
      * @param detection Die Detektion mit scientificName, commonName, confidence
      * @param priority Watchlist-Priority bestimmt Alarm-Intensitaet
      */
+    /** Cooldown-Map fuer naechste Session leeren (AC6: endSession). */
+    fun clearCooldowns() {
+        lastAlarmTimes.clear()
+    }
+
     fun triggerAlarm(detection: DetectionResult, priority: WatchlistPriority) {
-        // Cooldown pruefen: max 1 Alarm pro Art pro 5 Minuten
+        val cooldownMs = appPreferences.alarmCooldownMinutes * 60_000L
         val now = System.currentTimeMillis()
         val lastTime = lastAlarmTimes[detection.scientificName] ?: 0L
-        if (now - lastTime < COOLDOWN_MS) {
+        if (cooldownMs > 0L && now - lastTime < cooldownMs) {
             Log.d(TAG, "Cooldown aktiv fuer ${detection.commonName}, ueberspringe Alarm")
             return
         }

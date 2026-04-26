@@ -147,6 +147,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_max_recording_minutes", 60)
         set(value) = prefs.edit().putInt("pirol_max_recording_minutes", value).apply()
 
+    // --- Watchlist-Alarm-Cooldown (T58) ---
+    /** Pause zwischen Alarmen derselben Art in Minuten. 0 = jeder Treffer alarmiert. Default 5. */
+    var alarmCooldownMinutes: Int
+        get() = prefs.getInt("pirol_alarm_cooldown_minutes", 5)
+        set(value) = prefs.edit().putInt("pirol_alarm_cooldown_minutes", value).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)

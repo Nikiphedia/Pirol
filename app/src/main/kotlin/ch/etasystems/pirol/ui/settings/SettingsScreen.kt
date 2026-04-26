@@ -47,6 +47,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -102,6 +103,21 @@ fun SettingsScreen(
     // Watchlist-Editor State (T21)
     var showAddDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Alarm-Cooldown State (T58)
+    var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
+
+    // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
+    var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        if (regionalFilter.getSpeciesList().isEmpty()) {
+            regionalFilter.loadRegion(appPreferences.regionFilter ?: "ch_breeding")
+        }
+        speciesNameResolver.load()
+        allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
+            Pair(scientific, speciesNameResolver.resolve(scientific))
+        }
+    }
 
     // T29: Power-Profile State
     var selectedInterval by remember { mutableLongStateOf(appPreferences.inferenceIntervalMs) }
@@ -1129,8 +1145,35 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Watchlist-Sektion (T20 + T21) ---
+        // --- Watchlist-Sektion (T20 + T21 + T58) ---
         Text("Watchlist", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Alarm-Pause-Slider (T58)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Alarm-Pause", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Pause zwischen Alarmen derselben Art. 0 = jeder Treffer alarmiert.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (cooldownMinutes == 0) "Aus" else "$cooldownMinutes min",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = cooldownMinutes.toFloat(),
+            onValueChange = { cooldownMinutes = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.alarmCooldownMinutes = cooldownMinutes },
+            valueRange = 0f..60f
+        )
         Spacer(modifier = Modifier.height(8.dp))
 
         if (entries.isNotEmpty()) {
@@ -1225,7 +1268,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Art hinzufuegen Button (AP-4)
         OutlinedButton(onClick = { showAddDialog = true }) {
@@ -1237,8 +1280,6 @@ fun SettingsScreen(
 
     // --- Art-Hinzufuegen-Dialog (AP-4) ---
     if (showAddDialog) {
-        val allSpecies = remember { regionalFilter.getSpeciesList().sorted() }
-
         AlertDialog(
             onDismissRequest = {
                 showAddDialog = false
@@ -1250,31 +1291,32 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        label = { Text("Artname suchen...") },
+                        label = { Text("Art suchen...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Autocomplete-Vorschlaege (aus RegionalSpeciesFilter)
+                    // Vorschlaege: Trivialname (gewaehlte Sprache) ODER wissenschaftlicher Name
                     val suggestions = if (searchQuery.length >= 2) {
-                        allSpecies.filter { species ->
-                            species.contains(searchQuery, ignoreCase = true)
+                        allWatchlistSpecies.filter { (scientific, common) ->
+                            common.contains(searchQuery, ignoreCase = true) ||
+                                scientific.contains(searchQuery, ignoreCase = true)
                         }.take(8)
                     } else emptyList()
 
                     LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                        items(suggestions) { species ->
+                        items(suggestions) { (scientific, common) ->
                             Text(
-                                text = species.replace('_', ' '),
+                                text = "$common (${scientific.replace('_', ' ')})",
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         scope.launch {
                                             watchlistManager.addSpecies(
                                                 WatchlistEntry(
-                                                    scientificName = species,
-                                                    commonName = "",
+                                                    scientificName = scientific,
+                                                    commonName = common,
                                                     priority = WatchlistPriority.normal
                                                 )
                                             )
