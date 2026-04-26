@@ -24,13 +24,6 @@ import java.io.IOException
  */
 class WatchlistManager(private val context: Context) {
 
-    companion object {
-        private const val TAG = "WatchlistManager"
-        private const val INTERNAL_FILE = "watchlist.json"
-        private const val EXTERNAL_DIR = "PIROL"
-        private const val EXTERNAL_FILE = "watchlist.json"
-    }
-
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
     private var watchlist: Watchlist = Watchlist()
@@ -43,9 +36,12 @@ class WatchlistManager(private val context: Context) {
     private val _entriesFlow = MutableStateFlow<List<WatchlistEntry>>(emptyList())
     val entriesFlow: StateFlow<List<WatchlistEntry>> = _entriesFlow.asStateFlow()
 
-    /** Aktive Watchlist-Arten als Set (schneller Lookup) */
+    /** Normalisiert Artnamen: Leerzeichen → Unterstrich (Turdus merula → Turdus_merula) */
+    private fun normalizeName(name: String): String = name.replace(' ', '_')
+
+    /** Aktive Watchlist-Arten als Set (schneller Lookup, Eintraege normalisiert) */
     val watchedSpecies: Set<String>
-        get() = watchlist.species.map { it.scientificName }.toSet()
+        get() = watchlist.species.map { normalizeName(it.scientificName) }.toSet()
 
     /** Alle Eintraege */
     val entries: List<WatchlistEntry>
@@ -57,14 +53,47 @@ class WatchlistManager(private val context: Context) {
 
     /** Ob eine Art auf der Watchlist steht */
     fun isWatched(scientificName: String): Boolean {
-        val normalized = scientificName.replace(' ', '_')
-        return watchedSpecies.contains(normalized)
+        return watchedSpecies.contains(normalizeName(scientificName))
     }
 
     /** Priority fuer eine Art (null wenn nicht auf Watchlist) */
     fun getPriority(scientificName: String): WatchlistPriority? {
-        val normalized = scientificName.replace(' ', '_')
-        return watchlist.species.find { it.scientificName == normalized }?.priority
+        val normalized = normalizeName(scientificName)
+        return watchlist.species.find { normalizeName(it.scientificName) == normalized }?.priority
+    }
+
+    /**
+     * Kombinierter Match+Cooldown-Check fuer AlarmService.
+     * Testbar: Companion-Funktion enthaelt die reine Logik ohne Android-Abhaengigkeit.
+     */
+    fun matchAndCheckCooldown(
+        scientificName: String,
+        cooldownMs: Long,
+        lastAlarmTimes: Map<String, Long>
+    ): Boolean = matchAndCheckCooldown(
+        normalizeName(scientificName), watchedSpecies, cooldownMs, lastAlarmTimes,
+        System.currentTimeMillis()
+    )
+
+    companion object {
+        private const val TAG = "WatchlistManager"
+        private const val INTERNAL_FILE = "watchlist.json"
+        private const val EXTERNAL_DIR = "PIROL"
+        private const val EXTERNAL_FILE = "watchlist.json"
+
+        /** Reine Cooldown-Logik — frei von Android-Abhaengigkeiten, direkt unit-testbar. */
+        internal fun matchAndCheckCooldown(
+            normalizedName: String,
+            watchedSet: Set<String>,
+            cooldownMs: Long,
+            lastAlarmTimes: Map<String, Long>,
+            now: Long
+        ): Boolean {
+            if (!watchedSet.contains(normalizedName)) return false
+            if (cooldownMs == 0L) return true
+            val lastTime = lastAlarmTimes[normalizedName] ?: 0L
+            return now - lastTime >= cooldownMs
+        }
     }
 
     /** Flows nach Aenderung aktualisieren */
