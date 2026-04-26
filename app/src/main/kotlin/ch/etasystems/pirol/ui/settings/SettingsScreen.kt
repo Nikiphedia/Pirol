@@ -47,6 +47,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -1271,9 +1272,11 @@ fun SettingsScreen(
 
     // --- Art-Hinzufuegen-Dialog (AP-4) ---
     if (showAddDialog) {
-        // Alle Arten einmalig laden, mit aufgeloestem Anzeigenamen in gewaehlter Sprache
-        val allSpecies = remember {
-            regionalFilter.getSpeciesList().sorted().map { scientific ->
+        // Arten asynchron laden: sicherstellt dass SpeciesNameResolver geladen ist
+        var allSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+        LaunchedEffect(Unit) {
+            speciesNameResolver.load()  // no-op wenn bereits geladen
+            allSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
                 val common = speciesNameResolver.resolve(scientific)
                 Pair(scientific, common)  // (Turdus_merula, Kohlmeise)
             }
