@@ -139,6 +139,22 @@ class DetectionListState(
     }
 
     /**
+     * Ersetzt eine Detektion durch eine aktualisierte Version (T68: count/atlasCode/note).
+     * Behaelt die Position in der Liste bei. Triggert Recomposition.
+     *
+     * @param updated Aktualisierte Detektion (gleiche id)
+     * @return true wenn Detektion gefunden und ersetzt
+     */
+    @Synchronized
+    fun updateDetection(updated: DetectionResult): Boolean {
+        val index = detections.indexOfFirst { it.id == updated.id }
+        if (index < 0) return false
+        detections[index] = updated
+        _version.intValue++
+        return true
+    }
+
+    /**
      * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative.
      *
      * - Original-Detektion wird als REPLACED markiert (bleibt an ihrer Position, ausgegraut)
