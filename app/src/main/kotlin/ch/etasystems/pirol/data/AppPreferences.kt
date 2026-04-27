@@ -153,6 +153,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_alarm_cooldown_minutes", 5)
         set(value) = prefs.edit().putInt("pirol_alarm_cooldown_minutes", value).apply()
 
+    // --- Auto-Loeschen kurzer leerer Sessions (T60) ---
+    var autoDeleteShortEmptySessions: Boolean
+        get() = prefs.getBoolean("pirol_autodelete_short_empty", true)
+        set(value) = prefs.edit().putBoolean("pirol_autodelete_short_empty", value).apply()
+
+    var autoDeleteMinSeconds: Int
+        get() = prefs.getInt("pirol_autodelete_min_seconds", 10)
+        set(value) = prefs.edit().putInt("pirol_autodelete_min_seconds", value).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)

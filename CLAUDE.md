@@ -161,6 +161,27 @@ T{N}: Kurzbeschreibung
 - Detail 2
 ```
 
+## Worker-Konventionen (V0.0.7+)
+
+- **Kontextfenster pro Worker:** max. **60'000 Tokens**. Master dimensioniert APs entsprechend; grosse APs splitten (z.B. Karte V2 in D1/D2/D3). Master haengt vor jedem AP eine **Datei-Index-Tabelle** (Datei | Zeilen | Kurzbeschreibung) an, damit der Worker Token-Budget plant.
+- **Test-Build-Naming:** `V{aktuelles-Release}.T{AP-Nummer}`, z.B. `V0.0.6.T58`. Tag wird nach erfolgreichem Worker-Handover + Master-Review + `assembleDebug` gruen gesetzt. Erst nach abgeschlossenem AP-Cluster und Feldtest-Abnahme folgt der Release-Tag (z.B. `v0.0.7`).
+- **File-Indexer-Worker:** vor jedem AP-Cluster startet Master einen kurzen Indexer-Worker (<5k Tokens), der nur Pfade zaehlt und 1-Zeilen-Beschreibungen liefert.
+- **Quality-Gates auf User-Seite:** (1) Arbeitsplan freigegeben, (2) jedes AP vor Worker-Dispatch freigegeben, (3) jedes Handover vor Master-Schluss + Test-Build-Tag freigegeben. Master fragt explizit vor jedem dieser drei Gates.
+- **Merge-Regel (V0.0.7+):** Worker bleibt **in seinem Worktree-Branch** und merged **nicht** selbst in `master`. Reihenfolge:
+  1. Worker liefert `Handover_T{N}.md` und committet auf Worktree-Branch (z.B. `T58-watchlist-fix`).
+  2. Master reviewt gegen AC, legt Befund dem User vor.
+  3. **User fuehrt manuell `C:\Users\nleis\Documents\WindowsPowerShell\pirol-deploy.ps1` aus dem Worktree aus** (oder per Skript-Override `$project`-Pfad), APK wird auf Geraet installiert, User testet.
+  4. Bei Errors: Worker-Followup-AP oder Hotfix.
+  5. Bei OK: User gibt Freigabe → **Master** merged Worktree-Branch in `master` (Fast-Forward bevorzugt) → setzt Tag `V0.0.6.T{N}` → aktualisiert Briefing → loescht Worktree.
+- **Scope-Disziplin:** Worker darf keine Aenderungen ausserhalb des AP-Scopes machen (kein Autocomplete-Polish, keine Render-Bug-Drive-By-Fixes, keine Renamings). Wenn er ein out-of-scope-Problem findet: in `Handover.md` unter "Beobachtungen" notieren, NICHT fixen. Master entscheidet ob Folge-AP.
+- **Modell-Wahl pro AP** (Token-Effizienz): Master empfiehlt pro AP das guenstigste passende Modell.
+
+  | Aufgabentyp | Modell |
+  |-------------|--------|
+  | Indexer, Doku-Updates (BDA, Briefing), Sprach-Strings, simple Renamings | **Haiku 4.5** (`claude-haiku-4-5-20251001`) |
+  | Standard-Implementierung (Bugfixes, UI-Erweiterungen, Datenmodell-Felder, Settings-Slider) | **Sonnet 4.6** (`claude-sonnet-4-6`) |
+  | Architektur-Spikes, grosse Refactors, neues Subsystem (Disk-Pipeline-Spike, Karte V2 Architektur) | **Opus 4.7** (`claude-opus-4-7`) |
+
 ## Handover-Format
 
 Jeder abgeschlossene Task liefert `Handover_T{N}.md` im Projekt-Root mit:

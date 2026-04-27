@@ -997,6 +997,45 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Auto-Delete kurzer leerer Sessions (T60)
+        var autoDeleteEnabled by remember { mutableStateOf(appPreferences.autoDeleteShortEmptySessions) }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Switch(
+                checked = autoDeleteEnabled,
+                onCheckedChange = { enabled ->
+                    autoDeleteEnabled = enabled
+                    appPreferences.autoDeleteShortEmptySessions = enabled
+                }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text("Kurze leere Sessions automatisch loeschen", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Sessions kuerzer als Minimum-Dauer ohne Detektionen werden geloescht",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (autoDeleteEnabled) {
+            var autoDeleteMinSec by remember { mutableIntStateOf(appPreferences.autoDeleteMinSeconds) }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Minimum-Dauer: ${autoDeleteMinSec}s  (0 = deaktiviert)",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Slider(
+                value = autoDeleteMinSec.toFloat(),
+                onValueChange = { autoDeleteMinSec = it.toInt() },
+                onValueChangeFinished = { appPreferences.autoDeleteMinSeconds = autoDeleteMinSec },
+                valueRange = 0f..60f,
+                steps = 59,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Migration-Button
         OutlinedButton(onClick = {
             val info = sessionManager.getMigrationInfo()
@@ -1038,20 +1077,8 @@ fun SettingsScreen(
                         migrationProgress = 0f
                         val targetUri = migrationTargetUri
                         scope.launch {
-                            // Migration zu File-Pfad (aus SAF-URI) oder bestehender Struktur
-                            val targetFile = if (targetUri != null) {
-                                // SAF-URI in File-Pfad umwandeln falls moeglich, sonst internal
-                                try {
-                                    val docId = android.provider.DocumentsContract.getTreeDocumentId(targetUri)
-                                    val parts = docId.split(":")
-                                    if (parts.size >= 2 && parts[0].equals("primary", ignoreCase = true)) {
-                                        java.io.File(android.os.Environment.getExternalStorageDirectory(), parts[1])
-                                    } else null
-                                } catch (_: Exception) { null }
-                            } else null
-
-                            if (targetFile != null) {
-                                val result = sessionManager.migrateSessionsTo(targetFile) { p ->
+                            if (targetUri != null) {
+                                val result = sessionManager.migrateSessionsTo(targetUri, deleteSource = true) { p ->
                                     migrationProgress = p
                                 }
                                 isMigrating = false
@@ -1060,11 +1087,11 @@ fun SettingsScreen(
                                     currentBaseUri = targetUri.toString()
                                     Toast.makeText(context, "${result.sessionsCopied} Sessions kopiert", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Fehler: ${result.errors.first()}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "Fehler: ${result.errors.joinToString("; ")}", Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 isMigrating = false
-                                Toast.makeText(context, "Zielordner nicht auflösbar", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Kein Zielordner ausgewählt", Toast.LENGTH_LONG).show()
                             }
                             migrationTargetUri = null
                         }

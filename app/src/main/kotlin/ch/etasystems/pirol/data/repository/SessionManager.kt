@@ -74,6 +74,14 @@ class SessionManager(
         private const val PIROL_DIR = "PIROL"
         /** Veraltetes Sessions-Verzeichnis (pre-T51, fuer Rueckwaertskompatibilitaet) */
         private const val LEGACY_SESSIONS_DIR = "sessions"
+
+        /** Pure-Logic-Funktion fuer Unit-Tests (T60). */
+        fun shouldAutoDelete(
+            durationSec: Double,
+            detections: Int,
+            minSec: Int,
+            enabled: Boolean
+        ): Boolean = enabled && minSec > 0 && durationSec < minSec && detections == 0
     }
 
     private val json = Json { prettyPrint = false }
@@ -508,6 +516,18 @@ class SessionManager(
             }
         }
 
+        // Auto-Delete kurzer leerer Sessions (T60)
+        val autoDeleteEnabled = appPreferences.autoDeleteShortEmptySessions
+        val minSec = appPreferences.autoDeleteMinSeconds
+        val durationSec = if (updatedMetadata.sampleRate > 0)
+            updatedMetadata.totalRecordedSamples.toDouble() / updatedMetadata.sampleRate
+        else 0.0
+        if (shouldAutoDelete(durationSec, updatedMetadata.totalDetections, minSec, autoDeleteEnabled)) {
+            Log.i(TAG, "Auto-Delete: Session=${updatedMetadata.sessionId} " +
+                "dauer=${"%.1f".format(durationSec)}s detections=0 < ${minSec}s")
+            deleteSessionFolder(dir, doc)
+        }
+
         // State zuruecksetzen
         activeSessionDir = null
         activeSessionDoc = null
@@ -633,6 +653,17 @@ class SessionManager(
         }
     }
 
+    /** Loescht Session-Folder im File- oder SAF-Modus (T60: Auto-Delete). */
+    internal fun deleteSessionFolder(dir: File?, doc: DocumentFile?) {
+        if (doc != null) {
+            val ok = doc.delete()
+            Log.i(TAG, "SAF Session-Folder geloescht (ok=$ok): ${doc.uri}")
+        } else if (dir != null) {
+            val ok = dir.deleteRecursively()
+            Log.i(TAG, "File Session-Folder geloescht (ok=$ok): ${dir.name}")
+        }
+    }
+
     /** Loescht eine Session (Ordner + alle Dateien) */
     suspend fun deleteSession(sessionDir: File): Boolean = withContext(Dispatchers.IO) {
         if (!sessionDir.exists()) return@withContext false
@@ -751,12 +782,13 @@ class SessionManager(
     }
 
     /**
-     * Kopiert alle Sessions zum File-basierten Zielort.
-     * - Duplikate werden uebersprungen (Idempotenz)
-     * - Quell-Sessions werden NICHT geloescht
+     * Kopiert alle Sessions zum File-basierten Zielort (z.B. filesDir).
+     * - Duplikate werden uebersprungen (Idempotenz, AC6)
+     * - deleteSource: Quell-Dir erst loeschen nach Groessen-Verifizierung (AC7)
      */
     suspend fun migrateSessionsTo(
         targetBaseDir: File,
+        deleteSource: Boolean = false,
         onProgress: (Float) -> Unit = {}
     ): MigrationResult = withContext(Dispatchers.IO) {
         val sessionDirs = listSessions()
@@ -776,9 +808,17 @@ class SessionManager(
             try {
                 val success = sessionDir.copyRecursively(targetDir, overwrite = false)
                 if (success) {
-                    bytesCopied += targetDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    copied++
-                    Log.i(TAG, "Session kopiert: ${sessionDir.name}")
+                    val srcSize = sessionDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                    val dstSize = targetDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                    if (srcSize == dstSize) {
+                        bytesCopied += dstSize
+                        copied++
+                        if (deleteSource) sessionDir.deleteRecursively()
+                        Log.i(TAG, "Session kopiert: ${sessionDir.name}")
+                    } else {
+                        errors.add("${sessionDir.name}: Grössenabweichung ($dstSize != $srcSize)")
+                        targetDir.deleteRecursively()
+                    }
                 } else {
                     errors.add("${sessionDir.name}: Kopieren fehlgeschlagen")
                     targetDir.deleteRecursively()
@@ -793,4 +833,100 @@ class SessionManager(
 
         MigrationResult(copied, bytesCopied, errors)
     }
+
+    /**
+     * Kopiert alle Sessions in einen SAF-Zielordner via ContentResolver (AC1/AC2).
+     * Funktioniert fuer beliebige SAF-URIs inkl. SD-Karte und nicht-primaere Speicher.
+     * - Duplikate werden uebersprungen (Idempotenz, AC6)
+     * - deleteSource: Quell-Dir erst loeschen nach Groessen-Verifizierung (AC7)
+     */
+    suspend fun migrateSessionsTo(
+        targetUri: Uri,
+        deleteSource: Boolean = false,
+        onProgress: (Float) -> Unit = {}
+    ): MigrationResult = withContext(Dispatchers.IO) {
+        val targetRoot = DocumentFile.fromTreeUri(context, targetUri)
+            ?: return@withContext MigrationResult(0, 0L, listOf("Zielordner nicht erreichbar"))
+
+        val sessionDirs = listSessions()
+        if (sessionDirs.isEmpty()) return@withContext MigrationResult(0, 0L, emptyList())
+
+        var copied = 0
+        var bytesCopied = 0L
+        val errors = mutableListOf<String>()
+        val cr = context.contentResolver
+
+        sessionDirs.forEachIndexed { index, sessionDir ->
+            if (targetRoot.findFile(sessionDir.name)?.isDirectory == true) {
+                Log.i(TAG, "Session ${sessionDir.name} existiert am Ziel — uebersprungen")
+                onProgress((index + 1).toFloat() / sessionDirs.size)
+                return@forEachIndexed
+            }
+
+            val targetDir = targetRoot.createDirectory(sessionDir.name)
+            if (targetDir == null) {
+                errors.add("${sessionDir.name}: Verzeichnis nicht erstellbar")
+                onProgress((index + 1).toFloat() / sessionDirs.size)
+                return@forEachIndexed
+            }
+
+            try {
+                val sessionErrors = mutableListOf<String>()
+                var sessionBytes = 0L
+                copyDirContentsToDocFile(sessionDir, targetDir, cr, sessionErrors) { bytes -> sessionBytes += bytes }
+
+                if (sessionErrors.isEmpty()) {
+                    bytesCopied += sessionBytes
+                    copied++
+                    if (deleteSource) sessionDir.deleteRecursively()
+                    Log.i(TAG, "Session migriert: ${sessionDir.name}")
+                } else {
+                    errors.addAll(sessionErrors)
+                    targetDir.delete()
+                }
+            } catch (e: Exception) {
+                errors.add("${sessionDir.name}: ${e.message}")
+                targetDir.delete()
+                Log.e(TAG, "Migration fehlgeschlagen: ${sessionDir.name}", e)
+            }
+            onProgress((index + 1).toFloat() / sessionDirs.size)
+        }
+
+        MigrationResult(copied, bytesCopied, errors)
+    }
+
+    private fun copyDirContentsToDocFile(
+        srcDir: File,
+        destDir: DocumentFile,
+        cr: android.content.ContentResolver,
+        errors: MutableList<String>,
+        onBytes: (Long) -> Unit
+    ) {
+        for (child in srcDir.listFiles() ?: emptyArray()) {
+            if (child.isDirectory) {
+                val subDest = destDir.createDirectory(child.name)
+                if (subDest == null) { errors.add("${child.path}: Ordner nicht erstellbar"); return }
+                copyDirContentsToDocFile(child, subDest, cr, errors, onBytes)
+            } else {
+                val destFile = destDir.createFile("application/octet-stream", child.name)
+                if (destFile == null) { errors.add("${child.path}: Datei nicht erstellbar"); return }
+                try {
+                    cr.openOutputStream(destFile.uri)?.use { out ->
+                        child.inputStream().use { inp -> inp.copyTo(out) }
+                    }
+                    val destSize = cr.openFileDescriptor(destFile.uri, "r")?.use { it.statSize } ?: -1L
+                    if (destSize != child.length()) {
+                        errors.add("${child.path}: Grössenabweichung ($destSize != ${child.length()})")
+                        destFile.delete()
+                    } else {
+                        onBytes(destSize)
+                    }
+                } catch (e: Exception) {
+                    errors.add("${child.path}: ${e.message}")
+                    destFile.delete()
+                }
+            }
+        }
+    }
+
 }
