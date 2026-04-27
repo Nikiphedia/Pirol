@@ -73,6 +73,30 @@ AMSEL Desktop (`D:\80002\AMSEL`) — Compose Desktop, Kotlin 2.1. Gemeinsame For
 
 **Zeitzone-Regel:** Alle Timestamps in `session.json`, `detections.jsonl` und `verifications.jsonl` werden in **lokaler Zeit mit Zonen-Offset** geschrieben. Kein reines UTC (`Z`), kein nacktes Datetime ohne Offset. Grund: Feldornithologen lesen Raven-Exporte direkt, lokale Zeit muss ohne Konversion erkennbar sein.
 
+## DetectionResult-Felder (V0.0.7+)
+
+Neue Felder ab T67 (Backward-kompatibel: Defaults greifen bei alten JSONL ohne diese Felder).
+
+| Feld | Typ | Default | Bedeutung |
+|------|-----|---------|-----------|
+| count | Int | 1 | Stueckzahl (User-Beobachtung), unabhaengig von detectionCount (Dedup-Zaehler) |
+| atlasCode | String? | null | ornitho-Atlascode (z.B. "A2", "B4"); null = nicht gesetzt |
+| note | String? | null | Freitext-Bemerkung |
+| voiceMemoFile | String? | null | relativer Pfad zu memos/&lt;id&gt;.wav |
+| manualEntry | Boolean | false | true = Art manuell hinzugefuegt (Cluster B, ab T68+) |
+| lockSpecies | Boolean | false | true = nur 1 Meldung pro Session (Cluster B, ab T68+) |
+
+## verifications.jsonl actionType-Werte (V0.0.7+)
+
+Feld `actionType: String?` in `VerificationEvent`. `null` = Legacy-Eintrag (V0.0.6).
+Konstanten in `VerificationEvent.companion object` (Prafix `ACTION_`).
+
+| Gruppe | Werte |
+|--------|-------|
+| Bestehend (6) | CONFIRMED, REJECTED, UNCERTAIN, CORRECTED, REPLACED, UNDO |
+| Cluster C — aktiv (5) | COUNT_CHANGED, ATLAS_SET, NOTE_ADDED, MEMO_RECORDED, MEMO_DELETED |
+| Cluster B/D — Konstante definiert, Verwendung spaeter (4) | MANUAL_ADD, SPECIES_LOCKED, ALTERNATIVE_CONFIRMED, POSITION_MOVED |
+
 ## Session-Speicher (V0.0.6+)
 
 | Ebene | Pfad | Hinweis |
