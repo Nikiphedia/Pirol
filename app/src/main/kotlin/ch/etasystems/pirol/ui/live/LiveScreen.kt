@@ -301,6 +301,8 @@ private fun CompactLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note -> viewModel.editDetection(id, count, atlasCode, note) },
+                atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
                 modifier = Modifier.fillMaxWidth().weight(1f)
@@ -390,6 +392,8 @@ private fun MediumLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note -> viewModel.editDetection(id, count, atlasCode, note) },
+                atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
                 modifier = Modifier.fillMaxWidth().weight(1f)
@@ -478,6 +482,8 @@ private fun ExpandedLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note -> viewModel.editDetection(id, count, atlasCode, note) },
+                atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
                 modifier = Modifier.fillMaxWidth().weight(1f)

@@ -419,6 +419,62 @@ class SessionManager(
     }
 
     /**
+     * Ersetzt eine Detektion in detections.jsonl durch die aktualisierte Version.
+     * File-Modus: atomar via temp-File + rename.
+     * SAF-Modus: "wt"-Rewrite (kein atomarer rename moeglich via ContentResolver).
+     * Silent no-op falls die Session-ID nicht gefunden wird.
+     */
+    suspend fun replaceDetection(updated: DetectionResult) = withContext(Dispatchers.IO) {
+        val encodedLine = json.encodeToString(updated) + "\n"
+        val sessionDoc = activeSessionDoc
+        if (sessionDoc != null) {
+            // SAF-Modus
+            val detFile = sessionDoc.findFile("detections.jsonl") ?: return@withContext
+            val lines = try {
+                context.contentResolver.openInputStream(detFile.uri)?.use {
+                    it.bufferedReader().readLines()
+                } ?: return@withContext
+            } catch (_: Exception) { return@withContext }
+            val replaced = lines.map { raw ->
+                if (raw.isBlank()) raw
+                else try {
+                    if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine.trimEnd('\n')
+                    else raw
+                } catch (_: Exception) { raw }
+            }
+            try {
+                context.contentResolver.openOutputStream(detFile.uri, "wt")?.use { os ->
+                    val content = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
+                    os.write(content.toByteArray(Charsets.UTF_8))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "replaceDetection SAF fehlgeschlagen: ${updated.id}", e)
+            }
+        } else {
+            // File-Modus: atomar via tmp + rename
+            val sessionDir = activeSessionDir ?: return@withContext
+            val file = File(sessionDir, "detections.jsonl")
+            if (!file.exists()) return@withContext
+            val lines = try { file.readLines() } catch (_: Exception) { return@withContext }
+            val replaced = lines.map { raw ->
+                if (raw.isBlank()) raw
+                else try {
+                    if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine.trimEnd('\n')
+                    else raw
+                } catch (_: Exception) { raw }
+            }
+            try {
+                val tmp = File(sessionDir, "detections.jsonl.tmp")
+                val content = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
+                tmp.writeText(content)
+                tmp.renameTo(file)
+            } catch (e: Exception) {
+                Log.e(TAG, "replaceDetection fehlgeschlagen: ${updated.id}", e)
+            }
+        }
+    }
+
+    /**
      * Audio-Samples an recording.wav anhaengen.
      * Wird vom LiveViewModel fuer jeden Chunk aufgerufen (Daueraufnahme, T51).
      *

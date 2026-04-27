@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
 
@@ -54,6 +55,8 @@ fun DetectionList(
     onCorrect: ((String, String) -> Unit)? = null,
     onSaveAsReference: ((String) -> Unit)? = null,
     onSelectAlternative: ((String, DetectionCandidate) -> Unit)? = null,
+    onEditDetection: ((id: String, count: Int, atlasCode: String?, note: String?) -> Unit)? = null,
+    atlasCodes: List<AtlasCode> = emptyList(),
     watchlistSpecies: Set<String> = emptySet(),
     showTopNCandidates: Boolean = true,
     modifier: Modifier = Modifier
@@ -140,6 +143,10 @@ fun DetectionList(
                         onSelectAlternative = onSelectAlternative?.let { cb ->
                             { candidate -> cb(detection.id, candidate) }
                         },
+                        onEditDetection = onEditDetection?.let { cb ->
+                            { count, code, note -> cb(detection.id, count, code, note) }
+                        },
+                        atlasCodes = atlasCodes,
                         isWatchlisted = watchlistSpecies.contains(
                             detection.scientificName.replace(' ', '_')
                         ),

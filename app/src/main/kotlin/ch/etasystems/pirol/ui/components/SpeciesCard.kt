@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationStatus
 import java.text.SimpleDateFormat
@@ -104,6 +106,8 @@ fun SpeciesCard(
     isPlayEnabled: Boolean = true,
     playTimeLabel: String? = null,
     onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
+    onEditDetection: ((count: Int, atlasCode: String?, note: String?) -> Unit)? = null,
+    atlasCodes: List<AtlasCode> = emptyList(),
     isWatchlisted: Boolean = false,
     showTopNCandidates: Boolean = true,
     modifier: Modifier = Modifier
@@ -145,6 +149,10 @@ fun SpeciesCard(
     // Korrektur-Dialog State
     var showCorrectionDialog by remember { mutableStateOf(false) }
     var correctedName by remember(detection.id) { mutableStateOf(detection.commonName) }
+
+    // Edit-Dialog State (T68)
+    var showEditDialog by remember { mutableStateOf(false) }
+    val hasCustomData = detection.count > 1 || detection.atlasCode != null || detection.note != null
 
     // Kandidaten aufklappbar (T27) — rememberSaveable stabil bei Re-Sort (T52)
     var candidatesExpanded by rememberSaveable(key = detection.id) { mutableStateOf(false) }
@@ -406,6 +414,22 @@ fun SpeciesCard(
                         }
                     }
 
+                    // Detail-Eingaben (T68): Stückzahl, Atlascode, Bemerkung
+                    if (onEditDetection != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { showEditDialog = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.List,
+                                contentDescription = "Detail-Eingaben",
+                                tint = if (hasCustomData) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     // "Als Referenz speichern" fuer bestaetigte Detektionen
                     if (onSaveAsReference != null &&
                         (detection.verificationStatus == VerificationStatus.CONFIRMED ||
@@ -552,6 +576,19 @@ fun SpeciesCard(
                 }
             }
         }
+    }
+
+    // Edit-Dialog (T68): Stückzahl, Atlascode, Bemerkung
+    if (showEditDialog && onEditDetection != null) {
+        EditDetectionDialog(
+            detection = detection,
+            atlasCodes = atlasCodes,
+            onDismiss = { showEditDialog = false },
+            onSave = { count, atlasCode, note ->
+                onEditDetection(count, atlasCode, note)
+                showEditDialog = false
+            }
+        )
     }
 
     // Korrektur-Dialog

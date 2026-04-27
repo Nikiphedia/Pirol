@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "set": "CH",
+  "codes": [
+    { "code": "AC1",  "label_de": "Art zur Brutzeit beobachtet" },
+    { "code": "AC2",  "label_de": "Art zur Brutzeit in einem möglichen Brutbiotop festgestellt." },
+    { "code": "AC3",  "label_de": "Singendes Männchen während der Brutzeit anwesend, Balzrufe/Trommeln gehört oder balzendes Männchen gesehen." },
+    { "code": "AC4",  "label_de": "Paar während der Brutzeit in einem geeigneten Brutbiotop beobachtet." },
+    { "code": "AC5",  "label_de": "Revierverhalten eines Paares (Gesang, Kämpfe mit Reviernachbarn usw.) an mindestens 2 Tagen im selben Revier festgestellt." },
+    { "code": "AC6",  "label_de": "Balzverhalten (Männchen und Weibchen) bemerkt." },
+    { "code": "AC7",  "label_de": "Altvogel sucht einen wahrscheinlichen Nestplatz auf." },
+    { "code": "AC8",  "label_de": "Warn- und Angstrufe der Altvögel oder anderes aufgeregtes Verhalten, das auf ein Nest oder Junge in der näheren Umgebung hindeuten könnte." },
+    { "code": "AC9",  "label_de": "Brutfleck bei gefangenem Weibchen festgestellt" },
+    { "code": "AC10", "label_de": "Altvogel transportiert Nestmaterial, baut ein Nest oder meisselt eine Höhle aus." },
+    { "code": "AC11", "label_de": "Lahmstellen und Verleitverhalten beobachtet" },
+    { "code": "AC12", "label_de": "Benütztes Nest aus der aktuellen Brutperiode gefunden." },
+    { "code": "AC13", "label_de": "Kürzlich ausgeflogene Junge bei Nesthockern oder Dunenjunge bei Nestflüchtern beobachtet." },
+    { "code": "AC14", "label_de": "Altvögel verlassen oder suchen einen Nestplatz auf. Das Verhalten der Altvögel deutet auf ein besetztes Nest hin, dessen Inhalt jedoch nicht eingesehen werden kann (hoch oder in Höhlen gelegene Nester)." },
+    { "code": "AC15", "label_de": "Altvogel trägt Kotsack von Nestling weg." },
+    { "code": "AC16", "label_de": "Altvogel mit Futter für die Jungen festgestellt" },
+    { "code": "AC17", "label_de": "Eischalen geschlüpfter Jungen gefunden." },
+    { "code": "AC18", "label_de": "Nest mit brütendem Altvogel entdeckt." },
+    { "code": "AC19", "label_de": "Nest mit Eiern oder Jungen entdeckt." },
+    { "code": "AC99", "label_de": "Art trotz Beobachtungsgängen während der Brutzeit nicht (mehr) festgestellt." }
+  ]
+}
