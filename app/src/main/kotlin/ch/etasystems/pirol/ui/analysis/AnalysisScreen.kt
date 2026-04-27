@@ -401,7 +401,11 @@ private fun SessionDetailView(
                         onJumpToChunk = { viewModel.jumpToDetection(detection) },
                         onPlay = { viewModel.playDetection(detection) },
                         isPlayEnabled = state.recordingFile != null,
-                        playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec)
+                        playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),
+                        onEditDetection = { count, atlasCode, note ->
+                            viewModel.editDetection(detection.id, count, atlasCode, note)
+                        },
+                        atlasCodes = viewModel.atlasCodes
                     )
                 }
             }

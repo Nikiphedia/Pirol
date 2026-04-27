@@ -8,9 +8,11 @@ import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceEntry
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
@@ -44,7 +46,8 @@ class AnalysisViewModel(
     private val sessionManager: SessionManager,
     private val audioPlayer: AudioPlayer,
     private val referenceRepository: ReferenceRepository,
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    private val atlasCodeRepository: AtlasCodeRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -612,6 +615,68 @@ class AnalysisViewModel(
     /** Raven-Export-Feedback nach Anzeige zuruecksetzen */
     fun consumeRavenExportMessage() {
         _uiState.update { it.copy(ravenExportMessage = null) }
+    }
+
+    /** Atlas-Codes aus assets (T68), lazy geladen, fuer EditDetectionDialog */
+    val atlasCodes: List<AtlasCode> by lazy { atlasCodeRepository.loadCodes() }
+
+    /**
+     * Bearbeitet Stückzahl, Atlascode und Bemerkung einer Detektion (T68).
+     * Direktschreib-Muster analog zu verifyDetection() in AnalysisViewModel.
+     */
+    fun editDetection(detectionId: String, count: Int, atlasCode: String?, note: String?) {
+        val session = _uiState.value.selectedSession ?: return
+        val previousDetections = _uiState.value.detections
+        val current = previousDetections.find { it.id == detectionId } ?: return
+
+        // Optimistisches In-Memory-Update
+        val updated = current.copy(count = count, atlasCode = atlasCode, note = note)
+        _uiState.update { it.copy(detections = previousDetections.map { det ->
+            if (det.id == detectionId) updated else det
+        }) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    // detections.jsonl: Zeile ersetzen (temp + rename fuer Atomaritaet)
+                    val detFile = File(session.sessionDir, "detections.jsonl")
+                    if (detFile.exists()) {
+                        val encodedLine = Json.encodeToString(updated)
+                        val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
+                        val lines = detFile.readLines().map { raw ->
+                            if (raw.isBlank()) raw
+                            else try {
+                                if (lenient.decodeFromString<DetectionResult>(raw).id == detectionId) encodedLine
+                                else raw
+                            } catch (_: Exception) { raw }
+                        }
+                        val tmp = File(session.sessionDir, "detections.jsonl.tmp")
+                        tmp.writeText(if (lines.isEmpty()) "" else lines.joinToString("\n") + "\n")
+                        tmp.renameTo(detFile)
+                    }
+
+                    // verifications.jsonl: granular appenden
+                    val veriFile = File(session.sessionDir, "verifications.jsonl")
+                    val now = System.currentTimeMillis()
+                    if (current.count != count) veriFile.appendText(
+                        Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_COUNT_CHANGED)) + "\n")
+                    if (current.atlasCode != atlasCode) veriFile.appendText(
+                        Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_ATLAS_SET)) + "\n")
+                    if (current.note != note) veriFile.appendText(
+                        Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED)) + "\n")
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(
+                            detections = previousDetections,
+                            saveErrorMessage = "Speichern fehlgeschlagen"
+                        ) }
+                    }
+                }
+            }
+        }
     }
 
     override fun onCleared() {

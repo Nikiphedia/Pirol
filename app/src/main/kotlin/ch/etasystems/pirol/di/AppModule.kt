@@ -4,6 +4,7 @@ import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.OboeAudioEngine
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.StorageManager
+import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.sync.UploadManager
@@ -83,14 +84,17 @@ val appModule = module {
     // ModelManager — Singleton, Modell-Verfuegbarkeit + SAF-Import + Download (T22/T28/T37)
     single { ModelManager(get(), get()) }
 
+    // AtlasCodeRepository — Singleton, laedt CH-Atlascodes aus assets/atlas_codes.json (T68)
+    single { AtlasCodeRepository(androidContext()) }
+
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
-    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     // ReferenceViewModel — Referenzbibliothek-UI
     viewModel { ReferenceViewModel(get(), get()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
-    viewModel { AnalysisViewModel(get(), get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences (T56)
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository (T68)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
     viewModel { MapViewModel(get()) }  // SessionManager
