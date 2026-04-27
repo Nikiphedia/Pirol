@@ -167,6 +167,7 @@ T{N}: Kurzbeschreibung
 - **Test-Build-Naming:** `V{aktuelles-Release}.T{AP-Nummer}`, z.B. `V0.0.6.T58`. Tag wird nach erfolgreichem Worker-Handover + Master-Review + `assembleDebug` gruen gesetzt. Erst nach abgeschlossenem AP-Cluster und Feldtest-Abnahme folgt der Release-Tag (z.B. `v0.0.7`).
 - **File-Indexer-Worker:** vor jedem AP-Cluster startet Master einen kurzen Indexer-Worker (<5k Tokens), der nur Pfade zaehlt und 1-Zeilen-Beschreibungen liefert.
 - **Quality-Gates auf User-Seite:** (1) Arbeitsplan freigegeben, (2) jedes AP vor Worker-Dispatch freigegeben, (3) jedes Handover vor Master-Schluss + Test-Build-Tag freigegeben. Master fragt explizit vor jedem dieser drei Gates.
+- **Worktree-Disziplin (HART, ab Block A T60-T63 verschaerft):** Jeder Worker startet in einem **frischen** `git worktree add ../<branch> master` von **aktuellem master** — kein Stapeln auf einem laufenden Worker-Branch. Master prueft beim Dispatch, dass der Worker den richtigen Branch hat. Konsequenz wenn nicht: Per-AP-Commits sind nicht rekonstruierbar, History wird unsauber (passiert bei T60-T63: alle in `T59-migration-fix` gestapelt → musste als Bundle gemerged werden, Tags T60-T63 zeigen auf denselben Commit).
 - **Merge-Regel (V0.0.7+):** Worker bleibt **in seinem Worktree-Branch** und merged **nicht** selbst in `master`. Reihenfolge:
   1. Worker liefert `Handover_T{N}.md` und committet auf Worktree-Branch (z.B. `T58-watchlist-fix`).
   2. Master reviewt gegen AC, legt Befund dem User vor.
