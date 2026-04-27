@@ -130,7 +130,9 @@ class StreamingWavWriter private constructor(
         header.put("data".toByteArray())
         header.putInt(0)            // Platzhalter dataSize = 0
         header.flip()
-        channel.write(header, 0L)
+        // Relativer Write: verschiebt Channel-Position auf 44, sodass append() korrekt dahinter schreibt.
+        // Absolute close()-Writes (Offset 4 + 40 fuer RIFF/data-Groesse) bleiben unveraendert.
+        channel.write(header)
         dataBytesWritten = 0L
         appendCount = 0
     }

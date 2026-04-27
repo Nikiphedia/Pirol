@@ -22,55 +22,55 @@ bool AudioEngine::start(int32_t sampleRate) {
         stop();
     }
 
-    requestedSampleRate_ = sampleRate;
+    // requestedSampleRate_ fuer onErrorAfterClose()-Neustart merken (>0 sicherstellen)
+    requestedSampleRate_ = (sampleRate > 0) ? sampleRate : 48000;
 
-    // Ring-Buffer dimensionieren: sampleRate * bufferDurationSeconds
-    int32_t bufferSize = sampleRate * bufferDurationSeconds_;
-    ringBuffer_.resize(bufferSize);
-
-    LOGI("Starte Audio-Stream: %d Hz, Buffer %d s (%d Samples)",
-         sampleRate, bufferDurationSeconds_, bufferSize);
-
-    // Oboe Stream konfigurieren
+    // F1: setSampleRate(0) → Oboe waehlt native Geraeterate (kein erzwungener Resampler)
     oboe::AudioStreamBuilder builder;
     builder.setDirection(oboe::Direction::Input)
            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
            ->setSharingMode(oboe::SharingMode::Exclusive)
-           ->setSampleRate(sampleRate)
+           ->setSampleRate(0)                         // F1: auto-select native rate
            ->setChannelCount(oboe::ChannelCount::Mono)
            ->setFormat(oboe::AudioFormat::I16)
            ->setInputPreset(oboe::InputPreset::Unprocessed)
            ->setDataCallback(this)
            ->setErrorCallback(this);
 
+    // F2: AAudio versuchen, bei Fehler OpenSL ES Fallback
+    const char* apiName = "AAudio";
     oboe::Result result = builder.openStream(stream_);
     if (result != oboe::Result::OK) {
-        LOGE("Fehler beim Oeffnen des Streams: %s", oboe::convertToText(result));
-        stream_.reset();
-        return false;
+        LOGE("AAudio fehlgeschlagen: %s — versuche OpenSL ES", oboe::convertToText(result));
+        builder.setAudioApi(oboe::AudioApi::OpenSLES);
+        result = builder.openStream(stream_);
+        if (result != oboe::Result::OK) {
+            LOGE("OpenSL ES fehlgeschlagen: %s", oboe::convertToText(result));
+            stream_.reset();
+            return false;
+        }
+        apiName = "OpenSL ES";
     }
 
-    // Tatsaechliche Sample-Rate vom Geraet
+    // F1: Tatsaechliche Rate NACH Open lesen → Ring-Buffer mit korrekter Rate dimensionieren
     int32_t actual = stream_->getSampleRate();
     actualSampleRate_.store(actual, std::memory_order_release);
+    int32_t bufferSize = actual * bufferDurationSeconds_;
+    ringBuffer_.resize(bufferSize);
 
-    if (actual != sampleRate) {
-        LOGI("Geraet liefert %d Hz statt angeforderte %d Hz", actual, sampleRate);
-        // Ring-Buffer mit tatsaechlicher Rate neu dimensionieren
-        int32_t correctedSize = actual * bufferDurationSeconds_;
-        ringBuffer_.resize(correctedSize);
-    }
+    // AC3: Log mit gewaeuhlter Rate + API (fuer Fairphone-Diagnose)
+    LOGI("Audio-Stream: %d Hz, API: %s, Buffer: %d s (%d Samples)",
+         actual, apiName, bufferDurationSeconds_, bufferSize);
 
     result = stream_->requestStart();
     if (result != oboe::Result::OK) {
-        LOGE("Fehler beim Starten des Streams: %s", oboe::convertToText(result));
+        LOGE("requestStart fehlgeschlagen: %s", oboe::convertToText(result));
         stream_->close();
         stream_.reset();
         return false;
     }
 
     isRecording_.store(true, std::memory_order_release);
-    LOGI("Audio-Stream gestartet: %d Hz (angefordert: %d Hz)", actual, sampleRate);
     return true;
 }
 
