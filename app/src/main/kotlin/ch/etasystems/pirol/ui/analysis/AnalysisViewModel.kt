@@ -56,7 +56,11 @@ class AnalysisViewModel(
     init {
         // T56: Sonogramm-Dynamik-Prefs laden
         reloadSpectrogramPrefs()
-        loadSessions()
+        // T65: Crash-Recovery vor erstem Session-Laden (verwaiste Sessions reparieren)
+        viewModelScope.launch {
+            sessionManager.recoverOrphanSessions()
+            loadSessions()
+        }
         // Playback-State beobachten
         viewModelScope.launch {
             audioPlayer.state.collect { state ->

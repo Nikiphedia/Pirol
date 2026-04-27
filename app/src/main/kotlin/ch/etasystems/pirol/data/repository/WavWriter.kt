@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -83,6 +84,34 @@ class StreamingWavWriter private constructor(
 ) {
     companion object {
         private const val FLUSH_INTERVAL_APPENDS = 20  // ~60s bei 3s-Chunks
+
+        /**
+         * T65: Crash-Recovery — finalisiert WAV-Header eines abgebrochen geschriebenen Files.
+         * Berechnet data-Groesse aus Datei-Groesse minus 44 Bytes Header und schreibt
+         * RIFF-fileSize (Offset 4) + data-dataSize (Offset 40) korrekt.
+         * Idempotent: sichere Mehrfach-Aufrufe, prueft Mindest-Groesse vorher.
+         *
+         * @param file WAV-Datei mit ggf. ungueltigem Header (Crash-Zustand)
+         */
+        fun finalizeHeader(file: File) {
+            val fileSize = file.length()
+            if (fileSize < 44) return  // Zu klein fuer gueltigen WAV-Header
+            val dataBytes = fileSize - 44L
+            RandomAccessFile(file, "rw").use { raf ->
+                val ch = raf.channel
+                // RIFF fileSize @ Offset 4
+                val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                riffBuf.putInt((36 + dataBytes).toInt())
+                riffBuf.flip()
+                ch.write(riffBuf, 4L)
+                // data dataSize @ Offset 40
+                val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                dataBuf.putInt(dataBytes.toInt())
+                dataBuf.flip()
+                ch.write(dataBuf, 40L)
+                ch.force(true)
+            }
+        }
 
         /**
          * Writer fuer File-basierte Aufnahme (getExternalFilesDir oder interner Speicher).

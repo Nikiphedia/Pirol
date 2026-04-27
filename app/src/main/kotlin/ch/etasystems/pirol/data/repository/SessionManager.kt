@@ -673,6 +673,61 @@ class SessionManager(
     }
 
     /**
+     * T65: Crash-Recovery — finalisiert verwaiste Sessions (endedAt == null) beim App-Start.
+     *
+     * Fuer jede Session ohne endedAt:
+     * - WAV-Header wird via StreamingWavWriter.finalizeHeader() repariert
+     * - session.json erhaelt endedAt = last-modified-Zeit der WAV-Datei
+     * - Session bleibt in der Liste sichtbar (kein stiller Skip, AC6)
+     *
+     * @return Anzahl reparierter Sessions
+     */
+    suspend fun recoverOrphanSessions(): Int = withContext(Dispatchers.IO) {
+        var recovered = 0
+        listSessions().forEach { sessionDir ->
+            val jsonFile = File(sessionDir, "session.json")
+            if (!jsonFile.exists()) return@forEach
+            val metadata = try {
+                jsonLenient.decodeFromString<SessionMetadata>(jsonFile.readText())
+            } catch (e: Exception) {
+                Log.w(TAG, "recoverOrphan: session.json nicht lesbar: ${sessionDir.name}", e)
+                return@forEach
+            }
+            if (metadata.endedAt != null) return@forEach  // Normal beendet — nichts zu tun
+
+            // Verwaiste Session gefunden
+            Log.i(TAG, "recoverOrphan: verwaiste Session gefunden: ${sessionDir.name}")
+
+            // WAV-Header finalisieren (alle Segment-Files)
+            val wavFiles = sessionDir.listFiles { f -> f.name.endsWith(".wav") } ?: emptyArray()
+            for (wav in wavFiles) {
+                try {
+                    StreamingWavWriter.finalizeHeader(wav)
+                    Log.i(TAG, "recoverOrphan: WAV-Header repariert: ${wav.name} (${wav.length()} bytes)")
+                } catch (e: Exception) {
+                    Log.e(TAG, "recoverOrphan: WAV-Header Fehler: ${wav.name}", e)
+                }
+            }
+
+            // session.json: endedAt = last-modified der neuesten WAV (oder json selbst)
+            val refFile = wavFiles.maxByOrNull { it.lastModified() } ?: jsonFile
+            val endedAt = java.time.Instant.ofEpochMilli(refFile.lastModified())
+                .atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            val recoveredMeta = metadata.copy(endedAt = endedAt)
+            try {
+                val prettyJson = Json { prettyPrint = true }
+                jsonFile.writeText(prettyJson.encodeToString(recoveredMeta))
+                Log.i(TAG, "recoverOrphan: session.json repariert: ${sessionDir.name} → endedAt=$endedAt")
+                recovered++
+            } catch (e: Exception) {
+                Log.e(TAG, "recoverOrphan: session.json Schreiben fehlgeschlagen: ${sessionDir.name}", e)
+            }
+        }
+        recovered
+    }
+
+    /**
      * Laedt Metadaten einer Session aus session.json.
      */
     suspend fun loadMetadata(sessionDir: File): SessionMetadata? = withContext(Dispatchers.IO) {
