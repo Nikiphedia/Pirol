@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
+import android.util.Log
 import kotlinx.coroutines.launch
 
 /**
@@ -184,6 +185,7 @@ class RecordingService : Service() {
         }
 
         recordingStartTimeMs = SystemClock.elapsedRealtime()
+        Log.d("RecordingService", "SMOKETEST_START ts=$recordingStartTimeMs")
         _isRecording.value = true
 
         // T52: RecordingPhase — PREROLL_FILLING fuer configuredPrerollSec, dann RUNNING
@@ -284,9 +286,11 @@ class RecordingService : Service() {
 
     private fun startChunkEmitter() {
         chunkJob = serviceScope.launch {
+            var firstChunk = true
             while (isActive && _isRecording.value) {
                 val samples = engine.getLatestChunk(CHUNK_INTERVAL_MS.toInt())
                 if (samples.isNotEmpty()) {
+                    if (firstChunk) { Log.d("RecordingService", "SMOKETEST_FIRST_CHUNK latency_ms=${SystemClock.elapsedRealtime() - recordingStartTimeMs}"); firstChunk = false }
                     val chunk = AudioChunk(
                         samples = samples.copyOf(), // Kopie, nicht der interne Buffer
                         sampleRate = engine.actualSampleRate,
