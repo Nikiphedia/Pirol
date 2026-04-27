@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.analysis
 
+import android.net.Uri
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.data.repository.ReferenceEntry
 import ch.etasystems.pirol.data.repository.SessionMetadata
@@ -33,6 +34,8 @@ data class AnalysisUiState(
     val selectedSession: SessionSummary? = null,
     val detections: List<DetectionResult> = emptyList(),
     val recordingFile: File? = null,
+    // T62: SAF-URI-Fallback (z.B. content:// auf SD-Karte). Wird bevorzugt wenn nicht null.
+    val recordingUri: Uri? = null,
     val recordingDurationSec: Float = 0f,
 
     // Sonogramm
@@ -47,6 +50,8 @@ data class AnalysisUiState(
     // Audio-Playback
     val playbackState: AudioPlayer.PlaybackState = AudioPlayer.PlaybackState.IDLE,
     val playingChunkIndex: Int? = null,
+    // T62: MediaPlayer-Fehler fuer Snackbar/Toast-Feedback (AC7).
+    val playerError: String? = null,
 
     // Vergleichs-Modus (Ebene 3)
     val isCompareMode: Boolean = false,
@@ -72,5 +77,8 @@ data class AnalysisUiState(
     val spectrogramCeilingDb: Float = 0f,
 
     // Raven-Export Feedback
-    val ravenExportMessage: String? = null
+    val ravenExportMessage: String? = null,
+
+    // IO-Fehler bei Verifikations-Persistierung (AC5)
+    val saveErrorMessage: String? = null
 )

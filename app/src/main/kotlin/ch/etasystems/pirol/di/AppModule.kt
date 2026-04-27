@@ -23,6 +23,7 @@ import ch.etasystems.pirol.ui.analysis.AnalysisViewModel
 import ch.etasystems.pirol.ui.live.LiveViewModel
 import ch.etasystems.pirol.ui.map.MapViewModel
 import ch.etasystems.pirol.ui.reference.ReferenceViewModel
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -64,7 +65,8 @@ val appModule = module {
     single { ReferenceRepository(get()) }
 
     // Audio-Player — Singleton, WAV-Playback fuer Referenzen
-    single { AudioPlayer() }
+    // T62: Context fuer SAF-URI-Support (ContentResolver / setDataSource(context, uri))
+    single { AudioPlayer(androidContext()) }
 
     // WatchlistManager — Singleton, laedt/verwaltet Watchlist (T20)
     single { WatchlistManager(get()) }

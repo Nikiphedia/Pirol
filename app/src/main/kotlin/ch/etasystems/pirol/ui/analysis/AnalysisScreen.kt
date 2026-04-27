@@ -238,6 +238,14 @@ private fun SessionDetailView(
         }
     }
 
+    // T62: MediaPlayer-Fehler anzeigen (AC7)
+    LaunchedEffect(state.playerError) {
+        state.playerError?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            viewModel.consumePlayerError()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()

@@ -50,6 +50,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -120,6 +123,9 @@ class LiveViewModel(
     // FAB-Debounce (T52): verhindert Doppel-Taps innerhalb 500 ms
     private var lastFabTapAt = 0L
 
+    // Serialisiert Verifikations-IO: verhindert Race bei Schnell-Taps (AC6)
+    private val verificationMutex = Mutex()
+
     // --- Oeffentlicher State ---
     private val _uiState = MutableStateFlow(LiveUiState())
     val uiState: StateFlow<LiveUiState> = _uiState.asStateFlow()
@@ -168,7 +174,9 @@ class LiveViewModel(
                     Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()
                 ).toShort()
             }
-            viewModelScope.launch(Dispatchers.IO) {
+            // F3: sessionDispatcher (Single-Thread) serialisiert Preroll + Live-Chunks (T63)
+            // Verhindert concurrent append() auf StreamingWavWriter (nicht thread-safe)
+            viewModelScope.launch(sessionDispatcher) {
                 sessionManager.appendAudioSamples(shortSamples)
             }
         }
@@ -399,6 +407,12 @@ class LiveViewModel(
         val ctx = applicationContext ?: return
         if (svc.isRecording.value) return
 
+        // F4: RECORD_AUDIO pruefen VOR Service-Start (verhindert startForegroundService ohne Mic-Permission, T63)
+        if (ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return  // AudioPermissionHandler zeigt Permission-Dialog
+        }
+
         // Sonogramm-Buffer leeren fuer Neustart
         spectrogramState.clear()
         resetMelSpectrogram()
@@ -517,15 +531,31 @@ class LiveViewModel(
 
         // Persistieren (falls Session aktiv)
         if (sessionManager.isActive) {
+            val undoSnapshot = pendingUndo
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.appendVerification(
-                    VerificationEvent(
-                        detectionId = detectionId,
-                        status = status,
-                        correctedSpecies = correctedSpecies,
-                        verifiedAtMs = System.currentTimeMillis()
-                    )
-                )
+                verificationMutex.withLock {
+                    try {
+                        sessionManager.appendVerification(
+                            VerificationEvent(
+                                detectionId = detectionId,
+                                status = status,
+                                correctedSpecies = correctedSpecies,
+                                verifiedAtMs = System.currentTimeMillis()
+                            )
+                        )
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            if (undoSnapshot != null && undoSnapshot.detectionId == detectionId) {
+                                detectionListState.updateVerification(
+                                    undoSnapshot.detectionId,
+                                    undoSnapshot.previousStatus,
+                                    undoSnapshot.previousCorrected
+                                )
+                            }
+                            _snackbarChannel.send(SnackbarEvent(message = "Speichern fehlgeschlagen"))
+                        }
+                    }
+                }
             }
         }
     }
@@ -540,7 +570,11 @@ class LiveViewModel(
         detectionListState.updateVerification(undo.detectionId, undo.previousStatus, undo.previousCorrected)
         if (sessionManager.isActive) {
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.removeLastVerification(undo.detectionId)
+                verificationMutex.withLock {
+                    try {
+                        sessionManager.removeLastVerification(undo.detectionId)
+                    } catch (_: Exception) { /* Undo-IO-Fehler still ignorieren */ }
+                }
             }
         }
     }
@@ -581,14 +615,22 @@ class LiveViewModel(
                 ))
             }
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.appendVerification(
-                    VerificationEvent(
-                        detectionId = detectionId,
-                        status = VerificationStatus.REPLACED,
-                        correctedSpecies = candidate.scientificName,
-                        verifiedAtMs = System.currentTimeMillis()
-                    )
-                )
+                verificationMutex.withLock {
+                    try {
+                        sessionManager.appendVerification(
+                            VerificationEvent(
+                                detectionId = detectionId,
+                                status = VerificationStatus.REPLACED,
+                                correctedSpecies = candidate.scientificName,
+                                verifiedAtMs = System.currentTimeMillis()
+                            )
+                        )
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            _snackbarChannel.send(SnackbarEvent(message = "Speichern fehlgeschlagen"))
+                        }
+                    }
+                }
             }
         }
     }
@@ -814,6 +856,12 @@ class LiveViewModel(
             launch {
                 service?.recordingPhase?.collect { phase ->
                     _uiState.update { it.copy(recordingPhase = phase) }
+                }
+            }
+            // T63 AC5: Audio-Engine-Fehler als Snackbar anzeigen
+            launch {
+                service?.audioStartError?.collect { msg ->
+                    _snackbarChannel.send(SnackbarEvent(message = msg))
                 }
             }
             service?.isRecording?.collect { recording ->
