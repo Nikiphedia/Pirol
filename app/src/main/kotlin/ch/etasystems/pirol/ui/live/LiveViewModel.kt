@@ -15,6 +15,7 @@ import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.repository.SessionMetadata
@@ -23,8 +24,10 @@ import kotlinx.serialization.json.Json as KJson
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
+import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.EmbeddingExtractor
 import ch.etasystems.pirol.ml.InferenceConfig
@@ -94,7 +97,8 @@ class LiveViewModel(
     private val watchlistManager: WatchlistManager,
     private val alarmService: AlarmService,
     private val appPreferences: AppPreferences,
-    private val speciesNameResolver: SpeciesNameResolver
+    private val speciesNameResolver: SpeciesNameResolver,
+    private val atlasCodeRepository: AtlasCodeRepository
 ) : ViewModel() {
 
     companion object {
@@ -574,6 +578,42 @@ class LiveViewModel(
                     try {
                         sessionManager.removeLastVerification(undo.detectionId)
                     } catch (_: Exception) { /* Undo-IO-Fehler still ignorieren */ }
+                }
+            }
+        }
+    }
+
+    /** Atlas-Codes aus assets (T68), lazy geladen, fuer EditDetectionDialog */
+    val atlasCodes: List<AtlasCode> by lazy { atlasCodeRepository.loadCodes() }
+
+    /**
+     * Bearbeitet Stückzahl, Atlascode und Bemerkung einer Detektion (T68).
+     * Optimistisches UI-Update + atomares IO + Rollback bei Fehler.
+     */
+    fun editDetection(detectionId: String, count: Int, atlasCode: String?, note: String?) {
+        val current = detectionListState.getDetections().find { it.id == detectionId } ?: return
+        val updated = current.copy(count = count, atlasCode = atlasCode, note = note)
+        detectionListState.updateDetection(updated)
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    sessionManager.replaceDetection(updated)
+                    val now = System.currentTimeMillis()
+                    if (current.count != count) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_COUNT_CHANGED))
+                    if (current.atlasCode != atlasCode) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_ATLAS_SET))
+                    if (current.note != note) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED))
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        detectionListState.updateDetection(current)
+                        _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
+                    }
                 }
             }
         }
