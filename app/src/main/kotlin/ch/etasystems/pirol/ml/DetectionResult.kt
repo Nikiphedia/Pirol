@@ -73,7 +73,8 @@ data class VerificationEvent(
     val status: VerificationStatus,
     val correctedSpecies: String? = null,
     val verifiedAtMs: Long,
-    val actionType: String? = null           // null = Legacy-Eintrag (V0.0.6)
+    val actionType: String? = null,          // null = Legacy-Eintrag (V0.0.6)
+    val newValue: String? = null             // T69: Nutzlast (z.B. Memo-Pfad, Atlascode)
 ) {
     companion object {
         // Bestehend (implizit verwendet, jetzt explizit definiert):

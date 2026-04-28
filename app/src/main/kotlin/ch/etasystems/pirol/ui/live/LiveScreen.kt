@@ -301,10 +301,15 @@ private fun CompactLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
-                onEditDetection = { id, count, atlasCode, note -> viewModel.editDetection(id, count, atlasCode, note) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -392,10 +397,15 @@ private fun MediumLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
-                onEditDetection = { id, count, atlasCode, note -> viewModel.editDetection(id, count, atlasCode, note) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -482,10 +492,15 @@ private fun ExpandedLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
-                onEditDetection = { id, count, atlasCode, note -> viewModel.editDetection(id, count, atlasCode, note) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 

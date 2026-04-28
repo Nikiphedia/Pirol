@@ -402,10 +402,15 @@ private fun SessionDetailView(
                         onPlay = { viewModel.playDetection(detection) },
                         isPlayEnabled = state.recordingFile != null,
                         playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),
-                        onEditDetection = { count, atlasCode, note ->
-                            viewModel.editDetection(detection.id, count, atlasCode, note)
+                        onEditDetection = { count, atlasCode, note, memoFile ->
+                            viewModel.editDetection(detection.id, count, atlasCode, note, memoFile)
                         },
-                        atlasCodes = viewModel.atlasCodes
+                        atlasCodes = viewModel.atlasCodes,
+                        // T69: Voice-Memo
+                        voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                        memoAudioPlayer = viewModel.memoAudioPlayer,
+                        onGetMemoTargetFile = { viewModel.getMemoTargetFile(detection.id) },
+                        onGetMemoTargetUri = { viewModel.getMemoTargetUri(detection.id) },
                     )
                 }
             }
