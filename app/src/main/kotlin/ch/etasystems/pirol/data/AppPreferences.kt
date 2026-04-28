@@ -23,8 +23,13 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putFloat("pirol_confidence_threshold", value).apply()
 
     var topK: Int
-        get() = prefs.getInt("pirol_top_k", 5)
+        get() = prefs.getInt("pirol_top_k", 3)
         set(value) = prefs.edit().putInt("pirol_top_k", value).apply()
+
+    /** Mindest-Konfidenz fuer TopK-Erkennung (0.3 = mehr Arten, 0.5 = nur sichere) */
+    var topKThreshold: Float
+        get() = prefs.getFloat("pirol_topk_threshold", 0.3f)
+        set(value) = prefs.edit().putFloat("pirol_topk_threshold", value).apply()
 
     var regionFilter: String?
         get() = prefs.getString("pirol_region_filter", "ch_breeding")
@@ -192,6 +197,7 @@ class AppPreferences(context: Context) {
         return InferenceConfig(
             confidenceThreshold = confidenceThreshold,
             topK = topK,
+            topKThreshold = topKThreshold,
             regionFilter = regionFilter,
             showOnlyFiltered = showOnlyFiltered,
             inferenceIntervalMs = inferenceIntervalMs,
@@ -203,6 +209,7 @@ class AppPreferences(context: Context) {
     fun saveInferenceConfig(config: InferenceConfig) {
         confidenceThreshold = config.confidenceThreshold
         topK = config.topK
+        topKThreshold = config.topKThreshold
         regionFilter = config.regionFilter
         showOnlyFiltered = config.showOnlyFiltered
         inferenceIntervalMs = config.inferenceIntervalMs

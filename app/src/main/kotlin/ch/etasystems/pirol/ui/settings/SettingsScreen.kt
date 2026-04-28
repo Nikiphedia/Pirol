@@ -112,6 +112,10 @@ fun SettingsScreen(
     var clusterRadiusM by remember { mutableIntStateOf(appPreferences.clusterRadiusM) }
     var clusterTimeWindowMin by remember { mutableIntStateOf(appPreferences.clusterTimeWindowMin) }
 
+    // Multi-Label State (T71)
+    var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
+    var selectedTopKThreshold by remember { mutableFloatStateOf(appPreferences.topKThreshold) }
+
     // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
     var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     LaunchedEffect(Unit) {
@@ -330,18 +334,36 @@ fun SettingsScreen(
         Text("Erkennung", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Confidence-Slider
-        var selectedThreshold by remember { mutableFloatStateOf(appPreferences.confidenceThreshold) }
-
-        Text("Konfidenz-Schwelle: ${(selectedThreshold * 100).roundToInt()}%")
+        // TopK-Detection Slider (T71: Multi-Label)
+        Text("Erkennungs-Schwelle (TopK): ${(selectedTopKThreshold * 100).roundToInt()}%")
         Slider(
-            value = selectedThreshold,
+            value = selectedTopKThreshold,
             onValueChange = {
-                selectedThreshold = it
-                appPreferences.confidenceThreshold = it
+                selectedTopKThreshold = it
+                appPreferences.topKThreshold = it
             },
             valueRange = 0.1f..0.9f,
-            steps = 7
+            steps = 15  // Schritt 0.05 = 16 Positionen → 15 Schritte zwischen den Endpunkten
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // TopK-Slider (Anzahl Arten pro Chunk)
+        Text("Max. Arten pro Chunk (TopK): $selectedTopK")
+        Slider(
+            value = selectedTopK.toFloat(),
+            onValueChange = {
+                selectedTopK = it.roundToInt()
+                appPreferences.topK = selectedTopK
+            },
+            valueRange = 1f..5f,
+            steps = 3  // 1,2,3,4,5 = 4 Schritte zwischen Endpunkten
+        )
+        Text(
+            text = if (selectedTopK == 1) "TopK=1: nur Top-Art (Pre-T71-Verhalten)"
+                   else "TopK=$selectedTopK: bis zu $selectedTopK Arten gleichzeitig",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -388,8 +410,10 @@ fun SettingsScreen(
                 InferenceConfig.STRICT to "Strikt"
             ).forEach { (preset, label) ->
                 OutlinedButton(onClick = {
-                    selectedThreshold = preset.confidenceThreshold
+                    selectedTopKThreshold = preset.topKThreshold
+                    appPreferences.topKThreshold = preset.topKThreshold
                     appPreferences.confidenceThreshold = preset.confidenceThreshold
+                    selectedTopK = preset.topK
                     appPreferences.topK = preset.topK
                 }) {
                     Text(label)
