@@ -28,6 +28,7 @@ import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
+import ch.etasystems.pirol.ml.ClusterResult
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.EmbeddingDatabase
@@ -246,10 +247,41 @@ class LiveViewModel(
             if (Log.isLoggable(TAG, Log.DEBUG)) {
                 Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
             }
-            detectionListState.addDetections(sessionRelativeDetections)
+            // T70: Cluster-Algorithmus — addOrCluster statt addDetections
+            val newDetections = mutableListOf<DetectionResult>()
+            for (det in sessionRelativeDetections) {
+                val result = detectionListState.addOrCluster(
+                    det,
+                    appPreferences.clusterEnabled,
+                    appPreferences.clusterRadiusM,
+                    appPreferences.clusterTimeWindowMin
+                )
+                when (result) {
+                    is ClusterResult.New -> newDetections.add(result.detection)
+                    is ClusterResult.Merged -> {
+                        if (sessionManager.isActive) {
+                            val anchor = result.anchor
+                            val absorbedId = result.absorbedId
+                            viewModelScope.launch(Dispatchers.IO) {
+                                sessionManager.replaceDetection(anchor)
+                                sessionManager.appendVerification(
+                                    VerificationEvent(
+                                        detectionId = anchor.id,
+                                        status = anchor.verificationStatus,
+                                        correctedSpecies = "merged:${absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}",
+                                        verifiedAtMs = System.currentTimeMillis(),
+                                        actionType = VerificationEvent.ACTION_CLUSTER_MERGED
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
-            // Watchlist-Check: Alarm ausloesen fuer Watchlist-Arten (T20)
-            for (detection in sessionRelativeDetections) {
+            // Watchlist-Check: Alarm ausloesen fuer neue Detektionen (T20)
+            // Cluster-Merges alarmieren nicht erneut (Cooldown via alarmCooldownMinutes als Fallback).
+            for (detection in newDetections) {
                 val priority = watchlistManager.getPriority(detection.scientificName)
                 if (priority != null) {
                     Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
@@ -257,10 +289,10 @@ class LiveViewModel(
                 }
             }
 
-            // Detektionen in JSONL schreiben
-            if (sessionManager.isActive) {
+            // Neue Detektionen in JSONL schreiben (Cluster-Merges werden via replaceDetection persistiert)
+            if (sessionManager.isActive && newDetections.isNotEmpty()) {
                 viewModelScope.launch(Dispatchers.IO) {
-                    sessionManager.appendDetections(sessionRelativeDetections)
+                    sessionManager.appendDetections(newDetections)
                 }
             }
 

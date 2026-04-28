@@ -50,6 +50,9 @@ data class DetectionResult(
     val candidates: List<DetectionCandidate> = emptyList(),  // Top-N Alternativen aus BirdNET
     val detectionCount: Int = 1,             // Wie oft wurde diese Art erkannt (Dedup-Zaehler)
     val lastDetectedMs: Long = 0L,           // Zeitpunkt der letzten Erkennung (fuer 5s-Highlight, T33)
+    // Cluster-A-Felder (T70):
+    val firstSeenAtMs: Long = timestampMs,   // erste Erfassung im Cluster (= timestampMs falls keine Aggregation)
+    val lastSeenAtMs: Long = timestampMs,    // letzte Erfassung im Cluster (= timestampMs wenn keine weiteren)
     // Cluster-C-Felder (V0.0.7+)
     val count: Int = 1,                      // Stueckzahl (User-Beobachtung), Default 1
     val atlasCode: String? = null,           // ornitho-Atlascode (z.B. "A2", "B4"); null = nicht gesetzt
@@ -95,5 +98,7 @@ data class VerificationEvent(
         const val ACTION_SPECIES_LOCKED       = "SPECIES_LOCKED"
         const val ACTION_ALTERNATIVE_CONFIRMED = "ALTERNATIVE_CONFIRMED"
         const val ACTION_POSITION_MOVED       = "POSITION_MOVED"
+        // Cluster A (T70):
+        const val ACTION_CLUSTER_MERGED       = "CLUSTER_MERGED"
     }
 }

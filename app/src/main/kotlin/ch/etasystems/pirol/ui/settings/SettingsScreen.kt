@@ -107,6 +107,11 @@ fun SettingsScreen(
     // Alarm-Cooldown State (T58)
     var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
 
+    // Detektions-Cluster State (T70)
+    var clusterEnabled by remember { mutableStateOf(appPreferences.clusterEnabled) }
+    var clusterRadiusM by remember { mutableIntStateOf(appPreferences.clusterRadiusM) }
+    var clusterTimeWindowMin by remember { mutableIntStateOf(appPreferences.clusterTimeWindowMin) }
+
     // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
     var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     LaunchedEffect(Unit) {
@@ -1202,6 +1207,92 @@ fun SettingsScreen(
             valueRange = 0f..60f
         )
         Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Detektions-Cluster-Sektion (T70) ---
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Detektions-Cluster", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Detektionen raeumlich/zeitlich zusammenfassen",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Ohne GPS-Fix wird nur Zeit-Dedup angewendet.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = clusterEnabled,
+                onCheckedChange = { clusterEnabled = it; appPreferences.clusterEnabled = it }
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Radius-Slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Cluster-Radius (m)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "0 = kein Radius-Check (nur Zeit-Dedup).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (clusterRadiusM == 0) "Aus" else "$clusterRadiusM m",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = clusterRadiusM.toFloat(),
+            onValueChange = { clusterRadiusM = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.clusterRadiusM = clusterRadiusM },
+            valueRange = 0f..50f,
+            enabled = clusterEnabled
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Zeitfenster-Slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Cluster-Zeitfenster (min)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "0 = kein Zeit-Check.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (clusterTimeWindowMin == 0) "Aus" else "$clusterTimeWindowMin min",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = clusterTimeWindowMin.toFloat(),
+            onValueChange = { clusterTimeWindowMin = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.clusterTimeWindowMin = clusterTimeWindowMin },
+            valueRange = 0f..30f,
+            enabled = clusterEnabled
+        )
 
         if (entries.isNotEmpty()) {
             Text(
