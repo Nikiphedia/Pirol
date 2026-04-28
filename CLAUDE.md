@@ -85,6 +85,8 @@ Neue Felder ab T67 (Backward-kompatibel: Defaults greifen bei alten JSONL ohne d
 | voiceMemoFile | String? | null | relativer Pfad zu memos/&lt;id&gt;.wav |
 | manualEntry | Boolean | false | true = Art manuell hinzugefuegt (Cluster B, ab T68+) |
 | lockSpecies | Boolean | false | true = nur 1 Meldung pro Session (Cluster B, ab T68+) |
+| firstSeenAtMs | Long | timestampMs | erste Erfassung im Cluster (= timestampMs falls keine Aggregation); T70 |
+| lastSeenAtMs | Long | timestampMs | letzte Erfassung im Cluster; bei Cluster-Merge aktualisiert; T70 |
 
 ## verifications.jsonl actionType-Werte (V0.0.7+)
 
@@ -96,6 +98,7 @@ Konstanten in `VerificationEvent.companion object` (Prafix `ACTION_`).
 | Bestehend (6) | CONFIRMED, REJECTED, UNCERTAIN, CORRECTED, REPLACED, UNDO |
 | Cluster C — aktiv (5) | COUNT_CHANGED, ATLAS_SET, NOTE_ADDED, MEMO_RECORDED, MEMO_DELETED |
 | Cluster B/D — Konstante definiert, Verwendung spaeter (4) | MANUAL_ADD, SPECIES_LOCKED, ALTERNATIVE_CONFIRMED, POSITION_MOVED |
+| Cluster A — aktiv (1) | CLUSTER_MERGED — absorbierte Detection-ID + neuer Count + lastSeenAtMs in correctedSpecies-Feld |
 
 ## Session-Speicher (V0.0.6+)
 

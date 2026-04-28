@@ -153,6 +153,22 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_alarm_cooldown_minutes", 5)
         set(value) = prefs.edit().putInt("pirol_alarm_cooldown_minutes", value).apply()
 
+    // --- Detektions-Cluster (T70) ---
+    /** Raeumlich/zeitliches Zusammenfassen von Detektionen derselben Art. Default an. */
+    var clusterEnabled: Boolean
+        get() = prefs.getBoolean("pirol_cluster_enabled", true)
+        set(value) = prefs.edit().putBoolean("pirol_cluster_enabled", value).apply()
+
+    /** Cluster-Radius in Metern. 0 = kein Radius-Check (nur Zeit-Dedup). Default 10. */
+    var clusterRadiusM: Int
+        get() = prefs.getInt("pirol_cluster_radius_m", 10)
+        set(value) = prefs.edit().putInt("pirol_cluster_radius_m", value).apply()
+
+    /** Cluster-Zeitfenster in Minuten. 0 = kein Zeit-Check. Default 5. */
+    var clusterTimeWindowMin: Int
+        get() = prefs.getInt("pirol_cluster_timewindow_min", 5)
+        set(value) = prefs.edit().putInt("pirol_cluster_timewindow_min", value).apply()
+
     // --- Auto-Loeschen kurzer leerer Sessions (T60) ---
     var autoDeleteShortEmptySessions: Boolean
         get() = prefs.getBoolean("pirol_autodelete_short_empty", true)
