@@ -88,13 +88,15 @@ val appModule = module {
     single { AtlasCodeRepository(androidContext()) }
 
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
-    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
+    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }
 
     // ReferenceViewModel — Referenzbibliothek-UI
     viewModel { ReferenceViewModel(get(), get()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
-    viewModel { AnalysisViewModel(get(), get(), get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository (T68)
+    // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (5→6 get())
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), androidContext()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + Context (T69)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
     viewModel { MapViewModel(get()) }  // SessionManager
