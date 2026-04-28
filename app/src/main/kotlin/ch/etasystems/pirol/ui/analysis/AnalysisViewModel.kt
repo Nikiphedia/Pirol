@@ -1,10 +1,12 @@
 package ch.etasystems.pirol.ui.analysis
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.data.AppPreferences
@@ -47,7 +49,8 @@ class AnalysisViewModel(
     private val audioPlayer: AudioPlayer,
     private val referenceRepository: ReferenceRepository,
     private val appPreferences: AppPreferences,
-    private val atlasCodeRepository: AtlasCodeRepository
+    private val atlasCodeRepository: AtlasCodeRepository,
+    private val context: Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -55,6 +58,14 @@ class AnalysisViewModel(
 
     // Serialisiert Verifikations-IO: verhindert Race bei Schnell-Taps (AC6)
     private val verificationMutex = Mutex()
+
+    // --- T69: Voice-Memo ---
+
+    /** Sprach-Memo Recorder — separater AudioRecord, blockiert RecordingService nicht. */
+    val voiceMemoRecorder = VoiceMemoRecorder()
+
+    /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
+    val memoAudioPlayer by lazy { AudioPlayer(context) }
 
     init {
         // T56: Sonogramm-Dynamik-Prefs laden
@@ -82,6 +93,12 @@ class AnalysisViewModel(
         // Auto-Refresh nach Session-Stop (T51)
         viewModelScope.launch {
             sessionManager.sessionEnded.collect { loadSessions() }
+        }
+        // T69: 60s-Cap-Signal → saveErrorMessage (wird als Snackbar angezeigt)
+        viewModelScope.launch {
+            voiceMemoRecorder.capReached.collect {
+                _uiState.update { it.copy(saveErrorMessage = "Memo auf 60s gekürzt") }
+            }
         }
     }
 
@@ -624,13 +641,24 @@ class AnalysisViewModel(
      * Bearbeitet Stückzahl, Atlascode und Bemerkung einer Detektion (T68).
      * Direktschreib-Muster analog zu verifyDetection() in AnalysisViewModel.
      */
-    fun editDetection(detectionId: String, count: Int, atlasCode: String?, note: String?) {
+    fun editDetection(
+        detectionId: String,
+        count: Int,
+        atlasCode: String?,
+        note: String?,
+        voiceMemoFile: String? = null  // T69: relativer Pfad oder null
+    ) {
         val session = _uiState.value.selectedSession ?: return
         val previousDetections = _uiState.value.detections
         val current = previousDetections.find { it.id == detectionId } ?: return
 
         // Optimistisches In-Memory-Update
-        val updated = current.copy(count = count, atlasCode = atlasCode, note = note)
+        val updated = current.copy(
+            count = count,
+            atlasCode = atlasCode,
+            note = note,
+            voiceMemoFile = voiceMemoFile
+        )
         _uiState.update { it.copy(detections = previousDetections.map { det ->
             if (det.id == detectionId) updated else det
         }) }
@@ -667,6 +695,21 @@ class AnalysisViewModel(
                     if (current.note != note) veriFile.appendText(
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED)) + "\n")
+                    // T69: Memo-Events
+                    if (current.voiceMemoFile == null && voiceMemoFile != null) {
+                        veriFile.appendText(Json.encodeToString(VerificationEvent(
+                            detectionId, current.verificationStatus,
+                            verifiedAtMs = now,
+                            actionType = VerificationEvent.ACTION_MEMO_RECORDED,
+                            newValue = voiceMemoFile)) + "\n")
+                    }
+                    if (current.voiceMemoFile != null && voiceMemoFile == null) {
+                        getMemoTargetFile(detectionId, session.sessionDir)?.takeIf { it.exists() }?.delete()
+                        veriFile.appendText(Json.encodeToString(VerificationEvent(
+                            detectionId, current.verificationStatus,
+                            verifiedAtMs = now,
+                            actionType = VerificationEvent.ACTION_MEMO_DELETED)) + "\n")
+                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(
@@ -679,8 +722,24 @@ class AnalysisViewModel(
         }
     }
 
+    /** T69: Memo-Zieldatei fuer File-Modus (Analyse-Tab: aus Session-Verzeichnis). */
+    fun getMemoTargetFile(detectionId: String, sessionDir: File? = _uiState.value.selectedSession?.sessionDir): File? {
+        val dir = sessionDir ?: return null
+        return sessionManager.memoFile(dir, detectionId)
+    }
+
+    /** T69: Memo-Ziel-URI fuer SAF-Modus (Analyse-Tab: aus Session-Verzeichnis via DocumentFile). */
+    fun getMemoTargetUri(detectionId: String): Uri? {
+        val sessionDir = _uiState.value.selectedSession?.sessionDir ?: return null
+        val doc = androidx.documentfile.provider.DocumentFile.fromFile(sessionDir)
+        return sessionManager.memoDocFile(doc, detectionId)?.uri
+    }
+
     override fun onCleared() {
         super.onCleared()
         audioPlayer.stop()
+        // T69: Voice-Memo Cleanup
+        voiceMemoRecorder.release()
+        memoAudioPlayer.release()
     }
 }
