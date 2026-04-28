@@ -2,6 +2,34 @@ package ch.etasystems.pirol.ml
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+/**
+ * Ergebnis eines addOrCluster()-Aufrufs.
+ *
+ * New: Detektion war neu (keine Ueberschneidung gefunden), wurde als neue Karte eingefuegt.
+ * Merged: Detektion wurde in bestehende Karte absorbiert; anchor ist die aktualisierte Anker-Detection.
+ */
+sealed class ClusterResult {
+    data class New(val detection: DetectionResult) : ClusterResult()
+    data class Merged(val anchor: DetectionResult, val absorbedId: String) : ClusterResult()
+}
+
+/**
+ * Haversine-Distanz zwischen zwei GPS-Punkten in Metern.
+ */
+private fun distanceM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val R = 6371000.0
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = sin(dLat / 2).pow(2) +
+            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
+    return 2 * R * asin(sqrt(a))
+}
 
 /**
  * Thread-safe State-Holder fuer Detektions-Ergebnisse.
@@ -215,6 +243,74 @@ class DetectionListState(
 
         _version.intValue++
         return true
+    }
+
+    /**
+     * Cluster-Algorithmus (T70): Fuegt eine Detektion ein oder absorbiert sie in eine bestehende.
+     *
+     * Wenn clusterEnabled=false: klassisches T44-Verhalten (addDetections mit einer Detektion).
+     * Wenn clusterEnabled=true: Suche nach Art + Zeitfenster + Radius-Match.
+     *   - Match: Anker aktualisieren (lastSeenAtMs, detectionCount+1, confidence=max) → Merged
+     *   - Kein Match: Neue Detektion einfuegen → New
+     *
+     * radiusM=0 → kein Radius-Check (nur Zeit).
+     * timeWindowMin=0 → windowMs=0 → nie Zeit-Match → jede Detektion ist neu.
+     *
+     * GPS fehlt auf einer Seite → Zeit-Match reicht (kein Radius-Check).
+     *
+     * @return ClusterResult.New oder ClusterResult.Merged (fuer Persistenz in LiveViewModel)
+     */
+    @Synchronized
+    fun addOrCluster(
+        detection: DetectionResult,
+        clusterEnabled: Boolean,
+        radiusM: Int,
+        timeWindowMin: Int
+    ): ClusterResult {
+        if (!clusterEnabled) {
+            // Toggle aus → klassisches T44-Verhalten
+            addDetections(listOf(detection))
+            return ClusterResult.New(detection)
+        }
+
+        val nowMs = System.currentTimeMillis()
+        val windowMs = timeWindowMin * 60_000L
+
+        val matchIndex = detections.indexOfFirst { existing ->
+            existing.scientificName == detection.scientificName &&
+            (nowMs - existing.lastSeenAtMs) <= windowMs &&
+            run {
+                val lat1 = existing.latitude
+                val lon1 = existing.longitude
+                val lat2 = detection.latitude
+                val lon2 = detection.longitude
+                if (lat1 != null && lon1 != null && lat2 != null && lon2 != null && radiusM > 0) {
+                    distanceM(lat1, lon1, lat2, lon2) <= radiusM
+                } else {
+                    // GPS fehlt auf einer Seite (oder radiusM=0) → nur Zeit-Match genuegt
+                    true
+                }
+            }
+        }
+
+        return if (matchIndex >= 0) {
+            // Cluster-Merge: Anker aktualisieren
+            val existing = detections[matchIndex]
+            val updated = existing.copy(
+                lastSeenAtMs = detection.timestampMs,
+                detectionCount = existing.detectionCount + 1,
+                confidence = maxOf(existing.confidence, detection.confidence)
+            )
+            detections[matchIndex] = updated
+            _version.intValue++
+            ClusterResult.Merged(anchor = updated, absorbedId = detection.id)
+        } else {
+            // Neue Detection: firstSeenAtMs = lastSeenAtMs = timestampMs (Defaults in DetectionResult)
+            detections.add(0, detection.copy(lastDetectedMs = nowMs))
+            while (detections.size > maxDetections) detections.removeAt(detections.lastIndex)
+            _version.intValue++
+            ClusterResult.New(detection)
+        }
     }
 
     /** Anzahl aktuell gespeicherter Detektionen */
