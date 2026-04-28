@@ -59,9 +59,13 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationStatus
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -106,10 +110,16 @@ fun SpeciesCard(
     isPlayEnabled: Boolean = true,
     playTimeLabel: String? = null,
     onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
-    onEditDetection: ((count: Int, atlasCode: String?, note: String?) -> Unit)? = null,
+    onEditDetection: ((count: Int, atlasCode: String?, note: String?, voiceMemoFile: String?) -> Unit)? = null,
     atlasCodes: List<AtlasCode> = emptyList(),
     isWatchlisted: Boolean = false,
     showTopNCandidates: Boolean = true,
+    // T69: Voice-Memo
+    voiceMemoRecorder: VoiceMemoRecorder? = null,
+    memoAudioPlayer: AudioPlayer? = null,
+    onGetMemoTargetFile: (() -> File?)? = null,
+    onGetMemoTargetUri: (() -> Uri?)? = null,
+    onSnackbar: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val confidencePercent = (detection.confidence * 100).toInt()
@@ -578,16 +588,23 @@ fun SpeciesCard(
         }
     }
 
-    // Edit-Dialog (T68): Stückzahl, Atlascode, Bemerkung
+    // Edit-Dialog (T68/T69): Stückzahl, Atlascode, Bemerkung + Sprach-Memo
     if (showEditDialog && onEditDetection != null) {
+        val memoTargetFile = remember { onGetMemoTargetFile?.invoke() }
+        val memoTargetUri = remember { onGetMemoTargetUri?.invoke() }
         EditDetectionDialog(
             detection = detection,
             atlasCodes = atlasCodes,
+            recorder = voiceMemoRecorder,
+            memoAudioPlayer = memoAudioPlayer,
+            memoTargetFile = memoTargetFile,
+            memoTargetUri = memoTargetUri,
             onDismiss = { showEditDialog = false },
-            onSave = { count, atlasCode, note ->
-                onEditDetection(count, atlasCode, note)
+            onSave = { count, atlasCode, note, memoFile ->
+                onEditDetection(count, atlasCode, note, memoFile)
                 showEditDialog = false
-            }
+            },
+            onSnackbar = onSnackbar,
         )
     }
 

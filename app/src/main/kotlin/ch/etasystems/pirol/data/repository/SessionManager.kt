@@ -121,6 +121,12 @@ class SessionManager(
     /** Ob eine Session aktiv ist */
     val isActive: Boolean get() = activeSessionDir != null || activeSessionDoc != null
 
+    /** T69: Aktives Session-Verzeichnis (File-Modus), lesbar fuer Memo-Pfad-Berechnung */
+    val currentSessionDir: File? get() = activeSessionDir
+
+    /** T69: Aktives Session-Dokument (SAF-Modus), lesbar fuer Memo-Pfad-Berechnung */
+    val currentSessionDoc: DocumentFile? get() = activeSessionDoc
+
     // ── Storage-Aufloesung ────────────────────────────────────────────
 
     /**
@@ -472,6 +478,34 @@ class SessionManager(
                 Log.e(TAG, "replaceDetection fehlgeschlagen: ${updated.id}", e)
             }
         }
+    }
+
+    // ── T69: Voice-Memo Pfad-Helpers ─────────────────────────────────
+
+    /**
+     * Gibt den File-Pfad fuer ein Sprach-Memo zurueck (File-Modus).
+     * Erstellt das memos/-Verzeichnis falls noetig.
+     *
+     * @param sessionDir Session-Verzeichnis (File-Modus)
+     * @param detectionId ID der Detektion
+     * @return File-Handle fuer <sessionDir>/memos/<detectionId>.wav
+     */
+    fun memoFile(sessionDir: File, detectionId: String): File =
+        File(sessionDir, "memos/$detectionId.wav").apply { parentFile?.mkdirs() }
+
+    /**
+     * Gibt das DocumentFile fuer ein Sprach-Memo zurueck (SAF-Modus).
+     * Erstellt den memos/-Ordner und die WAV-Datei falls noetig.
+     *
+     * @param sessionDoc Session-DocumentFile (SAF-Modus)
+     * @param detectionId ID der Detektion
+     * @return DocumentFile oder null bei Fehler
+     */
+    fun memoDocFile(sessionDoc: DocumentFile, detectionId: String): DocumentFile? {
+        val memos = sessionDoc.findFile("memos")
+            ?: sessionDoc.createDirectory("memos") ?: return null
+        return memos.findFile("$detectionId.wav")
+            ?: memos.createFile("audio/wav", "$detectionId.wav")
     }
 
     /**

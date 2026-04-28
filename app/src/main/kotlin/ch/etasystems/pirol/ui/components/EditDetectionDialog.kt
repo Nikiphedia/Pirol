@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,8 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionResult
+import java.io.File
 
 private const val MAX_COUNT = 999_999
 private const val MAX_NOTE_LENGTH = 500
@@ -44,17 +49,24 @@ private const val MAX_NOTE_LENGTH = 500
 fun EditDetectionDialog(
     detection: DetectionResult,
     atlasCodes: List<AtlasCode>,
+    recorder: VoiceMemoRecorder? = null,
+    memoAudioPlayer: AudioPlayer? = null,
+    memoTargetFile: File? = null,
+    memoTargetUri: Uri? = null,
     onDismiss: () -> Unit,
-    onSave: (count: Int, atlasCode: String?, note: String?) -> Unit
+    onSave: (count: Int, atlasCode: String?, note: String?, voiceMemoFile: String?) -> Unit,
+    onSnackbar: (String) -> Unit = {},
 ) {
     var count by remember { mutableIntStateOf(detection.count) }
     var selectedCode by remember { mutableStateOf(detection.atlasCode) }
     var note by remember { mutableStateOf(detection.note ?: "") }
     var dropdownExpanded by remember { mutableStateOf(false) }
+    var currentMemoRelPath by remember { mutableStateOf(detection.voiceMemoFile) }
 
     val hasChanged = count != detection.count ||
         selectedCode != detection.atlasCode ||
-        note.ifEmpty { null } != detection.note
+        note.ifEmpty { null } != detection.note ||
+        currentMemoRelPath != detection.voiceMemoFile
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -146,12 +158,28 @@ fun EditDetectionDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+
+                // 4. Sprach-Memo (T69)
+                if (recorder != null && memoAudioPlayer != null) {
+                    HorizontalDivider()
+                    Text("Sprach-Memo", style = MaterialTheme.typography.labelMedium)
+                    VoiceMemoSection(
+                        detectionId = detection.id,
+                        initialMemoRelPath = detection.voiceMemoFile,
+                        recorder = recorder,
+                        audioPlayer = memoAudioPlayer,
+                        targetFile = memoTargetFile,
+                        targetUri = memoTargetUri,
+                        onMemoChanged = { currentMemoRelPath = it },
+                        onSnackbar = onSnackbar,
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    onSave(count, selectedCode, note.ifEmpty { null })
+                    onSave(count, selectedCode, note.ifEmpty { null }, currentMemoRelPath)
                 },
                 enabled = hasChanged
             ) { Text("Speichern") }

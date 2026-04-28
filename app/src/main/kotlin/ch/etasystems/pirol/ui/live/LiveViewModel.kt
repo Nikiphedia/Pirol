@@ -9,8 +9,10 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.RecordingService
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
@@ -98,7 +100,8 @@ class LiveViewModel(
     private val alarmService: AlarmService,
     private val appPreferences: AppPreferences,
     private val speciesNameResolver: SpeciesNameResolver,
-    private val atlasCodeRepository: AtlasCodeRepository
+    private val atlasCodeRepository: AtlasCodeRepository,
+    private val context: android.content.Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
 ) : ViewModel() {
 
     companion object {
@@ -123,6 +126,14 @@ class LiveViewModel(
     private val _snackbarChannel = Channel<SnackbarEvent>(Channel.CONFLATED)
     val snackbarEvents = _snackbarChannel.receiveAsFlow()
     private var pendingUndo: UndoEntry? = null
+
+    // --- T69: Voice-Memo ---
+
+    /** Sprach-Memo Recorder — separater AudioRecord, blockiert RecordingService nicht. */
+    val voiceMemoRecorder = VoiceMemoRecorder()
+
+    /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
+    val memoAudioPlayer by lazy { AudioPlayer(context) }
 
     // FAB-Debounce (T52): verhindert Doppel-Taps innerhalb 500 ms
     private var lastFabTapAt = 0L
@@ -359,6 +370,13 @@ class LiveViewModel(
 
         // Upload-Status beobachten → UiState aktualisieren
         startUploadStatusObserver()
+
+        // T69: 60s-Cap-Signal → Snackbar
+        viewModelScope.launch {
+            voiceMemoRecorder.capReached.collect {
+                _snackbarChannel.trySend(SnackbarEvent("Memo auf 60s gekürzt"))
+            }
+        }
     }
 
     // --- Service Connection ---
@@ -590,9 +608,20 @@ class LiveViewModel(
      * Bearbeitet Stückzahl, Atlascode und Bemerkung einer Detektion (T68).
      * Optimistisches UI-Update + atomares IO + Rollback bei Fehler.
      */
-    fun editDetection(detectionId: String, count: Int, atlasCode: String?, note: String?) {
+    fun editDetection(
+        detectionId: String,
+        count: Int,
+        atlasCode: String?,
+        note: String?,
+        voiceMemoFile: String? = null  // T69: relativer Pfad oder null (kein/gelöschtes Memo)
+    ) {
         val current = detectionListState.getDetections().find { it.id == detectionId } ?: return
-        val updated = current.copy(count = count, atlasCode = atlasCode, note = note)
+        val updated = current.copy(
+            count = count,
+            atlasCode = atlasCode,
+            note = note,
+            voiceMemoFile = voiceMemoFile
+        )
         detectionListState.updateDetection(updated)
         if (!sessionManager.isActive) return
         viewModelScope.launch(Dispatchers.IO) {
@@ -609,6 +638,21 @@ class LiveViewModel(
                     if (current.note != note) sessionManager.appendVerification(
                         VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED))
+                    // T69: Memo-Events
+                    if (current.voiceMemoFile == null && voiceMemoFile != null) {
+                        sessionManager.appendVerification(VerificationEvent(
+                            detectionId, current.verificationStatus,
+                            verifiedAtMs = now,
+                            actionType = VerificationEvent.ACTION_MEMO_RECORDED,
+                            newValue = voiceMemoFile))
+                    }
+                    if (current.voiceMemoFile != null && voiceMemoFile == null) {
+                        getMemoTargetFile(detectionId)?.takeIf { it.exists() }?.delete()
+                        sessionManager.appendVerification(VerificationEvent(
+                            detectionId, current.verificationStatus,
+                            verifiedAtMs = now,
+                            actionType = VerificationEvent.ACTION_MEMO_DELETED))
+                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         detectionListState.updateDetection(current)
@@ -618,6 +662,14 @@ class LiveViewModel(
             }
         }
     }
+
+    /** T69: Memo-Zieldatei fuer File-Modus berechnen. */
+    fun getMemoTargetFile(detectionId: String): File? =
+        sessionManager.currentSessionDir?.let { sessionManager.memoFile(it, detectionId) }
+
+    /** T69: Memo-Ziel-URI fuer SAF-Modus berechnen. */
+    fun getMemoTargetUri(detectionId: String): android.net.Uri? =
+        sessionManager.currentSessionDoc?.let { sessionManager.memoDocFile(it, detectionId)?.uri }
 
     /**
      * FAB-Tap mit 500 ms Debounce (T52).
@@ -1111,5 +1163,8 @@ class LiveViewModel(
         }
         super.onCleared()
         // Service-Unbinding muss vom Screen gemacht werden (braucht Context)
+        // T69: Voice-Memo Cleanup
+        voiceMemoRecorder.release()
+        memoAudioPlayer.release()
     }
 }
