@@ -33,6 +33,42 @@ class BirdNetV3Classifier(
         private const val TARGET_SAMPLE_RATE = 32000
         private const val CHUNK_DURATION_SEC = 3.0f
         private const val CHUNK_SAMPLES = (TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC).toInt() // 96000
+
+        /**
+         * Filtert und sortiert rohe ONNX-Scores zu ClassifierResults.
+         *
+         * Extrahiert als interne Funktion fuer Unit-Tests ohne ONNX-Session (T71).
+         * Wird von classify() nach der Inference aufgerufen.
+         *
+         * @param scores FloatArray mit Sigmoid-Scores pro Label-Index
+         * @param labels Label-Liste (scientificName to commonName)
+         * @param topK Maximale Anzahl Ergebnisse
+         * @param threshold Mindest-Score fuer Aufnahme in Ergebnisliste
+         * @return Sortierte Liste (hoechste Konfidenz zuerst), max. topK Eintraege
+         */
+        internal fun filterAndRank(
+            scores: FloatArray,
+            labels: List<Pair<String, String>>,
+            topK: Int,
+            threshold: Float
+        ): List<AudioClassifier.ClassifierResult> {
+            val results = mutableListOf<AudioClassifier.ClassifierResult>()
+            for (i in scores.indices) {
+                if (scores[i] >= threshold && i < labels.size) {
+                    val (sciName, comName) = labels[i]
+                    results.add(
+                        AudioClassifier.ClassifierResult(
+                            scientificName = sciName,
+                            commonName = comName,
+                            confidence = scores[i],
+                            timeStartSec = 0f,
+                            timeEndSec = CHUNK_DURATION_SEC
+                        )
+                    )
+                }
+            }
+            return results.sortedByDescending { it.confidence }.take(topK)
+        }
     }
 
     // Lazy-initialisiert beim ersten classify()-Aufruf
@@ -95,24 +131,8 @@ class BirdNetV3Classifier(
             // 3. ONNX Inference
             val scores = runInference(session, chunk)
 
-            // 4. Top-K filtern und sortieren
-            val results = mutableListOf<AudioClassifier.ClassifierResult>()
-            for (i in scores.indices) {
-                if (scores[i] >= threshold && i < labels.size) {
-                    val (sciName, comName) = labels[i]
-                    results.add(
-                        AudioClassifier.ClassifierResult(
-                            scientificName = sciName,
-                            commonName = comName,
-                            confidence = scores[i],
-                            timeStartSec = 0f,
-                            timeEndSec = CHUNK_DURATION_SEC
-                        )
-                    )
-                }
-            }
-
-            results.sortedByDescending { it.confidence }.take(topK)
+            // 4. Top-K filtern und sortieren (via extrahierte Companion-Funktion, T71)
+            filterAndRank(scores, labels, topK, threshold)
         } catch (e: Exception) {
             Log.e(TAG, "Klassifizierung fehlgeschlagen", e)
             emptyList()

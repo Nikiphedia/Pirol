@@ -109,11 +109,12 @@ class InferenceWorker(
             AudioDspUtils.brickwallLimit(resampled, 1.0f)
 
             // 2. Klassifizierung via AudioClassifier (Parameter aus config)
+            // T71: topKThreshold (0.3f) statt confidenceThreshold (0.5f) — erlaubt Multi-Label
             val classifierResults = classifier.classify(
                 samples = resampled,
                 sampleRate = TARGET_RATE,
                 topK = config.topK,
-                threshold = config.confidenceThreshold
+                threshold = config.topKThreshold
             )
 
             if (classifierResults.isEmpty()) {
