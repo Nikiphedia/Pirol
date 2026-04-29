@@ -16,7 +16,9 @@ import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
+import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionResult
+import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.SpectrogramState
@@ -50,6 +52,7 @@ class AnalysisViewModel(
     private val referenceRepository: ReferenceRepository,
     private val appPreferences: AppPreferences,
     private val atlasCodeRepository: AtlasCodeRepository,
+    private val speciesNameResolver: SpeciesNameResolver,  // T72: Artsuche fuer AddManualDetectionDialog
     private val context: Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
 ) : ViewModel() {
 
@@ -733,6 +736,122 @@ class AnalysisViewModel(
         val sessionDir = _uiState.value.selectedSession?.sessionDir ?: return null
         val doc = androidx.documentfile.provider.DocumentFile.fromFile(sessionDir)
         return sessionManager.memoDocFile(doc, detectionId)?.uri
+    }
+
+    /** Artsuche fuer AddManualDetectionDialog (T72). */
+    fun searchSpecies(query: String): List<Pair<String, String>> =
+        speciesNameResolver.searchSpecies(query)
+
+    /**
+     * Fuegt eine Art manuell zur Session-Detektion hinzu (T72, Analyse-Tab).
+     * Schreibt direkt in detections.jsonl + verifications.jsonl der ausgewaehlten Session.
+     */
+    fun addManualDetection(
+        speciesKey: String,
+        count: Int = 1,
+        atlasCode: String? = null,
+        note: String? = null,
+        lat: Double? = null,
+        lon: Double? = null
+    ) {
+        val session = _uiState.value.selectedSession ?: return
+        val now = System.currentTimeMillis()
+        val det = DetectionResult(
+            id = java.util.UUID.randomUUID().toString(),
+            scientificName = speciesKey,
+            commonName = speciesNameResolver.resolve(speciesKey),
+            confidence = 1.0f,
+            timestampMs = now,
+            chunkStartSec = 0f,
+            chunkEndSec = 0f,
+            sampleRate = 0,
+            latitude = lat,
+            longitude = lon,
+            firstSeenAtMs = now,
+            lastSeenAtMs = now,
+            lastDetectedMs = now,
+            count = count,
+            atlasCode = atlasCode,
+            note = note,
+            manualEntry = true
+        )
+        // In-Memory: an den Anfang der Liste
+        _uiState.update { it.copy(detections = listOf(det) + it.detections) }
+        // Persistenz
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    val detFile = File(session.sessionDir, "detections.jsonl")
+                    detFile.appendText(Json.encodeToString(det) + "\n")
+                    val veriFile = File(session.sessionDir, "verifications.jsonl")
+                    veriFile.appendText(Json.encodeToString(VerificationEvent(
+                        detectionId = det.id,
+                        status = VerificationStatus.CONFIRMED,
+                        verifiedAtMs = now,
+                        actionType = VerificationEvent.ACTION_MANUAL_ADD,
+                        newValue = "species:$speciesKey|count:$count"
+                    )) + "\n")
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(saveErrorMessage = "Speichern fehlgeschlagen") }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative (T72, Analyse-Tab).
+     * Analog zu LiveViewModel.selectAlternative, aber direktes Schreiben in verifications.jsonl.
+     */
+    fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
+        val session = _uiState.value.selectedSession ?: return
+        val previousDetections = _uiState.value.detections
+        val original = previousDetections.find { it.id == detectionId } ?: return
+        val now = System.currentTimeMillis()
+
+        // Neue Detection aus der Alternative erzeugen
+        val newDet = DetectionResult(
+            id = java.util.UUID.randomUUID().toString(),
+            scientificName = candidate.scientificName,
+            commonName = candidate.commonName,
+            confidence = candidate.confidence,
+            timestampMs = now,
+            chunkStartSec = original.chunkStartSec,
+            chunkEndSec = original.chunkEndSec,
+            sampleRate = original.sampleRate,
+            latitude = original.latitude,
+            longitude = original.longitude,
+            lastDetectedMs = now
+        )
+        // In-Memory: Original REPLACED, Alternative an Index 0
+        val updated = previousDetections.map { det ->
+            if (det.id == detectionId) det.copy(
+                verificationStatus = VerificationStatus.REPLACED,
+                correctedSpecies = candidate.scientificName,
+                verifiedAtMs = now
+            ) else det
+        }.filter { it.scientificName != candidate.scientificName || it.id == detectionId }
+        _uiState.update { it.copy(detections = listOf(newDet) + updated) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    val veriFile = File(session.sessionDir, "verifications.jsonl")
+                    veriFile.appendText(Json.encodeToString(VerificationEvent(
+                        detectionId = detectionId,
+                        status = VerificationStatus.REPLACED,
+                        correctedSpecies = candidate.scientificName,
+                        verifiedAtMs = now,
+                        actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED
+                    )) + "\n")
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(saveErrorMessage = "Speichern fehlgeschlagen") }
+                    }
+                }
+            }
+        }
     }
 
     override fun onCleared() {

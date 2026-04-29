@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Stop
@@ -44,6 +45,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -258,6 +260,8 @@ private fun CompactLiveLayout(
     onRequestPermission: () -> Unit,
     onRequestLocationPermission: () -> Unit = {}
 ) {
+    var showAddManualDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -290,6 +294,23 @@ private fun CompactLiveLayout(
             PrerollIndicator(uiState = uiState)
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            // "+ Art manuell hinzufuegen" Button (T72)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { showAddManualDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.AddCircle,
+                        contentDescription = "+ Art",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Art")
+                }
+            }
 
             // Detektionsliste (ersetzt SpeciesPlaceholder)
             DetectionList(
@@ -334,6 +355,21 @@ private fun CompactLiveLayout(
             RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
         }
     }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = uiState.currentLatitude,
+            currentLon = uiState.currentLongitude,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
+    }
 }
 
 // =============================================================================
@@ -347,6 +383,8 @@ private fun MediumLiveLayout(
     onRequestPermission: () -> Unit,
     onRequestLocationPermission: () -> Unit = {}
 ) {
+    var showAddManualDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -388,6 +426,20 @@ private fun MediumLiveLayout(
                 .padding(start = 8.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+            // "+ Art"-Button (T72)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { showAddManualDialog = true }) {
+                    Icon(imageVector = Icons.Filled.AddCircle, contentDescription = "+ Art",
+                         modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Art")
+                }
+            }
+
             DetectionList(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
@@ -429,6 +481,21 @@ private fun MediumLiveLayout(
             }
         }
     }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = uiState.currentLatitude,
+            currentLon = uiState.currentLongitude,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
+    }
 }
 
 // =============================================================================
@@ -442,6 +509,8 @@ private fun ExpandedLiveLayout(
     onRequestPermission: () -> Unit,
     onRequestLocationPermission: () -> Unit = {}
 ) {
+    var showAddManualDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -483,6 +552,20 @@ private fun ExpandedLiveLayout(
                 .padding(start = 12.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+            // "+ Art"-Button (T72)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { showAddManualDialog = true }) {
+                    Icon(imageVector = Icons.Filled.AddCircle, contentDescription = "+ Art",
+                         modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Art")
+                }
+            }
+
             DetectionList(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
@@ -524,6 +607,21 @@ private fun ExpandedLiveLayout(
                 RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
             }
         }
+    }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = uiState.currentLatitude,
+            currentLon = uiState.currentLongitude,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
     }
 }
 

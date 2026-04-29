@@ -95,8 +95,8 @@ val appModule = module {
     viewModel { ReferenceViewModel(get(), get()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
-    // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (5→6 get())
-    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), androidContext()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + Context (T69)
+    // T72: +1 Param (SpeciesNameResolver) fuer AddManualDetectionDialog (6→7 get())
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
     viewModel { MapViewModel(get()) }  // SessionManager
