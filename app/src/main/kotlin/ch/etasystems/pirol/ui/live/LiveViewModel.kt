@@ -309,6 +309,11 @@ class LiveViewModel(
                 _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
                 // Aehnlichkeitssuche ausloesen (filtert auf gleiche Art)
                 findSimilar(embedding, topDetection.scientificName)
+                // recentSpecies fuer Marquee-Mode aktualisieren
+                val recent = detectionListState.getDetections()
+                    .take(5)
+                    .map { speciesNameResolver.resolve(it.scientificName) }
+                _uiState.update { it.copy(recentSpecies = recent) }
                 // Periodisch persistieren (alle 10 neue Eintraege)
                 if (embeddingDatabase.size % 10 == 0) {
                     saveEmbeddingDatabase()
@@ -383,7 +388,9 @@ class LiveViewModel(
                 spectrogramMaxDb = savedMaxDb,
                 spectrogramGamma = savedGamma,
                 spectrogramCeilingDb = savedCeilingDb,
-                showTopNCandidates = savedShowTopN
+                showTopNCandidates = savedShowTopN,
+                similarEnabled = appPreferences.similarEnabled,
+                similarLines = appPreferences.similarLines
             )
         }
 
@@ -924,13 +931,23 @@ class LiveViewModel(
      * Ergebnis wird in LiveUiState.similarMatches geschrieben.
      */
     private suspend fun findSimilar(embedding: FloatArray, speciesFilter: String? = null) {
+        val lines = appPreferences.similarLines
+        val enabled = appPreferences.similarEnabled
+        if (!enabled || lines == 0f) {
+            _uiState.update { it.copy(similarMatches = emptyList()) }
+            return
+        }
+        val fetchN = maxOf(20, (lines * 4).toInt())
         val filter = speciesFilter?.let { setOf(it) }
-        val matches = embeddingDatabase.search(
-            query = embedding,
-            topN = 5,
-            speciesFilter = filter
-        )
-        _uiState.update { it.copy(similarMatches = matches) }
+        val raw = embeddingDatabase.search(query = embedding, topN = fetchN, speciesFilter = filter)
+        val displayN = if (lines < 1f) 5 else lines.toInt()
+        val deduped = raw
+            .groupBy { it.species }
+            .map { (_, group) -> group.maxByOrNull { it.similarity }!! }
+            .sortedByDescending { it.similarity }
+            .take(displayN)
+            .mapIndexed { i, m -> m.copy(rank = i + 1) }
+        _uiState.update { it.copy(similarMatches = deduped) }
     }
 
     // --- Embedding-DB Persistenz ---
