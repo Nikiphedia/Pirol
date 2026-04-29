@@ -112,6 +112,10 @@ fun SettingsScreen(
     var clusterRadiusM by remember { mutableIntStateOf(appPreferences.clusterRadiusM) }
     var clusterTimeWindowMin by remember { mutableIntStateOf(appPreferences.clusterTimeWindowMin) }
 
+    // Aehnliche Arten State (T75)
+    var similarEnabled by remember { mutableStateOf(appPreferences.similarEnabled) }
+    var similarLines by remember { mutableFloatStateOf(appPreferences.similarLines) }
+
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
     var selectedTopKThreshold by remember { mutableFloatStateOf(appPreferences.topKThreshold) }
@@ -1316,6 +1320,55 @@ fun SettingsScreen(
             onValueChangeFinished = { appPreferences.clusterTimeWindowMin = clusterTimeWindowMin },
             valueRange = 0f..30f,
             enabled = clusterEnabled
+        )
+
+        // --- Aehnliche Arten (T75) ---
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Aehnliche Arten", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Aehnliche Arten anzeigen", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Embedding-Aehnlichkeitssuche aktivieren",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = similarEnabled,
+                onCheckedChange = { similarEnabled = it; appPreferences.similarEnabled = it }
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val linesLabel = when {
+            similarLines == 0f -> "0 (aus)"
+            similarLines == 0.5f -> "0.5 (Laufschrift)"
+            else -> similarLines.toInt().toString()
+        }
+        Text(
+            text = "Anzahl Zeilen: $linesLabel",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Slider(
+            value = similarLines,
+            onValueChange = { similarLines = it; appPreferences.similarLines = it },
+            valueRange = 0f..10f,
+            steps = 19,
+            enabled = similarEnabled
+        )
+        Text(
+            text = "0 = aus  •  0.5 = Laufschrift letzte 5  •  1–10 = Liste",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         if (entries.isNotEmpty()) {
