@@ -16,6 +16,7 @@ import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.EmbeddingExtractor
 import ch.etasystems.pirol.ml.MfccExtractor
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistManager
@@ -86,6 +87,9 @@ val appModule = module {
 
     // AtlasCodeRepository — Singleton, laedt CH-Atlascodes aus assets/atlas_codes.json (T68)
     single { AtlasCodeRepository(androidContext()) }
+
+    // PhenologyRepository — Singleton, laedt species_phenology.json (T74)
+    single { PhenologyRepository(androidContext()) }
 
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())

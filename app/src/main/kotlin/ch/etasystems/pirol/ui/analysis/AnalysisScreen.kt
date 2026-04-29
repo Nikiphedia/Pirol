@@ -230,6 +230,12 @@ private fun SessionDetailView(
     val session = state.selectedSession ?: return
     val context = LocalContext.current
 
+    // T74: Phenology
+    val phenologyRepository: ch.etasystems.pirol.ml.PhenologyRepository = org.koin.compose.koinInject()
+    val appPrefsForPhenology: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
+    val phenologyEnabled = appPrefsForPhenology.phenologyEnabled
+    val currentMonth = java.time.LocalDate.now().monthValue
+
     // Raven-Export Feedback
     LaunchedEffect(state.ravenExportMessage) {
         state.ravenExportMessage?.let { msg ->
@@ -376,8 +382,12 @@ private fun SessionDetailView(
                     items = state.detections,
                     key = { it.id }
                 ) { detection ->
+                    val speciesKey = detection.scientificName.replace(' ', '_')
                     SpeciesCard(
                         detection = detection,
+                        phenologyEnabled = phenologyEnabled,
+                        isInSeason = phenologyRepository.isInSeason(speciesKey, currentMonth),
+                        rarityScore = phenologyRepository.rarity(speciesKey),
                         onConfirm = {
                             viewModel.verifyDetection(
                                 detection.id,

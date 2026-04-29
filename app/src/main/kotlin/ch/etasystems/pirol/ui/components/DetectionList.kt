@@ -30,6 +30,7 @@ import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
+import ch.etasystems.pirol.ml.PhenologyRepository
 import java.io.File
 
 /**
@@ -69,6 +70,10 @@ fun DetectionList(
     onGetMemoTargetFile: ((detectionId: String) -> File?)? = null,
     onGetMemoTargetUri: ((detectionId: String) -> Uri?)? = null,
     onSnackbar: (String) -> Unit = {},
+    // T74: Phenology
+    phenologyEnabled: Boolean = false,
+    phenologyRepository: PhenologyRepository? = null,
+    currentMonth: Int = java.time.LocalDate.now().monthValue,
     modifier: Modifier = Modifier
 ) {
     // version lesen => Recomposition bei Aenderung
@@ -143,6 +148,9 @@ fun DetectionList(
                     visible = true,
                     enter = slideInVertically(initialOffsetY = { -it / 2 }) + fadeIn()
                 ) {
+                    val speciesKey = detection.scientificName.replace(' ', '_')
+                    val isInSeason = phenologyRepository?.isInSeason(speciesKey, currentMonth) ?: true
+                    val rarityScore = phenologyRepository?.rarity(speciesKey) ?: 0.0f
                     SpeciesCard(
                         detection = detection,
                         onConfirm = onConfirm?.let { callback -> { callback(detection.id) } },
@@ -161,6 +169,10 @@ fun DetectionList(
                             detection.scientificName.replace(' ', '_')
                         ),
                         showTopNCandidates = showTopNCandidates,
+                        // T74: Phenology
+                        phenologyEnabled = phenologyEnabled,
+                        isInSeason = isInSeason,
+                        rarityScore = rarityScore,
                         // T69: Voice-Memo
                         voiceMemoRecorder = voiceMemoRecorder,
                         memoAudioPlayer = memoAudioPlayer,
