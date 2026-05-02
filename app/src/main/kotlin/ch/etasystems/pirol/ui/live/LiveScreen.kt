@@ -331,6 +331,8 @@ private fun CompactLiveLayout(
                 memoAudioPlayer = viewModel.memoAudioPlayer,
                 onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
                 onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -461,6 +463,8 @@ private fun MediumLiveLayout(
                 memoAudioPlayer = viewModel.memoAudioPlayer,
                 onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
                 onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -590,6 +594,8 @@ private fun ExpandedLiveLayout(
                 memoAudioPlayer = viewModel.memoAudioPlayer,
                 onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
                 onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 

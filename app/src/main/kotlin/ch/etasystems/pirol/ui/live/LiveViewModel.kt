@@ -142,6 +142,9 @@ class LiveViewModel(
     // Serialisiert Verifikations-IO: verhindert Race bei Schnell-Taps (AC6)
     private val verificationMutex = Mutex()
 
+    // T73: Referenz auf lockedSpecies-StateFlow in DetectionListState (fuer toggleLock)
+    private val lockedSpecies = detectionListState.lockedSpecies
+
     // --- Oeffentlicher State ---
     private val _uiState = MutableStateFlow(LiveUiState())
     val uiState: StateFlow<LiveUiState> = _uiState.asStateFlow()
@@ -250,6 +253,10 @@ class LiveViewModel(
             // T70: Cluster-Algorithmus — addOrCluster statt addDetections
             val newDetections = mutableListOf<DetectionResult>()
             for (det in sessionRelativeDetections) {
+                // T73: gesperrte Art → Detection verwerfen (AC3)
+                val speciesKey = det.scientificName.replace(' ', '_')
+                if (detectionListState.isLocked(speciesKey)) continue
+
                 val result = detectionListState.addOrCluster(
                     det,
                     appPreferences.clusterEnabled,
@@ -695,6 +702,48 @@ class LiveViewModel(
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         detectionListState.updateDetection(current)
+                        _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Sperrt oder entsperrt eine Art (T73).
+     * Gesperrte Art: weitere Inference-Detektionen dieser Art werden unterdrueckt (AC3).
+     * Persistiert lockSpecies-Flag + loggt ACTION_SPECIES_LOCKED (AC5/AC7).
+     */
+    fun toggleLock(detectionId: String) {
+        val det = detectionListState.getDetections().find { it.id == detectionId } ?: return
+        val updated = det.copy(lockSpecies = !det.lockSpecies)
+        detectionListState.updateDetection(updated)
+
+        val speciesKey = det.scientificName.replace(' ', '_')
+        val newLocked = if (updated.lockSpecies) lockedSpecies.value + speciesKey
+                        else lockedSpecies.value - speciesKey
+        lockedSpecies.value = newLocked
+
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    sessionManager.replaceDetection(updated)
+                    sessionManager.appendVerification(
+                        VerificationEvent(
+                            detectionId = detectionId,
+                            status = det.verificationStatus,
+                            verifiedAtMs = System.currentTimeMillis(),
+                            actionType = VerificationEvent.ACTION_SPECIES_LOCKED,
+                            newValue = updated.lockSpecies.toString()
+                        )
+                    )
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        // Rollback: State zurueck auf vorherigen Wert
+                        detectionListState.updateDetection(det)
+                        lockedSpecies.value = if (det.lockSpecies) lockedSpecies.value + speciesKey
+                                              else lockedSpecies.value - speciesKey
                         _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
                     }
                 }
