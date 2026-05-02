@@ -174,6 +174,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_cluster_timewindow_min", 5)
         set(value) = prefs.edit().putInt("pirol_cluster_timewindow_min", value).apply()
 
+    // --- Saisonalitaet & Seltenheit (T74) ---
+    var phenologyEnabled: Boolean
+        get() = prefs.getBoolean("pirol_phenology_enabled", false)
+        set(value) = prefs.edit().putBoolean("pirol_phenology_enabled", value).apply()
+
     // --- Auto-Loeschen kurzer leerer Sessions (T60) ---
     var autoDeleteShortEmptySessions: Boolean
         get() = prefs.getBoolean("pirol_autodelete_short_empty", true)

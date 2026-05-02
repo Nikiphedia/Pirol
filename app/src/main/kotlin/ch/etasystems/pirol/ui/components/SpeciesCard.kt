@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
@@ -115,6 +116,10 @@ fun SpeciesCard(
     atlasCodes: List<AtlasCode> = emptyList(),
     isWatchlisted: Boolean = false,
     showTopNCandidates: Boolean = true,
+    // T74: Phenology
+    phenologyEnabled: Boolean = false,
+    isInSeason: Boolean = true,
+    rarityScore: Float = 0.0f,
     // T69: Voice-Memo
     voiceMemoRecorder: VoiceMemoRecorder? = null,
     memoAudioPlayer: AudioPlayer? = null,
@@ -236,6 +241,27 @@ fun SpeciesCard(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
                         )
+                    }
+                    // Phenology-Badges (T74)
+                    if (phenologyEnabled) {
+                        if (!isInSeason) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Badge(
+                                containerColor = androidx.compose.ui.graphics.Color(0xFFFF9800),
+                                contentColor = androidx.compose.ui.graphics.Color.White
+                            ) {
+                                Text("Saison-untypisch", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        if (rarityScore > 0.7f) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = "Selten",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                 }
                 Text(

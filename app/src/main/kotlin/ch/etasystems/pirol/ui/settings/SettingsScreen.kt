@@ -68,6 +68,7 @@ import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistEntry
@@ -115,6 +116,11 @@ fun SettingsScreen(
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
     var selectedTopKThreshold by remember { mutableFloatStateOf(appPreferences.topKThreshold) }
+
+    // Phenology State (T74)
+    val phenologyRepository: PhenologyRepository = koinInject()
+    var phenologyEnabled by remember { mutableStateOf(appPreferences.phenologyEnabled) }
+    var phenologyEntryCount by remember { mutableIntStateOf(phenologyRepository.entryCount()) }
 
     // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
     var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -1417,6 +1423,49 @@ fun SettingsScreen(
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Art hinzufuegen")
+        }
+
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Saisonalitaet & Seltenheit (T74) ---
+        Text("Saisonalitaet & Seltenheit", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Saison-/Seltenheits-Hervorhebung aktiv", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = if (phenologyEntryCount == 0) "Datei leer — kein Effekt"
+                           else "$phenologyEntryCount Arten geladen",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = phenologyEnabled,
+                onCheckedChange = {
+                    phenologyEnabled = it
+                    appPreferences.phenologyEnabled = it
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(onClick = {
+            scope.launch {
+                phenologyRepository.reload()
+                phenologyEntryCount = phenologyRepository.entryCount()
+                Toast.makeText(context, "Phenology-JSON neu geladen", Toast.LENGTH_SHORT).show()
+            }
+        }) {
+            Icon(Icons.Filled.Refresh, contentDescription = null)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Phenology-JSON neu laden")
         }
     }
 
