@@ -47,6 +47,10 @@ data class LiveUiState(
     val similarMatches: List<EmbeddingDatabase.EmbeddingMatch> = emptyList(),
     val isEmbeddingAvailable: Boolean = false,
     val embeddingDbSize: Int = 0,
+    // Aehnliche Arten Einstellungen (T75)
+    val similarEnabled: Boolean = true,
+    val similarLines: Float = 3.0f,
+    val recentSpecies: List<String> = emptyList(),
     // GPS-State (T13)
     val currentLatitude: Double? = null,
     val currentLongitude: Double? = null,

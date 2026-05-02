@@ -179,6 +179,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_phenology_enabled", false)
         set(value) = prefs.edit().putBoolean("pirol_phenology_enabled", value).apply()
 
+    // --- Aehnliche Arten (T75) ---
+    var similarEnabled: Boolean
+        get() = prefs.getBoolean("pirol_similar_enabled", true)
+        set(value) = prefs.edit().putBoolean("pirol_similar_enabled", value).apply()
+
+    /** 0.0=aus, 0.5=Laufschrift letzte 5, 1.0–10.0=Liste mit n Zeilen */
+    var similarLines: Float
+        get() = prefs.getFloat("pirol_similar_lines", 3.0f)
+        set(value) = prefs.edit().putFloat("pirol_similar_lines", value).apply()
+
     // --- Auto-Loeschen kurzer leerer Sessions (T60) ---
     var autoDeleteShortEmptySessions: Boolean
         get() = prefs.getBoolean("pirol_autodelete_short_empty", true)
