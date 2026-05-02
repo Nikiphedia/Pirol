@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Edit
@@ -404,21 +405,22 @@ fun SpeciesCard(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Bestaetigen (T52: FilledIconButton 56dp)
+                    // Bestaetigen (T52: FilledIconButton 56dp; T78: bei CONFIRMED zu Undo wechseln)
                     if (onConfirm != null) {
+                        val isConfirmed = detection.verificationStatus == VerificationStatus.CONFIRMED
                         FilledIconButton(
-                            onClick = onConfirm,
+                            onClick = if (isConfirmed) (onMarkUncertain ?: onConfirm) else onConfirm,
                             modifier = Modifier.size(56.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
+                                containerColor = if (isConfirmed)
                                     Color(0xFF4CAF50) else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
+                                contentColor = if (isConfirmed)
                                     Color.White else MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = "Bestaetigen",
+                                imageVector = if (isConfirmed) Icons.AutoMirrored.Filled.Undo else Icons.Filled.Check,
+                                contentDescription = if (isConfirmed) "Bestaetigung rueckgaengig" else "Bestaetigen",
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -498,7 +500,7 @@ fun SpeciesCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         IconButton(
                             onClick = { showEditDialog = true },
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(56.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.List,

@@ -198,6 +198,47 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_autodelete_min_seconds", 10)
         set(value) = prefs.edit().putInt("pirol_autodelete_min_seconds", value).apply()
 
+    // --- Raven-Export Felder (T78) ---
+    var ravenFieldBeginTime: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_begin_time", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_begin_time", value).apply()
+
+    var ravenFieldEndTime: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_end_time", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_end_time", value).apply()
+
+    var ravenFieldLowFreq: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_low_freq", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_low_freq", value).apply()
+
+    var ravenFieldHighFreq: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_high_freq", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_high_freq", value).apply()
+
+    var ravenFieldSpecies: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_species", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_species", value).apply()
+
+    var ravenFieldConfidence: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_confidence", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_confidence", value).apply()
+
+    var ravenFieldBeginFile: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_begin_file", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_begin_file", value).apply()
+
+    var ravenFieldBeginDateTime: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_begin_date_time", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_begin_date_time", value).apply()
+
+    var ravenFieldLat: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_lat", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_lat", value).apply()
+
+    var ravenFieldLon: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_lon", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_lon", value).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)
