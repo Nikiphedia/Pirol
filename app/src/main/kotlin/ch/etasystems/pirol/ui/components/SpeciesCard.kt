@@ -543,22 +543,6 @@ fun SpeciesCard(
                         }
                     }
 
-                    // Zum Chunk springen (T39)
-                    if (onJumpToChunk != null) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = onJumpToChunk,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.MyLocation,
-                                contentDescription = "Zum Chunk springen",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
                     // Play-Button (T48): ab chunkStartSec abspielen
                     if (onPlay != null) {
                         Spacer(modifier = Modifier.width(4.dp))
