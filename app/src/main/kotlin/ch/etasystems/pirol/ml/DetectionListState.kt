@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ml
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.pow
@@ -52,6 +53,27 @@ class DetectionListState(
     // Compose-Recomposition-Trigger
     private val _version = mutableIntStateOf(0)
     val version: State<Int> = _version
+
+    // T73: Gesperrte Arten (speciesKey = scientificName.replace(' ', '_'))
+    // StateFlow damit LiveViewModel und Inference-Loop thread-safe lesen koennen.
+    val lockedSpecies = MutableStateFlow(emptySet<String>())
+
+    /** true wenn diese Art gesperrt ist — prueft gegen lockedSpecies-Set */
+    fun isLocked(speciesKey: String): Boolean =
+        speciesKey in lockedSpecies.value
+
+    /**
+     * Scannt alle aktuellen Detections und baut lockedSpecies neu auf.
+     * Aufruf: nach Session-Load (persistierter Lock-Status rekonstruieren, T73-AC7).
+     */
+    @Synchronized
+    fun rebuildLockedSpecies() {
+        val locked = detections
+            .filter { it.lockSpecies }
+            .map { it.scientificName.replace(' ', '_') }
+            .toSet()
+        lockedSpecies.value = locked
+    }
 
     /**
      * Fuegt neue Detektionen hinzu (mit Deduplizierung pro Art).
@@ -119,10 +141,15 @@ class DetectionListState(
         _version.intValue++
     }
 
-    /** Alle Detektionen (neueste zuerst) */
+    /**
+     * Alle Detektionen: gesperrte Arten zuerst, dann nach lastSeenAtMs desc (T73-AC6).
+     */
     @Synchronized
     fun getDetections(): List<DetectionResult> {
-        return detections.toList()
+        return detections.sortedWith(
+            compareByDescending<DetectionResult> { it.lockSpecies }
+                .thenByDescending { it.lastSeenAtMs }
+        )
     }
 
     /** Top-N nach Confidence (fuer kompakte Anzeige, z.B. Overlay) */
