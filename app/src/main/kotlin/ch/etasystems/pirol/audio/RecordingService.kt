@@ -167,6 +167,16 @@ class RecordingService : Service() {
     }
 
     /**
+     * Preroll-Engine stoppen. Nur moeglich wenn keine Aufnahme laeuft (F5).
+     */
+    fun stopPreroll() {
+        if (prerollActive && !_isRecording.value) {
+            engine.stop()
+            prerollActive = false
+        }
+    }
+
+    /**
      * Aufnahme starten.
      * Falls Preroll aktiv: Engine laeuft bereits, nur Foreground + Chunk-Emitter starten.
      * Falls kein Preroll: Engine normal starten.
