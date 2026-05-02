@@ -88,4 +88,26 @@ class SpeciesNameResolver(private val context: Context) {
         val key = scientificName.replace(' ', '_')
         return namesMap[key] ?: emptyMap()
     }
+
+    /**
+     * Sucht Arten nach Freitext (DE-Name + wissenschaftlicher Name, case-insensitive).
+     * Gibt max. 20 Treffer zurueck: List<Pair<scientificName-mit-Leerzeichen, commonName>>.
+     * Mindestlaenge der Anfrage: 2 Zeichen (sonst leer).
+     */
+    fun searchSpecies(query: String): List<Pair<String, String>> {
+        if (query.length < 2) return emptyList()
+        val q = query.lowercase()
+        return namesMap.entries
+            .filter { (sciName, names) ->
+                sciName.replace('_', ' ').lowercase().contains(q) ||
+                names[language]?.lowercase()?.contains(q) == true ||
+                names["en"]?.lowercase()?.contains(q) == true
+            }
+            .map { (sciName, names) ->
+                val commonName = names[language] ?: names["en"] ?: sciName.replace('_', ' ')
+                sciName.replace('_', ' ') to commonName
+            }
+            .sortedBy { it.second }
+            .take(20)
+    }
 }

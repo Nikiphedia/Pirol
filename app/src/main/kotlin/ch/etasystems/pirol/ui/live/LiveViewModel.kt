@@ -704,6 +704,58 @@ class LiveViewModel(
         sessionManager.currentSessionDoc?.let { sessionManager.memoDocFile(it, detectionId)?.uri }
 
     /**
+     * Fuegt eine Art manuell zur Detektions-Liste hinzu (T72).
+     * Bypass der Cluster-Logik, manualEntry=true, confidence=1.0.
+     */
+    fun addManualDetection(
+        speciesKey: String,
+        count: Int = 1,
+        atlasCode: String? = null,
+        note: String? = null,
+        lat: Double? = _uiState.value.currentLatitude,
+        lon: Double? = _uiState.value.currentLongitude
+    ) {
+        val now = System.currentTimeMillis()
+        val det = DetectionResult(
+            id = java.util.UUID.randomUUID().toString(),
+            scientificName = speciesKey,
+            commonName = speciesNameResolver.resolve(speciesKey),
+            confidence = 1.0f,
+            timestampMs = now,
+            chunkStartSec = 0f,
+            chunkEndSec = 0f,
+            sampleRate = 0,
+            latitude = lat,
+            longitude = lon,
+            firstSeenAtMs = now,
+            lastSeenAtMs = now,
+            lastDetectedMs = now,
+            count = count,
+            atlasCode = atlasCode,
+            note = note,
+            manualEntry = true
+        )
+        detectionListState.addManualDetection(det)
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            sessionManager.appendDetections(listOf(det))
+            sessionManager.appendVerification(
+                VerificationEvent(
+                    detectionId = det.id,
+                    status = VerificationStatus.CONFIRMED,
+                    verifiedAtMs = now,
+                    actionType = VerificationEvent.ACTION_MANUAL_ADD,
+                    newValue = "species:$speciesKey|count:$count"
+                )
+            )
+        }
+    }
+
+    /** Artsuche fuer AddManualDetectionDialog (T72). */
+    fun searchSpecies(query: String): List<Pair<String, String>> =
+        speciesNameResolver.searchSpecies(query)
+
+    /**
      * FAB-Tap mit 500 ms Debounce (T52).
      * @return true wenn der Tap verarbeitet werden soll, false wenn gedebounct.
      */
@@ -746,7 +798,8 @@ class LiveViewModel(
                                 detectionId = detectionId,
                                 status = VerificationStatus.REPLACED,
                                 correctedSpecies = candidate.scientificName,
-                                verifiedAtMs = System.currentTimeMillis()
+                                verifiedAtMs = System.currentTimeMillis(),
+                                actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED  // T72
                             )
                         )
                     } catch (e: Exception) {

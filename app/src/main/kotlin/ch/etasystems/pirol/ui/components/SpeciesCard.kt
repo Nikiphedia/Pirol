@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -224,6 +225,16 @@ fun SpeciesCard(
                             contentDescription = "Watchlist",
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    // Manuell-Badge (T72): Hand-Icon bei manuell hinzugefuegten Detektionen
+                    if (detection.manualEntry) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.PanTool,
+                            contentDescription = "Manuell hinzugefuegt",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }

@@ -313,6 +313,17 @@ class DetectionListState(
         }
     }
 
+    /**
+     * Fuegt eine manuelle Detection direkt ein — OHNE Cluster-Logik und OHNE Dedup.
+     * User-Entscheidung ueberschreibt automatische Heuristik (T72).
+     */
+    @Synchronized
+    fun addManualDetection(detection: DetectionResult) {
+        detections.add(0, detection)
+        while (detections.size > maxDetections) detections.removeAt(detections.lastIndex)
+        _version.intValue++
+    }
+
     /** Anzahl aktuell gespeicherter Detektionen */
     val size: Int
         @Synchronized get() = detections.size
