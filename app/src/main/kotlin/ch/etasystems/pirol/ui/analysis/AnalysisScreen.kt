@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
@@ -50,10 +51,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.ml.VerificationStatus
+import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import ch.etasystems.pirol.ui.components.SessionCard
 import ch.etasystems.pirol.ui.components.SpeciesCard
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
@@ -229,6 +232,7 @@ private fun SessionDetailView(
 ) {
     val session = state.selectedSession ?: return
     val context = LocalContext.current
+    var showAddManualDialog by remember { mutableStateOf(false) }
 
     // Raven-Export Feedback
     LaunchedEffect(state.ravenExportMessage) {
@@ -342,12 +346,26 @@ private fun SessionDetailView(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Detektionsliste
-        Text(
-            text = "Detektionen (${state.detections.size}):",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // Detektionsliste — Header mit "+ Art"-Button (T72)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Detektionen (${state.detections.size}):",
+                style = MaterialTheme.typography.titleSmall
+            )
+            TextButton(onClick = { showAddManualDialog = true }) {
+                Icon(
+                    imageVector = Icons.Filled.AddCircle,
+                    contentDescription = "+ Art",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("+ Art")
+            }
+        }
 
         if (state.detections.isEmpty()) {
             Text(
@@ -406,6 +424,9 @@ private fun SessionDetailView(
                             viewModel.editDetection(detection.id, count, atlasCode, note, memoFile)
                         },
                         atlasCodes = viewModel.atlasCodes,
+                        onSelectAlternative = { candidate ->
+                            viewModel.selectAlternative(detection.id, candidate)
+                        },
                         // T69: Voice-Memo
                         voiceMemoRecorder = viewModel.voiceMemoRecorder,
                         memoAudioPlayer = viewModel.memoAudioPlayer,
@@ -415,6 +436,21 @@ private fun SessionDetailView(
                 }
             }
         }
+    }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = null,
+            currentLon = null,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
     }
 }
 
