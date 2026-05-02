@@ -391,13 +391,21 @@ private fun SessionDetailView(
                 }
             }
 
+            // T73: Lock-First sortieren, dann nach lastSeenAtMs desc (AC6)
+            val sortedDetections = remember(state.detections) {
+                state.detections.sortedWith(
+                    compareByDescending<ch.etasystems.pirol.ml.DetectionResult> { it.lockSpecies }
+                        .thenByDescending { it.lastSeenAtMs }
+                )
+            }
+
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(
-                    items = state.detections,
+                    items = sortedDetections,
                     key = { it.id }
                 ) { detection ->
                     val speciesKey = detection.scientificName.replace(' ', '_')
@@ -442,6 +450,8 @@ private fun SessionDetailView(
                         memoAudioPlayer = viewModel.memoAudioPlayer,
                         onGetMemoTargetFile = { viewModel.getMemoTargetFile(detection.id) },
                         onGetMemoTargetUri = { viewModel.getMemoTargetUri(detection.id) },
+                        // T73: Lock-Species
+                        onToggleLock = { viewModel.toggleLock(detection.id) },
                     )
                 }
             }

@@ -74,6 +74,8 @@ fun DetectionList(
     phenologyEnabled: Boolean = false,
     phenologyRepository: PhenologyRepository? = null,
     currentMonth: Int = java.time.LocalDate.now().monthValue,
+    // T73: Lock-Species
+    onToggleLock: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // version lesen => Recomposition bei Aenderung
@@ -179,6 +181,8 @@ fun DetectionList(
                         onGetMemoTargetFile = onGetMemoTargetFile?.let { cb -> { cb(detection.id) } },
                         onGetMemoTargetUri = onGetMemoTargetUri?.let { cb -> { cb(detection.id) } },
                         onSnackbar = onSnackbar,
+                        // T73: Lock-Species
+                        onToggleLock = onToggleLock?.let { cb -> { cb(detection.id) } },
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }

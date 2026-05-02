@@ -4,8 +4,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,8 +30,12 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -98,6 +104,7 @@ import java.util.Locale
  * @param onCorrect Callback mit korrigiertem Artnamen
  * @param modifier Modifier
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SpeciesCard(
     detection: DetectionResult,
@@ -126,6 +133,7 @@ fun SpeciesCard(
     onGetMemoTargetFile: (() -> File?)? = null,
     onGetMemoTargetUri: (() -> Uri?)? = null,
     onSnackbar: (String) -> Unit = {},
+    onToggleLock: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val confidencePercent = (detection.confidence * 100).toInt()
@@ -173,6 +181,9 @@ fun SpeciesCard(
     // Kandidaten aufklappbar (T27) — rememberSaveable stabil bei Re-Sort (T52)
     var candidatesExpanded by rememberSaveable(key = detection.id) { mutableStateOf(false) }
 
+    // T73: Lock-Kontext-Menue (Long-Press)
+    var showLockMenu by remember { mutableStateOf(false) }
+
     // Haptisches Feedback (T52: ✎ und Kandidaten-Tap)
     val haptic = LocalHapticFeedback.current
 
@@ -183,9 +194,20 @@ fun SpeciesCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .alpha(cardAlpha),
+            .alpha(cardAlpha)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showLockMenu = true
+                }
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            // T73: surfaceVariant-Hintergrund fuer gesperrte Arten (AC2)
+            containerColor = if (detection.lockSpecies)
+                MaterialTheme.colorScheme.surfaceVariant
+            else
+                MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         border = effectiveBorder
@@ -262,6 +284,16 @@ fun SpeciesCard(
                                 modifier = Modifier.size(14.dp)
                             )
                         }
+                    }
+                    // Lock-Badge (T73): letzte Position in der Badge-Row
+                    if (detection.lockSpecies) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = "Gesperrt",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
                 Text(
@@ -620,6 +652,29 @@ fun SpeciesCard(
                             }
                         }
                     }
+                }
+            }
+
+            // T73: Long-Press Kontext-Menue — Sperren / Entsperren (AC1)
+            if (onToggleLock != null) {
+                DropdownMenu(
+                    expanded = showLockMenu,
+                    onDismissRequest = { showLockMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (detection.lockSpecies) "Entsperren" else "Sperren") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (detection.lockSpecies) Icons.Filled.LockOpen
+                                              else Icons.Filled.Lock,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showLockMenu = false
+                            onToggleLock()
+                        }
+                    )
                 }
             }
         }

@@ -801,6 +801,67 @@ class AnalysisViewModel(
     }
 
     /**
+     * Sperrt oder entsperrt eine Art im Analyse-Tab (T73).
+     * Persistiert lockSpecies-Flag + loggt ACTION_SPECIES_LOCKED (AC5/AC7).
+     * Kein lockedSpecies-StateFlow noetig: AnalysisViewModel hat keine Inference-Pipeline.
+     * Direktschreib-Muster analog zu editDetection() (kein sessionManager.replaceDetection).
+     */
+    fun toggleLock(detectionId: String) {
+        val session = _uiState.value.selectedSession ?: return
+        val previousDetections = _uiState.value.detections
+        val det = previousDetections.find { it.id == detectionId } ?: return
+        val updated = det.copy(lockSpecies = !det.lockSpecies)
+
+        // Optimistisches In-Memory-Update
+        _uiState.update {
+            it.copy(detections = previousDetections.map { d -> if (d.id == detectionId) updated else d })
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    // detections.jsonl: Zeile ersetzen (temp + rename fuer Atomaritaet)
+                    val detFile = File(session.sessionDir, "detections.jsonl")
+                    if (detFile.exists()) {
+                        val encodedLine = Json.encodeToString(updated)
+                        val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
+                        val lines = detFile.readLines().map { raw ->
+                            if (raw.isBlank()) raw
+                            else try {
+                                if (lenient.decodeFromString<DetectionResult>(raw).id == detectionId) encodedLine
+                                else raw
+                            } catch (_: Exception) { raw }
+                        }
+                        val tmp = File(session.sessionDir, "detections.jsonl.tmp")
+                        tmp.writeText(if (lines.isEmpty()) "" else lines.joinToString("\n") + "\n")
+                        tmp.renameTo(detFile)
+                    }
+                    // verifications.jsonl: SPECIES_LOCKED-Event appenden
+                    val veriFile = File(session.sessionDir, "verifications.jsonl")
+                    veriFile.appendText(
+                        Json.encodeToString(VerificationEvent(
+                            detectionId = detectionId,
+                            status = det.verificationStatus,
+                            verifiedAtMs = System.currentTimeMillis(),
+                            actionType = VerificationEvent.ACTION_SPECIES_LOCKED,
+                            newValue = updated.lockSpecies.toString()
+                        )) + "\n"
+                    )
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        _uiState.update {
+                            it.copy(
+                                detections = previousDetections,
+                                saveErrorMessage = "Speichern fehlgeschlagen"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative (T72, Analyse-Tab).
      * Analog zu LiveViewModel.selectAlternative, aber direktes Schreiben in verifications.jsonl.
      */
