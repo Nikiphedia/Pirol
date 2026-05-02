@@ -599,7 +599,20 @@ class SessionManager(
                 val detections = loadDetectionsWithVerifications(sessionDirForExport)
                 val selectionsFile = File(sessionDirForExport, "recording.selections.txt")
                 // T57-B3: sessionStartedAt + recordingSegments fuer Begin Date Time + Begin File
-                RavenExporter.export(selectionsFile, detections, metadata.startedAt, updatedMetadata.recordingSegments)
+                // T78: Felder-Selektion via AppPreferences
+                val autoEnabledFields: Set<String> = buildSet {
+                    if (appPreferences.ravenFieldBeginFile)      add(RavenExporter.FIELD_BEGIN_FILE)
+                    if (appPreferences.ravenFieldBeginTime)      add(RavenExporter.FIELD_BEGIN_TIME)
+                    if (appPreferences.ravenFieldEndTime)        add(RavenExporter.FIELD_END_TIME)
+                    if (appPreferences.ravenFieldLowFreq)        add(RavenExporter.FIELD_LOW_FREQ)
+                    if (appPreferences.ravenFieldHighFreq)       add(RavenExporter.FIELD_HIGH_FREQ)
+                    if (appPreferences.ravenFieldBeginDateTime)  add(RavenExporter.FIELD_BEGIN_DATE_TIME)
+                    if (appPreferences.ravenFieldSpecies)        add(RavenExporter.FIELD_SPECIES)
+                    if (appPreferences.ravenFieldConfidence)     add(RavenExporter.FIELD_CONFIDENCE)
+                    if (appPreferences.ravenFieldLat)            add(RavenExporter.FIELD_LAT)
+                    if (appPreferences.ravenFieldLon)            add(RavenExporter.FIELD_LON)
+                }
+                RavenExporter.export(selectionsFile, detections, metadata.startedAt, updatedMetadata.recordingSegments, autoEnabledFields)
                 Log.i(TAG, "Auto-Raven-Export: ${selectionsFile.name} (${detections.size} Detektionen)")
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
@@ -897,9 +910,13 @@ class SessionManager(
     /**
      * Schreibt eine Raven Selection Table neben recording.wav (fuer manuellen Re-Export).
      * Laedt session.json fuer startedAt + recordingSegments (T57-B3).
+     * T78: appPreferences optional — steuert welche Felder exportiert werden.
      * @return Pfad zur erzeugten Datei oder null wenn keine Aufnahme vorhanden
      */
-    suspend fun exportRavenSelectionTable(sessionDir: File): File? = withContext(Dispatchers.IO) {
+    suspend fun exportRavenSelectionTable(
+        sessionDir: File,
+        appPreferences: AppPreferences? = null
+    ): File? = withContext(Dispatchers.IO) {
         getRecordingFile(sessionDir) ?: return@withContext null
         val outputFile = File(sessionDir, "recording.selections.txt")
         val detections = loadDetectionsWithVerifications(sessionDir)
@@ -909,7 +926,22 @@ class SessionManager(
             jsonLenient.decodeFromString<SessionMetadata>(jsonText)
         }.getOrNull()
         val startedAt = meta?.startedAt ?: "1970-01-01T00:00:00+00:00"
-        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments)
+        // T78: enabledFields aus AppPreferences bauen; null = alle Felder (Fallback)
+        val enabledFields: Set<String>? = appPreferences?.let { p ->
+            buildSet {
+                if (p.ravenFieldBeginFile)      add(RavenExporter.FIELD_BEGIN_FILE)
+                if (p.ravenFieldBeginTime)      add(RavenExporter.FIELD_BEGIN_TIME)
+                if (p.ravenFieldEndTime)        add(RavenExporter.FIELD_END_TIME)
+                if (p.ravenFieldLowFreq)        add(RavenExporter.FIELD_LOW_FREQ)
+                if (p.ravenFieldHighFreq)       add(RavenExporter.FIELD_HIGH_FREQ)
+                if (p.ravenFieldBeginDateTime)  add(RavenExporter.FIELD_BEGIN_DATE_TIME)
+                if (p.ravenFieldSpecies)        add(RavenExporter.FIELD_SPECIES)
+                if (p.ravenFieldConfidence)     add(RavenExporter.FIELD_CONFIDENCE)
+                if (p.ravenFieldLat)            add(RavenExporter.FIELD_LAT)
+                if (p.ravenFieldLon)            add(RavenExporter.FIELD_LON)
+            }
+        }
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields)
         outputFile
     }
 

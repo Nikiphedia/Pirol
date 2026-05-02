@@ -621,11 +621,11 @@ class AnalysisViewModel(
         _uiState.update { it.copy(saveErrorMessage = null) }
     }
 
-    /** Raven Selection Table exportieren */
+    /** Raven Selection Table exportieren (T78: Felder-Selektion via AppPreferences) */
     fun exportRavenTable() {
         val dir = _uiState.value.selectedSession?.sessionDir ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val file = sessionManager.exportRavenSelectionTable(dir)
+            val file = sessionManager.exportRavenSelectionTable(dir, appPreferences)
             val msg = if (file != null) "Raven-Tabelle gespeichert: ${file.name}"
                       else "Kein recording.wav — Export nicht moeglich"
             _uiState.update { it.copy(ravenExportMessage = msg) }

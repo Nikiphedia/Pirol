@@ -233,6 +233,7 @@ private fun SessionDetailView(
     val session = state.selectedSession ?: return
     val context = LocalContext.current
     var showAddManualDialog by remember { mutableStateOf(false) }
+    var showRavenPreviewDialog by remember { mutableStateOf(false) }
 
     // T74: Phenology
     val phenologyRepository: ch.etasystems.pirol.ml.PhenologyRepository = org.koin.compose.koinInject()
@@ -327,6 +328,18 @@ private fun SessionDetailView(
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = "Abspielen"
                     )
+                }
+            }
+
+            // T78: Raven-Datei-Link — klickbar wenn recording.selections.txt existiert
+            val ravenFile = remember(session.sessionDir) {
+                java.io.File(session.sessionDir, "recording.selections.txt")
+            }
+            if (ravenFile.exists()) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { showRavenPreviewDialog = true }) {
+                        Text("Raven-Datei anzeigen")
+                    }
                 }
             }
 
@@ -455,6 +468,34 @@ private fun SessionDetailView(
                 }
             }
         }
+    }
+
+    // T78: Raven-Datei Vorschau-Dialog
+    if (showRavenPreviewDialog) {
+        val ravenPreviewFile = java.io.File(session.sessionDir, "recording.selections.txt")
+        val lines = remember(session.sessionDir) {
+            runCatching { ravenPreviewFile.readLines() }.getOrElse { listOf("Fehler: Datei nicht lesbar") }
+        }
+        AlertDialog(
+            onDismissRequest = { showRavenPreviewDialog = false },
+            title = { Text("recording.selections.txt") },
+            text = {
+                LazyColumn {
+                    items(lines) { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRavenPreviewDialog = false }) {
+                    Text("Schliessen")
+                }
+            }
+        )
     }
 
     // AddManualDetectionDialog (T72)
