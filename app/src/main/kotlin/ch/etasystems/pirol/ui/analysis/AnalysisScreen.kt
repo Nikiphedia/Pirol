@@ -434,7 +434,6 @@ private fun SessionDetailView(
                             )
                         },
                         onCompare = { viewModel.openCompare(detection) },
-                        onJumpToChunk = { viewModel.jumpToDetection(detection) },
                         onPlay = { viewModel.playDetection(detection) },
                         isPlayEnabled = state.recordingFile != null,
                         playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),

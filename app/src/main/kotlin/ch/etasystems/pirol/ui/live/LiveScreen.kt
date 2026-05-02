@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ui.live
 
 import android.os.SystemClock
 import android.widget.Chronometer
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -298,23 +299,6 @@ private fun CompactLiveLayout(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // "+ Art manuell hinzufuegen" Button (T72)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = { showAddManualDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.AddCircle,
-                        contentDescription = "+ Art",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ Art")
-                }
-            }
-
             // Detektionsliste (ersetzt SpeciesPlaceholder)
             DetectionList(
                 detectionState = uiState.detectionListState,
@@ -353,41 +337,79 @@ private fun CompactLiveLayout(
             }
         }
 
-        // FAB-Bereich: Preroll-Toggle (F5) + Haupt-FAB
+        // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
-            if (uiState.isPrerollEnabled && !uiState.isRecording) {
-                SmallFloatingActionButton(
-                    onClick = {
-                        if (uiState.isPrerollRunning) viewModel.userStopPreroll()
-                        else viewModel.userStartPreroll()
-                    },
-                    containerColor = if (uiState.isPrerollRunning)
-                        MaterialTheme.colorScheme.tertiary
-                    else
-                        MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.padding(end = 12.dp)
-                ) {
-                    Icon(
-                        imageVector = if (uiState.isPrerollRunning)
-                            Icons.Filled.Stop
-                        else
-                            Icons.Filled.Mic,
-                        contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
-                        tint = if (uiState.isPrerollRunning)
-                            Color.White
-                        else
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+            // Memo-Button + +Art-Button (F6): nur sichtbar wenn Recording aktiv
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Memo-Button
+                AnimatedVisibility(visible = uiState.isRecording) {
+                    IconButton(
+                        onClick = {},
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = "Memo aufnehmen",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                // +Art-Button
+                AnimatedVisibility(visible = uiState.isRecording) {
+                    IconButton(
+                        onClick = { showAddManualDialog = true },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AddCircle,
+                            contentDescription = "+ Art",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
-            RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+
+            // Preroll-Toggle (F5) + Haupt-FAB
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
+                if (uiState.isPrerollEnabled && !uiState.isRecording) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            if (uiState.isPrerollRunning) viewModel.userStopPreroll()
+                            else viewModel.userStartPreroll()
+                        },
+                        containerColor = if (uiState.isPrerollRunning)
+                            MaterialTheme.colorScheme.tertiary
+                        else
+                            MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.isPrerollRunning)
+                                Icons.Filled.Stop
+                            else
+                                Icons.Filled.Mic,
+                            contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                            tint = if (uiState.isPrerollRunning)
+                                Color.White
+                            else
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+                RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+            }
         }
     }
 
@@ -461,20 +483,6 @@ private fun MediumLiveLayout(
                 .padding(start = 8.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // "+ Art"-Button (T72)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = { showAddManualDialog = true }) {
-                    Icon(imageVector = Icons.Filled.AddCircle, contentDescription = "+ Art",
-                         modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ Art")
-                }
-            }
-
             DetectionList(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
@@ -511,41 +519,79 @@ private fun MediumLiveLayout(
                 )
             }
 
-            // FAB-Bereich: Preroll-Toggle (F5) + Haupt-FAB
+            // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
-                if (uiState.isPrerollEnabled && !uiState.isRecording) {
-                    SmallFloatingActionButton(
-                        onClick = {
-                            if (uiState.isPrerollRunning) viewModel.userStopPreroll()
-                            else viewModel.userStartPreroll()
-                        },
-                        containerColor = if (uiState.isPrerollRunning)
-                            MaterialTheme.colorScheme.tertiary
-                        else
-                            MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.padding(end = 12.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.isPrerollRunning)
-                                Icons.Filled.Stop
-                            else
-                                Icons.Filled.Mic,
-                            contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
-                            tint = if (uiState.isPrerollRunning)
-                                Color.White
-                            else
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                // Memo-Button + +Art-Button (F6): nur sichtbar wenn Recording aktiv
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Memo-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = {},
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = "Memo aufnehmen",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    // +Art-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = { showAddManualDialog = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AddCircle,
+                                contentDescription = "+ Art",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
-                RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+
+                // Preroll-Toggle (F5) + Haupt-FAB
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
+                    if (uiState.isPrerollEnabled && !uiState.isRecording) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                if (uiState.isPrerollRunning) viewModel.userStopPreroll()
+                                else viewModel.userStartPreroll()
+                            },
+                            containerColor = if (uiState.isPrerollRunning)
+                                MaterialTheme.colorScheme.tertiary
+                            else
+                                MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isPrerollRunning)
+                                    Icons.Filled.Stop
+                                else
+                                    Icons.Filled.Mic,
+                                contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                                tint = if (uiState.isPrerollRunning)
+                                    Color.White
+                                else
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+                }
             }
         }
     }
@@ -620,20 +666,6 @@ private fun ExpandedLiveLayout(
                 .padding(start = 12.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // "+ Art"-Button (T72)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = { showAddManualDialog = true }) {
-                    Icon(imageVector = Icons.Filled.AddCircle, contentDescription = "+ Art",
-                         modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ Art")
-                }
-            }
-
             DetectionList(
                 detectionState = uiState.detectionListState,
                 isModelAvailable = uiState.isModelAvailable,
@@ -670,41 +702,79 @@ private fun ExpandedLiveLayout(
                 )
             }
 
-            // FAB-Bereich: Preroll-Toggle (F5) + Haupt-FAB (unten rechts im rechten Pane)
+            // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB (unten rechts im rechten Pane)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
-                if (uiState.isPrerollEnabled && !uiState.isRecording) {
-                    SmallFloatingActionButton(
-                        onClick = {
-                            if (uiState.isPrerollRunning) viewModel.userStopPreroll()
-                            else viewModel.userStartPreroll()
-                        },
-                        containerColor = if (uiState.isPrerollRunning)
-                            MaterialTheme.colorScheme.tertiary
-                        else
-                            MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.padding(end = 12.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.isPrerollRunning)
-                                Icons.Filled.Stop
-                            else
-                                Icons.Filled.Mic,
-                            contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
-                            tint = if (uiState.isPrerollRunning)
-                                Color.White
-                            else
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                // Memo-Button + +Art-Button (F6): nur sichtbar wenn Recording aktiv
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Memo-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = {},
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = "Memo aufnehmen",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    // +Art-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = { showAddManualDialog = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AddCircle,
+                                contentDescription = "+ Art",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
-                RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+
+                // Preroll-Toggle (F5) + Haupt-FAB
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
+                    if (uiState.isPrerollEnabled && !uiState.isRecording) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                if (uiState.isPrerollRunning) viewModel.userStopPreroll()
+                                else viewModel.userStartPreroll()
+                            },
+                            containerColor = if (uiState.isPrerollRunning)
+                                MaterialTheme.colorScheme.tertiary
+                            else
+                                MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isPrerollRunning)
+                                    Icons.Filled.Stop
+                                else
+                                    Icons.Filled.Mic,
+                                contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                                tint = if (uiState.isPrerollRunning)
+                                    Color.White
+                                else
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+                }
             }
         }
     }
