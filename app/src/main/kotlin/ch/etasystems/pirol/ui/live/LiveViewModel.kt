@@ -168,6 +168,9 @@ class LiveViewModel(
     // Preroll-Samples die nach startSession() angehaengt werden (T46)
     private var pendingPrerollSamples: ShortArray = ShortArray(0)
 
+    // F5: User hat Preroll explizit gestartet
+    private var prerollRunning = false
+
     // T54-Fix: Sequentieller Dispatcher fuer Session-Lifecycle-Operationen.
     // startSession+appendPreroll und endSession laufen auf demselben Single-Thread-Kontext,
     // damit endSession() niemals vor appendPreroll() ausgefuehrt wird (Race-Condition fix).
@@ -397,7 +400,8 @@ class LiveViewModel(
                 spectrogramCeilingDb = savedCeilingDb,
                 showTopNCandidates = savedShowTopN,
                 similarEnabled = appPreferences.similarEnabled,
-                similarLines = appPreferences.similarLines
+                similarLines = appPreferences.similarLines,
+                isPrerollEnabled = appPreferences.prerollEnabled
             )
         }
 
@@ -431,9 +435,6 @@ class LiveViewModel(
             val recordingBinder = binder as? RecordingService.RecordingBinder
             service = recordingBinder?.getService()
             _uiState.update { it.copy(isServiceBound = true) }
-
-            // Preroll-Buffer starten falls aktiviert (T35)
-            initPrerollIfEnabled()
 
             // Recording-State vom Service beobachten
             observeRecordingState()
@@ -549,6 +550,33 @@ class LiveViewModel(
             stopRecording()
         } else {
             startRecording(sampleRate)
+        }
+    }
+
+    /** Preroll-Engine explizit starten (F5). Nur wenn kein Recording laeuft. */
+    fun userStartPreroll() {
+        val svc = service ?: return
+        if (svc.isRecording.value) return
+        svc.initPreroll(
+            sampleRate = 48000,
+            prerollDurationSec = appPreferences.prerollDurationSec
+        )
+        prerollRunning = true
+        _uiState.update { it.copy(isPrerollRunning = true) }
+    }
+
+    /** Preroll-Engine explizit stoppen (F5). */
+    fun userStopPreroll() {
+        val svc = service ?: return
+        svc.stopPreroll()
+        prerollRunning = false
+        _uiState.update { it.copy(isPrerollRunning = false) }
+    }
+
+    /** Zeigt Hinweis-Snackbar wenn Stop-FAB kurz getippt wird (F7). */
+    fun showLongPressHint() {
+        viewModelScope.launch {
+            _snackbarChannel.send(SnackbarEvent(message = "Lang drücken zum Stoppen"))
         }
     }
 
@@ -1118,25 +1146,27 @@ class LiveViewModel(
                     locationProvider.start()
                     startCollectionPipeline()
                     startInferencePipeline()
-                    // Session starten + Preroll anhaengen (sessionDispatcher: sequentiell mit endSession, T54)
-                    viewModelScope.launch(sessionDispatcher) {
-                        val loc = locationProvider.location.value
-                        val config = _uiState.value.inferenceConfig
-                        val sessionId = sessionManager.startSession(
-                            sampleRate = service?.actualSampleRate ?: 48000,
-                            latitude = loc?.latitude,
-                            longitude = loc?.longitude,
-                            regionFilter = config.regionFilter,
-                            confidenceThreshold = config.confidenceThreshold
-                        )
-                        currentSessionId = sessionId
-                        // Fallback-Banner aktualisieren (T51)
-                        _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
-                        // Preroll nach startSession() anhaengen (T46)
-                        val preroll = pendingPrerollSamples
-                        pendingPrerollSamples = ShortArray(0)
-                        if (preroll.isNotEmpty()) {
-                            sessionManager.appendAudioSamples(preroll)
+                    // Session nur starten wenn keine aktive Session (verhindert Doppel-Session bei Tab-Wechsel, F1+F2)
+                    if (!sessionManager.isActive) {
+                        viewModelScope.launch(sessionDispatcher) {
+                            val loc = locationProvider.location.value
+                            val config = _uiState.value.inferenceConfig
+                            val sessionId = sessionManager.startSession(
+                                sampleRate = service?.actualSampleRate ?: 48000,
+                                latitude = loc?.latitude,
+                                longitude = loc?.longitude,
+                                regionFilter = config.regionFilter,
+                                confidenceThreshold = config.confidenceThreshold
+                            )
+                            currentSessionId = sessionId
+                            // Fallback-Banner aktualisieren (T51)
+                            _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
+                            // Preroll nach startSession() anhaengen (T46)
+                            val preroll = pendingPrerollSamples
+                            pendingPrerollSamples = ShortArray(0)
+                            if (preroll.isNotEmpty()) {
+                                sessionManager.appendAudioSamples(preroll)
+                            }
                         }
                     }
                 } else {
