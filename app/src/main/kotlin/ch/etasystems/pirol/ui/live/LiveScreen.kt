@@ -340,6 +340,9 @@ private fun CompactLiveLayout(
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
+                    similarEnabled = uiState.similarEnabled,
+                    similarLines = uiState.similarLines,
+                    recentSpecies = uiState.recentSpecies,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -467,6 +470,9 @@ private fun MediumLiveLayout(
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
+                    similarEnabled = uiState.similarEnabled,
+                    similarLines = uiState.similarLines,
+                    recentSpecies = uiState.recentSpecies,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -593,6 +599,9 @@ private fun ExpandedLiveLayout(
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
+                    similarEnabled = uiState.similarEnabled,
+                    similarLines = uiState.similarLines,
+                    recentSpecies = uiState.recentSpecies,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

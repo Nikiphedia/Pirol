@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,25 +29,31 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ml.EmbeddingDatabase
+import ch.etasystems.pirol.ml.SpeciesNameResolver
+import org.koin.compose.koinInject
 
 /**
  * Panel zur Anzeige von Aehnlichkeits-Ergebnissen aus der Embedding-Pipeline.
  *
- * Zeigt die Top-N aehnlichsten Referenz-Aufnahmen aus der lokalen Embedding-DB.
- * Farbcodierung: gruen (>=80%), blau (>=60%), rot (<60%).
+ * Modi (via similarLines):
+ *   0.0  → nicht anzeigen (auch wenn similarEnabled=false)
+ *   0.5  → Laufschrift der letzten 5 Detektionen der Session (Marquee)
+ *   1–10 → vertikale Liste mit n Eintraegen, dedupliziert pro Art
  *
- * @param matches Liste der EmbeddingMatch-Ergebnisse (sortiert nach Aehnlichkeit)
- * @param isEmbeddingAvailable Ob die Embedding-Pipeline verfuegbar ist
- * @param modifier Standard Compose Modifier
+ * Namen werden per SpeciesNameResolver in DE aufgeloest (Fallback: wissenschaftlich).
  */
 @Composable
 fun SimilarityPanel(
     matches: List<EmbeddingDatabase.EmbeddingMatch>,
     isEmbeddingAvailable: Boolean,
+    similarEnabled: Boolean,
+    similarLines: Float,
+    recentSpecies: List<String>,
     modifier: Modifier = Modifier
 ) {
-    // Maximal 5 Eintraege anzeigen
-    val topMatches = matches.take(5)
+    if (!similarEnabled || similarLines == 0f || !isEmbeddingAvailable) return
+
+    val resolver: SpeciesNameResolver = koinInject()
 
     Column(modifier = modifier) {
         // Header-Zeile: Icon + Titel + Badge
@@ -62,68 +69,72 @@ fun SimilarityPanel(
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Aehnliche Aufnahmen",
+                text = "Aehnliche Arten",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
-            if (topMatches.isNotEmpty()) {
+            if (similarLines >= 1f && matches.isNotEmpty()) {
                 Badge(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
-                    Text(text = "${topMatches.size}")
+                    Text(text = "${matches.size}")
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (!isEmbeddingAvailable) {
-            // Embedding nicht verfuegbar
-            Text(
-                text = "Embedding-Pipeline nicht verfuegbar",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-        } else if (topMatches.isEmpty()) {
-            // Keine Referenzen vorhanden
-            Text(
-                text = "Noch keine Referenzen gespeichert",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-        } else {
-            // Match-Liste
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(
-                    items = topMatches,
-                    key = { "${it.recordingId}_${it.rank}" }
-                ) { match ->
-                    SimilarityCard(match = match)
+        when {
+            similarLines == 0.5f -> {
+                // Laufschrift-Mode: letzte 5 Detektionen der Session
+                val marqueeText = recentSpecies.joinToString(" · ").ifEmpty { "—" }
+                Text(
+                    text = marqueeText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .basicMarquee(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+            matches.isEmpty() -> {
+                Text(
+                    text = "Noch keine Referenzen gespeichert",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+            else -> {
+                // Listen-Mode: deduplizierte Arten
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(
+                        items = matches,
+                        key = { it.species }
+                    ) { match ->
+                        SimilarityCard(match = match, resolver = resolver)
+                    }
                 }
             }
         }
     }
 }
 
-/**
- * Einzelne Karte fuer ein Aehnlichkeits-Ergebnis.
- *
- * Zeigt Artname, Similarity-Balken mit Prozentwert, und Recording-ID.
- */
 @Composable
 private fun SimilarityCard(
     match: EmbeddingDatabase.EmbeddingMatch,
+    resolver: SpeciesNameResolver,
     modifier: Modifier = Modifier
 ) {
     val similarityPercent = (match.similarity * 100).toInt()
+    val commonName = resolver.resolve(match.species)
+    val scientificName = match.species.replace('_', ' ')
 
-    // Farbcodierung basierend auf Aehnlichkeit
     val barColor = when {
         match.similarity >= 0.8f -> MaterialTheme.colorScheme.tertiary
         match.similarity >= 0.6f -> MaterialTheme.colorScheme.primary
@@ -142,14 +153,13 @@ private fun SimilarityCard(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            // Zeile 1: Artname + Prozentwert
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = match.species,
+                    text = commonName,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -166,7 +176,6 @@ private fun SimilarityCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Zeile 2: Horizontaler Aehnlichkeitsbalken
             LinearProgressIndicator(
                 progress = { match.similarity.coerceIn(0f, 1f) },
                 modifier = Modifier
@@ -177,14 +186,15 @@ private fun SimilarityCard(
                 trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Zeile 3: Recording-ID
-            Text(
-                text = match.recordingId,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Wissenschaftlicher Name als Subtitle (nur wenn verschieden vom commonName)
+            if (commonName != scientificName) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = scientificName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
