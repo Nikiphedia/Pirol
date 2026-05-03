@@ -7,6 +7,7 @@ import ch.etasystems.pirol.data.StorageManager
 import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.data.repository.SpeciesColorRepository
 import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.AudioClassifier
@@ -90,6 +91,9 @@ val appModule = module {
 
     // PhenologyRepository — Singleton, laedt species_phenology.json (T74)
     single { PhenologyRepository(androidContext()) }
+
+    // SpeciesColorRepository — Singleton, laedt species_colors.json aus filesDir (T80)
+    single { SpeciesColorRepository(androidContext()) }
 
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
