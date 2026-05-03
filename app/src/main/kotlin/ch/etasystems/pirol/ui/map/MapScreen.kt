@@ -44,7 +44,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,7 +62,8 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Overlay
+import android.view.GestureDetector
+import androidx.core.view.GestureDetectorCompat
 
 // ── Hilfsfunktionen: Kreis-Marker mit Kuerzel ────────────────────────────────
 
@@ -138,38 +138,6 @@ private fun tileSourceForZoom(zoom: Int): org.osmdroid.tileprovider.tilesource.I
     else org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK
 }
 
-// ── Long-Press Overlay: findet naechsten historischen Marker innerhalb 50px ──
-
-private class MarkerLongPressOverlay(
-    markers: List<MapViewModel.MapMarker>,
-    private val onLongPress: (MapViewModel.MapMarker) -> Unit
-) : Overlay() {
-
-    private var currentMarkers: List<MapViewModel.MapMarker> = markers
-
-    fun updateMarkers(newMarkers: List<MapViewModel.MapMarker>) {
-        currentMarkers = newMarkers
-    }
-
-    override fun onLongPress(e: MotionEvent, mapView: MapView): Boolean {
-        val proj = mapView.projection
-        val historisch = currentMarkers.filter { !it.isLive }
-        val nearest = historisch.minByOrNull { m ->
-            val px = proj.toPixels(GeoPoint(m.latitude, m.longitude), null)
-            val dx = (px.x - e.x).toDouble()
-            val dy = (px.y - e.y).toDouble()
-            dx * dx + dy * dy
-        } ?: return false
-        val nearPx = proj.toPixels(GeoPoint(nearest.latitude, nearest.longitude), null)
-        val dist = Math.hypot((nearPx.x - e.x).toDouble(), (nearPx.y - e.y).toDouble())
-        if (dist < 50.0) {
-            onLongPress(nearest)
-            return true
-        }
-        return false
-    }
-}
-
 // ── Haupt-Composable ──────────────────────────────────────────────────────────
 
 @Composable
@@ -179,12 +147,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val colorRepo: SpeciesColorRepository = koinInject()
     val atlasCodeRepo: AtlasCodeRepository = koinInject()
 
-    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
-    val locationState by viewModel.currentLocation.collectAsState()
-    val longPressOverlayRef = remember { mutableStateOf<MarkerLongPressOverlay?>(null) }
-
-    // osmdroid Konfiguration einmalig initialisieren
-    LaunchedEffect(Unit) {
+    // Synchron — muss VOR AndroidView.factory laufen
+    remember(context) {
         Configuration.getInstance().apply {
             load(context, context.getSharedPreferences("osmdroid", 0))
             userAgentValue = context.packageName
@@ -193,6 +157,12 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             tileDownloadMaxQueueSize = 40.toShort()
         }
     }
+
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+    val locationState by viewModel.currentLocation.collectAsState()
+
+    // Marker-Referenz fuer GestureDetector (aktuell, thread-safe via MutableState)
+    val longPressMarkersRef = remember { mutableStateOf<List<MapViewModel.MapMarker>>(emptyList()) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -216,19 +186,50 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         }
                         override fun onScroll(event: org.osmdroid.events.ScrollEvent) = false
                     })
-                    // Persistenter Long-Press-Overlay an Index 0
-                    val lpOverlay = MarkerLongPressOverlay(state.markers) { viewModel.onMarkerLongPress(it) }
-                    overlays.add(lpOverlay)
-                    longPressOverlayRef.value = lpOverlay
-                }.also { mapViewRef.value = it }
+                }.also { mapView ->
+                    mapViewRef.value = mapView
+
+                    // GestureDetector direkt auf dem MapView — empfängt Events vor Compose
+                    val gestureDetector = GestureDetectorCompat(
+                        ctx,
+                        object : GestureDetector.SimpleOnGestureListener() {
+                            override fun onLongPress(e: MotionEvent) {
+                                val markers = longPressMarkersRef.value
+                                val proj = mapView.projection
+                                val historisch = markers.filter { !it.isLive }
+                                val nearest = historisch.minByOrNull { m ->
+                                    val px = proj.toPixels(GeoPoint(m.latitude, m.longitude), null)
+                                    val dx = (px.x - e.x).toDouble()
+                                    val dy = (px.y - e.y).toDouble()
+                                    dx * dx + dy * dy
+                                } ?: return
+                                val nearPx = proj.toPixels(
+                                    GeoPoint(nearest.latitude, nearest.longitude), null
+                                )
+                                val dist = Math.hypot(
+                                    (nearPx.x - e.x).toDouble(),
+                                    (nearPx.y - e.y).toDouble()
+                                )
+                                if (dist < 120.0) {   // 120px ≈ 40dp — grosszügiger Tap-Target
+                                    viewModel.onMarkerLongPress(nearest)
+                                }
+                            }
+                        }
+                    )
+
+                    @Suppress("ClickableViewAccessibility")
+                    mapView.setOnTouchListener { _, event ->
+                        gestureDetector.onTouchEvent(event)
+                        false  // false = MapView erhält Event weiterhin (Panning/Zooming)
+                    }
+                }
             },
             update = { mapView ->
-                // Nur dynamische Overlays (Index 1+) entfernen — Long-Press-Overlay bleibt
-                if (mapView.overlays.size > 1) {
-                    mapView.overlays.subList(1, mapView.overlays.size).clear()
-                }
-                // Marker-Liste im persistenten Overlay aktualisieren
-                longPressOverlayRef.value?.updateMarkers(state.markers)
+                // Marker-Referenz aktuell halten (für GestureDetector)
+                longPressMarkersRef.value = state.markers
+
+                // Einfaches clear — GestureDetector läuft unabhängig von Overlays
+                mapView.overlays.clear()
 
                 val blueColor = android.graphics.Color.parseColor("#1976D2")
                 val clusterColor = android.graphics.Color.parseColor("#607D8B")
