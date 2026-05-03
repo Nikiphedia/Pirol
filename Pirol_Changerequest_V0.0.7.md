@@ -1,6 +1,6 @@
 **Pirol — Changerequest V0.0.7**
 
-**Stand:** 2026-04-27 (Pirolmaster 7)
+**Stand:** 2026-05-02 (Pirolmaster 8)
 **Legende:**
 - ✅ erledigt + Tag (`V0.0.6.T<N>`) — in master gemerged
 - ⏳ Code fertig, Geräte-/Feldtest beim User ausstehend
@@ -22,7 +22,7 @@
 * ✅ [V0.0.6.T72, AddManualDetectionDialog mit Art-Autocomplete + GPS-Snapshot, ACTION_MANUAL_ADD, PanTool-Badge bei manualEntry] manuell art hinzufügen, auch eintrag in logfile.
 * ✅ [V0.0.6.T72, selectAlternative in beiden VMs, ACTION_ALTERNATIVE_CONFIRMED] alternativvorschläge bestätigen können. auch eintrag in logfile
 * ✅ [V0.0.6.T62] player hat probleme, sonogramanzeige unbrauchbar, stürzt bei langen files ab.
-* 📅 [D1] auf karte müssen sich aufnahmen anwählen lassen welche angezeigt werden. auch nur live anzeigen. aufnahmen müssen manuell verschoben werden können. ( auch positionsänderung in logfiles )
+* ✅ [V0.0.6.T79, Session-Filter Chips Alle/Nur Live/Letzte 3, Live-Marker blau via snapshotFlow, Long-Press→Dialog→ACTION_POSITION_MOVED in verifications.jsonl, 45 Tests gruen] auf karte müssen sich aufnahmen anwählen lassen welche angezeigt werden. auch nur live anzeigen. aufnahmen müssen manuell verschoben werden können. ( auch positionsänderung in logfiles )
 * ✅ [V0.0.6.T65, 8h-Dauertest ohne Crash bestanden 2026-04-27 — kein Crash-Trigger fuer S1/S2/S3, Recovery-Code aktiv aber im Praxiseinsatz nicht ausgeloest] wie sicherstellen dass das bei programabsturz oder batterieausfall audiofile lesbar bleibt?
 * ✅ [V0.0.6.T59] bei ordnerwechsel, dateien rüberkopieren funktioniert nicht
 * ✅ [V0.0.6.T60] files ohne nachweis und unter 10 sec automatisch löschen
@@ -40,7 +40,7 @@
 * 📅 [D4] map verwaltung: JSON-Manifest als App-Asset (statisch, Option A bestätigt 2026-05-02). Welche Karte in welcher Zoomstufe verfügbar ist, wird im Asset konfiguriert.
 * 📅 [D4] swisstopo karten einbinden. — Entschied: WMTS via wmts.geo.admin.ch (freie BGDI-Tiles, bestätigt 2026-05-02)
 * 📅 [D4] auf kartenansicht eine homefunktion implementieren
-* 📅 [I] raven export, grundparameter sind fix, zusatzinfos anwählbar. submenue in einstellungen.
+* ✅ [V0.0.6.T78, Felder-Toggle-Sektion in Settings, RavenExporter mit enabledFields-Parameter, SessionManager-Update] raven export, grundparameter sind fix, zusatzinfos anwählbar. submenue in einstellungen.
 * 📅 [E] play, bei abspielen ist playbar in der mitte. mit ziehen lässt sich abspielposition verschieben. in einstellungen lässt sich preevent bei erkanntem ruf einstellen um kontext zu hören.
 * 📅 [G] einzelne funktionen abwählbar um benutzerkomplexität möglichst zu veringern.
 * 📅 [D5] eintragen simultanbeobachtung, mehrfachsichtung und vermutete Simultanbeobachtung. (verschoben aus B5, nur Karten-relevant)
@@ -62,34 +62,34 @@
 ---
 
 ## Bugreport (Von User)
-- 🔄 [B/F-Hybrid, geplant als T78 Modell-Manifest-Update] BirdNet und andere Modelle lassen sich nicht direkt runterladen. Ein .json wäre Hilfreich und einfach zu aktualisieren. Später Update Version für alle.json welche von Ersteller zur verfügung gestellt werden.
+- 📅 [eigener AP, T80+] BirdNet und andere Modelle lassen sich nicht direkt runterladen. Ein .json wäre Hilfreich und einfach zu aktualisieren. Später Update Version für alle.json welche von Ersteller zur verfügung gestellt werden. (T78-Nummer vergeben für Raven-UX — Modell-Manifest wird separater AP)
 
 ## Fehlerlog 2026-05-02 (Feld-Feedback, nach Cluster B)
 
-| # | Beschreibung | Cluster | Prio |
-|---|-------------|---------|------|
-| F1 | Tab-Wechsel startet neue Aufnahme (Navigation-Lifecycle-Bug) | **[A] Kritischer Bug** | HOCH |
-| F2 | Resultate und Eingaben werden nicht automatisch aktualisiert — neue Erfassungen erscheinen nicht in der Liste | **[A] Kritischer Bug** | HOCH |
-| F3 | Raven-Datei: Klick auf Datei soll Vorschau zeigen. Speichern ist immer Auto — kein "Speichern unter"-Symbol in Dateiansicht; einzelne Felder anwählbar/abwählbar. Im Ribbon (Einzel-Beobachtung) sind zwei Haken — verwirrend. Alle Icons sollen gleich gross sein. | **[I] Raven-Export** | MITTEL |
-| F4 | Target-Symbol und Play-Symbol im Player haben dieselbe Funktion — eines entfernen | **[E] Player** | MITTEL |
-| F5 | App läuft immer im Hintergrund (Akkuverschleiss). App darf nur laden wenn angewählt. Preroll erst aktiv wenn explizit angewählt. | **[A] Architektur** | HOCH |
-| F6 | +Art-Button und Memo-Button: unten direkt neben Play verschieben | **[G] Settings UX / LiveScreen-Layout** | NIEDRIG |
-| F7 | Aufnahme Stoppen = Long-Press 2 Sekunden (kein einfacher Tap) | **[G] UX** | NIEDRIG |
+**Hinweis AP-Groesse:** Alle APs max. 60'000 Tokens (Konvention CLAUDE.md).
 
-**Hinweis AP-Groesse:** Alle APs max. 60'000 Tokens (Konvention CLAUDE.md). Master schneidet bei Bedarf.
+| # | Beschreibung | Status |
+|---|-------------|--------|
+| F1 | Tab-Wechsel startet neue Aufnahme (Navigation-Lifecycle-Bug) | ✅ V0.0.6.T76 |
+| F2 | Resultate nicht automatisch aktualisiert — neue Erfassungen erscheinen nicht | ✅ V0.0.6.T76 |
+| F3 | Raven-Vorschau + Felder anwählbar + zwei Haken-Bug + Icons gleich gross | ✅ V0.0.6.T78 |
+| F4 | Target-Symbol und Play-Symbol im Player = gleiche Funktion | ✅ V0.0.6.T77 |
+| F5 | App im Hintergrund (Akku); Preroll nur auf User-Aktion | ✅ V0.0.6.T76 |
+| F6 | +Art- und Memo-Button neben Play | ⏳ V0.0.6.T77 (Button sichtbar, Memo-onClick leer — T79 Followup) |
+| F7 | Aufnahme Stoppen = Long-Press 2 Sekunden | ✅ V0.0.6.T76 |
 
-## Folge-AP-Backlog (Master-Beobachtungen aus Block A)
+## Folge-AP-Backlog
 
 | # | Issue | Buendel-Vorschlag |
 |---|-------|-------------------|
-| (a) | `WavWriter.force(true)` bei Akku-Aus verifizieren | T70 Persistenz-Haertung |
-| (b) | Int-Overflow bei WAV >2GB | T70 |
-| (c) | `FileWriter.sync()` fehlt fuer detections.jsonl | T70 |
-| (d) | Stereo-Downmix in `readWavSamplesRange` (T62) — bleibt offen wegen geplantem Stereo-Mic + Gyroscope (V0.0.8+) | mit Stereo+Gyro-Feature |
-| (e) | Doppelter `modifier` in `DetectionList.kt:112` | T71 UI-Polish |
-| ~~(f)~~ | ~~`saveErrorMessage`-Snackbar in AnalysisScreen verdrahten~~ — ✅ bereits in T-prev verdrahtet (T68-Beobachtung) | erledigt |
-| (h) | `removeLastVerification()` auf tmp+rename umstellen (analog T68 `replaceDetection`) | T70 |
-| (i) | `DetectionResult.atlasCode`-Kommentar zeigt alte Beispiele "A2"/"B4" — auf "AC1"–"AC99" aktualisieren | T71 |
-| (g) | `undoLastVerification()` leerer if-Block (T53) | T70 |
-| Atlas | Settings-Dropdown Atlascode-Set CH/FR/DE (vorerst nur CH in T68) | nach Cluster C |
-| Memo | Memo-Export als m4a aus AnalysisPlayer | nach Cluster C |
+| F6b | Memo-Button `onClick = {}` leer (T77-Beobachtung) | **T79** Mini-AP Haiku |
+| (a) | `WavWriter.force(true)` bei Akku-Aus verifizieren | **T80** Persistenz-Haertung |
+| (b) | Int-Overflow bei WAV >2GB | T80 |
+| (c) | `FileWriter.sync()` fehlt fuer detections.jsonl | T80 |
+| (g) | `undoLastVerification()` leerer if-Block | T80 |
+| (h) | `removeLastVerification()` auf tmp+rename umstellen | T80 |
+| (d) | Stereo-Downmix `readWavSamplesRange` — offen bis Stereo+Gyro V0.0.8+ | V0.0.8 |
+| (e) | Doppelter `modifier` in `DetectionList.kt:112` | T80 oder T79 |
+| (i) | `DetectionResult.atlasCode`-Kommentar A2/B4 → AC1-AC99 | T80 |
+| Atlas | Settings-Dropdown Atlascode-Set CH/FR/DE | nach Cluster D |
+| Memo | Memo-Export als m4a aus AnalysisPlayer | nach Cluster E |
