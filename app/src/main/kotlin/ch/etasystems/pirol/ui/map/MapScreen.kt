@@ -44,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -140,12 +141,19 @@ private fun tileSourceForZoom(zoom: Int): org.osmdroid.tileprovider.tilesource.I
 // ── Long-Press Overlay: findet naechsten historischen Marker innerhalb 50px ──
 
 private class MarkerLongPressOverlay(
-    private val markers: List<MapViewModel.MapMarker>,
+    markers: List<MapViewModel.MapMarker>,
     private val onLongPress: (MapViewModel.MapMarker) -> Unit
 ) : Overlay() {
+
+    private var currentMarkers: List<MapViewModel.MapMarker> = markers
+
+    fun updateMarkers(newMarkers: List<MapViewModel.MapMarker>) {
+        currentMarkers = newMarkers
+    }
+
     override fun onLongPress(e: MotionEvent, mapView: MapView): Boolean {
         val proj = mapView.projection
-        val historisch = markers.filter { !it.isLive }
+        val historisch = currentMarkers.filter { !it.isLive }
         val nearest = historisch.minByOrNull { m ->
             val px = proj.toPixels(GeoPoint(m.latitude, m.longitude), null)
             val dx = (px.x - e.x).toDouble()
@@ -171,11 +179,20 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val colorRepo: SpeciesColorRepository = koinInject()
     val atlasCodeRepo: AtlasCodeRepository = koinInject()
 
-    // osmdroid Konfiguration einmalig initialisieren
-    Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
-
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val locationState by viewModel.currentLocation.collectAsState()
+    val longPressOverlayRef = remember { mutableStateOf<MarkerLongPressOverlay?>(null) }
+
+    // osmdroid Konfiguration einmalig initialisieren
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().apply {
+            load(context, context.getSharedPreferences("osmdroid", 0))
+            userAgentValue = context.packageName
+            osmdroidTileCache = java.io.File(context.cacheDir, "osmdroid_tiles")
+            tileDownloadThreads = 4.toShort()
+            tileDownloadMaxQueueSize = 40.toShort()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -199,13 +216,19 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         }
                         override fun onScroll(event: org.osmdroid.events.ScrollEvent) = false
                     })
+                    // Persistenter Long-Press-Overlay an Index 0
+                    val lpOverlay = MarkerLongPressOverlay(state.markers) { viewModel.onMarkerLongPress(it) }
+                    overlays.add(lpOverlay)
+                    longPressOverlayRef.value = lpOverlay
                 }.also { mapViewRef.value = it }
             },
             update = { mapView ->
-                mapView.overlays.clear()
-                mapView.overlays.add(
-                    MarkerLongPressOverlay(state.markers) { viewModel.onMarkerLongPress(it) }
-                )
+                // Nur dynamische Overlays (Index 1+) entfernen — Long-Press-Overlay bleibt
+                if (mapView.overlays.size > 1) {
+                    mapView.overlays.subList(1, mapView.overlays.size).clear()
+                }
+                // Marker-Liste im persistenten Overlay aktualisieren
+                longPressOverlayRef.value?.updateMarkers(state.markers)
 
                 val blueColor = android.graphics.Color.parseColor("#1976D2")
                 val clusterColor = android.graphics.Color.parseColor("#607D8B")
