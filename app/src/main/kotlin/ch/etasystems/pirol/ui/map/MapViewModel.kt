@@ -8,6 +8,7 @@ import ch.etasystems.pirol.location.LocationData
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
+import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +47,16 @@ class MapViewModel(
         val items: List<MapMarker>
     )
 
+    enum class LinkType { SIMULTANEOUS, PROBABLE, SAME_INDIVIDUAL }
+
+    data class SimultaneousLink(
+        val lat1: Double, val lon1: Double,
+        val lat2: Double, val lon2: Double,
+        val type: LinkType,
+        val detectionId1: String,
+        val detectionId2: String
+    )
+
     data class MapUiState(
         val markers: List<MapMarker> = emptyList(),
         val liveMarkers: List<MapMarker> = emptyList(),
@@ -59,7 +70,12 @@ class MapViewModel(
         val positionMoveTarget: MapMarker? = null,
         val editTarget: MapMarker? = null,
         val editDetection: DetectionResult? = null,
-        val lockedSpecies: Set<String> = emptySet()
+        val lockedSpecies: Set<String> = emptySet(),
+        val focusMode: Boolean = false,
+        val focusSpecies: String? = null,
+        val linkAnchor: MapMarker? = null,
+        val linkTarget: MapMarker? = null,
+        val simultaneousLinks: List<SimultaneousLink> = emptyList()
     )
 
     private val _uiState = MutableStateFlow(MapUiState())
@@ -263,5 +279,69 @@ class MapViewModel(
 
     fun dismissEdit() {
         _uiState.update { it.copy(editTarget = null, editDetection = null) }
+    }
+
+    fun enterFocusMode(anchor: MapMarker) {
+        if (anchor.isLive) return
+        _uiState.update {
+            it.copy(
+                focusMode = true,
+                focusSpecies = anchor.species,
+                linkAnchor = anchor,
+                longPressTarget = null
+            )
+        }
+    }
+
+    fun selectLinkTarget(marker: MapMarker) {
+        if (!_uiState.value.focusMode) return
+        if (marker.detectionId == _uiState.value.linkAnchor?.detectionId) return
+        _uiState.update { it.copy(linkTarget = marker) }
+    }
+
+    fun confirmLink(type: LinkType) {
+        val anchor = _uiState.value.linkAnchor ?: return
+        val target = _uiState.value.linkTarget ?: return
+        val actionType = when (type) {
+            LinkType.SIMULTANEOUS    -> VerificationEvent.ACTION_SIMULTANEOUS_LINK
+            LinkType.PROBABLE        -> VerificationEvent.ACTION_PROBABLE_LINK
+            LinkType.SAME_INDIVIDUAL -> VerificationEvent.ACTION_SAME_INDIVIDUAL
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            sessionManager.recordSimultaneousLink(
+                sessionId = anchor.sessionId,
+                detectionId1 = anchor.detectionId,
+                detectionId2 = target.detectionId,
+                actionType = actionType
+            )
+            val newLink = SimultaneousLink(
+                lat1 = anchor.latitude, lon1 = anchor.longitude,
+                lat2 = target.latitude, lon2 = target.longitude,
+                type = type,
+                detectionId1 = anchor.detectionId,
+                detectionId2 = target.detectionId
+            )
+            _uiState.update {
+                it.copy(
+                    simultaneousLinks = it.simultaneousLinks + newLink,
+                    linkTarget = null
+                )
+            }
+        }
+    }
+
+    fun exitFocusMode() {
+        _uiState.update {
+            it.copy(
+                focusMode = false,
+                focusSpecies = null,
+                linkAnchor = null,
+                linkTarget = null
+            )
+        }
+    }
+
+    fun dismissLinkTarget() {
+        _uiState.update { it.copy(linkTarget = null) }
     }
 }
