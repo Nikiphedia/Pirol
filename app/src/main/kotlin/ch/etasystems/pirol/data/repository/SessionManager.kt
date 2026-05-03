@@ -1106,4 +1106,35 @@ class SessionManager(
         }
     }
 
+    /**
+     * Schreibt ein POSITION_MOVED-Event fuer eine historische Detektion in die
+     * verifications.jsonl der betreffenden Session.
+     * Wird von MapViewModel.confirmPositionMove() aufgerufen (T79).
+     *
+     * @param sessionId   ID der Session (aus SessionMetadata.sessionId)
+     * @param detectionId ID der Detektion (aus DetectionResult.id)
+     * @param newLat      Neuer Breitengrad (WGS84)
+     * @param newLon      Neuer Laengengrad (WGS84)
+     */
+    suspend fun recordPositionMoved(
+        sessionId: String,
+        detectionId: String,
+        newLat: Double,
+        newLon: Double
+    ) = withContext(Dispatchers.IO) {
+        val dir = listSessions().firstOrNull { loadMetadata(it)?.sessionId == sessionId }
+            ?: return@withContext
+        val event = VerificationEvent(
+            detectionId = detectionId,
+            status = VerificationStatus.UNVERIFIED,
+            verifiedAtMs = System.currentTimeMillis(),
+            actionType = VerificationEvent.ACTION_POSITION_MOVED,
+            newValue = "$newLat,$newLon"
+        )
+        try {
+            File(dir, "verifications.jsonl").appendText(json.encodeToString(event) + "\n")
+        } catch (e: Exception) {
+            Log.e(TAG, "recordPositionMoved fehlgeschlagen: $detectionId", e)
+        }
+    }
 }
