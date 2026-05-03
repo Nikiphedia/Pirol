@@ -43,7 +43,7 @@
 * ✅ [V0.0.6.T78, Felder-Toggle-Sektion in Settings, RavenExporter mit enabledFields-Parameter, SessionManager-Update] raven export, grundparameter sind fix, zusatzinfos anwählbar. submenue in einstellungen.
 * 📅 [E] play, bei abspielen ist playbar in der mitte. mit ziehen lässt sich abspielposition verschieben. in einstellungen lässt sich preevent bei erkanntem ruf einstellen um kontext zu hören.
 * 📅 [G] einzelne funktionen abwählbar um benutzerkomplexität möglichst zu veringern.
-* 📅 [D5] eintragen simultanbeobachtung, mehrfachsichtung und vermutete Simultanbeobachtung. (verschoben aus B5, nur Karten-relevant)
+* 🔄 [D5, T84✅+T85🔄] eintragen simultanbeobachtung, mehrfachsichtung und vermutete Simultanbeobachtung. (verschoben aus B5, nur Karten-relevant) — T84: Focus-Modus+Linien+verifications.jsonl ✅ V0.0.6.T84; T85: Raven-Export Simultanfelder (offen)
 * 📅 [E] presets für rauschfilterung bei abspielen audiofile, und speichern Sonogram.
 * ✅ [V0.0.6.T61] aktualisieren von artbestätigungen ist nicht instant.
 * ✅ [V0.0.6.T75, Audit-Befund: Mehrfach-Nennungen kamen aus EmbeddingDatabase (per recordingId, kein Art-Dedup); Refactor mit DE-Namen + Dedup + Settings-Slider 0..10 + Marquee-Mode bei 0.5 + Toggle, 6 Tests] "ähnliche Arten" abschnitt ist genauer sinn unbekannt. bezeichnungen sind der wissenschaftliche namen, und es erscheinen mehrfach nennungen.  Funktion muss abgewählt werden können, und anzeigbare anzahl zeilen eingestellt werden können. bei 0.5 Zeilen werden jeweils die letzten 5 erfassungen in laufschrift angezeigt.
@@ -82,14 +82,14 @@
 
 | # | Issue | Buendel-Vorschlag |
 |---|-------|-------------------|
-| F6b | Memo-Button `onClick = {}` leer (T77-Beobachtung) | **T79** Mini-AP Haiku |
-| (a) | `WavWriter.force(true)` bei Akku-Aus verifizieren | **T80** Persistenz-Haertung |
-| (b) | Int-Overflow bei WAV >2GB | T80 |
-| (c) | `FileWriter.sync()` fehlt fuer detections.jsonl | T80 |
-| (g) | `undoLastVerification()` leerer if-Block | T80 |
-| (h) | `removeLastVerification()` auf tmp+rename umstellen | T80 |
+| F6b | Memo-Button `onClick = {}` leer (T77-Beobachtung) | ✅ T86 Platzhalter-Dialog |
+| (a) | `WavWriter.force(true)` bei Akku-Aus verifizieren | ✅ T86 (war bereits implementiert) |
+| (b) | Int-Overflow bei WAV >2GB | ✅ T86 minOf(0xFFFFFFFFL) |
+| (c) | `FileWriter.sync()` fehlt fuer detections.jsonl | ✅ T86 (war bereits implementiert) |
+| (g) | `undoLastVerification()` leerer if-Block | ⚪ Ghost-Task (Methode existiert nicht) |
+| (h) | `removeLastVerification()` auf tmp+rename umstellen | ✅ T86 File-Modus |
 | (d) | Stereo-Downmix `readWavSamplesRange` — offen bis Stereo+Gyro V0.0.8+ | V0.0.8 |
-| (e) | Doppelter `modifier` in `DetectionList.kt:112` | T80 oder T79 |
-| (i) | `DetectionResult.atlasCode`-Kommentar A2/B4 → AC1-AC99 | T80 |
+| (e) | Doppelter `modifier` in `DetectionList.kt:112` | ⚪ Ghost-Task (nicht vorhanden) |
+| (i) | `DetectionResult.atlasCode`-Kommentar A2/B4 → AC1-AC99 | ✅ T86 |
 | Atlas | Settings-Dropdown Atlascode-Set CH/FR/DE | nach Cluster D |
 | Memo | Memo-Export als m4a aus AnalysisPlayer | nach Cluster E |
