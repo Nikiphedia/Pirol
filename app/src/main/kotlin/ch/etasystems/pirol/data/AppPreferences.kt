@@ -239,6 +239,18 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_raven_field_lon", true)
         set(value) = prefs.edit().putBoolean("pirol_raven_field_lon", value).apply()
 
+    var ravenFieldSimultan: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_simultan", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_simultan", v).apply()
+
+    var ravenFieldMoeglich: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_moeglich", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_moeglich", v).apply()
+
+    var ravenFieldGleich: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_gleich", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_gleich", v).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)
