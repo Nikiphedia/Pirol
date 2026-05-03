@@ -43,7 +43,7 @@
 * ✅ [V0.0.6.T78, Felder-Toggle-Sektion in Settings, RavenExporter mit enabledFields-Parameter, SessionManager-Update] raven export, grundparameter sind fix, zusatzinfos anwählbar. submenue in einstellungen.
 * 📅 [E] play, bei abspielen ist playbar in der mitte. mit ziehen lässt sich abspielposition verschieben. in einstellungen lässt sich preevent bei erkanntem ruf einstellen um kontext zu hören.
 * 📅 [G] einzelne funktionen abwählbar um benutzerkomplexität möglichst zu veringern.
-* 🔄 [D5, T84✅+T85🔄] eintragen simultanbeobachtung, mehrfachsichtung und vermutete Simultanbeobachtung. (verschoben aus B5, nur Karten-relevant) — T84: Focus-Modus+Linien+verifications.jsonl ✅ V0.0.6.T84; T85: Raven-Export Simultanfelder (offen)
+* ✅ [D5, V0.0.6.T84+V0.0.6.T85] eintragen simultanbeobachtung, mehrfachsichtung und vermutete Simultanbeobachtung. (verschoben aus B5, nur Karten-relevant) — T84: Focus-Modus+Linien+verifications.jsonl ✅ V0.0.6.T84; T85: Raven-Export Simultanfelder (Simultan/Moeglich/Gleich) ✅ V0.0.6.T85
 * 📅 [E] presets für rauschfilterung bei abspielen audiofile, und speichern Sonogram.
 * ✅ [V0.0.6.T61] aktualisieren von artbestätigungen ist nicht instant.
 * ✅ [V0.0.6.T75, Audit-Befund: Mehrfach-Nennungen kamen aus EmbeddingDatabase (per recordingId, kein Art-Dedup); Refactor mit DE-Namen + Dedup + Settings-Slider 0..10 + Marquee-Mode bei 0.5 + Toggle, 6 Tests] "ähnliche Arten" abschnitt ist genauer sinn unbekannt. bezeichnungen sind der wissenschaftliche namen, und es erscheinen mehrfach nennungen.  Funktion muss abgewählt werden können, und anzeigbare anzahl zeilen eingestellt werden können. bei 0.5 Zeilen werden jeweils die letzten 5 erfassungen in laufschrift angezeigt.
