@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -78,9 +79,9 @@ private fun createCircleMarkerIcon(
     resources: android.content.res.Resources,
     color: Int,
     label: String = "",
-    locked: Boolean = false
+    locked: Boolean = false,
+    size: Int = 64
 ): Drawable {
-    val size = 64
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
 
@@ -209,8 +210,29 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 val blueColor = android.graphics.Color.parseColor("#1976D2")
                 val clusterColor = android.graphics.Color.parseColor("#607D8B")
 
-                val clustersToRender = when (state.filterMode) {
-                    FilterMode.LIVE_ONLY -> emptyList()
+                // Polylinien vor Markern zeichnen
+                for (link in state.simultaneousLinks) {
+                    val polyline = org.osmdroid.views.overlay.Polyline(mapView)
+                    polyline.addPoint(GeoPoint(link.lat1, link.lon1))
+                    polyline.addPoint(GeoPoint(link.lat2, link.lon2))
+                    val lineColor = when (link.type) {
+                        MapViewModel.LinkType.SIMULTANEOUS    -> android.graphics.Color.parseColor("#4CAF50")
+                        MapViewModel.LinkType.PROBABLE        -> android.graphics.Color.parseColor("#F44336")
+                        MapViewModel.LinkType.SAME_INDIVIDUAL -> android.graphics.Color.parseColor("#2196F3")
+                    }
+                    polyline.outlinePaint.apply {
+                        color = lineColor
+                        strokeWidth = 6f
+                        isAntiAlias = true
+                    }
+                    mapView.overlays.add(polyline)
+                }
+
+                val clustersToRender = when {
+                    state.filterMode == FilterMode.LIVE_ONLY -> emptyList()
+                    state.focusMode -> state.clusters.filter { cluster ->
+                        cluster.items.any { it.species == state.focusSpecies }
+                    }
                     else -> state.clusters
                 }
                 for (cluster in clustersToRender) {
@@ -219,10 +241,18 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     if (cluster.items.size == 1) {
                         val m = cluster.items.first()
+                        val isAnchor = m.detectionId == state.linkAnchor?.detectionId
                         val color = colorRepo.getColor(m.species)
-                        marker.icon = createCircleMarkerIcon(mapView.resources, color, speciesLabel(m.species), locked = state.lockedSpecies.contains(m.species))
+                        val iconSize = if (isAnchor) 80 else 64
+                        marker.icon = createCircleMarkerIcon(mapView.resources, color, speciesLabel(m.species), locked = state.lockedSpecies.contains(m.species), size = iconSize)
                         marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
                         marker.snippet = m.sessionId.take(16)
+                        if (state.focusMode) {
+                            marker.setOnMarkerClickListener { _, _ ->
+                                viewModel.selectLinkTarget(m)
+                                true
+                            }
+                        }
                     } else {
                         val label = "+${cluster.items.size}"
                         marker.icon = createCircleMarkerIcon(mapView.resources, clusterColor, label)
@@ -339,10 +369,62 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 viewModel.selectMarkerForMove(longPressTarget)
                             }
                         ) { Text("Position verschieben") }
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                viewModel.dismissLongPressMenu()
+                                viewModel.enterFocusMode(longPressTarget)
+                            }
+                        ) { Text("Simultanbeobachtung") }
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { viewModel.dismissLongPressMenu() }) { Text("Abbrechen") }
+                }
+            )
+        }
+
+        // Fokus-beenden-Button
+        if (state.focusMode) {
+            Button(
+                onClick = { viewModel.exitFocusMode() },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Text("Fokus beenden (${state.focusSpecies})")
+            }
+        }
+
+        // Verbindungstyp-Dialog
+        val linkTarget = state.linkTarget
+        if (linkTarget != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissLinkTarget() },
+                title = { Text("Verbindungstyp") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                            onClick = { viewModel.confirmLink(MapViewModel.LinkType.SIMULTANEOUS) }
+                        ) { Text("//  Simultanbeobachtung") }
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                            onClick = { viewModel.confirmLink(MapViewModel.LinkType.PROBABLE) }
+                        ) { Text("?  Vermutete Simultanbeobachtung") }
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                            onClick = { viewModel.confirmLink(MapViewModel.LinkType.SAME_INDIVIDUAL) }
+                        ) { Text("!  Gleiches Tier") }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissLinkTarget() }) { Text("Abbrechen") }
                 }
             )
         }
