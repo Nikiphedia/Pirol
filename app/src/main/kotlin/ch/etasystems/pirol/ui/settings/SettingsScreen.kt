@@ -1255,6 +1255,9 @@ fun SettingsScreen(
                 var ravenBeginDateTime by remember { mutableStateOf(appPreferences.ravenFieldBeginDateTime) }
                 var ravenLat           by remember { mutableStateOf(appPreferences.ravenFieldLat) }
                 var ravenLon           by remember { mutableStateOf(appPreferences.ravenFieldLon) }
+                var ravenSimultan      by remember { mutableStateOf(appPreferences.ravenFieldSimultan) }
+                var ravenMoeglich      by remember { mutableStateOf(appPreferences.ravenFieldMoeglich) }
+                var ravenGleich        by remember { mutableStateOf(appPreferences.ravenFieldGleich) }
 
                 listOf(
                     Triple("Begin Time (s)",   ravenBeginTime,     { v: Boolean -> ravenBeginTime = v;     appPreferences.ravenFieldBeginTime = v }),
@@ -1290,6 +1293,28 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    "Simultanbeobachtungen",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                )
+                listOf(
+                    Triple("Simultan (//)", ravenSimultan, { v: Boolean -> ravenSimultan = v; appPreferences.ravenFieldSimultan = v }),
+                    Triple("Moeglich (?)",  ravenMoeglich, { v: Boolean -> ravenMoeglich = v; appPreferences.ravenFieldMoeglich = v }),
+                    Triple("Gleich (!)",    ravenGleich,   { v: Boolean -> ravenGleich   = v; appPreferences.ravenFieldGleich   = v })
+                ).forEach { (label, checked, onToggle) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Switch(checked = checked, onCheckedChange = onToggle)
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }

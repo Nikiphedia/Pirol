@@ -897,6 +897,38 @@ class SessionManager(
         }
 
     /**
+     * T85: Laedt alle Simultanlink-Events aus verifications.jsonl und baut eine
+     * Map von DetectionId → SimultaneousLinkSummary (simultaneous / probable / sameIndividual).
+     */
+    private suspend fun loadSimultaneousLinkMap(
+        sessionDir: File
+    ): Map<String, RavenExporter.SimultaneousLinkSummary> = withContext(Dispatchers.IO) {
+        val veriFile = File(sessionDir, "verifications.jsonl")
+        if (!veriFile.exists()) return@withContext emptyMap()
+
+        val map = mutableMapOf<String, RavenExporter.SimultaneousLinkSummary>()
+        veriFile.bufferedReader(Charsets.UTF_8).forEachLine { line ->
+            val event = runCatching {
+                jsonLenient.decodeFromString<VerificationEvent>(line)
+            }.getOrNull() ?: return@forEachLine
+
+            val otherId = event.newValue ?: return@forEachLine
+            val detId = event.detectionId
+            val existing = map.getOrDefault(detId, RavenExporter.SimultaneousLinkSummary())
+            map[detId] = when (event.actionType) {
+                VerificationEvent.ACTION_SIMULTANEOUS_LINK ->
+                    existing.copy(simultaneous = existing.simultaneous + otherId)
+                VerificationEvent.ACTION_PROBABLE_LINK ->
+                    existing.copy(probable = existing.probable + otherId)
+                VerificationEvent.ACTION_SAME_INDIVIDUAL ->
+                    existing.copy(sameIndividual = existing.sameIndividual + otherId)
+                else -> existing
+            }
+        }
+        map
+    }
+
+    /**
      * Gibt die Recording-Datei einer Session zurueck.
      * Prueft zuerst flache Struktur (T51), dann Legacy-Pfad audio/ (pre-T51).
      */
@@ -941,9 +973,13 @@ class SessionManager(
                 if (p.ravenFieldConfidence)     add(RavenExporter.FIELD_CONFIDENCE)
                 if (p.ravenFieldLat)            add(RavenExporter.FIELD_LAT)
                 if (p.ravenFieldLon)            add(RavenExporter.FIELD_LON)
+                if (p.ravenFieldSimultan)       add(RavenExporter.FIELD_SIMULTAN)
+                if (p.ravenFieldMoeglich)       add(RavenExporter.FIELD_MOEGLICH)
+                if (p.ravenFieldGleich)         add(RavenExporter.FIELD_GLEICH)
             }
         }
-        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields)
+        val linkMap = loadSimultaneousLinkMap(sessionDir)
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap)
         outputFile
     }
 

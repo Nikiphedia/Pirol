@@ -28,6 +28,9 @@ object RavenExporter {
     const val FIELD_CONFIDENCE      = "pirol_raven_field_confidence"
     const val FIELD_LAT             = "pirol_raven_field_lat"
     const val FIELD_LON             = "pirol_raven_field_lon"
+    const val FIELD_SIMULTAN        = "pirol_raven_field_simultan"
+    const val FIELD_MOEGLICH        = "pirol_raven_field_moeglich"
+    const val FIELD_GLEICH          = "pirol_raven_field_gleich"
 
     private const val LOW_FREQ_HZ = 150
     private const val HIGH_FREQ_HZ = 12000
@@ -42,6 +45,7 @@ object RavenExporter {
      * @param sessionStartedAt ISO-8601-Timestamp mit Offset (aus session.json)
      * @param recordingSegments WAV-Segmente bei rotierter Session (null = Single-File)
      * @param enabledFields    Set der aktiven Feld-Keys; null = alle Felder aktiv
+     * @param linkMap          Simultan/Moeglich/Gleich-Links pro DetectionId (T85)
      * @return Anzahl geschriebener Zeilen
      */
     fun export(
@@ -49,7 +53,8 @@ object RavenExporter {
         detections: List<DetectionResult>,
         sessionStartedAt: String,
         recordingSegments: List<RecordingSegment>? = null,
-        enabledFields: Set<String>? = null
+        enabledFields: Set<String>? = null,
+        linkMap: Map<String, SimultaneousLinkSummary> = emptyMap()
     ): Int {
         val sessionStart = OffsetDateTime.parse(sessionStartedAt)
         fun on(key: String) = enabledFields == null || key in enabledFields
@@ -67,6 +72,9 @@ object RavenExporter {
             if (on(FIELD_CONFIDENCE))      header += "Confidence"
             if (on(FIELD_LAT))             header += "Lat"
             if (on(FIELD_LON))             header += "Lon"
+            if (on(FIELD_SIMULTAN))        header += "Simultan"
+            if (on(FIELD_MOEGLICH))        header += "Moeglich"
+            if (on(FIELD_GLEICH))          header += "Gleich"
             header += "Status"
             header += "Corrected Species"
             w.appendLine(header.joinToString("\t"))
@@ -92,6 +100,9 @@ object RavenExporter {
                 if (on(FIELD_CONFIDENCE))      row += String.format(Locale.US, "%.3f", d.confidence)
                 if (on(FIELD_LAT))             row += d.latitude?.let  { String.format(Locale.US, "%.6f", it) } ?: ""
                 if (on(FIELD_LON))             row += d.longitude?.let { String.format(Locale.US, "%.6f", it) } ?: ""
+                if (on(FIELD_SIMULTAN))        row += linkMap[d.id]?.simultaneous?.joinToString(",") ?: ""
+                if (on(FIELD_MOEGLICH))        row += linkMap[d.id]?.probable?.joinToString(",") ?: ""
+                if (on(FIELD_GLEICH))          row += linkMap[d.id]?.sameIndividual?.joinToString(",") ?: ""
                 row += d.verificationStatus.name
                 row += sanitize(d.correctedSpecies ?: "")
                 w.appendLine(row.joinToString("\t"))
@@ -103,4 +114,11 @@ object RavenExporter {
     /** Tabs/Newlines aus Strings entfernen, damit das TSV-Format nicht bricht. */
     private fun sanitize(s: String): String =
         s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ').trim()
+
+    /** T85: Verlinkte DetectionIds pro Kategorie fuer eine Detektion. */
+    data class SimultaneousLinkSummary(
+        val simultaneous: List<String> = emptyList(),
+        val probable: List<String> = emptyList(),
+        val sameIndividual: List<String> = emptyList()
+    )
 }
