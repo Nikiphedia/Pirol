@@ -13,8 +13,8 @@ object SwisstopoFarbeTileSource : OnlineTileSourceBase(
     override fun getTileURLString(pMapTileIndex: Long): String {
         return (baseUrl[0]
             + MapTileIndex.getZoom(pMapTileIndex) + "/"
-            + MapTileIndex.getX(pMapTileIndex) + "/"
-            + MapTileIndex.getY(pMapTileIndex)
+            + MapTileIndex.getY(pMapTileIndex) + "/"
+            + MapTileIndex.getX(pMapTileIndex)
             + ".jpeg")
     }
 }
