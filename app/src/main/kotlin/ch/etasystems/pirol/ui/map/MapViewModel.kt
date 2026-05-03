@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.ml.DetectionListState
+import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,9 @@ class MapViewModel(
         val confidence: Float,
         val timestampMs: Long,
         val verificationStatus: VerificationStatus,
-        val isLive: Boolean = false
+        val isLive: Boolean = false,
+        val count: Int = 1,
+        val atlasCode: String? = null
     )
 
     data class MarkerCluster(
@@ -47,7 +50,10 @@ class MapViewModel(
         val centerLon: Double = 8.54,
         val isLoading: Boolean = false,
         val filterMode: FilterMode = FilterMode.ALL,
-        val positionMoveTarget: MapMarker? = null
+        val positionMoveTarget: MapMarker? = null,
+        val editTarget: MapMarker? = null,
+        val editDetection: DetectionResult? = null,
+        val lockedSpecies: Set<String> = emptySet()
     )
 
     private val _uiState = MutableStateFlow(MapUiState())
@@ -73,6 +79,12 @@ class MapViewModel(
                     } else null
                 }
                 _uiState.update { it.copy(liveMarkers = live) }
+            }
+        }
+        // Lock-Arm: gesperrte Arten beobachten
+        viewModelScope.launch {
+            detectionListState.lockedSpecies.collect { locked ->
+                _uiState.update { it.copy(lockedSpecies = locked) }
             }
         }
         loadHistoricalDetections(FilterMode.ALL)
@@ -111,7 +123,9 @@ class MapViewModel(
                                 confidence = det.confidence,
                                 timestampMs = det.timestampMs,
                                 verificationStatus = det.verificationStatus,
-                                isLive = false
+                                isLive = false,
+                                count = det.count,
+                                atlasCode = det.atlasCode
                             )
                         )
                     }
@@ -193,5 +207,45 @@ class MapViewModel(
     /** Dialog schliessen ohne Aenderung */
     fun dismissPositionMove() {
         _uiState.update { it.copy(positionMoveTarget = null) }
+    }
+
+    /** Long-Press auf historischen Marker → volle DetectionResult laden, Edit-Dialog oeffnen */
+    fun selectMarkerForEdit(marker: MapMarker) {
+        if (marker.isLive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val dir = sessionManager.listSessions().firstOrNull {
+                sessionManager.loadMetadata(it)?.sessionId == marker.sessionId
+            } ?: return@launch
+            val det = sessionManager.loadDetectionsWithVerifications(dir)
+                .firstOrNull { it.id == marker.detectionId } ?: return@launch
+            _uiState.update { it.copy(editTarget = marker, editDetection = det) }
+        }
+    }
+
+    /** Speichern: Detection aktualisieren + Marker in-place updaten */
+    fun saveDetectionEdit(count: Int, atlasCode: String?, note: String?) {
+        val marker = _uiState.value.editTarget ?: return
+        val det = _uiState.value.editDetection ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = det.copy(count = count, atlasCode = atlasCode, note = note)
+            sessionManager.replaceDetection(updated)
+            _uiState.update { state ->
+                val updatedMarkers = state.markers.map { m ->
+                    if (m.detectionId == marker.detectionId)
+                        m.copy(count = count, atlasCode = atlasCode)
+                    else m
+                }
+                state.copy(
+                    markers = updatedMarkers,
+                    clusters = computeClusters(updatedMarkers),
+                    editTarget = null,
+                    editDetection = null
+                )
+            }
+        }
+    }
+
+    fun dismissEdit() {
+        _uiState.update { it.copy(editTarget = null, editDetection = null) }
     }
 }

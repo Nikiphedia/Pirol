@@ -7,6 +7,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +46,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.SpeciesColorRepository
+import ch.etasystems.pirol.ui.components.EditDetectionDialog
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.osmdroid.config.Configuration
@@ -68,7 +71,8 @@ private fun speciesLabel(species: String): String {
 private fun createCircleMarkerIcon(
     resources: android.content.res.Resources,
     color: Int,
-    label: String = ""
+    label: String = "",
+    locked: Boolean = false
 ): Drawable {
     val size = 64
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -102,6 +106,20 @@ private fun createCircleMarkerIcon(
         paintText.getTextBounds(label, 0, label.length, bounds)
         val yOffset = bounds.height() / 2f
         canvas.drawText(label, size / 2f, size / 2f + yOffset, paintText)
+    }
+
+    if (locked) {
+        val lockFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = android.graphics.Color.BLACK
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(size - 8f, 8f, 6f, lockFill)
+        val lockBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = android.graphics.Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+        }
+        canvas.drawCircle(size - 8f, 8f, 6f, lockBorder)
     }
 
     return BitmapDrawable(resources, bitmap)
@@ -139,6 +157,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val colorRepo: SpeciesColorRepository = koinInject()
+    val atlasCodeRepo: AtlasCodeRepository = koinInject()
 
     // osmdroid Konfiguration einmalig initialisieren
     Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
@@ -162,7 +181,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             update = { mapView ->
                 mapView.overlays.clear()
                 mapView.overlays.add(
-                    MarkerLongPressOverlay(state.markers) { viewModel.selectMarkerForMove(it) }
+                    MarkerLongPressOverlay(state.markers) { viewModel.selectMarkerForEdit(it) }
                 )
 
                 val blueColor = android.graphics.Color.parseColor("#1976D2")
@@ -179,7 +198,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     if (cluster.items.size == 1) {
                         val m = cluster.items.first()
                         val color = colorRepo.getColor(m.species)
-                        marker.icon = createCircleMarkerIcon(mapView.resources, color, speciesLabel(m.species))
+                        marker.icon = createCircleMarkerIcon(mapView.resources, color, speciesLabel(m.species), locked = state.lockedSpecies.contains(m.species))
                         marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
                         marker.snippet = m.sessionId.take(16)
                     } else {
@@ -216,13 +235,14 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
         if (cluster != null) {
             AlertDialog(
                 onDismissRequest = { viewModel.dismissCluster() },
-                title = { Text("${cluster.items.size} Detektionen") },
+                title = { Text("${cluster.items.size} Detektionen — Tippen zum Bearbeiten") },
                 text = {
                     LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
                         items(cluster.items) { m ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clickable { viewModel.selectMarkerForEdit(m) }
                                     .padding(vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -237,8 +257,14 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 Spacer(Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(m.species, style = MaterialTheme.typography.bodyMedium)
+                                    val meta = buildString {
+                                        append("${(m.confidence * 100).toInt()}%")
+                                        if (m.atlasCode != null) append("  •  ${m.atlasCode}")
+                                        if (m.count > 1) append("  •  ${m.count}×")
+                                        append("  •  ${m.verificationStatus.name}")
+                                    }
                                     Text(
-                                        "${(m.confidence * 100).toInt()}%  •  ${m.verificationStatus.name}",
+                                        meta,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -250,6 +276,20 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 },
                 confirmButton = {
                     TextButton(onClick = { viewModel.dismissCluster() }) { Text("Schliessen") }
+                }
+            )
+        }
+
+        // Edit-Detection-Dialog
+        val editTarget = state.editTarget
+        val editDetection = state.editDetection
+        if (editTarget != null && editDetection != null) {
+            EditDetectionDialog(
+                detection = editDetection,
+                atlasCodes = atlasCodeRepo.loadCodes(),
+                onDismiss = { viewModel.dismissEdit() },
+                onSave = { count, atlasCode, note, _ ->
+                    viewModel.saveDetectionEdit(count, atlasCode, note)
                 }
             )
         }
