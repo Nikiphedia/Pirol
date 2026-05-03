@@ -107,6 +107,6 @@ val appModule = module {
     viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
-    // T79: +1 Param (DetectionListState) fuer Live-Marker (1→2 get())
-    viewModel { MapViewModel(get(), get()) }  // SessionManager, DetectionListState
+    // T83: +1 Param (LocationProvider) fuer Home-FAB (2→3 get())
+    viewModel { MapViewModel(get(), get(), get()) }  // SessionManager, DetectionListState, LocationProvider
 }
