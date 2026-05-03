@@ -36,30 +36,61 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import ch.etasystems.pirol.data.repository.SpeciesColorRepository
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 
-// ── Hilfsfunktion: farbigen Kreis-Marker programmatisch erstellen ─────────────
+// ── Hilfsfunktionen: Kreis-Marker mit Kuerzel ────────────────────────────────
 
-private fun createCircleMarkerIcon(resources: android.content.res.Resources, color: Int): Drawable {
-    val size = 48
+private fun speciesLabel(species: String): String {
+    val words = species.trim().split(" ", "-")
+    return when {
+        words.size >= 2 -> words.take(3).joinToString("") { it.take(1).uppercase() }
+        species.length >= 3 -> species.take(3).replaceFirstChar { it.uppercase() }
+        else -> species.uppercase()
+    }
+}
+
+private fun createCircleMarkerIcon(
+    resources: android.content.res.Resources,
+    color: Int,
+    label: String = ""
+): Drawable {
+    val size = 64
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+    val paintFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.color = color
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, paint)
-    val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, paintFill)
+
+    val paintBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.color = android.graphics.Color.WHITE
         style = Paint.Style.STROKE
         strokeWidth = 3f
     }
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, border)
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, paintBorder)
+
+    if (label.isNotEmpty()) {
+        val paintText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = android.graphics.Color.WHITE
+            textSize = if (label.length == 1) 26f else 18f
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+        }
+        val bounds = android.graphics.Rect()
+        paintText.getTextBounds(label, 0, label.length, bounds)
+        val yOffset = bounds.height() / 2f
+        canvas.drawText(label, size / 2f, size / 2f + yOffset, paintText)
+    }
+
     return BitmapDrawable(resources, bitmap)
 }
 
@@ -94,6 +125,7 @@ private class MarkerLongPressOverlay(
 fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val colorRepo: SpeciesColorRepository = koinInject()
 
     // osmdroid Konfiguration einmalig initialisieren
     Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
@@ -124,23 +156,19 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     }
                 )
 
-                // Icons einmalig erzeugen
-                val redIcon = createCircleMarkerIcon(
-                    mapView.resources,
-                    android.graphics.Color.parseColor("#D32F2F")
-                )
-                val blueIcon = createCircleMarkerIcon(
-                    mapView.resources,
-                    android.graphics.Color.parseColor("#1976D2")
-                )
+                val blueColor = android.graphics.Color.parseColor("#1976D2")
 
                 for (m in allMarkers) {
+                    val label = speciesLabel(m.species)
+                    val color = if (m.isLive) blueColor else colorRepo.getColor(m.species)
+                    val icon = createCircleMarkerIcon(mapView.resources, color, label)
+
                     val marker = Marker(mapView)
                     marker.position = GeoPoint(m.latitude, m.longitude)
                     marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
                     marker.snippet = if (m.isLive) "Live" else m.sessionId.take(16)
                     marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    marker.icon = if (m.isLive) blueIcon else redIcon
+                    marker.icon = icon
                     mapView.overlays.add(marker)
                 }
 
