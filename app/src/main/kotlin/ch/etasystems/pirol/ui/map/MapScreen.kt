@@ -6,20 +6,28 @@ import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.MotionEvent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -32,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -81,7 +90,11 @@ private fun createCircleMarkerIcon(
     if (label.isNotEmpty()) {
         val paintText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = android.graphics.Color.WHITE
-            textSize = if (label.length == 1) 26f else 18f
+            textSize = when {
+                label.length == 1 -> 26f
+                label.length <= 3 -> 18f
+                else -> 14f
+            }
             textAlign = Paint.Align.CENTER
             isFakeBoldText = true
         }
@@ -148,27 +161,48 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             },
             update = { mapView ->
                 mapView.overlays.clear()
-
-                // Long-Press Overlay zuerst registrieren (vor Markern)
                 mapView.overlays.add(
-                    MarkerLongPressOverlay(allMarkers) { marker ->
-                        viewModel.selectMarkerForMove(marker)
-                    }
+                    MarkerLongPressOverlay(state.markers) { viewModel.selectMarkerForMove(it) }
                 )
 
                 val blueColor = android.graphics.Color.parseColor("#1976D2")
+                val clusterColor = android.graphics.Color.parseColor("#607D8B")
 
-                for (m in allMarkers) {
-                    val label = speciesLabel(m.species)
-                    val color = if (m.isLive) blueColor else colorRepo.getColor(m.species)
-                    val icon = createCircleMarkerIcon(mapView.resources, color, label)
+                val clustersToRender = when (state.filterMode) {
+                    FilterMode.LIVE_ONLY -> emptyList()
+                    else -> state.clusters
+                }
+                for (cluster in clustersToRender) {
+                    val marker = Marker(mapView)
+                    marker.position = GeoPoint(cluster.centerLat, cluster.centerLon)
+                    marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    if (cluster.items.size == 1) {
+                        val m = cluster.items.first()
+                        val color = colorRepo.getColor(m.species)
+                        marker.icon = createCircleMarkerIcon(mapView.resources, color, speciesLabel(m.species))
+                        marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
+                        marker.snippet = m.sessionId.take(16)
+                    } else {
+                        val label = "+${cluster.items.size}"
+                        marker.icon = createCircleMarkerIcon(mapView.resources, clusterColor, label)
+                        marker.title = "${cluster.items.size} Detektionen"
+                        marker.snippet = null
+                        marker.setOnMarkerClickListener { _, _ ->
+                            viewModel.selectCluster(cluster)
+                            true
+                        }
+                    }
+                    mapView.overlays.add(marker)
+                }
 
+                val liveToRender = if (state.filterMode == FilterMode.LIVE_ONLY || state.filterMode == FilterMode.ALL)
+                    state.liveMarkers else emptyList()
+                for (m in liveToRender) {
                     val marker = Marker(mapView)
                     marker.position = GeoPoint(m.latitude, m.longitude)
-                    marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
-                    marker.snippet = if (m.isLive) "Live" else m.sessionId.take(16)
                     marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    marker.icon = icon
+                    marker.icon = createCircleMarkerIcon(mapView.resources, blueColor, speciesLabel(m.species))
+                    marker.title = "${m.species} (Live, ${(m.confidence * 100).toInt()}%)"
                     mapView.overlays.add(marker)
                 }
 
@@ -176,6 +210,49 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Cluster-Dialog
+        val cluster = state.selectedCluster
+        if (cluster != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissCluster() },
+                title = { Text("${cluster.items.size} Detektionen") },
+                text = {
+                    LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                        items(cluster.items) { m ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(
+                                            color = Color(colorRepo.getColor(m.species)),
+                                            shape = CircleShape
+                                        )
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(m.species, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        "${(m.confidence * 100).toInt()}%  •  ${m.verificationStatus.name}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.dismissCluster() }) { Text("Schliessen") }
+                }
+            )
+        }
 
         // Filter-Chips oben
         Column(modifier = Modifier.align(Alignment.TopStart)) {
