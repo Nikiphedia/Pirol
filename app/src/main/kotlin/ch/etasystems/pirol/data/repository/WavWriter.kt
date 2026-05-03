@@ -101,12 +101,12 @@ class StreamingWavWriter private constructor(
                 val ch = raf.channel
                 // RIFF fileSize @ Offset 4
                 val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                riffBuf.putInt((36 + dataBytes).toInt())
+                riffBuf.putInt(minOf(36L + dataBytes, 0xFFFFFFFFL).toInt())
                 riffBuf.flip()
                 ch.write(riffBuf, 4L)
                 // data dataSize @ Offset 40
                 val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                dataBuf.putInt(dataBytes.toInt())
+                dataBuf.putInt(minOf(dataBytes, 0xFFFFFFFFL).toInt())
                 dataBuf.flip()
                 ch.write(dataBuf, 40L)
                 ch.force(true)
@@ -179,12 +179,12 @@ class StreamingWavWriter private constructor(
             // T57-B2: Header-Felder aktualisieren damit Windows korrekte Hz + Laenge zeigt
             // Absolute channel.write(buf, pos) aendert die Channel-Position nicht → Append-Position bleibt korrekt
             val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            riffBuf.putInt((36 + dataBytesWritten).toInt())
+            riffBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
             riffBuf.flip()
             channel.write(riffBuf, 4L)
 
             val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            dataBuf.putInt(dataBytesWritten.toInt())
+            dataBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
             dataBuf.flip()
             channel.write(dataBuf, 40L)
 
@@ -199,13 +199,13 @@ class StreamingWavWriter private constructor(
     fun close() {
         // RIFF fileSize @ Offset 4
         val riffSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        riffSizeBuf.putInt((36 + dataBytesWritten).toInt())
+        riffSizeBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
         riffSizeBuf.flip()
         channel.write(riffSizeBuf, 4L)
 
         // data dataSize @ Offset 40
         val dataSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        dataSizeBuf.putInt(dataBytesWritten.toInt())
+        dataSizeBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
         dataSizeBuf.flip()
         channel.write(dataSizeBuf, 40L)
 

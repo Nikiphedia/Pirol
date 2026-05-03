@@ -47,6 +47,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
@@ -265,6 +266,7 @@ private fun CompactLiveLayout(
     onRequestLocationPermission: () -> Unit = {}
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
+    var showMemoDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -353,7 +355,7 @@ private fun CompactLiveLayout(
                 // Memo-Button
                 AnimatedVisibility(visible = uiState.isRecording) {
                     IconButton(
-                        onClick = {},
+                        onClick = { showMemoDialog = true },
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
@@ -427,6 +429,16 @@ private fun CompactLiveLayout(
             onDismiss = { showAddManualDialog = false }
         )
     }
+    if (showMemoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoDialog = false },
+            title = { Text("Sprach-Memo") },
+            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            confirmButton = {
+                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
+            }
+        )
+    }
 }
 
 // =============================================================================
@@ -441,6 +453,7 @@ private fun MediumLiveLayout(
     onRequestLocationPermission: () -> Unit = {}
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
+    var showMemoDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -535,7 +548,7 @@ private fun MediumLiveLayout(
                     // Memo-Button
                     AnimatedVisibility(visible = uiState.isRecording) {
                         IconButton(
-                            onClick = {},
+                            onClick = { showMemoDialog = true },
                             modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
@@ -610,6 +623,16 @@ private fun MediumLiveLayout(
             onDismiss = { showAddManualDialog = false }
         )
     }
+    if (showMemoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoDialog = false },
+            title = { Text("Sprach-Memo") },
+            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            confirmButton = {
+                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
+            }
+        )
+    }
 }
 
 // =============================================================================
@@ -624,6 +647,7 @@ private fun ExpandedLiveLayout(
     onRequestLocationPermission: () -> Unit = {}
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
+    var showMemoDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -718,7 +742,7 @@ private fun ExpandedLiveLayout(
                     // Memo-Button
                     AnimatedVisibility(visible = uiState.isRecording) {
                         IconButton(
-                            onClick = {},
+                            onClick = { showMemoDialog = true },
                             modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
@@ -791,6 +815,16 @@ private fun ExpandedLiveLayout(
                 showAddManualDialog = false
             },
             onDismiss = { showAddManualDialog = false }
+        )
+    }
+    if (showMemoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoDialog = false },
+            title = { Text("Sprach-Memo") },
+            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            confirmButton = {
+                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
+            }
         )
     }
 }
