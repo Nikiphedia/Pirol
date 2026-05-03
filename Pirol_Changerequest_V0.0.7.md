@@ -61,6 +61,14 @@
 
 ---
 
+## Fehlerlog 2026-05-03 (Feld-Feedback, nach Cluster D)
+
+| # | Beschreibung | Status |
+|---|-------------|--------|
+| G1 | Long-press auf Karten-Marker öffnet kein Menü | ✅ V0.0.6.T87 |
+| G2 | Swisstopo-Kacheln laden nicht (blank bei Zoom ≥ 13) | ✅ V0.0.6.T87 |
+| G3 | Karte generell langsam / Tiles werden nicht gecacht | ✅ V0.0.6.T87 |
+
 ## Bugreport (Von User)
 - 📅 [eigener AP, T80+] BirdNet und andere Modelle lassen sich nicht direkt runterladen. Ein .json wäre Hilfreich und einfach zu aktualisieren. Später Update Version für alle.json welche von Ersteller zur verfügung gestellt werden. (T78-Nummer vergeben für Raven-UX — Modell-Manifest wird separater AP)
 
