@@ -1,0 +1,6 @@
+{
+  "tileSources": [
+    { "type": "osm",             "minZoom": 1,  "maxZoom": 12 },
+    { "type": "swisstopo_farbe", "minZoom": 13, "maxZoom": 18 }
+  ]
+}

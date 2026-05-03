@@ -4,6 +4,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.location.LocationData
+import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationStatus
@@ -18,8 +20,11 @@ enum class FilterMode { ALL, LIVE_ONLY, RECENT_3 }
 
 class MapViewModel(
     private val sessionManager: SessionManager,
-    private val detectionListState: DetectionListState
+    private val detectionListState: DetectionListState,
+    private val locationProvider: LocationProvider
 ) : ViewModel() {
+
+    val currentLocation: StateFlow<LocationData?> = locationProvider.location
 
     data class MapMarker(
         val detectionId: String,
@@ -50,6 +55,7 @@ class MapViewModel(
         val centerLon: Double = 8.54,
         val isLoading: Boolean = false,
         val filterMode: FilterMode = FilterMode.ALL,
+        val longPressTarget: MapMarker? = null,
         val positionMoveTarget: MapMarker? = null,
         val editTarget: MapMarker? = null,
         val editDetection: DetectionResult? = null,
@@ -177,7 +183,17 @@ class MapViewModel(
         _uiState.update { it.copy(selectedCluster = null) }
     }
 
-    /** Long-Press auf historischen Marker → Dialog oeffnen */
+    /** Long-Press auf historischen Marker → Auswahl-Dialog oeffnen */
+    fun onMarkerLongPress(marker: MapMarker) {
+        if (marker.isLive) return
+        _uiState.update { it.copy(longPressTarget = marker) }
+    }
+
+    fun dismissLongPressMenu() {
+        _uiState.update { it.copy(longPressTarget = null) }
+    }
+
+    /** Position-Verschieben-Dialog oeffnen */
     fun selectMarkerForMove(marker: MapMarker) {
         if (marker.isLive) return  // Live-Marker haben keine sessionId → kein Position-Move
         _uiState.update { it.copy(positionMoveTarget = marker) }

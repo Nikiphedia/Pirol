@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,11 +29,16 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -125,6 +131,11 @@ private fun createCircleMarkerIcon(
     return BitmapDrawable(resources, bitmap)
 }
 
+private fun tileSourceForZoom(zoom: Int): org.osmdroid.tileprovider.tilesource.ITileSource {
+    return if (zoom >= 13) SwisstopoFarbeTileSource
+    else org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK
+}
+
 // ── Long-Press Overlay: findet naechsten historischen Marker innerhalb 50px ──
 
 private class MarkerLongPressOverlay(
@@ -162,6 +173,9 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     // osmdroid Konfiguration einmalig initialisieren
     Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
 
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+    val locationState by viewModel.currentLocation.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         // Karte (ganzer Bildschirm)
@@ -176,12 +190,20 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     setMultiTouchControls(true)
                     controller.setZoom(14.0)
                     controller.setCenter(GeoPoint(state.centerLat, state.centerLon))
-                }
+                    setTileSource(tileSourceForZoom(14))
+                    addMapListener(object : org.osmdroid.events.MapListener {
+                        override fun onZoom(event: org.osmdroid.events.ZoomEvent): Boolean {
+                            setTileSource(tileSourceForZoom(event.zoomLevel.toInt()))
+                            return false
+                        }
+                        override fun onScroll(event: org.osmdroid.events.ScrollEvent) = false
+                    })
+                }.also { mapViewRef.value = it }
             },
             update = { mapView ->
                 mapView.overlays.clear()
                 mapView.overlays.add(
-                    MarkerLongPressOverlay(state.markers) { viewModel.selectMarkerForEdit(it) }
+                    MarkerLongPressOverlay(state.markers) { viewModel.onMarkerLongPress(it) }
                 )
 
                 val blueColor = android.graphics.Color.parseColor("#1976D2")
@@ -292,6 +314,56 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     viewModel.saveDetectionEdit(count, atlasCode, note)
                 }
             )
+        }
+
+        // Long-Press-Auswahl-Dialog
+        val longPressTarget = state.longPressTarget
+        if (longPressTarget != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissLongPressMenu() },
+                title = { Text(longPressTarget.species) },
+                text = { Text("Was moechten Sie tun?") },
+                confirmButton = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                viewModel.dismissLongPressMenu()
+                                viewModel.selectMarkerForEdit(longPressTarget)
+                            }
+                        ) { Text("Bearbeiten") }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                viewModel.dismissLongPressMenu()
+                                viewModel.selectMarkerForMove(longPressTarget)
+                            }
+                        ) { Text("Position verschieben") }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissLongPressMenu() }) { Text("Abbrechen") }
+                }
+            )
+        }
+
+        // Home-FAB
+        FloatingActionButton(
+            onClick = {
+                val loc = locationState
+                if (loc != null) {
+                    mapViewRef.value?.controller?.animateTo(
+                        GeoPoint(loc.latitude, loc.longitude),
+                        15.0,
+                        500L
+                    )
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Filled.MyLocation, contentDescription = "Mein Standort")
         }
 
         // Filter-Chips oben
