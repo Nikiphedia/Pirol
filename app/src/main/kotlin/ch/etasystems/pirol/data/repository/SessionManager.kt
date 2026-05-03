@@ -417,7 +417,9 @@ class SessionManager(
             val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
             try {
                 val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                file.writeText(content)
+                val tmp = File(sessionDir, "verifications.jsonl.tmp")
+                tmp.writeText(content)
+                tmp.renameTo(file)
             } catch (e: Exception) {
                 Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
             }
@@ -1135,6 +1137,37 @@ class SessionManager(
             File(dir, "verifications.jsonl").appendText(json.encodeToString(event) + "\n")
         } catch (e: Exception) {
             Log.e(TAG, "recordPositionMoved fehlgeschlagen: $detectionId", e)
+        }
+    }
+
+    suspend fun recordSimultaneousLink(
+        sessionId: String,
+        detectionId1: String,
+        detectionId2: String,
+        actionType: String
+    ) = withContext(Dispatchers.IO) {
+        val dir = listSessions().firstOrNull { loadMetadata(it)?.sessionId == sessionId }
+            ?: return@withContext
+        val now = System.currentTimeMillis()
+        val event1 = VerificationEvent(
+            detectionId = detectionId1,
+            status = VerificationStatus.UNVERIFIED,
+            verifiedAtMs = now,
+            actionType = actionType,
+            newValue = detectionId2
+        )
+        val event2 = VerificationEvent(
+            detectionId = detectionId2,
+            status = VerificationStatus.UNVERIFIED,
+            verifiedAtMs = now,
+            actionType = actionType,
+            newValue = detectionId1
+        )
+        try {
+            File(dir, "verifications.jsonl").appendText(json.encodeToString(event1) + "\n")
+            File(dir, "verifications.jsonl").appendText(json.encodeToString(event2) + "\n")
+        } catch (e: Exception) {
+            Log.e(TAG, "recordSimultaneousLink fehlgeschlagen: $detectionId1/$detectionId2", e)
         }
     }
 }

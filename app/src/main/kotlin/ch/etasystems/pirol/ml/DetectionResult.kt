@@ -55,7 +55,7 @@ data class DetectionResult(
     val lastSeenAtMs: Long = timestampMs,    // letzte Erfassung im Cluster (= timestampMs wenn keine weiteren)
     // Cluster-C-Felder (V0.0.7+)
     val count: Int = 1,                      // Stueckzahl (User-Beobachtung), Default 1
-    val atlasCode: String? = null,           // ornitho-Atlascode (z.B. "A2", "B4"); null = nicht gesetzt
+    val atlasCode: String? = null,           // ornitho-Atlascode (z.B. "AC1"–"AC99"); null = nicht gesetzt
     val note: String? = null,               // Freitext-Bemerkung
     val voiceMemoFile: String? = null,       // relativer Pfad zur WAV, z.B. "memos/det_xyz.wav"
     val manualEntry: Boolean = false,        // true = Art manuell hinzugefuegt (Cluster B)
@@ -100,5 +100,9 @@ data class VerificationEvent(
         const val ACTION_POSITION_MOVED       = "POSITION_MOVED"
         // Cluster A (T70):
         const val ACTION_CLUSTER_MERGED       = "CLUSTER_MERGED"
+        // Cluster D5a (T84):
+        const val ACTION_SIMULTANEOUS_LINK    = "SIMULTANEOUS_LINK"
+        const val ACTION_PROBABLE_LINK        = "PROBABLE_LINK"
+        const val ACTION_SAME_INDIVIDUAL      = "SAME_INDIVIDUAL"
     }
 }
