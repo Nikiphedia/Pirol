@@ -370,9 +370,8 @@ class AnalysisViewModel(
             val samples = ShortArray(numSamples)
             val buf = java.nio.ByteBuffer.wrap(bytes, 44, dataSize)
             buf.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-            for (i in 0 until numSamples) {
-                samples[i] = buf.short
-            }
+            // Bulk-Konvertierung statt buf.short pro Sample
+            buf.asShortBuffer().get(samples)
             return samples
         } catch (e: Exception) {
             Log.e("AnalysisVM", "WAV lesen fehlgeschlagen: ${wavFile.name}", e)

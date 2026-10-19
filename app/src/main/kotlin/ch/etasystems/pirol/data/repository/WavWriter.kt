@@ -58,9 +58,8 @@ object WavWriter {
             // Sample-Daten schreiben (Little Endian)
             val sampleBuf = ByteBuffer.allocate(dataSize)
             sampleBuf.order(ByteOrder.LITTLE_ENDIAN)
-            for (s in samples) {
-                sampleBuf.putShort(s)
-            }
+            // Bulk-Konvertierung (statt putShort() pro Sample)
+            sampleBuf.asShortBuffer().put(samples)
             fos.write(sampleBuf.array())
         }
     }
@@ -107,6 +106,8 @@ class StreamingWavWriter private constructor(
     }
 
     private var dataBytesWritten: Long = 0L
+    // Wiederverwendeter Sample-Buffer fuer append() (waechst bei Bedarf, sonst keine Allokation pro Chunk)
+    private var appendBuffer: ByteBuffer = ByteBuffer.allocate(0)
     private var appendCount: Int = 0
     private val numChannels = 1
     private val bitsPerSample = 16
@@ -131,16 +132,26 @@ class StreamingWavWriter private constructor(
         header.putInt(0)            // Platzhalter dataSize = 0
         header.flip()
         channel.write(header, 0L)
+        // Absolutes write(buf, pos) veraendert die Channel-Position NICHT → ohne diese Zeile
+        // wuerde das erste append() ab Offset 0 schreiben und den Header ueberschreiben.
+        channel.position(44L)
         dataBytesWritten = 0L
         appendCount = 0
     }
 
     /** Haengt Samples an. open() muss vorher aufgerufen worden sein. */
     fun append(samples: ShortArray) {
-        val buf = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-        for (s in samples) buf.putShort(s)
-        buf.flip()
-        channel.write(buf)
+        val byteCount = samples.size * 2
+        if (appendBuffer.capacity() < byteCount) {
+            appendBuffer = ByteBuffer.allocate(byteCount).order(ByteOrder.LITTLE_ENDIAN)
+        }
+        val buf = appendBuffer
+        buf.clear()
+        // Bulk-Konvertierung (statt putShort() pro Sample); ShortBuffer-View teilt Byte-Order + Daten
+        buf.asShortBuffer().put(samples)
+        buf.limit(byteCount)
+        // FileChannel.write() kann (v.a. bei SAF) weniger Bytes schreiben → bis Ende schreiben
+        while (buf.hasRemaining()) channel.write(buf)
         dataBytesWritten += samples.size * 2L
         appendCount++
         // Periodisches Flush: sichert Datei bei App-Kills in langen Sessions
