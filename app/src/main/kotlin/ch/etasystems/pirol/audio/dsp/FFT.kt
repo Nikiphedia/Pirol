@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.audio.dsp
 
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -30,38 +31,65 @@ object FFT {
         // Bit-Reversal Permutation
         bitReverse(real, imag, n)
 
+        // Twiddle-Faktoren aus Cache (einmal pro FFT-Groesse berechnet).
+        // Vorher: cos()/sin() pro Butterfly → bei N=2048 ~11'000 Trig-Aufrufe pro Frame.
+        val tw = twiddles(n)
+        val twCos = tw.cos
+        val twSin = tw.sin
+
         // Butterfly-Operationen
         var halfSize = 1
         while (halfSize < n) {
             val stepSize = halfSize * 2
-            val angleStep = -PI / halfSize // -2*PI / stepSize
+            // Twiddle fuer Index j in dieser Stufe: exp(-i*PI*j/halfSize) = Tabelle[j * (n / stepSize)]
+            val tableStride = n / stepSize
 
-            // Twiddle-Faktoren fuer diese Stufe
             var k = 0
             while (k < n) {
-                var angle = 0.0
+                var tableIdx = 0
                 for (j in 0 until halfSize) {
-                    val twiddleReal = cos(angle).toFloat()
-                    val twiddleImag = sin(angle).toFloat()
+                    val twiddleReal = twCos[tableIdx]
+                    val twiddleImag = twSin[tableIdx]
 
                     val evenIdx = k + j
                     val oddIdx = k + j + halfSize
 
                     // Butterfly
-                    val tReal = twiddleReal * real[oddIdx] - twiddleImag * imag[oddIdx]
-                    val tImag = twiddleReal * imag[oddIdx] + twiddleImag * real[oddIdx]
+                    val oddReal = real[oddIdx]
+                    val oddImag = imag[oddIdx]
+                    val tReal = twiddleReal * oddReal - twiddleImag * oddImag
+                    val tImag = twiddleReal * oddImag + twiddleImag * oddReal
 
-                    real[oddIdx] = real[evenIdx] - tReal
-                    imag[oddIdx] = imag[evenIdx] - tImag
-                    real[evenIdx] = real[evenIdx] + tReal
-                    imag[evenIdx] = imag[evenIdx] + tImag
+                    val evenReal = real[evenIdx]
+                    val evenImag = imag[evenIdx]
+                    real[oddIdx] = evenReal - tReal
+                    imag[oddIdx] = evenImag - tImag
+                    real[evenIdx] = evenReal + tReal
+                    imag[evenIdx] = evenImag + tImag
 
-                    angle += angleStep
+                    tableIdx += tableStride
                 }
                 k += stepSize
             }
             halfSize = stepSize
         }
+    }
+
+    /** Vorberechnete Twiddle-Faktoren exp(-2*PI*i*j/n) fuer j in [0, n/2). */
+    private class Twiddles(val cos: FloatArray, val sin: FloatArray)
+
+    private val twiddleCache = ConcurrentHashMap<Int, Twiddles>()
+
+    private fun twiddles(n: Int): Twiddles = twiddleCache.getOrPut(n) {
+        val half = n / 2
+        val c = FloatArray(half)
+        val s = FloatArray(half)
+        for (j in 0 until half) {
+            val angle = -2.0 * PI * j / n
+            c[j] = cos(angle).toFloat()
+            s[j] = sin(angle).toFloat()
+        }
+        Twiddles(c, s)
     }
 
     /**

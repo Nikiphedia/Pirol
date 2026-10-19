@@ -1,6 +1,8 @@
 package ch.etasystems.pirol.ml
 
 import android.util.Log
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -145,8 +147,9 @@ class EmbeddingDatabase {
         // Embedding-Dimension aus erstem Eintrag
         val dim = allEntries.first().embedding.size
 
+        // Gepuffert: ohne BufferedOutputStream erzeugt jeder kleine write() einen Syscall
         FileOutputStream(file).use { fos ->
-            DataOutputStream(fos).use { dos ->
+            DataOutputStream(BufferedOutputStream(fos)).use { dos ->
                 // Header schreiben
                 writeMagic(dos)
                 writeIntLE(dos, VERSION)
@@ -168,9 +171,7 @@ class EmbeddingDatabase {
                     // Embedding-Vektor (Float32 LE)
                     val buf = ByteBuffer.allocate(entry.embedding.size * 4)
                     buf.order(ByteOrder.LITTLE_ENDIAN)
-                    for (v in entry.embedding) {
-                        buf.putFloat(v)
-                    }
+                    buf.asFloatBuffer().put(entry.embedding)
                     dos.write(buf.array())
                 }
             }
@@ -193,7 +194,7 @@ class EmbeddingDatabase {
         }
 
         FileInputStream(file).use { fis ->
-            DataInputStream(fis).use { dis ->
+            DataInputStream(BufferedInputStream(fis)).use { dis ->
                 // Header lesen und validieren
                 val magic = readMagic(dis)
                 require(magic == MAGIC) {
@@ -230,7 +231,8 @@ class EmbeddingDatabase {
                     dis.readFully(embBytes)
                     val buf = ByteBuffer.wrap(embBytes)
                     buf.order(ByteOrder.LITTLE_ENDIAN)
-                    val embedding = FloatArray(dim) { buf.float }
+                    val embedding = FloatArray(dim)
+                    buf.asFloatBuffer().get(embedding)
 
                     entries[recordingId] = EmbeddingEntry(recordingId, species, embedding)
                 }

@@ -320,11 +320,13 @@ class BirdNetV3Classifier(
 
         return try {
             val inputName = session.inputNames.first()
-            val result = session.run(mapOf(inputName to tensor))
-
-            // V3.0 hat 2 Outputs: (embeddings, predictions)
-            // Predictions ist der Tensor mit der passenden Label-Anzahl
-            extractPredictions(result, session)
+            // Result muss geschlossen werden, sonst bleiben die nativen Output-Tensoren
+            // (Embedding + 11'560 Scores) bei jeder Inference im Speicher liegen.
+            session.run(mapOf(inputName to tensor)).use { result ->
+                // V3.0 hat 2 Outputs: (embeddings, predictions)
+                // Predictions ist der Tensor mit der passenden Label-Anzahl
+                extractPredictions(result, session)
+            }
         } finally {
             tensor.close()
         }
