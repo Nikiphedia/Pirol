@@ -69,6 +69,11 @@ computeStatic, Resampler-Bitidentitaet, Twiddle-Cache).
 
 ## 3. Verifizierung
 
+> **Update 2026-10-20:** Android-SDK in der Cloud-Umgebung verfuegbar. Auf diesem Branch
+> `compileDebugKotlin`, `testDebugUnitTest` (20/20 gruen: DspEffizienzTest 8, AccuracyFilterTest 6,
+> MedianSmoothingTest 6) und `assembleDebug` (inkl. Oboe/NDK) **erfolgreich**. Die Hinweise unten
+> zu "nicht gebaut" sind damit ueberholt; offen bleibt nur der Geraetetest.
+
 - **Android-Build NICHT gelaufen:** In der Cloud-Umgebung ist das Android-SDK nicht verfuegbar
   (dl.google.com durch Proxy gesperrt). → **Bitte lokal `./gradlew compileDebugKotlin` und
   `./gradlew testDebugUnitTest` laufen lassen.**
