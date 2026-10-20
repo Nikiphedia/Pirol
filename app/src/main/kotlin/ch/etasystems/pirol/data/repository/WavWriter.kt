@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -58,11 +59,57 @@ object WavWriter {
             // Sample-Daten schreiben (Little Endian)
             val sampleBuf = ByteBuffer.allocate(dataSize)
             sampleBuf.order(ByteOrder.LITTLE_ENDIAN)
-            for (s in samples) {
-                sampleBuf.putShort(s)
-            }
+            // Bulk-Konvertierung (statt putShort() pro Sample)
+            sampleBuf.asShortBuffer().put(samples)
             fos.write(sampleBuf.array())
         }
+    }
+
+    /**
+     * Repariert den Header einer 16-bit-PCM-Mono-WAV, deren erste 44 Bytes ueberschrieben wurden (T61).
+     *
+     * Hintergrund: StreamingWavWriter hat seit T51 bis T61 das erste append() ab Offset 0 geschrieben
+     * und damit den Header mit Audio ueberschrieben (nur Offset 4 und 40 wurden beim close() gepatcht).
+     * Das Audio ab Byte 44 ist intakt; die ersten 22 Samples sind verloren.
+     *
+     * Erkennung: Gueltige Dateien beginnen immer mit "RIFF" und haben "WAVE" an Offset 8.
+     * Dateien mit korrektem Header werden nicht angefasst.
+     *
+     * @return true wenn der Header neu geschrieben wurde
+     */
+    fun repairHeaderIfNeeded(file: File, sampleRate: Int): Boolean {
+        if (!file.exists() || file.length() < 44 || sampleRate <= 0) return false
+        RandomAccessFile(file, "rw").use { raf ->
+            val head = ByteArray(12)
+            raf.readFully(head)
+            val riff = String(head, 0, 4, Charsets.US_ASCII)
+            val wave = String(head, 8, 4, Charsets.US_ASCII)
+            if (riff == "RIFF" && wave == "WAVE") return false
+
+            val dataSize = (raf.length() - 44).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            raf.seek(0)
+            raf.write(buildHeader(sampleRate, dataSize))
+        }
+        return true
+    }
+
+    /** 44-Byte PCM-Mono-16-bit-Header */
+    private fun buildHeader(sampleRate: Int, dataSize: Int): ByteArray {
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray())
+        header.putInt(36 + dataSize)
+        header.put("WAVE".toByteArray())
+        header.put("fmt ".toByteArray())
+        header.putInt(16)
+        header.putShort(1)
+        header.putShort(1)
+        header.putInt(sampleRate)
+        header.putInt(sampleRate * 2)
+        header.putShort(2)
+        header.putShort(16)
+        header.put("data".toByteArray())
+        header.putInt(dataSize)
+        return header.array()
     }
 }
 
@@ -107,6 +154,8 @@ class StreamingWavWriter private constructor(
     }
 
     private var dataBytesWritten: Long = 0L
+    // Wiederverwendeter Sample-Buffer fuer append() (waechst bei Bedarf, sonst keine Allokation pro Chunk)
+    private var appendBuffer: ByteBuffer = ByteBuffer.allocate(0)
     private var appendCount: Int = 0
     private val numChannels = 1
     private val bitsPerSample = 16
@@ -131,16 +180,26 @@ class StreamingWavWriter private constructor(
         header.putInt(0)            // Platzhalter dataSize = 0
         header.flip()
         channel.write(header, 0L)
+        // Absolutes write(buf, pos) veraendert die Channel-Position NICHT → ohne diese Zeile
+        // wuerde das erste append() ab Offset 0 schreiben und den Header ueberschreiben.
+        channel.position(44L)
         dataBytesWritten = 0L
         appendCount = 0
     }
 
     /** Haengt Samples an. open() muss vorher aufgerufen worden sein. */
     fun append(samples: ShortArray) {
-        val buf = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-        for (s in samples) buf.putShort(s)
-        buf.flip()
-        channel.write(buf)
+        val byteCount = samples.size * 2
+        if (appendBuffer.capacity() < byteCount) {
+            appendBuffer = ByteBuffer.allocate(byteCount).order(ByteOrder.LITTLE_ENDIAN)
+        }
+        val buf = appendBuffer
+        buf.clear()
+        // Bulk-Konvertierung (statt putShort() pro Sample); ShortBuffer-View teilt Byte-Order + Daten
+        buf.asShortBuffer().put(samples)
+        buf.limit(byteCount)
+        // FileChannel.write() kann (v.a. bei SAF) weniger Bytes schreiben → bis Ende schreiben
+        while (buf.hasRemaining()) channel.write(buf)
         dataBytesWritten += samples.size * 2L
         appendCount++
         // Periodisches Flush: sichert Datei bei App-Kills in langen Sessions

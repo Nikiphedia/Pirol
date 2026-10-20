@@ -719,6 +719,32 @@ class SessionManager(
     }
 
     /**
+     * Repariert defekte WAV-Header aller Aufnahme-Segmente einer Session (T61).
+     * Betrifft Aufnahmen aus V0.0.6 (siehe [WavWriter.repairHeaderIfNeeded]).
+     * Dateien mit gueltigem Header bleiben unveraendert.
+     *
+     * @return Anzahl reparierter Dateien
+     */
+    suspend fun repairRecordingHeaders(sessionDir: File): Int = withContext(Dispatchers.IO) {
+        val sampleRate = loadMetadata(sessionDir)?.sampleRate ?: return@withContext 0
+        val candidates = (sessionDir.listFiles { f ->
+            f.isFile && f.name.startsWith("recording") && f.name.endsWith(".wav")
+        }?.toList() ?: emptyList()) + listOfNotNull(File(sessionDir, "audio/recording.wav").takeIf { it.exists() })
+        var repaired = 0
+        for (file in candidates) {
+            try {
+                if (WavWriter.repairHeaderIfNeeded(file, sampleRate)) {
+                    repaired++
+                    Log.w(TAG, "WAV-Header repariert: ${sessionDir.name}/${file.name}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "WAV-Header-Reparatur fehlgeschlagen: ${file.absolutePath}", e)
+            }
+        }
+        repaired
+    }
+
+    /**
      * Schreibt eine Raven Selection Table neben recording.wav (fuer manuellen Re-Export).
      * Laedt session.json fuer startedAt + recordingSegments (T57-B3).
      * @return Pfad zur erzeugten Datei oder null wenn keine Aufnahme vorhanden

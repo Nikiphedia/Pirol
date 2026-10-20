@@ -72,13 +72,29 @@ class BirdNetV3Classifier(
         sampleRate: Int,
         topK: Int,
         threshold: Float
-    ): List<AudioClassifier.ClassifierResult> {
-        if (samples.isEmpty()) return emptyList()
+    ): List<AudioClassifier.ClassifierResult> =
+        classifyWithEmbedding(samples, sampleRate, topK, threshold).results
+
+    /**
+     * Klassifiziert einen Audio-Chunk und liefert das Embedding aus DEMSELBEN Modell-Durchlauf (T61).
+     * BirdNET V3.0 berechnet Embedding [1,1024] und Predictions [1,N] ohnehin gemeinsam —
+     * ein separater extractEmbedding()-Aufruf wuerde das Modell ein zweites Mal ausfuehren.
+     *
+     * @return Treffer (sortiert, Top-K) + rohes Embedding (nicht L2-normalisiert, null bei Fehler)
+     */
+    override fun classifyWithEmbedding(
+        samples: FloatArray,
+        sampleRate: Int,
+        topK: Int,
+        threshold: Float
+    ): AudioClassifier.ClassificationOutput {
+        val empty = AudioClassifier.ClassificationOutput(emptyList(), null)
+        if (samples.isEmpty()) return empty
 
         val session = ensureSession()
         if (session == null) {
             Log.w(TAG, "ONNX Session nicht verfuegbar — Modell fehlt oder Ladefehler")
-            return emptyList()
+            return empty
         }
 
         return try {
@@ -92,8 +108,12 @@ class BirdNetV3Classifier(
             // 2. Auf exakt CHUNK_SAMPLES bringen (Zero-Padding oder Truncate)
             val chunk = prepareChunk(resampled)
 
-            // 3. ONNX Inference
-            val scores = runInference(session, chunk)
+            // 3. ONNX Inference — Result wird geschlossen (sonst nativer Speicherleck pro Inference)
+            val result = runInferenceRaw(session, chunk) ?: return empty
+            val (scores, embedding) = result.use { res ->
+                // V3.0 hat 2 Outputs: (embeddings, predictions)
+                extractPredictions(res, session) to extractEmbeddingFromResult(res, session)
+            }
 
             // 4. Top-K filtern und sortieren
             val results = mutableListOf<AudioClassifier.ClassifierResult>()
@@ -112,10 +132,13 @@ class BirdNetV3Classifier(
                 }
             }
 
-            results.sortedByDescending { it.confidence }.take(topK)
+            AudioClassifier.ClassificationOutput(
+                results.sortedByDescending { it.confidence }.take(topK),
+                embedding
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Klassifizierung fehlgeschlagen", e)
-            emptyList()
+            empty
         }
     }
 
@@ -304,29 +327,6 @@ class BirdNetV3Classifier(
                 input.copyInto(padded)
                 padded
             }
-        }
-    }
-
-    /**
-     * ONNX Inference auf einem vorbereiteten Chunk ausfuehren.
-     * Input-Tensor: [1, 96000], Output: Predictions-Array
-     */
-    private fun runInference(session: OrtSession, chunk: FloatArray): FloatArray {
-        val env = OrtEnvironment.getEnvironment()
-
-        // Input-Tensor: [batch=1, samples=96000]
-        val shape = longArrayOf(1, chunk.size.toLong())
-        val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(chunk), shape)
-
-        return try {
-            val inputName = session.inputNames.first()
-            val result = session.run(mapOf(inputName to tensor))
-
-            // V3.0 hat 2 Outputs: (embeddings, predictions)
-            // Predictions ist der Tensor mit der passenden Label-Anzahl
-            extractPredictions(result, session)
-        } finally {
-            tensor.close()
         }
     }
 
