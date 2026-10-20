@@ -98,6 +98,8 @@ class AnalysisViewModel(
     fun openSession(summary: SessionSummary) {
         viewModelScope.launch(Dispatchers.IO) {
             val detections = sessionManager.loadDetectionsWithVerifications(summary.sessionDir)
+            // T61: Defekte WAV-Header aus V0.0.6 reparieren, bevor Dauer/Sonogramm/Playback die Datei lesen
+            sessionManager.repairRecordingHeaders(summary.sessionDir)
             val recFile = sessionManager.getRecordingFile(summary.sessionDir)
             val durationSec = recFile?.let { readWavDurationSec(it) } ?: 0f
             _uiState.update {

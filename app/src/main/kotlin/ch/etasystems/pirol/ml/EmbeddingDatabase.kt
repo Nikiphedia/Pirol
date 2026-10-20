@@ -72,8 +72,13 @@ class EmbeddingDatabase {
     // Interner Speicher: recordingId → Entry (schnelles Ersetzen)
     private val entries = LinkedHashMap<String, EmbeddingEntry>()
 
+    // T61: add()/search()/save() laufen im LiveViewModel aus parallelen Coroutines
+    // (Dispatchers.Default) — LinkedHashMap ist nicht thread-safe. Alle Zugriffe ueber diesen Lock;
+    // Rechen- und I/O-Arbeit passiert auf Snapshots ausserhalb des Locks.
+    private val lock = Any()
+
     /** Anzahl Eintraege in der Datenbank */
-    val size: Int get() = entries.size
+    val size: Int get() = synchronized(lock) { entries.size }
 
     /**
      * Fuegt ein Embedding hinzu oder ersetzt ein bestehendes mit gleicher recordingId.
@@ -83,7 +88,8 @@ class EmbeddingDatabase {
      * @param embedding L2-normalisierter Embedding-Vektor
      */
     fun add(recordingId: String, species: String, embedding: FloatArray) {
-        entries[recordingId] = EmbeddingEntry(recordingId, species, embedding.copyOf())
+        val entry = EmbeddingEntry(recordingId, species, embedding.copyOf())
+        synchronized(lock) { entries[recordingId] = entry }
     }
 
     /**
@@ -100,12 +106,12 @@ class EmbeddingDatabase {
         topN: Int = 5,
         speciesFilter: Set<String>? = null
     ): List<EmbeddingMatch> {
-        if (entries.isEmpty()) return emptyList()
-
-        val candidates = if (speciesFilter != null) {
-            entries.values.filter { it.species in speciesFilter }
-        } else {
-            entries.values.toList()
+        val candidates = synchronized(lock) {
+            if (speciesFilter != null) {
+                entries.values.filter { it.species in speciesFilter }
+            } else {
+                entries.values.toList()
+            }
         }
 
         if (candidates.isEmpty()) return emptyList()
@@ -138,7 +144,7 @@ class EmbeddingDatabase {
      * @param file Zieldatei (wird ueberschrieben falls vorhanden)
      */
     fun save(file: File) {
-        val allEntries = entries.values.toList()
+        val allEntries = synchronized(lock) { entries.values.toList() }
         if (allEntries.isEmpty()) {
             Log.w(TAG, "Leere Datenbank — ueberspringe Speichern")
             return
@@ -212,7 +218,8 @@ class EmbeddingDatabase {
                 val numEntries = readIntLE(dis)
                 require(numEntries >= 0) { "Ungueltige Eintragsanzahl: $numEntries" }
 
-                // Eintraege lesen
+                // Eintraege lesen (erst lokal sammeln, dann unter Lock uebernehmen)
+                val loaded = LinkedHashMap<String, EmbeddingEntry>(numEntries)
                 for (i in 0 until numEntries) {
                     // Recording ID
                     val idLen = readIntLE(dis)
@@ -234,8 +241,9 @@ class EmbeddingDatabase {
                     val embedding = FloatArray(dim)
                     buf.asFloatBuffer().get(embedding)
 
-                    entries[recordingId] = EmbeddingEntry(recordingId, species, embedding)
+                    loaded[recordingId] = EmbeddingEntry(recordingId, species, embedding)
                 }
+                synchronized(lock) { entries.putAll(loaded) }
 
                 Log.i(TAG, "Datenbank geladen: $numEntries Eintraege, dim=$dim ← ${file.name}")
             }
@@ -244,13 +252,13 @@ class EmbeddingDatabase {
 
     /** Alle Eintraege loeschen */
     fun clear() {
-        entries.clear()
+        synchronized(lock) { entries.clear() }
         Log.i(TAG, "Datenbank geleert")
     }
 
     /** Gibt alle in der Datenbank vorhandenen Artnamen zurueck */
     fun getSpecies(): Set<String> {
-        return entries.values.map { it.species }.toSet()
+        return synchronized(lock) { entries.values.map { it.species }.toSet() }
     }
 
     // --- Binary I/O Hilfsfunktionen (Little Endian) ---

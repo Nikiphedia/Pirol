@@ -163,7 +163,8 @@ class LiveViewModel(
         // startSec VOR dem Append erfassen fuer korrekte Detection-Zeitstempel.
         val startSec = if (sessionManager.isActive) sessionManager.getCurrentRecordingOffsetSec() else 0f
         if (sessionManager.isActive) {
-            val shortSamples = ShortArray(audioBlock.samples.size) { i ->
+            // T61: Original-PCM verwenden statt Float→Short-Rueckkonvertierung (spart 144k Konvertierungen pro Block)
+            val shortSamples = audioBlock.pcm ?: ShortArray(audioBlock.samples.size) { i ->
                 (audioBlock.samples[i] * Short.MAX_VALUE).toInt().coerceIn(
                     Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()
                 ).toShort()
@@ -243,7 +244,10 @@ class LiveViewModel(
 
             // Embedding-Arm: Bei erfolgreicher Detektion Embedding extrahieren
             viewModelScope.launch(Dispatchers.Default) {
-                val embedding = embeddingExtractor.extract(audioBlock.samples, audioBlock.sampleRate)
+                // T61: Embedding aus der Klassifikations-Inference wiederverwenden (keine zweite Inference)
+                val embedding = embeddingExtractor.extract(
+                    audioBlock.samples, audioBlock.sampleRate, precomputed = audioBlock.embedding
+                )
                 val topDetection = sessionRelativeDetections.maxByOrNull { it.confidence }!!
                 embeddingDatabase.add(
                     recordingId = topDetection.id,

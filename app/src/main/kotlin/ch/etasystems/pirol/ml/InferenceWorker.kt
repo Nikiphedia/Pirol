@@ -82,7 +82,8 @@ class InferenceWorker(
         }
         val audioBlock = AudioBlock(
             samples = floatSamples,
-            sampleRate = block.sampleRate
+            sampleRate = block.sampleRate,
+            pcm = block.samples  // T61: Original-PCM fuer WAV-Schreiben (keine Rueckkonvertierung noetig)
         )
 
         // T29: Intervall-Check — zu frueh fuer naechste Inference?
@@ -109,12 +110,14 @@ class InferenceWorker(
             AudioDspUtils.brickwallLimit(resampled, 1.0f)
 
             // 2. Klassifizierung via AudioClassifier (Parameter aus config)
-            val classifierResults = classifier.classify(
+            // T61: Embedding kommt aus demselben Modell-Durchlauf (keine zweite Inference im Embedding-Arm)
+            val output = classifier.classifyWithEmbedding(
                 samples = resampled,
                 sampleRate = TARGET_RATE,
                 topK = config.topK,
                 threshold = config.confidenceThreshold
             )
+            val classifierResults = output.results
 
             if (classifierResults.isEmpty()) {
                 // Keine Ergebnisse ueber Schwellwert — Audio trotzdem speichern
@@ -166,8 +169,8 @@ class InferenceWorker(
                         "(Top: ${detections.first().commonName} " +
                         "${(detections.first().confidence * 100).toInt()}%)")
 
-                // 5. Ergebnisse + AudioBlock an Consumer liefern
-                onChunkProcessed(audioBlock, detections)
+                // 5. Ergebnisse + AudioBlock (inkl. Embedding) an Consumer liefern
+                onChunkProcessed(audioBlock.copy(embedding = output.embedding), detections)
             } else {
                 // Nach Regionalfilter keine Treffer mehr — Audio trotzdem speichern
                 onChunkProcessed(audioBlock, null)

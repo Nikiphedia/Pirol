@@ -29,6 +29,27 @@ Auf ARM-Geraeten ist der relative Gewinn erfahrungsgemaess aehnlich oder groesse
 | 2.9 | `ml/EmbeddingDatabase.kt` | Ungepufferte Data-Streams (Syscall pro kleinem write), Float-Schleifen | `BufferedInput/OutputStream`, Bulk `asFloatBuffer()` | Format unveraendert (BSED v1) |
 | 2.10 | `ui/analysis/AnalysisViewModel.kt` | `readWavSamples()` liest Short fuer Short | Bulk `asShortBuffer().get()` | — |
 
+### Nachtrag (Runde 2)
+
+| # | Datei | Problem | Loesung |
+|---|-------|---------|---------|
+| 2.11 | `ml/AudioClassifier.kt`, `ml/BirdNetV3Classifier.kt`, `ml/InferenceWorker.kt`, `ml/AudioBlock.kt`, `ml/EmbeddingExtractor.kt`, `ui/live/LiveViewModel.kt` | Pro Detektion lief BirdNET **zweimal** (Klassifikation + separates `extractEmbedding()`) | Neues `classifyWithEmbedding()` liefert Treffer + Embedding aus EINEM Lauf; `AudioBlock.embedding` traegt es zum Embedding-Arm. `extract(..., precomputed)` nutzt es, Fallback bleibt erhalten |
+| 2.12 | `ml/AudioBlock.kt`, `ml/InferenceWorker.kt`, `ui/live/LiveViewModel.kt` | LiveViewModel wandelte jeden 3-s-Block Float→Short zurueck fuers WAV, obwohl das Original-PCM vorlag | `AudioBlock.pcm` traegt das Original-ShortArray mit (Ergebnis identisch, Rueckkonvertierung war verlustfrei — nur Rechenzeit gespart) |
+| 2.13 | `ml/EmbeddingDatabase.kt` | `LinkedHashMap` ohne Synchronisation, Zugriffe aus parallelen Coroutines | Lock um alle Map-Zugriffe; Suche/Speichern arbeiten auf Snapshots ausserhalb des Locks |
+| 2.14 | `data/repository/WavWriter.kt`, `data/repository/SessionManager.kt`, `ui/analysis/AnalysisViewModel.kt` | Defekte V0.0.6-Aufnahmen (siehe 2.7) | `WavWriter.repairHeaderIfNeeded()` + `SessionManager.repairRecordingHeaders()`; wird beim Oeffnen einer Session im Analyse-Tab automatisch ausgefuehrt. Erkennung: fehlendes "RIFF"/"WAVE" → Header aus `session.json`-Samplerate neu schreiben. Gueltige Dateien werden nicht angefasst |
+
+**Achtung 2.11 — Verhaltensaenderung:** Das Embedding stammt jetzt aus dem vorverarbeiteten
+Inference-Input (32 kHz, Hochpass falls aktiv, Peak-Normalisierung) statt aus dem Roh-Audio.
+Neue DB-Eintraege sind dadurch minimal anders als alte. Fuer saubere Aehnlichkeitssuche
+ggf. Embedding-DB einmal leeren.
+
+Verifizierung Runde 2 (JVM + Android-Stubs): Header-Reparatur (kaputte Datei → Header byte-identisch
+mit Original, gueltige Datei unveraendert, javax.sound liest sie), InferenceWorker mit Fake-Classifier
+(PCM unveraendert durchgereicht, Embedding im Block, 0 zusaetzliche extractEmbedding-Aufrufe),
+EmbeddingDatabase mit 8 parallelen Coroutines x 2000 add + search → 16'000 Eintraege, keine Exception.
+`LiveViewModel.kt`, `SessionManager.kt`, `AnalysisViewModel.kt` konnten nicht kompiliert werden
+(zu viele Android-Abhaengigkeiten) — Aenderungen dort sind klein und manuell geprueft.
+
 Neue Unit-Tests: `app/src/test/kotlin/ch/etasystems/pirol/audio/dsp/DspEffizienzTest.kt`
 (FFT vs. DFT, Chunk-Unabhaengigkeit MelSpectrogram, Quickselect vs. Sortierung,
 computeStatic, Resampler-Bitidentitaet, Twiddle-Cache).
@@ -50,20 +71,10 @@ computeStatic, Resampler-Bitidentitaet, Twiddle-Cache).
 
 ### Hoch
 
-- [ ] **Kaputte Aufnahmen seit V0.0.6 reparieren (2.7):** Bestehende `recording.wav` haben in den
-  ersten 44 Bytes Audio statt Header (die ersten ~22 Samples sind verloren, der Rest ist intakt).
-  Reparatur: Header neu schreiben (Samplerate aus `session.json`, dataSize = Dateigroesse - 44).
-  Vorschlag: kleines Reparatur-Tool oder einmalige Migration im `SessionMigrationWorker`.
-  Bitte zuerst auf dem Geraet bestaetigen, dass Aufnahmen tatsaechlich betroffen sind
-  (z.B. eine V0.0.6-WAV in Audacity/Raven oeffnen).
-- [ ] **Doppelte BirdNET-Inference pro Detektion:** `LiveViewModel` ruft nach jeder Detektion
-  `embeddingExtractor.extract()` auf → `BirdNetV3Classifier.extractEmbedding()` fuehrt das
-  komplette Modell **ein zweites Mal** auf demselben 3-s-Block aus. Das Modell liefert Embedding
-  und Predictions bereits im selben Lauf. Loesung: `classify()` gibt das Embedding mit zurueck
-  (z.B. `ClassificationOutput(results, embedding)`), Embedding-Arm nutzt es direkt.
-  **Achtung:** Heute bekommt der Embedding-Pfad das Roh-Audio (48 kHz, ohne Hochpass/Normalisierung),
-  die Klassifikation das vorverarbeitete. Die Embeddings in der DB wuerden sich leicht aendern →
-  Entscheidung noetig (ggf. DB neu aufbauen).
+- [x] **Kaputte Aufnahmen seit V0.0.6 reparieren** → 2.14 (automatisch beim Oeffnen im Analyse-Tab).
+  Offen: Sessions, die nie im Analyse-Tab geoeffnet werden (z.B. direkt per USB kopiert), werden
+  nicht repariert — ggf. zusaetzlich beim App-Start ueber alle Sessions laufen lassen.
+- [x] **Doppelte BirdNET-Inference pro Detektion** → 2.11.
 - [ ] **Analyse-Tab rechnet die ganze WAV:** `renderChunkSonogram` / `renderDetectionSonogram`
   lesen die komplette `recording.wav` per `readBytes()` (1 h = 345 MB + Kopien), rechnen das
   Mel-Spektrogramm der gesamten Datei, behalten aber nur die letzten 2048 Frames (~22 s)
@@ -86,14 +97,13 @@ computeStatic, Resampler-Bitidentitaet, Twiddle-Cache).
 - [ ] **SpectrogramCanvas zeichnet bei jedem Frame das ganze Bitmap neu**
   (Breite x 128 Pixel + LUT-Lookup). Inkrementell nur neue Spalten in einen Ring-Bitmap schreiben
   und mit 2x `drawImage` zusammensetzen.
-- [ ] **EmbeddingDatabase ist nicht thread-safe:** `LinkedHashMap`, aber `add()`/`search()`
-  laufen aus parallelen `viewModelScope.launch(Dispatchers.Default)`-Bloecken im LiveViewModel.
-  → `Mutex` oder `synchronized`. Bei grossen DBs zusaetzlich Top-N per Heap statt Vollsortierung.
+- [x] **EmbeddingDatabase thread-safe** → 2.13. Offen: bei sehr grossen DBs Top-N per Heap statt Vollsortierung.
 
 ### Niedrig
 
 - [ ] `InferenceWorker`: Block wird zweimal in Float konvertiert (AudioBlock mit /32767,
   Resampler mit /32768). Einheitlich machen spart eine Konvertierung (aendert Werte minimal).
+  (Die Short-Rueckkonvertierung im LiveViewModel ist mit 2.12 weg.)
 - [ ] `SessionManager.removeLastVerification()` liest und schreibt die ganze JSONL-Datei neu —
   ok fuer heutige Groessen, bei sehr langen Sessions beobachten.
 
@@ -129,6 +139,12 @@ nach jedem Schritt `assembleDebug` + Feldtest. CLAUDE.md Tech-Stack-Tabelle dana
 - `app/src/main/kotlin/ch/etasystems/pirol/ml/EmbeddingDatabase.kt`
 - `app/src/main/kotlin/ch/etasystems/pirol/data/repository/WavWriter.kt`
 - `app/src/main/kotlin/ch/etasystems/pirol/ui/analysis/AnalysisViewModel.kt`
+- `app/src/main/kotlin/ch/etasystems/pirol/ml/AudioClassifier.kt` (Runde 2)
+- `app/src/main/kotlin/ch/etasystems/pirol/ml/AudioBlock.kt` (Runde 2)
+- `app/src/main/kotlin/ch/etasystems/pirol/ml/InferenceWorker.kt` (Runde 2)
+- `app/src/main/kotlin/ch/etasystems/pirol/ml/EmbeddingExtractor.kt` (Runde 2)
+- `app/src/main/kotlin/ch/etasystems/pirol/ui/live/LiveViewModel.kt` (Runde 2)
+- `app/src/main/kotlin/ch/etasystems/pirol/data/repository/SessionManager.kt` (Runde 2)
 - neu: `app/src/test/kotlin/ch/etasystems/pirol/audio/dsp/DspEffizienzTest.kt`
 - neu: `TODO_T61_Effizienz.md` (diese Datei)
 
@@ -136,4 +152,5 @@ nach jedem Schritt `assembleDebug` + Feldtest. CLAUDE.md Tech-Stack-Tabelle dana
 
 1. Lokal bauen + Unit-Tests (`./gradlew compileDebugKotlin testDebugUnitTest`).
 2. Kurzer Feldtest: Live-Aufnahme, danach `recording.wav` in Raven/Audacity oeffnen (2.7).
-3. Entscheidung zu den TODOs "Hoch" (Embedding-Doppel-Inference, Analyse-Tab-Fenster, WAV-Reparatur).
+3. Eine V0.0.6-Session im Analyse-Tab oeffnen → Logcat "WAV-Header repariert", danach Playback/Raven pruefen.
+4. Entscheidung zum Analyse-Tab-Fenster (welcher Ausschnitt soll gezeigt werden?).

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -62,6 +63,53 @@ object WavWriter {
             sampleBuf.asShortBuffer().put(samples)
             fos.write(sampleBuf.array())
         }
+    }
+
+    /**
+     * Repariert den Header einer 16-bit-PCM-Mono-WAV, deren erste 44 Bytes ueberschrieben wurden (T61).
+     *
+     * Hintergrund: StreamingWavWriter hat seit T51 bis T61 das erste append() ab Offset 0 geschrieben
+     * und damit den Header mit Audio ueberschrieben (nur Offset 4 und 40 wurden beim close() gepatcht).
+     * Das Audio ab Byte 44 ist intakt; die ersten 22 Samples sind verloren.
+     *
+     * Erkennung: Gueltige Dateien beginnen immer mit "RIFF" und haben "WAVE" an Offset 8.
+     * Dateien mit korrektem Header werden nicht angefasst.
+     *
+     * @return true wenn der Header neu geschrieben wurde
+     */
+    fun repairHeaderIfNeeded(file: File, sampleRate: Int): Boolean {
+        if (!file.exists() || file.length() < 44 || sampleRate <= 0) return false
+        RandomAccessFile(file, "rw").use { raf ->
+            val head = ByteArray(12)
+            raf.readFully(head)
+            val riff = String(head, 0, 4, Charsets.US_ASCII)
+            val wave = String(head, 8, 4, Charsets.US_ASCII)
+            if (riff == "RIFF" && wave == "WAVE") return false
+
+            val dataSize = (raf.length() - 44).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            raf.seek(0)
+            raf.write(buildHeader(sampleRate, dataSize))
+        }
+        return true
+    }
+
+    /** 44-Byte PCM-Mono-16-bit-Header */
+    private fun buildHeader(sampleRate: Int, dataSize: Int): ByteArray {
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray())
+        header.putInt(36 + dataSize)
+        header.put("WAVE".toByteArray())
+        header.put("fmt ".toByteArray())
+        header.putInt(16)
+        header.putShort(1)
+        header.putShort(1)
+        header.putInt(sampleRate)
+        header.putInt(sampleRate * 2)
+        header.putShort(2)
+        header.putShort(16)
+        header.put("data".toByteArray())
+        header.putInt(dataSize)
+        return header.array()
     }
 }
 
