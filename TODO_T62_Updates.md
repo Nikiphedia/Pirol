@@ -1,7 +1,8 @@
 # T62: Dependency-Updates — Build-Checkliste
 
 Branch `claude/t62-dependency-updates` (Basis: `master`, unabhaengig von T61).
-**Nicht gebaut:** In der Cloud-Umgebung fehlt das Android-SDK (dl.google.com gesperrt).
+**Gebaut und getestet (Cloud, Android-SDK installiert):** `compileDebugKotlin`, `testDebugUnitTest`
+(12/12 gruen) und `assembleDebug` erfolgreich. Nur 3 Kotlin-Warnungen (siehe unten). Kein Geraetetest.
 
 ## Was geaendert wurde
 
@@ -25,7 +26,7 @@ Branch `claude/t62-dependency-updates` (Basis: `master`, unabhaengig von T61).
 | documentfile | 1.0.1 | 1.1.0 |
 | play-services-location | 21.3.0 | 21.4.0 |
 | osmdroid | 6.1.18 | 6.1.20 |
-| compileSdk | 35 | 36 (neue AndroidX-Versionen verlangen 36) |
+| compileSdk | 35 | 37 (navigation 2.10 / Compose 1.12 verlangen >= 37; Plattform `android-37.0`) |
 
 **AGP-9-Migration (Built-in Kotlin):** Plugin `org.jetbrains.kotlin.android` entfernt (Root, App,
 Version-Catalog), `kotlinOptions { jvmTarget = "17" }` entfernt — jvmTarget folgt jetzt
@@ -33,11 +34,22 @@ Version-Catalog), `kotlinOptions { jvmTarget = "17" }` entfernt — jvmTarget fo
 
 ## Bitte lokal pruefen
 
-1. `./gradlew --version` (laedt Gradle 9.8.2; JDK 17+ noetig)
+1. Android Studio: SDK Platform 37 installieren (SDK-Manager), dann Gradle-Sync
 2. Optional Wrapper-Skripte aktualisieren: `./gradlew wrapper --gradle-version 9.8.2`
-3. `./gradlew compileDebugKotlin` → Fehler hierher zurueckmelden
-4. `./gradlew testDebugUnitTest assembleDebug`
-5. Auf dem Geraet: Live-Aufnahme + BirdNET (ONNX 1.31), GPS, Karte, Upload
+3. Auf dem Geraet: Live-Aufnahme + BirdNET (ONNX 1.31), GPS, Karte, Upload
+
+## Build-Ergebnis (Cloud)
+
+- Kotlin-Warnungen (nicht blockierend):
+  - `ui/components/SpeciesCard.kt:150` — `rememberSaveable(key = ...)` deprecated (Compose warnt vor
+    State-Bugs mit eigenem Key) → bei Gelegenheit `key` entfernen
+  - `ui/components/SpeciesCard.kt:486` — redundanter `else`-Zweig in exhaustivem `when`
+  - `ui/live/LiveScreen.kt:596` — ueberfluessiger Elvis-Operator
+- Gradle meldet "Deprecated Gradle features ... incompatible with Gradle 10" (vermutlich aus Plugins,
+  Details mit `--warning-mode all`)
+- **APK-Groesse Debug: 131 MB (vorher 79 MB)** — Hauptursache `libonnxruntime.so` in 1.31
+  (x86_64 41 MB, arm64 34 MB, armv7 24 MB). Im Play-Store-Bundle (AAB) laedt jedes Geraet nur seine ABI;
+  fuer Direkt-APKs ggf. ABI-Splits oder x86_64 nur im Debug
 
 ## Moegliche Stolpersteine
 

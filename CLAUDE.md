@@ -16,7 +16,7 @@
 | kotlinx-coroutines | 1.11.0 | core + android |
 | NDK | 27.0.12077973 | C++17, CMake 3.22.1 |
 | Min SDK | 26 | Android 8.0 |
-| Compile SDK | 36 | Target SDK bleibt 35 (siehe TODO_T62_Updates.md) |
+| Compile SDK | 37 | Target SDK bleibt 35 (siehe TODO_T62_Updates.md) |
 | ABI Filters | arm64-v8a, armeabi-v7a, x86_64 | |
 
 ## Package
