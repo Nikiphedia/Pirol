@@ -4,19 +4,19 @@
 
 | Komponente | Version | Hinweis |
 |------------|---------|---------|
-| Kotlin | 2.1.0 | JVM Target 17 |
-| AGP | 8.7.3 | |
-| Gradle | 8.11.1 | |
-| Jetpack Compose BOM | 2025.01.01 | Material 3 |
-| Koin DI | 4.0.2 | koin-android + koin-androidx-compose |
-| ONNX Runtime | 1.19.0 | onnxruntime-android |
-| Ktor Client | 3.0.3 | OkHttp-Engine, Xeno-Canto API |
-| play-services-location | 21.3.0 | FusedLocationProviderClient |
-| kotlinx-serialization | 1.7.3 | JSON |
-| kotlinx-coroutines | 1.9.0 | core + android |
+| Kotlin | 2.4.21 | JVM Target 17, Built-in Kotlin von AGP 9 (kein kotlin-android-Plugin mehr) |
+| AGP | 9.4.0 | |
+| Gradle | 9.8.2 | |
+| Jetpack Compose BOM | 2026.09.00 | Material 3 |
+| Koin DI | 4.2.2 | koin-android + koin-androidx-compose |
+| ONNX Runtime | 1.31.0 | onnxruntime-android |
+| Ktor Client | 3.6.0 | OkHttp-Engine, Xeno-Canto API |
+| play-services-location | 21.4.0 | FusedLocationProviderClient |
+| kotlinx-serialization | 1.12.0 | JSON |
+| kotlinx-coroutines | 1.11.0 | core + android |
 | NDK | 27.0.12077973 | C++17, CMake 3.22.1 |
 | Min SDK | 26 | Android 8.0 |
-| Target/Compile SDK | 35 | |
+| Compile SDK | 36 | Target SDK bleibt 35 (siehe TODO_T62_Updates.md) |
 | ABI Filters | arm64-v8a, armeabi-v7a, x86_64 | |
 
 ## Package
