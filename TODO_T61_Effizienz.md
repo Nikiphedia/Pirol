@@ -41,7 +41,7 @@ Auf ARM-Geraeten ist der relative Gewinn erfahrungsgemaess aehnlich oder groesse
 **Achtung 2.11 — Verhaltensaenderung:** Das Embedding stammt jetzt aus dem vorverarbeiteten
 Inference-Input (32 kHz, Hochpass falls aktiv, Peak-Normalisierung) statt aus dem Roh-Audio.
 Neue DB-Eintraege sind dadurch minimal anders als alte. Fuer saubere Aehnlichkeitssuche
-ggf. Embedding-DB einmal leeren.
+ggf. Embedding-DB einmal leeren. → erledigt automatisch, siehe 2.18.
 
 Verifizierung Runde 2 (JVM + Android-Stubs): Header-Reparatur (kaputte Datei → Header byte-identisch
 mit Original, gueltige Datei unveraendert, javax.sound liest sie), InferenceWorker mit Fake-Classifier
@@ -49,6 +49,19 @@ mit Original, gueltige Datei unveraendert, javax.sound liest sie), InferenceWork
 EmbeddingDatabase mit 8 parallelen Coroutines x 2000 add + search → 16'000 Eintraege, keine Exception.
 `LiveViewModel.kt`, `SessionManager.kt`, `AnalysisViewModel.kt` konnten nicht kompiliert werden
 (zu viele Android-Abhaengigkeiten) — Aenderungen dort sind klein und manuell geprueft.
+
+### Nachtrag (Runde 3 — nach Feedback)
+
+| # | Datei | Aenderung |
+|---|-------|-----------|
+| 2.15 | `audio/dsp/SpectrogramOverview.kt` (neu), `ui/analysis/AnalysisViewModel.kt`, `ui/analysis/AnalysisScreen.kt`, `ui/components/SpectrogramCanvas.kt` | **Analyse-Tab zeigt die ganze Aufnahme als Uebersicht.** WAV wird gestreamt gelesen (kein `readBytes()`), per Max-Pooling auf max. 2048 Spalten verdichtet (kurze Rufe bleiben sichtbar). Bei langen Aufnahmen Hop bis fftSize (lueckenlos) → 10 min in 1.2 s statt 5.8 s (Desktop). Aufnahmen < ~22 s werden 1:1 wie bisher gezeigt. Neuer Canvas-Modus `fitAllFrames` skaliert alle Frames auf die Breite |
+| 2.16 | `ui/analysis/AnalysisViewModel.kt` | **Vergleichsmodus zeigt jetzt den Ausschnitt der Detektion** (chunkStartSec..chunkEndSec, wie das Abspielen). Vorher: letzte ~22 s der Aufnahme, unabhaengig von der Detektion. Referenz-Sonogramm ebenfalls als Uebersicht |
+| 2.17 | `ui/live/LiveViewModel.kt`, `ui/components/SpectrogramState.kt` | **Ganzer Preroll im Sonogramm** (statt 5 s), berechnet im Hintergrund; `prependFrames()` setzt ihn vor bereits eingetroffene Live-Frames. Generationszaehler verwirft verspaetete Ergebnisse nach `clear()`. Sichtbar max. ~22 s (Kapazitaet des Sonogramm-Buffers) |
+| 2.18 | `ui/live/LiveViewModel.kt`, `data/AppPreferences.kt` | **Embedding-DB wird einmalig geleert** (neue Basis aus 2.11). Marker `pirol_embedding_db_version`; alte Datei bleibt als `embeddings.bsed.v1.bak` liegen |
+
+Verifizierung Runde 3 (JVM): Uebersicht kurz == volle Frames (bitgleich), lang == Referenz-Max-Pooling
+(bitgleich), ungerade Leseblockgroessen, vorzeitiges Dateiende, `readWavRange`, `prependFrames`
+(Reihenfolge, Ueberlauf, verworfene Generation) — alle OK. `DspEffizienzTest` jetzt 8/8.
 
 Neue Unit-Tests: `app/src/test/kotlin/ch/etasystems/pirol/audio/dsp/DspEffizienzTest.kt`
 (FFT vs. DFT, Chunk-Unabhaengigkeit MelSpectrogram, Quickselect vs. Sortierung,
@@ -75,20 +88,13 @@ computeStatic, Resampler-Bitidentitaet, Twiddle-Cache).
   Offen: Sessions, die nie im Analyse-Tab geoeffnet werden (z.B. direkt per USB kopiert), werden
   nicht repariert — ggf. zusaetzlich beim App-Start ueber alle Sessions laufen lassen.
 - [x] **Doppelte BirdNET-Inference pro Detektion** → 2.11.
-- [ ] **Analyse-Tab rechnet die ganze WAV:** `renderChunkSonogram` / `renderDetectionSonogram`
-  lesen die komplette `recording.wav` per `readBytes()` (1 h = 345 MB + Kopien), rechnen das
-  Mel-Spektrogramm der gesamten Datei, behalten aber nur die letzten 2048 Frames (~22 s)
-  in `SpectrogramState`. `chunkIndex` wird ignoriert. Mit 2.2 ist es jetzt linear statt
-  quadratisch, aber Speicher bleibt O(Dateigroesse). Loesung: WAV per `RandomAccessFile`
-  nur im benoetigten Zeitfenster lesen (um `chunkStartSec`), Perzentile nur ueber das Fenster.
-  Braucht UX-Entscheidung, welcher Ausschnitt gezeigt werden soll.
+- [x] **Analyse-Tab** → 2.15/2.16 (Entscheidung: Uebersicht ueber ganze Aufnahme).
+  Offen: Bei sehr langen Aufnahmen (1 h ≈ 7 s Desktop, auf dem Handy laenger) gibt es noch
+  keinen Fortschrittsbalken; Sessions mit Rotation zeigen nur das erste Segment (wie Playback).
 
 ### Mittel
 
-- [ ] **Preroll-Anzeige-Limit (5 s) kann wahrscheinlich weg:** Der ANR beim Preroll (T54-Fix-2)
-  kam vom quadratischen `process()` (2.2). 30 s Preroll brauchen jetzt ~170 ms statt >1 s
-  (Desktop). Trotzdem besser auf `Dispatchers.Default` verschieben statt Main-Thread.
-  Auf Geraet testen.
+- [x] **Preroll-Anzeige** → 2.17.
 - [ ] **ONNX Runtime beschleunigen:** `SessionOptions` ohne Execution-Provider/Threads.
   Testen: `addXnnpack(...)` oder `addNnapi()`, `setIntraOpNumThreads(2..4)`, FP16-Modell.
   Nur mit Geraete-Benchmark entscheidbar (NNAPI ist je nach Chip schneller oder langsamer).

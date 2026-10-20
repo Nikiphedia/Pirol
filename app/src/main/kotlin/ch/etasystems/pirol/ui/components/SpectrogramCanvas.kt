@@ -52,6 +52,8 @@ import kotlin.math.pow
  * @param manualRangeOverride Optionaler fixer Bereich (z.B. Analyse-Tab Einmal-Perzentil)
  * @param gamma Gamma-Kompression auf normalisiertem Index (< 1 = leise heller, 1.0 = aus). Default=1.
  * @param ceilingDb Obergrenze fuer Normalisierung in dBFS (0 = kein Effekt, negativ = clippt Lautes). Default=0.
+ * @param fitAllFrames true = alle Frames im State auf die Canvas-Breite skalieren (Uebersicht/Ausschnitt,
+ *   T61). false = Rolling-Modus: 1 Frame = 1 Pixel, nur die neuesten Canvas-Breite Frames.
  * @param modifier Standard-Compose-Modifier
  */
 @Composable
@@ -65,6 +67,7 @@ fun SpectrogramCanvas(
     manualRangeOverride: Pair<Float, Float>? = null,
     gamma: Float = 1f,
     ceilingDb: Float = 0f,
+    fitAllFrames: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val numMelBins = config.numMelBins
@@ -82,14 +85,21 @@ fun SpectrogramCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .onSizeChanged { size ->
-                    renderer.onSizeChanged(size, numMelBins)
+                    if (!fitAllFrames) renderer.onSizeChanged(size, numMelBins)
                 }
         ) {
-            val bitmapWidth = renderer.bitmapWidth
-            if (bitmapWidth <= 0) return@Canvas
-
-            // Sichtbare Frames holen (max = Bitmap-Breite)
-            val frames = spectrogramState.getVisibleFrames(bitmapWidth)
+            // Sichtbare Frames holen: Einpass-Modus = alle Frames, Bitmap-Breite = Frame-Anzahl
+            // (wird beim Zeichnen auf die Canvas skaliert); Rolling-Modus = max. Bitmap-Breite.
+            val frames = if (fitAllFrames) {
+                val all = spectrogramState.getVisibleFrames(spectrogramState.maxFrames)
+                if (all.isEmpty()) return@Canvas
+                renderer.onSizeChanged(IntSize(all.size, 1), numMelBins)
+                all
+            } else {
+                val bitmapWidth = renderer.bitmapWidth
+                if (bitmapWidth <= 0) return@Canvas
+                spectrogramState.getVisibleFrames(bitmapWidth)
+            }
 
             // T56: Range bestimmen. Prioritaet: override > autoContrast+mapper > manual > fallback.
             val (minDbUsed, maxDbRaw) = when {
