@@ -29,11 +29,15 @@ class EmbeddingExtractor(
      *
      * @param samples Audio-Daten, normalisiert [-1, 1]
      * @param sampleRate Samplerate der Input-Daten
+     * @param precomputed Bereits berechnetes ONNX-Embedding aus der Klassifikation (T61).
+     *   Wenn gesetzt, wird das Modell NICHT erneut ausgefuehrt.
      * @return L2-normalisierter Embedding-Vektor (1024-dim oder 43-dim)
      */
-    fun extract(samples: FloatArray, sampleRate: Int): FloatArray {
-        // ONNX-Pfad versuchen
-        val onnxEmbedding = try {
+    fun extract(samples: FloatArray, sampleRate: Int, precomputed: FloatArray? = null): FloatArray {
+        // ONNX-Pfad: vorhandenes Embedding nutzen, sonst Modell ausfuehren
+        val onnxEmbedding = if (precomputed != null && precomputed.isNotEmpty()) {
+            precomputed.copyOf()
+        } else try {
             classifier.extractEmbedding(samples, sampleRate)
         } catch (e: Exception) {
             Log.w(TAG, "ONNX Embedding-Extraktion fehlgeschlagen, nutze MFCC-Fallback", e)
