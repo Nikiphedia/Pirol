@@ -156,6 +156,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_auto_upload", false)
         set(value) = prefs.edit().putBoolean("pirol_auto_upload", value).apply()
 
+    // --- Embedding-DB Format-Version (T61) ---
+    /** Version der gespeicherten Embedding-Basis; 0 = vor T61 (Embeddings aus Roh-Audio) */
+    var embeddingDbVersion: Int
+        get() = prefs.getInt("pirol_embedding_db_version", 0)
+        set(value) = prefs.edit().putInt("pirol_embedding_db_version", value).apply()
+
     /** Gespeicherte InferenceConfig laden */
     fun loadInferenceConfig(): InferenceConfig {
         return InferenceConfig(

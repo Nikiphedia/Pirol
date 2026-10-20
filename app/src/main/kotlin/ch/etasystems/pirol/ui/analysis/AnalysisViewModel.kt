@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
+import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
+import ch.etasystems.pirol.audio.dsp.SpectrogramOverview
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.ReferenceEntry
 import ch.etasystems.pirol.data.repository.ReferenceRepository
@@ -24,6 +26,9 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+
+/** Max. Spalten der Sonogramm-Uebersicht (T61) — entspricht der Kapazitaet von SpectrogramState */
+private const val OVERVIEW_COLUMNS = 2048
 
 /**
  * ViewModel fuer den Analyse-Tab.
@@ -260,14 +265,25 @@ class AnalysisViewModel(
         _uiState.update { it.copy(playingSource = PlayingSource.REFERENCE) }
     }
 
-    /** Detektions-Sonogramm rendern (T46: ganze recording.wav; T48: mit Zeitoffset) */
+    /**
+     * Detektions-Sonogramm rendern (T61): nur der Ausschnitt der Detektion
+     * (chunkStartSec..chunkEndSec, wie playDetection()), gelesen per Random Access.
+     * Vorher wurde die ganze recording.wav berechnet und die letzten ~22 s angezeigt.
+     */
+    @Suppress("UNUSED_PARAMETER")
     private fun renderDetectionSonogram(chunkIndex: Int) {
         val wavFile = _uiState.value.recordingFile ?: return
+        val det = _uiState.value.compareDetection ?: return
         viewModelScope.launch(Dispatchers.Default) {
-            val samples = readWavSamples(wavFile) ?: return@launch
+            val (samples, sampleRate) = try {
+                SpectrogramOverview.readWavRange(wavFile, det.chunkStartSec, det.chunkEndSec) to
+                    (SpectrogramOverview.readSampleRate(wavFile) ?: 48000)
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "Detektions-Ausschnitt lesen fehlgeschlagen: ${wavFile.name}", e)
+                return@launch
+            }
             val state = SpectrogramState(maxFrames = 2048)
-            val mel = MelSpectrogram(sampleRate = 48000)
-            val frames = mel.process(samples)
+            val frames = MelSpectrogram(sampleRate = sampleRate).process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             // T56: Einmal-Perzentil ueber die komplette Frame-Liste (kein Rolling-Window).
             val range = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
@@ -277,14 +293,12 @@ class AnalysisViewModel(
         }
     }
 
-    /** Referenz-Sonogramm rendern */
+    /** Referenz-Sonogramm rendern (T61: ganze Referenz als Uebersicht, gestreamt gelesen) */
     private fun renderReferenceSonogram(entry: ReferenceEntry) {
         val wavFile = referenceRepository.getWavFile(entry) ?: return
         viewModelScope.launch(Dispatchers.Default) {
-            val samples = readWavSamples(wavFile) ?: return@launch
-            val state = SpectrogramState(maxFrames = 2048)
-            val mel = MelSpectrogram(sampleRate = 48000)
-            val frames = mel.process(samples)
+            val state = SpectrogramState(maxFrames = OVERVIEW_COLUMNS)
+            val frames = computeOverviewSafe(wavFile)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             // T56: Einmal-Perzentil ueber die komplette Frame-Liste.
             val range = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
@@ -297,28 +311,36 @@ class AnalysisViewModel(
     // ── Bestehende Methoden ─────────────────────────────────────────
 
     /**
-     * Sonogramm fuer die Recording-Datei rendern (T46: ganze Datei; T48: mit Zeitoffset).
+     * Sonogramm fuer die Recording-Datei rendern (T61: Uebersicht ueber die ganze Aufnahme).
+     * Die WAV wird gestreamt gelesen und per Max-Pooling auf max. [OVERVIEW_COLUMNS] Spalten
+     * verdichtet — Speicher O(Spalten) statt O(Aufnahmelaenge). Kurze Aufnahmen (< ~22 s)
+     * werden 1:1 dargestellt.
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun renderChunkSonogram(chunkIndex: Int) {
         val wavFile = _uiState.value.recordingFile ?: return
 
         viewModelScope.launch(Dispatchers.Default) {
-            val samples = readWavSamples(wavFile) ?: return@launch
-
-            // MelSpectrogram auf gesamten Chunk anwenden
-            val newSpectrogramState = SpectrogramState(maxFrames = 2048)
-            val mel = MelSpectrogram(sampleRate = 48000)
-            val frames = mel.process(samples)
+            val newSpectrogramState = SpectrogramState(maxFrames = OVERVIEW_COLUMNS)
+            val frames = computeOverviewSafe(wavFile)
             if (frames.isNotEmpty()) {
                 newSpectrogramState.appendFrames(frames)
             }
 
-            // T56: Einmal-Perzentil ueber die komplette Session.
+            // T56: Einmal-Perzentil ueber die dargestellten Spalten.
             val range = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
             _uiState.update {
                 it.copy(spectrogramState = newSpectrogramState, spectrogramRange = range)
             }
         }
+    }
+
+    /** Uebersicht berechnen, Fehler loggen statt crashen */
+    private fun computeOverviewSafe(wavFile: File): List<FloatArray> = try {
+        SpectrogramOverview.computeFromWav(wavFile, SpectrogramConfig(), OVERVIEW_COLUMNS)
+    } catch (e: Exception) {
+        Log.e("AnalysisVM", "Sonogramm-Uebersicht fehlgeschlagen: ${wavFile.name}", e)
+        emptyList()
     }
 
     /**
@@ -356,29 +378,6 @@ class AnalysisViewModel(
             val dataSize   = buf.getInt(40)  // Bytes 40-43: data-Chunk Groesse
             if (sampleRate <= 0) 0f else dataSize / (sampleRate * 2f)  // 16-bit Mono = 2 Bytes/Sample
         } catch (_: Exception) { 0f }
-    }
-
-    /**
-     * Liest WAV-Datei und gibt ShortArray zurueck.
-     * Ueberspringt den 44-Byte RIFF-Header.
-     */
-    private fun readWavSamples(wavFile: File): ShortArray? {
-        try {
-            val bytes = wavFile.readBytes()
-            if (bytes.size < 44) return null
-            // RIFF Header = 44 Bytes, danach 16-bit PCM LE Samples
-            val dataSize = bytes.size - 44
-            val numSamples = dataSize / 2
-            val samples = ShortArray(numSamples)
-            val buf = java.nio.ByteBuffer.wrap(bytes, 44, dataSize)
-            buf.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-            // Bulk-Konvertierung statt buf.short pro Sample
-            buf.asShortBuffer().get(samples)
-            return samples
-        } catch (e: Exception) {
-            Log.e("AnalysisVM", "WAV lesen fehlgeschlagen: ${wavFile.name}", e)
-            return null
-        }
     }
 
     /** Verifikation einer Detektion (nachtraeglich in Analyse) */

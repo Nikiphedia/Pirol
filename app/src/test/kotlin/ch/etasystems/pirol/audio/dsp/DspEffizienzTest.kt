@@ -110,4 +110,39 @@ class DspEffizienzTest {
             assertTrue("n=$n err=$err", err < 1e-6f)
         }
     }
+
+    @Test
+    fun `Uebersicht kurzer Aufnahme entspricht den vollen Frames`() {
+        val rate = 48000
+        val pcm = ShortArray(rate * 5) { i -> (sin(2.0 * PI * 2500.0 * i / rate) * 9000.0).toInt().toShort() }
+        val full = MelSpectrogram(rate, SpectrogramConfig()).process(pcm)
+        val overview = SpectrogramOverview.compute(pcmStream(pcm), pcm.size.toLong(), rate, SpectrogramConfig(), 2048)
+        assertEquals(full.size, overview.size)
+        for (i in full.indices) assertArrayEquals(full[i], overview[i], 0f)
+    }
+
+    @Test
+    fun `Uebersicht langer Aufnahme ist Max-Pooling auf maxColumns`() {
+        val rate = 48000
+        val rnd = Random(9)
+        val pcm = ShortArray(rate * 40) { (rnd.nextFloat() * 6000f - 3000f).toInt().toShort() }
+        val cols = 512
+        val config = SpectrogramOverview.overviewConfig(SpectrogramConfig(), pcm.size.toLong(), cols)
+        val full = MelSpectrogram(rate, config).process(pcm)
+        val expected = Array(cols) { FloatArray(128) { Float.NEGATIVE_INFINITY } }
+        for (f in full.indices) {
+            val c = (f.toLong() * cols / full.size).toInt()
+            for (b in 0 until 128) expected[c][b] = max(expected[c][b], full[f][b])
+        }
+        val overview = SpectrogramOverview.compute(pcmStream(pcm), pcm.size.toLong(), rate, SpectrogramConfig(), cols)
+        assertEquals(cols, overview.size)
+        for (i in 0 until cols) assertArrayEquals(expected[i], overview[i], 0f)
+    }
+
+    /** 16-bit LE PCM als Stream */
+    private fun pcmStream(pcm: ShortArray): java.io.InputStream {
+        val bytes = java.nio.ByteBuffer.allocate(pcm.size * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        bytes.asShortBuffer().put(pcm)
+        return java.io.ByteArrayInputStream(bytes.array())
+    }
 }

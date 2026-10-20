@@ -96,6 +96,13 @@ class LiveViewModel(
 
     companion object {
         private const val TAG = "LiveViewModel"
+
+        /**
+         * Aktuelle Embedding-Basis (T61): Embeddings stammen aus dem Klassifikations-Durchlauf
+         * (vorverarbeitetes 32-kHz-Audio) statt aus einer separaten Inference auf Roh-Audio.
+         * Aeltere DBs werden einmalig geleert, damit die Aehnlichkeitssuche konsistent bleibt.
+         */
+        private const val EMBEDDING_DB_VERSION = 2
     }
 
     // --- Snackbar-Infrastruktur (T52) ---
@@ -434,20 +441,20 @@ class LiveViewModel(
             // startCollectionPipeline() starten, welche mel.process() auf Dispatchers.Default ruft.
             // Zwei concurrent process()-Aufrufe auf demselben Objekt → ArrayIndexOutOfBoundsException.
             //
-            // T54-Fix-2: Sonogramm-Darstellung auf max. 5 s begrenzen.
-            // process() laeuft synchron auf dem Main-Thread. Bei 30 s Preroll (1.440.000 Samples)
-            // blockiert es den Main-Thread mehrere Sekunden → ANR. Die WAV enthaelt weiterhin alle
-            // Preroll-Samples; nur die Darstellung wird auf die letzten 5 s gekuerzt.
-            val maxDisplaySamples = 5 * rate
+            // T61: Ganzer Preroll statt nur 5 s (T54-Fix-2). Der ANR kam vom quadratischen
+            // process() (behoben in T61). Berechnung laeuft trotzdem im Hintergrund; die Frames
+            // werden per prependFrames() VOR bereits eingetroffene Live-Frames gesetzt.
+            // Begrenzt auf die Kapazitaet des Sonogramm-Buffers (~22 s) — mehr waere unsichtbar.
+            val maxDisplaySamples = spectrogramState.maxFrames * config.hopSize + config.fftSize
             val displaySamples = if (prerollSamples.size > maxDisplaySamples) {
                 prerollSamples.copyOfRange(prerollSamples.size - maxDisplaySamples, prerollSamples.size)
             } else {
                 prerollSamples
             }
-            val prerollMel = MelSpectrogram(sampleRate = rate, config = config)
-            val frames = prerollMel.process(displaySamples)
-            if (frames.isNotEmpty()) {
-                spectrogramState.appendFrames(frames)
+            val generation = spectrogramState.currentGeneration
+            viewModelScope.launch(Dispatchers.Default) {
+                val frames = MelSpectrogram(sampleRate = rate, config = config).process(displaySamples)
+                spectrogramState.prependFrames(frames, expectedGeneration = generation)
             }
         }
 
@@ -775,6 +782,18 @@ class LiveViewModel(
 
     private fun loadEmbeddingDatabase() {
         val file = getEmbeddingDbFile() ?: return
+        // T61: Einmalig alte Embedding-Basis verwerfen (Backup bleibt als .v1.bak liegen)
+        if (appPreferences.embeddingDbVersion < EMBEDDING_DB_VERSION) {
+            if (file.exists()) {
+                val backup = File(file.parentFile, file.name + ".v1.bak")
+                val moved = file.renameTo(backup)
+                if (!moved) file.delete()  // Backup existiert schon o.ae. → alte DB trotzdem verwerfen
+                Log.i(TAG, "Embedding-DB auf neue Basis umgestellt — alte DB gesichert: $moved")
+            }
+            embeddingDatabase.clear()
+            appPreferences.embeddingDbVersion = EMBEDDING_DB_VERSION
+            _uiState.update { it.copy(embeddingDbSize = 0) }
+        }
         if (file.exists()) {
             try {
                 embeddingDatabase.load(file)
