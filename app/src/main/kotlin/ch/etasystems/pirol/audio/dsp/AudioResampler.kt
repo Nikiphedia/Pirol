@@ -57,8 +57,33 @@ object AudioResampler {
      * @return Resampeltes FloatArray, normalisiert auf [-1.0, 1.0]
      */
     fun resample(input: ShortArray, fromRate: Int, toRate: Int): FloatArray {
-        // ShortArray → Float normalisieren
-        val floats = FloatArray(input.size) { input[it] / 32768.0f }
-        return resample(floats, fromRate, toRate)
+        require(fromRate > 0 && toRate > 0) { "Sampleraten muessen positiv sein" }
+        if (input.isEmpty()) return FloatArray(0)
+
+        // Normalisierung + Resampling in einem Durchgang (kein Zwischen-FloatArray).
+        // Skalierung mit 1/32768 (Zweierpotenz) ist exakt → bitidentisch zur
+        // frueheren Variante (erst normalisieren, dann interpolieren).
+        val scale = 1f / 32768f
+        if (fromRate == toRate) {
+            return FloatArray(input.size) { input[it] * scale }
+        }
+
+        val ratio = fromRate.toDouble() / toRate.toDouble()
+        val outputLength = (input.size / ratio).toInt()
+        val output = FloatArray(outputLength)
+
+        for (i in 0 until outputLength) {
+            val srcPos = i * ratio
+            val srcIdx = floor(srcPos).toInt()
+            val frac = (srcPos - srcIdx).toFloat()
+
+            output[i] = if (srcIdx + 1 < input.size) {
+                (input[srcIdx] * scale) * (1f - frac) + (input[srcIdx + 1] * scale) * frac
+            } else {
+                input[srcIdx.coerceAtMost(input.size - 1)] * scale
+            }
+        }
+
+        return output
     }
 }

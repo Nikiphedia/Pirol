@@ -1,0 +1,53 @@
+# CI fuer PIROL: Typpruefung, Unit-Tests und Debug-Build bei jedem PR und Push auf master.
+name: Android CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build + Unit-Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle (mit Cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # gradlew ist im Repo nicht als ausfuehrbar markiert
+      - name: gradlew ausfuehrbar machen
+        run: chmod +x gradlew
+
+      # Fehlende SDK-Plattformen/NDK laedt AGP automatisch nach (Lizenzen sind auf den Runnern akzeptiert)
+      - name: Typpruefung
+        run: ./gradlew compileDebugKotlin --stacktrace
+
+      - name: Unit-Tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Debug-Build
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Test-Reports hochladen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+          retention-days: 7

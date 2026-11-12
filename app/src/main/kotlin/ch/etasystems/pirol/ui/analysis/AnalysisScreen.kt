@@ -355,6 +355,7 @@ private fun SessionDetailView(
                 manualRangeOverride = sessionOverride,
                 gamma = state.spectrogramGamma,
                 ceilingDb = state.spectrogramCeilingDb,
+                fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
@@ -565,6 +566,7 @@ private fun CompareView(
             manualRangeOverride = detectionOverride,
             gamma = state.spectrogramGamma,
             ceilingDb = state.spectrogramCeilingDb,
+            fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
@@ -630,6 +632,7 @@ private fun CompareView(
                 manualRangeOverride = referenceOverride,
                 gamma = state.spectrogramGamma,
                 ceilingDb = state.spectrogramCeilingDb,
+                fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)

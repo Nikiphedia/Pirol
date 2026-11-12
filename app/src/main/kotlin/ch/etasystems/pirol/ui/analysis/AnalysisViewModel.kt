@@ -143,6 +143,8 @@ class AnalysisViewModel(
     fun openSession(summary: SessionSummary) {
         viewModelScope.launch(Dispatchers.IO) {
             val detections = sessionManager.loadDetectionsWithVerifications(summary.sessionDir)
+            // T61: Defekte WAV-Header aus V0.0.6 reparieren, bevor Dauer/Sonogramm/Playback die Datei lesen
+            sessionManager.repairRecordingHeaders(summary.sessionDir)
             val recFile = sessionManager.getRecordingFile(summary.sessionDir)
             // T62: URI aus File ableiten (fuer SAF-Pfade auf SD-Karte via content://)
             val recUri  = recFile?.let { Uri.fromFile(it) }

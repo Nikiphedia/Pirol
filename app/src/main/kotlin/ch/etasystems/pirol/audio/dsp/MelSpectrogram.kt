@@ -90,16 +90,26 @@ class MelSpectrogram(
         // Samples in Float konvertieren und an Overlap-Buffer anhaengen
         appendSamples(samples)
 
-        // Frames extrahieren
-        val frames = mutableListOf<FloatArray>()
-        while (overlapSize >= actualFftSize) {
-            frames.add(processOneFrame())
-            // Buffer um hopSize weiterschieben
-            val remaining = overlapSize - actualHopSize
+        // Frames extrahieren: Lese-Offset statt Buffer-Shift pro Frame.
+        // Vorher wurde nach jedem Frame der gesamte Rest-Buffer per arraycopy verschoben
+        // (O(n^2/hop) bei grossen Bloecken, z.B. Preroll oder ganze WAV im Analyse-Tab).
+        // Jetzt wird nur einmal am Ende kompaktiert.
+        val frameCount = if (overlapSize >= actualFftSize) {
+            (overlapSize - actualFftSize) / actualHopSize + 1
+        } else 0
+        val frames = ArrayList<FloatArray>(frameCount)
+        var readOffset = 0
+        while (overlapSize - readOffset >= actualFftSize) {
+            frames.add(processOneFrame(readOffset))
+            readOffset += actualHopSize
+        }
+        // Rest an den Buffer-Anfang verschieben (einmalig)
+        if (readOffset > 0) {
+            val remaining = (overlapSize - readOffset).coerceAtLeast(0)
             if (remaining > 0) {
-                System.arraycopy(overlapBuffer, actualHopSize, overlapBuffer, 0, remaining)
+                System.arraycopy(overlapBuffer, readOffset, overlapBuffer, 0, remaining)
             }
-            overlapSize = remaining.coerceAtLeast(0)
+            overlapSize = remaining
         }
         return frames
     }
@@ -131,12 +141,12 @@ class MelSpectrogram(
     }
 
     /**
-     * Verarbeitet ein einzelnes FFT-Fenster vom Anfang des Overlap-Buffers.
+     * Verarbeitet ein einzelnes FFT-Fenster ab [offset] im Overlap-Buffer.
      * Gibt einen neuen FloatArray(numMelBins) in dB-Skala zurueck.
      */
-    private fun processOneFrame(): FloatArray {
+    private fun processOneFrame(offset: Int): FloatArray {
         // 1. Fenster in Arbeits-Buffer kopieren und Hann-Window anwenden
-        System.arraycopy(overlapBuffer, 0, fftReal, 0, actualFftSize)
+        System.arraycopy(overlapBuffer, offset, fftReal, 0, actualFftSize)
         WindowFunction.applyWindow(fftReal, hannWindow)
 
         // 2. Imaginaerteil nullen
