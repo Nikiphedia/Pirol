@@ -23,3 +23,10 @@ Thumbs.db
 .DS_Store
 .claude/
 crash.log
+
+# Binaerdateien / lokale Werkzeuge (T90)
+*.apk
+*.zip
+*.xlsx
+.vs/
+.claude-worktrees/
