@@ -59,6 +59,9 @@ class DynamicRangeMapper(
 
     private val lock = Any()
 
+    /** Wiederverwendbarer Arbeitspuffer fuer die Perzentil-Berechnung (vermeidet Allokation alle 250 ms). */
+    private var workBuffer = FloatArray(0)
+
     /**
      * Neuen Frame in den Rolling-Window-Buffer einreihen.
      * Triggert periodische Neuberechnung (alle recomputeIntervalMs).
@@ -115,7 +118,8 @@ class DynamicRangeMapper(
         val firstFrame = frameBuffer.firstNotNullOfOrNull { it } ?: return
         val binsPerFrame = firstFrame.size
         val total = frames * binsPerFrame
-        val flat = FloatArray(total)
+        if (workBuffer.size < total) workBuffer = FloatArray(total)
+        val flat = workBuffer
         var idx = 0
         for (i in 0 until frames) {
             val f = frameBuffer[i] ?: continue
@@ -126,12 +130,10 @@ class DynamicRangeMapper(
         val usable = idx
         if (usable < minFramesForCompute) return
 
-        // Slice auf genutzte Elemente und sortieren.
-        val sorted = flat.copyOf(usable)
-        java.util.Arrays.sort(sorted)
-
-        val p5Raw  = sorted[(usable * lowPercentile ).toInt().coerceAtMost(usable - 1)]
-        val p95Raw = sorted[(usable * highPercentile).toInt().coerceAtMost(usable - 1)]
+        // Perzentile per Quickselect (O(n)) statt Vollsortierung (O(n log n)).
+        // Liefert exakt dieselben Werte wie sorted[index].
+        val p5Raw  = selectKth(flat, usable, (usable * lowPercentile ).toInt().coerceAtMost(usable - 1))
+        val p95Raw = selectKth(flat, usable, (usable * highPercentile).toInt().coerceAtMost(usable - 1))
 
         if (!hasValidRange) {
             smoothedP5 = p5Raw
@@ -151,7 +153,7 @@ class DynamicRangeMapper(
 
         /**
          * Einmal-Berechnung ueber eine feste Frame-Liste (Analyse-Tab).
-         * Kein Rolling-Window, kein IIR — sortiert alle Werte, gibt (p2, p98) zurueck.
+         * Kein Rolling-Window, kein IIR — bestimmt (p2, p98) per Quickselect ueber alle Werte.
          * Bei zu wenig Daten: Fallback [-80, 0].
          */
         fun computeStatic(
@@ -170,12 +172,55 @@ class DynamicRangeMapper(
                 System.arraycopy(f, 0, flat, idx, n)
                 idx += n
             }
-            val sorted = flat.copyOf(idx)
-            java.util.Arrays.sort(sorted)
-            val p2  = sorted[(idx * STATIC_LOW_PERCENTILE ).toInt().coerceAtMost(idx - 1)]
-            val p98 = sorted[(idx * STATIC_HIGH_PERCENTILE).toInt().coerceAtMost(idx - 1)]
+            // Quickselect statt Sortierung (gleiche Werte, O(n)). flat ist bereits eine Kopie.
+            val p2  = selectKth(flat, idx, (idx * STATIC_LOW_PERCENTILE ).toInt().coerceAtMost(idx - 1))
+            val p98 = selectKth(flat, idx, (idx * STATIC_HIGH_PERCENTILE).toInt().coerceAtMost(idx - 1))
             val hi = if (p98 - p2 < 1f) p2 + 1f else p98
             return p2 to hi
+        }
+
+        /**
+         * Quickselect (Hoare-Partition, Median-of-3): liefert den k-kleinsten Wert
+         * der ersten [size] Elemente — identisch zu sortiert[k]. Ordnet [arr] dabei um.
+         * NaN-Werte werden wie bei Arrays.sort ans Ende sortiert behandelt.
+         */
+        internal fun selectKth(arr: FloatArray, size: Int, k: Int): Float {
+            var lo = 0
+            var hi = size - 1
+            while (hi > lo) {
+                // Median-of-3 Pivot gegen degenerierte Faelle (z.B. viele gleiche Werte bei minDb)
+                val mid = (lo + hi) ushr 1
+                if (less(arr[mid], arr[lo])) swap(arr, mid, lo)
+                if (less(arr[hi], arr[lo])) swap(arr, hi, lo)
+                if (less(arr[hi], arr[mid])) swap(arr, hi, mid)
+                val pivot = arr[mid]
+                var i = lo
+                var j = hi
+                while (i <= j) {
+                    while (less(arr[i], pivot)) i++
+                    while (less(pivot, arr[j])) j--
+                    if (i <= j) {
+                        swap(arr, i, j)
+                        i++
+                        j--
+                    }
+                }
+                when {
+                    k <= j -> hi = j
+                    k >= i -> lo = i
+                    else -> return arr[k]
+                }
+            }
+            return arr[k]
+        }
+
+        /** Totalordnung wie Float.compareTo / Arrays.sort (NaN am Ende, -0.0 < 0.0). */
+        private fun less(a: Float, b: Float): Boolean = a.compareTo(b) < 0
+
+        private fun swap(arr: FloatArray, i: Int, j: Int) {
+            val t = arr[i]
+            arr[i] = arr[j]
+            arr[j] = t
         }
     }
 }

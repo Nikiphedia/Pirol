@@ -30,6 +30,13 @@ class SpectrogramState(
     var frameVersion by mutableIntStateOf(0)
         private set
 
+    /** Wird bei jedem clear() erhoeht — erkennt verspaetete Hintergrund-Ergebnisse (T61) */
+    private var generation = 0
+
+    /** Aktuelle Generation (fuer [prependFrames]) */
+    val currentGeneration: Int
+        @Synchronized get() = generation
+
     /** Gesamtzahl bisher empfangener Frames (inkl. ueberschriebener) */
     val totalFrames: Int
         @Synchronized get() = count
@@ -55,6 +62,32 @@ class SpectrogramState(
         }
         // Recomposition-Trigger (muss ausserhalb von synchronized in Compose laufen,
         // aber mutableIntStateOf ist thread-safe fuer primitive Schreibzugriffe)
+        frameVersion++
+    }
+
+    /**
+     * Fuegt Frames VOR den bereits vorhandenen ein (zeitlich aelter), z.B. Preroll,
+     * das im Hintergrund berechnet wird, waehrend Live-Frames schon eintreffen (T61).
+     * Bei Ueberlauf bleiben die neuesten [maxFrames] Frames erhalten.
+     *
+     * @param expectedGeneration Generation beim Start der Berechnung; wurde der Buffer
+     *   inzwischen geleert (clear()), werden die Frames verworfen.
+     */
+    @Synchronized
+    fun prependFrames(olderFrames: List<FloatArray>, expectedGeneration: Int? = null) {
+        if (olderFrames.isEmpty()) return
+        if (expectedGeneration != null && expectedGeneration != generation) return
+        val existing = getVisibleFrames(maxFrames)
+        val combined = olderFrames + existing
+        val keep = combined.subList(maxOf(0, combined.size - maxFrames), combined.size)
+        buffer.fill(null)
+        for (i in keep.indices) buffer[i] = keep[i]
+        writeIndex = keep.size % maxFrames
+        count = keep.size
+        // T56: Mapper kennt die Reihenfolge nicht (Perzentile) → einfach nachfuettern
+        dynamicRangeMapper?.let { mapper ->
+            for (frame in olderFrames) mapper.update(frame)
+        }
         frameVersion++
     }
 
@@ -93,6 +126,7 @@ class SpectrogramState(
         buffer.fill(null)
         writeIndex = 0
         count = 0
+        generation++
         // T56: Mapper mit Buffer zuruecksetzen — sonst rollt Auto-Kontrast aus alter Session.
         dynamicRangeMapper?.reset()
         frameVersion++
