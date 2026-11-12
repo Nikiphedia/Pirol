@@ -47,6 +47,10 @@ data class LiveUiState(
     val similarMatches: List<EmbeddingDatabase.EmbeddingMatch> = emptyList(),
     val isEmbeddingAvailable: Boolean = false,
     val embeddingDbSize: Int = 0,
+    // Aehnliche Arten Einstellungen (T75)
+    val similarEnabled: Boolean = true,
+    val similarLines: Float = 3.0f,
+    val recentSpecies: List<String> = emptyList(),
     // GPS-State (T13)
     val currentLatitude: Double? = null,
     val currentLongitude: Double? = null,
@@ -75,7 +79,10 @@ data class LiveUiState(
     // T56b: Gamma-Kompression (< 1.0 = leise Anteile heller, 1.0 = aus)
     val spectrogramGamma: Float = 1f,
     // T56b: Lautstärke-Deckel in dBFS (0 = aus, negativ = clippt Lautes)
-    val spectrogramCeilingDb: Float = 0f
+    val spectrogramCeilingDb: Float = 0f,
+    // F5: Preroll-Status (User-gesteuert)
+    val isPrerollEnabled: Boolean = false,
+    val isPrerollRunning: Boolean = false,
 ) {
     /** Abgeleiteter FAB-State basierend auf Service- und Recording-Zustand (T52: 3-State) */
     val fabState: RecordingFabState

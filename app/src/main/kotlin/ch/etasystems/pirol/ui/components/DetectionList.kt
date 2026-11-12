@@ -24,8 +24,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import android.net.Uri
+import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
+import ch.etasystems.pirol.ml.PhenologyRepository
+import java.io.File
 
 /**
  * LazyColumn mit SpeciesCards fuer alle erkannten Arten.
@@ -54,8 +60,22 @@ fun DetectionList(
     onCorrect: ((String, String) -> Unit)? = null,
     onSaveAsReference: ((String) -> Unit)? = null,
     onSelectAlternative: ((String, DetectionCandidate) -> Unit)? = null,
+    onEditDetection: ((id: String, count: Int, atlasCode: String?, note: String?, voiceMemoFile: String?) -> Unit)? = null,
+    atlasCodes: List<AtlasCode> = emptyList(),
     watchlistSpecies: Set<String> = emptySet(),
     showTopNCandidates: Boolean = true,
+    // T69: Voice-Memo
+    voiceMemoRecorder: VoiceMemoRecorder? = null,
+    memoAudioPlayer: AudioPlayer? = null,
+    onGetMemoTargetFile: ((detectionId: String) -> File?)? = null,
+    onGetMemoTargetUri: ((detectionId: String) -> Uri?)? = null,
+    onSnackbar: (String) -> Unit = {},
+    // T74: Phenology
+    phenologyEnabled: Boolean = false,
+    phenologyRepository: PhenologyRepository? = null,
+    currentMonth: Int = java.time.LocalDate.now().monthValue,
+    // T73: Lock-Species
+    onToggleLock: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // version lesen => Recomposition bei Aenderung
@@ -130,6 +150,9 @@ fun DetectionList(
                     visible = true,
                     enter = slideInVertically(initialOffsetY = { -it / 2 }) + fadeIn()
                 ) {
+                    val speciesKey = detection.scientificName.replace(' ', '_')
+                    val isInSeason = phenologyRepository?.isInSeason(speciesKey, currentMonth) ?: true
+                    val rarityScore = phenologyRepository?.rarity(speciesKey) ?: 0.0f
                     SpeciesCard(
                         detection = detection,
                         onConfirm = onConfirm?.let { callback -> { callback(detection.id) } },
@@ -140,10 +163,26 @@ fun DetectionList(
                         onSelectAlternative = onSelectAlternative?.let { cb ->
                             { candidate -> cb(detection.id, candidate) }
                         },
+                        onEditDetection = onEditDetection?.let { cb ->
+                            { count, code, note, memoFile -> cb(detection.id, count, code, note, memoFile) }
+                        },
+                        atlasCodes = atlasCodes,
                         isWatchlisted = watchlistSpecies.contains(
                             detection.scientificName.replace(' ', '_')
                         ),
                         showTopNCandidates = showTopNCandidates,
+                        // T74: Phenology
+                        phenologyEnabled = phenologyEnabled,
+                        isInSeason = isInSeason,
+                        rarityScore = rarityScore,
+                        // T69: Voice-Memo
+                        voiceMemoRecorder = voiceMemoRecorder,
+                        memoAudioPlayer = memoAudioPlayer,
+                        onGetMemoTargetFile = onGetMemoTargetFile?.let { cb -> { cb(detection.id) } },
+                        onGetMemoTargetUri = onGetMemoTargetUri?.let { cb -> { cb(detection.id) } },
+                        onSnackbar = onSnackbar,
+                        // T73: Lock-Species
+                        onToggleLock = onToggleLock?.let { cb -> { cb(detection.id) } },
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }

@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
@@ -50,10 +51,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.ml.VerificationStatus
+import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import ch.etasystems.pirol.ui.components.SessionCard
 import ch.etasystems.pirol.ui.components.SpeciesCard
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
@@ -229,12 +232,28 @@ private fun SessionDetailView(
 ) {
     val session = state.selectedSession ?: return
     val context = LocalContext.current
+    var showAddManualDialog by remember { mutableStateOf(false) }
+    var showRavenPreviewDialog by remember { mutableStateOf(false) }
+
+    // T74: Phenology
+    val phenologyRepository: ch.etasystems.pirol.ml.PhenologyRepository = org.koin.compose.koinInject()
+    val appPrefsForPhenology: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
+    val phenologyEnabled = appPrefsForPhenology.phenologyEnabled
+    val currentMonth = java.time.LocalDate.now().monthValue
 
     // Raven-Export Feedback
     LaunchedEffect(state.ravenExportMessage) {
         state.ravenExportMessage?.let { msg ->
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             viewModel.consumeRavenExportMessage()
+        }
+    }
+
+    // T62: MediaPlayer-Fehler anzeigen (AC7)
+    LaunchedEffect(state.playerError) {
+        state.playerError?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            viewModel.consumePlayerError()
         }
     }
 
@@ -312,6 +331,18 @@ private fun SessionDetailView(
                 }
             }
 
+            // T78: Raven-Datei-Link — klickbar wenn recording.selections.txt existiert
+            val ravenFile = remember(session.sessionDir) {
+                java.io.File(session.sessionDir, "recording.selections.txt")
+            }
+            if (ravenFile.exists()) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { showRavenPreviewDialog = true }) {
+                        Text("Raven-Datei anzeigen")
+                    }
+                }
+            }
+
             // Sonogramm-Canvas (T56: Einmal-Perzentil wenn Toggle AN, sonst manueller Range; T56b: Gamma)
             val sessionOverride = if (state.spectrogramAutoContrast) state.spectrogramRange else null
             SpectrogramCanvas(
@@ -324,6 +355,7 @@ private fun SessionDetailView(
                 manualRangeOverride = sessionOverride,
                 gamma = state.spectrogramGamma,
                 ceilingDb = state.spectrogramCeilingDb,
+                fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
@@ -334,12 +366,26 @@ private fun SessionDetailView(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Detektionsliste
-        Text(
-            text = "Detektionen (${state.detections.size}):",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // Detektionsliste — Header mit "+ Art"-Button (T72)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Detektionen (${state.detections.size}):",
+                style = MaterialTheme.typography.titleSmall
+            )
+            TextButton(onClick = { showAddManualDialog = true }) {
+                Icon(
+                    imageVector = Icons.Filled.AddCircle,
+                    contentDescription = "+ Art",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("+ Art")
+            }
+        }
 
         if (state.detections.isEmpty()) {
             Text(
@@ -359,17 +405,29 @@ private fun SessionDetailView(
                 }
             }
 
+            // T73: Lock-First sortieren, dann nach lastSeenAtMs desc (AC6)
+            val sortedDetections = remember(state.detections) {
+                state.detections.sortedWith(
+                    compareByDescending<ch.etasystems.pirol.ml.DetectionResult> { it.lockSpecies }
+                        .thenByDescending { it.lastSeenAtMs }
+                )
+            }
+
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(
-                    items = state.detections,
+                    items = sortedDetections,
                     key = { it.id }
                 ) { detection ->
+                    val speciesKey = detection.scientificName.replace(' ', '_')
                     SpeciesCard(
                         detection = detection,
+                        phenologyEnabled = phenologyEnabled,
+                        isInSeason = phenologyRepository.isInSeason(speciesKey, currentMonth),
+                        rarityScore = phenologyRepository.rarity(speciesKey),
                         onConfirm = {
                             viewModel.verifyDetection(
                                 detection.id,
@@ -390,14 +448,70 @@ private fun SessionDetailView(
                             )
                         },
                         onCompare = { viewModel.openCompare(detection) },
-                        onJumpToChunk = { viewModel.jumpToDetection(detection) },
                         onPlay = { viewModel.playDetection(detection) },
                         isPlayEnabled = state.recordingFile != null,
-                        playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec)
+                        playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),
+                        onEditDetection = { count, atlasCode, note, memoFile ->
+                            viewModel.editDetection(detection.id, count, atlasCode, note, memoFile)
+                        },
+                        atlasCodes = viewModel.atlasCodes,
+                        onSelectAlternative = { candidate ->
+                            viewModel.selectAlternative(detection.id, candidate)
+                        },
+                        // T69: Voice-Memo
+                        voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                        memoAudioPlayer = viewModel.memoAudioPlayer,
+                        onGetMemoTargetFile = { viewModel.getMemoTargetFile(detection.id) },
+                        onGetMemoTargetUri = { viewModel.getMemoTargetUri(detection.id) },
+                        // T73: Lock-Species
+                        onToggleLock = { viewModel.toggleLock(detection.id) },
                     )
                 }
             }
         }
+    }
+
+    // T78: Raven-Datei Vorschau-Dialog
+    if (showRavenPreviewDialog) {
+        val ravenPreviewFile = java.io.File(session.sessionDir, "recording.selections.txt")
+        val lines = remember(session.sessionDir) {
+            runCatching { ravenPreviewFile.readLines() }.getOrElse { listOf("Fehler: Datei nicht lesbar") }
+        }
+        AlertDialog(
+            onDismissRequest = { showRavenPreviewDialog = false },
+            title = { Text("recording.selections.txt") },
+            text = {
+                LazyColumn {
+                    items(lines) { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRavenPreviewDialog = false }) {
+                    Text("Schliessen")
+                }
+            }
+        )
+    }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = null,
+            currentLon = null,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
     }
 }
 
@@ -452,6 +566,7 @@ private fun CompareView(
             manualRangeOverride = detectionOverride,
             gamma = state.spectrogramGamma,
             ceilingDb = state.spectrogramCeilingDb,
+            fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
@@ -517,6 +632,7 @@ private fun CompareView(
                 manualRangeOverride = referenceOverride,
                 gamma = state.spectrogramGamma,
                 ceilingDb = state.spectrogramCeilingDb,
+                fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)

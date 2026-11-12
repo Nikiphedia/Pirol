@@ -5,6 +5,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -47,6 +50,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -67,6 +71,7 @@ import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistEntry
@@ -102,6 +107,39 @@ fun SettingsScreen(
     // Watchlist-Editor State (T21)
     var showAddDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Alarm-Cooldown State (T58)
+    var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
+
+    // Detektions-Cluster State (T70)
+    var clusterEnabled by remember { mutableStateOf(appPreferences.clusterEnabled) }
+    var clusterRadiusM by remember { mutableIntStateOf(appPreferences.clusterRadiusM) }
+    var clusterTimeWindowMin by remember { mutableIntStateOf(appPreferences.clusterTimeWindowMin) }
+
+    // Aehnliche Arten State (T75)
+    var similarEnabled by remember { mutableStateOf(appPreferences.similarEnabled) }
+    var similarLines by remember { mutableFloatStateOf(appPreferences.similarLines) }
+
+    // Multi-Label State (T71)
+    var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
+    var selectedTopKThreshold by remember { mutableFloatStateOf(appPreferences.topKThreshold) }
+
+    // Phenology State (T74)
+    val phenologyRepository: PhenologyRepository = koinInject()
+    var phenologyEnabled by remember { mutableStateOf(appPreferences.phenologyEnabled) }
+    var phenologyEntryCount by remember { mutableIntStateOf(phenologyRepository.entryCount()) }
+
+    // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
+    var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        if (regionalFilter.getSpeciesList().isEmpty()) {
+            regionalFilter.loadRegion(appPreferences.regionFilter ?: "ch_breeding")
+        }
+        speciesNameResolver.load()
+        allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
+            Pair(scientific, speciesNameResolver.resolve(scientific))
+        }
+    }
 
     // T29: Power-Profile State
     var selectedInterval by remember { mutableLongStateOf(appPreferences.inferenceIntervalMs) }
@@ -309,18 +347,36 @@ fun SettingsScreen(
         Text("Erkennung", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Confidence-Slider
-        var selectedThreshold by remember { mutableFloatStateOf(appPreferences.confidenceThreshold) }
-
-        Text("Konfidenz-Schwelle: ${(selectedThreshold * 100).roundToInt()}%")
+        // TopK-Detection Slider (T71: Multi-Label)
+        Text("Erkennungs-Schwelle (TopK): ${(selectedTopKThreshold * 100).roundToInt()}%")
         Slider(
-            value = selectedThreshold,
+            value = selectedTopKThreshold,
             onValueChange = {
-                selectedThreshold = it
-                appPreferences.confidenceThreshold = it
+                selectedTopKThreshold = it
+                appPreferences.topKThreshold = it
             },
             valueRange = 0.1f..0.9f,
-            steps = 7
+            steps = 15  // Schritt 0.05 = 16 Positionen → 15 Schritte zwischen den Endpunkten
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // TopK-Slider (Anzahl Arten pro Chunk)
+        Text("Max. Arten pro Chunk (TopK): $selectedTopK")
+        Slider(
+            value = selectedTopK.toFloat(),
+            onValueChange = {
+                selectedTopK = it.roundToInt()
+                appPreferences.topK = selectedTopK
+            },
+            valueRange = 1f..5f,
+            steps = 3  // 1,2,3,4,5 = 4 Schritte zwischen Endpunkten
+        )
+        Text(
+            text = if (selectedTopK == 1) "TopK=1: nur Top-Art (Pre-T71-Verhalten)"
+                   else "TopK=$selectedTopK: bis zu $selectedTopK Arten gleichzeitig",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -367,8 +423,10 @@ fun SettingsScreen(
                 InferenceConfig.STRICT to "Strikt"
             ).forEach { (preset, label) ->
                 OutlinedButton(onClick = {
-                    selectedThreshold = preset.confidenceThreshold
+                    selectedTopKThreshold = preset.topKThreshold
+                    appPreferences.topKThreshold = preset.topKThreshold
                     appPreferences.confidenceThreshold = preset.confidenceThreshold
+                    selectedTopK = preset.topK
                     appPreferences.topK = preset.topK
                 }) {
                     Text(label)
@@ -981,6 +1039,45 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Auto-Delete kurzer leerer Sessions (T60)
+        var autoDeleteEnabled by remember { mutableStateOf(appPreferences.autoDeleteShortEmptySessions) }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Switch(
+                checked = autoDeleteEnabled,
+                onCheckedChange = { enabled ->
+                    autoDeleteEnabled = enabled
+                    appPreferences.autoDeleteShortEmptySessions = enabled
+                }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text("Kurze leere Sessions automatisch loeschen", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Sessions kuerzer als Minimum-Dauer ohne Detektionen werden geloescht",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (autoDeleteEnabled) {
+            var autoDeleteMinSec by remember { mutableIntStateOf(appPreferences.autoDeleteMinSeconds) }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Minimum-Dauer: ${autoDeleteMinSec}s  (0 = deaktiviert)",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Slider(
+                value = autoDeleteMinSec.toFloat(),
+                onValueChange = { autoDeleteMinSec = it.toInt() },
+                onValueChangeFinished = { appPreferences.autoDeleteMinSeconds = autoDeleteMinSec },
+                valueRange = 0f..60f,
+                steps = 59,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Migration-Button
         OutlinedButton(onClick = {
             val info = sessionManager.getMigrationInfo()
@@ -1022,20 +1119,8 @@ fun SettingsScreen(
                         migrationProgress = 0f
                         val targetUri = migrationTargetUri
                         scope.launch {
-                            // Migration zu File-Pfad (aus SAF-URI) oder bestehender Struktur
-                            val targetFile = if (targetUri != null) {
-                                // SAF-URI in File-Pfad umwandeln falls moeglich, sonst internal
-                                try {
-                                    val docId = android.provider.DocumentsContract.getTreeDocumentId(targetUri)
-                                    val parts = docId.split(":")
-                                    if (parts.size >= 2 && parts[0].equals("primary", ignoreCase = true)) {
-                                        java.io.File(android.os.Environment.getExternalStorageDirectory(), parts[1])
-                                    } else null
-                                } catch (_: Exception) { null }
-                            } else null
-
-                            if (targetFile != null) {
-                                val result = sessionManager.migrateSessionsTo(targetFile) { p ->
+                            if (targetUri != null) {
+                                val result = sessionManager.migrateSessionsTo(targetUri, deleteSource = true) { p ->
                                     migrationProgress = p
                                 }
                                 isMigrating = false
@@ -1044,11 +1129,11 @@ fun SettingsScreen(
                                     currentBaseUri = targetUri.toString()
                                     Toast.makeText(context, "${result.sessionsCopied} Sessions kopiert", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Fehler: ${result.errors.first()}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "Fehler: ${result.errors.joinToString("; ")}", Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 isMigrating = false
-                                Toast.makeText(context, "Zielordner nicht auflösbar", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Kein Zielordner ausgewählt", Toast.LENGTH_LONG).show()
                             }
                             migrationTargetUri = null
                         }
@@ -1129,9 +1214,280 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Watchlist-Sektion (T20 + T21) ---
+        // --- Raven-Export Felder (T78) ---
+        var ravenFieldsExpanded by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { ravenFieldsExpanded = !ravenFieldsExpanded }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Raven-Export Felder",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (ravenFieldsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (ravenFieldsExpanded) "Einklappen" else "Aufklappen"
+            )
+        }
+
+        AnimatedVisibility(visible = ravenFieldsExpanded) {
+            Column {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Spalten die in recording.selections.txt geschrieben werden",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                var ravenBeginTime     by remember { mutableStateOf(appPreferences.ravenFieldBeginTime) }
+                var ravenEndTime       by remember { mutableStateOf(appPreferences.ravenFieldEndTime) }
+                var ravenLowFreq       by remember { mutableStateOf(appPreferences.ravenFieldLowFreq) }
+                var ravenHighFreq      by remember { mutableStateOf(appPreferences.ravenFieldHighFreq) }
+                var ravenSpecies       by remember { mutableStateOf(appPreferences.ravenFieldSpecies) }
+                var ravenConfidence    by remember { mutableStateOf(appPreferences.ravenFieldConfidence) }
+                var ravenBeginFile     by remember { mutableStateOf(appPreferences.ravenFieldBeginFile) }
+                var ravenBeginDateTime by remember { mutableStateOf(appPreferences.ravenFieldBeginDateTime) }
+                var ravenLat           by remember { mutableStateOf(appPreferences.ravenFieldLat) }
+                var ravenLon           by remember { mutableStateOf(appPreferences.ravenFieldLon) }
+                var ravenSimultan      by remember { mutableStateOf(appPreferences.ravenFieldSimultan) }
+                var ravenMoeglich      by remember { mutableStateOf(appPreferences.ravenFieldMoeglich) }
+                var ravenGleich        by remember { mutableStateOf(appPreferences.ravenFieldGleich) }
+
+                listOf(
+                    Triple("Begin Time (s)",   ravenBeginTime,     { v: Boolean -> ravenBeginTime = v;     appPreferences.ravenFieldBeginTime = v }),
+                    Triple("End Time (s)",      ravenEndTime,       { v: Boolean -> ravenEndTime = v;       appPreferences.ravenFieldEndTime = v }),
+                    Triple("Low Freq (Hz)",     ravenLowFreq,       { v: Boolean -> ravenLowFreq = v;       appPreferences.ravenFieldLowFreq = v }),
+                    Triple("High Freq (Hz)",    ravenHighFreq,      { v: Boolean -> ravenHighFreq = v;      appPreferences.ravenFieldHighFreq = v }),
+                    Triple("Species",           ravenSpecies,       { v: Boolean -> ravenSpecies = v;       appPreferences.ravenFieldSpecies = v }),
+                    Triple("Confidence",        ravenConfidence,    { v: Boolean -> ravenConfidence = v;    appPreferences.ravenFieldConfidence = v }),
+                    Triple("Begin File",        ravenBeginFile,     { v: Boolean -> ravenBeginFile = v;     appPreferences.ravenFieldBeginFile = v }),
+                    Triple("Begin Date Time",   ravenBeginDateTime, { v: Boolean -> ravenBeginDateTime = v; appPreferences.ravenFieldBeginDateTime = v }),
+                    Triple("Lat",               ravenLat,           { v: Boolean -> ravenLat = v;           appPreferences.ravenFieldLat = v }),
+                    Triple("Lon",               ravenLon,           { v: Boolean -> ravenLon = v;           appPreferences.ravenFieldLon = v })
+                ).forEach { (label, checked, onToggle) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = checked,
+                            onCheckedChange = onToggle
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Wirkt beim naechsten Export",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    "Simultanbeobachtungen",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                )
+                listOf(
+                    Triple("Simultan (//)", ravenSimultan, { v: Boolean -> ravenSimultan = v; appPreferences.ravenFieldSimultan = v }),
+                    Triple("Moeglich (?)",  ravenMoeglich, { v: Boolean -> ravenMoeglich = v; appPreferences.ravenFieldMoeglich = v }),
+                    Triple("Gleich (!)",    ravenGleich,   { v: Boolean -> ravenGleich   = v; appPreferences.ravenFieldGleich   = v })
+                ).forEach { (label, checked, onToggle) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Switch(checked = checked, onCheckedChange = onToggle)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Watchlist-Sektion (T20 + T21 + T58) ---
         Text("Watchlist", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Alarm-Pause-Slider (T58)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Alarm-Pause", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Pause zwischen Alarmen derselben Art. 0 = jeder Treffer alarmiert.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (cooldownMinutes == 0) "Aus" else "$cooldownMinutes min",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = cooldownMinutes.toFloat(),
+            onValueChange = { cooldownMinutes = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.alarmCooldownMinutes = cooldownMinutes },
+            valueRange = 0f..60f
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Detektions-Cluster-Sektion (T70) ---
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Detektions-Cluster", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Detektionen raeumlich/zeitlich zusammenfassen",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Ohne GPS-Fix wird nur Zeit-Dedup angewendet.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = clusterEnabled,
+                onCheckedChange = { clusterEnabled = it; appPreferences.clusterEnabled = it }
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Radius-Slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Cluster-Radius (m)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "0 = kein Radius-Check (nur Zeit-Dedup).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (clusterRadiusM == 0) "Aus" else "$clusterRadiusM m",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = clusterRadiusM.toFloat(),
+            onValueChange = { clusterRadiusM = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.clusterRadiusM = clusterRadiusM },
+            valueRange = 0f..50f,
+            enabled = clusterEnabled
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Zeitfenster-Slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Cluster-Zeitfenster (min)", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "0 = kein Zeit-Check.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (clusterTimeWindowMin == 0) "Aus" else "$clusterTimeWindowMin min",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Slider(
+            value = clusterTimeWindowMin.toFloat(),
+            onValueChange = { clusterTimeWindowMin = it.roundToInt() },
+            onValueChangeFinished = { appPreferences.clusterTimeWindowMin = clusterTimeWindowMin },
+            valueRange = 0f..30f,
+            enabled = clusterEnabled
+        )
+
+        // --- Aehnliche Arten (T75) ---
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Aehnliche Arten", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Aehnliche Arten anzeigen", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Embedding-Aehnlichkeitssuche aktivieren",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = similarEnabled,
+                onCheckedChange = { similarEnabled = it; appPreferences.similarEnabled = it }
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val linesLabel = when {
+            similarLines == 0f -> "0 (aus)"
+            similarLines == 0.5f -> "0.5 (Laufschrift)"
+            else -> similarLines.toInt().toString()
+        }
+        Text(
+            text = "Anzahl Zeilen: $linesLabel",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Slider(
+            value = similarLines,
+            onValueChange = { similarLines = it; appPreferences.similarLines = it },
+            valueRange = 0f..10f,
+            steps = 19,
+            enabled = similarEnabled
+        )
+        Text(
+            text = "0 = aus  •  0.5 = Laufschrift letzte 5  •  1–10 = Liste",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         if (entries.isNotEmpty()) {
             Text(
@@ -1225,7 +1581,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Art hinzufuegen Button (AP-4)
         OutlinedButton(onClick = { showAddDialog = true }) {
@@ -1233,12 +1589,53 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Text("Art hinzufuegen")
         }
+
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Saisonalitaet & Seltenheit (T74) ---
+        Text("Saisonalitaet & Seltenheit", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Saison-/Seltenheits-Hervorhebung aktiv", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = if (phenologyEntryCount == 0) "Datei leer — kein Effekt"
+                           else "$phenologyEntryCount Arten geladen",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = phenologyEnabled,
+                onCheckedChange = {
+                    phenologyEnabled = it
+                    appPreferences.phenologyEnabled = it
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(onClick = {
+            scope.launch {
+                phenologyRepository.reload()
+                phenologyEntryCount = phenologyRepository.entryCount()
+                Toast.makeText(context, "Phenology-JSON neu geladen", Toast.LENGTH_SHORT).show()
+            }
+        }) {
+            Icon(Icons.Filled.Refresh, contentDescription = null)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Phenology-JSON neu laden")
+        }
     }
 
     // --- Art-Hinzufuegen-Dialog (AP-4) ---
     if (showAddDialog) {
-        val allSpecies = remember { regionalFilter.getSpeciesList().sorted() }
-
         AlertDialog(
             onDismissRequest = {
                 showAddDialog = false
@@ -1250,31 +1647,32 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        label = { Text("Artname suchen...") },
+                        label = { Text("Art suchen...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Autocomplete-Vorschlaege (aus RegionalSpeciesFilter)
+                    // Vorschlaege: Trivialname (gewaehlte Sprache) ODER wissenschaftlicher Name
                     val suggestions = if (searchQuery.length >= 2) {
-                        allSpecies.filter { species ->
-                            species.contains(searchQuery, ignoreCase = true)
+                        allWatchlistSpecies.filter { (scientific, common) ->
+                            common.contains(searchQuery, ignoreCase = true) ||
+                                scientific.contains(searchQuery, ignoreCase = true)
                         }.take(8)
                     } else emptyList()
 
                     LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                        items(suggestions) { species ->
+                        items(suggestions) { (scientific, common) ->
                             Text(
-                                text = species.replace('_', ' '),
+                                text = "$common (${scientific.replace('_', ' ')})",
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         scope.launch {
                                             watchlistManager.addSpecies(
                                                 WatchlistEntry(
-                                                    scientificName = species,
-                                                    commonName = "",
+                                                    scientificName = scientific,
+                                                    commonName = common,
                                                     priority = WatchlistPriority.normal
                                                 )
                                             )

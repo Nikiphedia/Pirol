@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
+import android.util.Log
 import kotlinx.coroutines.launch
 
 /**
@@ -86,6 +88,13 @@ class RecordingService : Service() {
         extraBufferCapacity = 64 // Genug Puffer fuer langsame Consumer
     )
     val audioChunkFlow: SharedFlow<AudioChunk> = _audioChunkFlow.asSharedFlow()
+
+    // AC5: Fehlersignal wenn Audio-Engine nicht starten kann (T63)
+    private val _audioStartError = MutableSharedFlow<String>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val audioStartError: SharedFlow<String> = _audioStartError.asSharedFlow()
 
     /** Tatsaechliche Sample-Rate (erst nach startRecording gueltig). */
     val actualSampleRate: Int
@@ -158,6 +167,16 @@ class RecordingService : Service() {
     }
 
     /**
+     * Preroll-Engine stoppen. Nur moeglich wenn keine Aufnahme laeuft (F5).
+     */
+    fun stopPreroll() {
+        if (prerollActive && !_isRecording.value) {
+            engine.stop()
+            prerollActive = false
+        }
+    }
+
+    /**
      * Aufnahme starten.
      * Falls Preroll aktiv: Engine laeuft bereits, nur Foreground + Chunk-Emitter starten.
      * Falls kein Preroll: Engine normal starten.
@@ -167,10 +186,16 @@ class RecordingService : Service() {
 
         if (!engine.isRecording) {
             val started = engine.start(sampleRate)
-            if (!started) return
+            if (!started) {
+                // AC5: Fehler signalisieren + Service sauber beenden (verhindert 5s-ANR, T63)
+                serviceScope.launch { _audioStartError.emit("Audio-Engine konnte nicht starten") }
+                stopSelf()
+                return
+            }
         }
 
         recordingStartTimeMs = SystemClock.elapsedRealtime()
+        Log.d("RecordingService", "SMOKETEST_START ts=$recordingStartTimeMs")
         _isRecording.value = true
 
         // T52: RecordingPhase — PREROLL_FILLING fuer configuredPrerollSec, dann RUNNING
@@ -271,9 +296,11 @@ class RecordingService : Service() {
 
     private fun startChunkEmitter() {
         chunkJob = serviceScope.launch {
+            var firstChunk = true
             while (isActive && _isRecording.value) {
                 val samples = engine.getLatestChunk(CHUNK_INTERVAL_MS.toInt())
                 if (samples.isNotEmpty()) {
+                    if (firstChunk) { Log.d("RecordingService", "SMOKETEST_FIRST_CHUNK latency_ms=${SystemClock.elapsedRealtime() - recordingStartTimeMs}"); firstChunk = false }
                     val chunk = AudioChunk(
                         samples = samples.copyOf(), // Kopie, nicht der interne Buffer
                         sampleRate = engine.actualSampleRate,

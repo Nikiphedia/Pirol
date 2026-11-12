@@ -33,6 +33,42 @@ class BirdNetV3Classifier(
         private const val TARGET_SAMPLE_RATE = 32000
         private const val CHUNK_DURATION_SEC = 3.0f
         private const val CHUNK_SAMPLES = (TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC).toInt() // 96000
+
+        /**
+         * Filtert und sortiert rohe ONNX-Scores zu ClassifierResults.
+         *
+         * Extrahiert als interne Funktion fuer Unit-Tests ohne ONNX-Session (T71).
+         * Wird von classify() nach der Inference aufgerufen.
+         *
+         * @param scores FloatArray mit Sigmoid-Scores pro Label-Index
+         * @param labels Label-Liste (scientificName to commonName)
+         * @param topK Maximale Anzahl Ergebnisse
+         * @param threshold Mindest-Score fuer Aufnahme in Ergebnisliste
+         * @return Sortierte Liste (hoechste Konfidenz zuerst), max. topK Eintraege
+         */
+        internal fun filterAndRank(
+            scores: FloatArray,
+            labels: List<Pair<String, String>>,
+            topK: Int,
+            threshold: Float
+        ): List<AudioClassifier.ClassifierResult> {
+            val results = mutableListOf<AudioClassifier.ClassifierResult>()
+            for (i in scores.indices) {
+                if (scores[i] >= threshold && i < labels.size) {
+                    val (sciName, comName) = labels[i]
+                    results.add(
+                        AudioClassifier.ClassifierResult(
+                            scientificName = sciName,
+                            commonName = comName,
+                            confidence = scores[i],
+                            timeStartSec = 0f,
+                            timeEndSec = CHUNK_DURATION_SEC
+                        )
+                    )
+                }
+            }
+            return results.sortedByDescending { it.confidence }.take(topK)
+        }
     }
 
     // Lazy-initialisiert beim ersten classify()-Aufruf
@@ -72,13 +108,29 @@ class BirdNetV3Classifier(
         sampleRate: Int,
         topK: Int,
         threshold: Float
-    ): List<AudioClassifier.ClassifierResult> {
-        if (samples.isEmpty()) return emptyList()
+    ): List<AudioClassifier.ClassifierResult> =
+        classifyWithEmbedding(samples, sampleRate, topK, threshold).results
+
+    /**
+     * Klassifiziert einen Audio-Chunk und liefert das Embedding aus DEMSELBEN Modell-Durchlauf (T61).
+     * BirdNET V3.0 berechnet Embedding [1,1024] und Predictions [1,N] ohnehin gemeinsam —
+     * ein separater extractEmbedding()-Aufruf wuerde das Modell ein zweites Mal ausfuehren.
+     *
+     * @return Treffer (sortiert, Top-K) + rohes Embedding (nicht L2-normalisiert, null bei Fehler)
+     */
+    override fun classifyWithEmbedding(
+        samples: FloatArray,
+        sampleRate: Int,
+        topK: Int,
+        threshold: Float
+    ): AudioClassifier.ClassificationOutput {
+        val empty = AudioClassifier.ClassificationOutput(emptyList(), null)
+        if (samples.isEmpty()) return empty
 
         val session = ensureSession()
         if (session == null) {
             Log.w(TAG, "ONNX Session nicht verfuegbar — Modell fehlt oder Ladefehler")
-            return emptyList()
+            return empty
         }
 
         return try {
@@ -92,30 +144,21 @@ class BirdNetV3Classifier(
             // 2. Auf exakt CHUNK_SAMPLES bringen (Zero-Padding oder Truncate)
             val chunk = prepareChunk(resampled)
 
-            // 3. ONNX Inference
-            val scores = runInference(session, chunk)
-
-            // 4. Top-K filtern und sortieren
-            val results = mutableListOf<AudioClassifier.ClassifierResult>()
-            for (i in scores.indices) {
-                if (scores[i] >= threshold && i < labels.size) {
-                    val (sciName, comName) = labels[i]
-                    results.add(
-                        AudioClassifier.ClassifierResult(
-                            scientificName = sciName,
-                            commonName = comName,
-                            confidence = scores[i],
-                            timeStartSec = 0f,
-                            timeEndSec = CHUNK_DURATION_SEC
-                        )
-                    )
-                }
+            // 3. ONNX Inference — Result wird geschlossen (sonst nativer Speicherleck pro Inference)
+            val result = runInferenceRaw(session, chunk) ?: return empty
+            val (scores, embedding) = result.use { res ->
+                // V3.0 hat 2 Outputs: (embeddings, predictions)
+                extractPredictions(res, session) to extractEmbeddingFromResult(res, session)
             }
 
-            results.sortedByDescending { it.confidence }.take(topK)
+            // 4. Top-K filtern und sortieren (via extrahierte Companion-Funktion, T71)
+            AudioClassifier.ClassificationOutput(
+                filterAndRank(scores, labels, topK, threshold),
+                embedding
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Klassifizierung fehlgeschlagen", e)
-            emptyList()
+            empty
         }
     }
 
@@ -304,29 +347,6 @@ class BirdNetV3Classifier(
                 input.copyInto(padded)
                 padded
             }
-        }
-    }
-
-    /**
-     * ONNX Inference auf einem vorbereiteten Chunk ausfuehren.
-     * Input-Tensor: [1, 96000], Output: Predictions-Array
-     */
-    private fun runInference(session: OrtSession, chunk: FloatArray): FloatArray {
-        val env = OrtEnvironment.getEnvironment()
-
-        // Input-Tensor: [batch=1, samples=96000]
-        val shape = longArrayOf(1, chunk.size.toLong())
-        val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(chunk), shape)
-
-        return try {
-            val inputName = session.inputNames.first()
-            val result = session.run(mapOf(inputName to tensor))
-
-            // V3.0 hat 2 Outputs: (embeddings, predictions)
-            // Predictions ist der Tensor mit der passenden Label-Anzahl
-            extractPredictions(result, session)
-        } finally {
-            tensor.close()
         }
     }
 

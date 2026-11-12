@@ -4,8 +4,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,14 +21,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,8 +68,13 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationStatus
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,6 +105,7 @@ import java.util.Locale
  * @param onCorrect Callback mit korrigiertem Artnamen
  * @param modifier Modifier
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SpeciesCard(
     detection: DetectionResult,
@@ -104,8 +120,21 @@ fun SpeciesCard(
     isPlayEnabled: Boolean = true,
     playTimeLabel: String? = null,
     onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
+    onEditDetection: ((count: Int, atlasCode: String?, note: String?, voiceMemoFile: String?) -> Unit)? = null,
+    atlasCodes: List<AtlasCode> = emptyList(),
     isWatchlisted: Boolean = false,
     showTopNCandidates: Boolean = true,
+    // T74: Phenology
+    phenologyEnabled: Boolean = false,
+    isInSeason: Boolean = true,
+    rarityScore: Float = 0.0f,
+    // T69: Voice-Memo
+    voiceMemoRecorder: VoiceMemoRecorder? = null,
+    memoAudioPlayer: AudioPlayer? = null,
+    onGetMemoTargetFile: (() -> File?)? = null,
+    onGetMemoTargetUri: (() -> Uri?)? = null,
+    onSnackbar: (String) -> Unit = {},
+    onToggleLock: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val confidencePercent = (detection.confidence * 100).toInt()
@@ -146,8 +175,15 @@ fun SpeciesCard(
     var showCorrectionDialog by remember { mutableStateOf(false) }
     var correctedName by remember(detection.id) { mutableStateOf(detection.commonName) }
 
+    // Edit-Dialog State (T68)
+    var showEditDialog by remember { mutableStateOf(false) }
+    val hasCustomData = detection.count > 1 || detection.atlasCode != null || detection.note != null
+
     // Kandidaten aufklappbar (T27) — rememberSaveable stabil bei Re-Sort (T52)
     var candidatesExpanded by rememberSaveable(key = detection.id) { mutableStateOf(false) }
+
+    // T73: Lock-Kontext-Menue (Long-Press)
+    var showLockMenu by remember { mutableStateOf(false) }
 
     // Haptisches Feedback (T52: ✎ und Kandidaten-Tap)
     val haptic = LocalHapticFeedback.current
@@ -159,9 +195,20 @@ fun SpeciesCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .alpha(cardAlpha),
+            .alpha(cardAlpha)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showLockMenu = true
+                }
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            // T73: surfaceVariant-Hintergrund fuer gesperrte Arten (AC2)
+            containerColor = if (detection.lockSpecies)
+                MaterialTheme.colorScheme.surfaceVariant
+            else
+                MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         border = effectiveBorder
@@ -206,6 +253,47 @@ fun SpeciesCard(
                             contentDescription = "Watchlist",
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    // Manuell-Badge (T72): Hand-Icon bei manuell hinzugefuegten Detektionen
+                    if (detection.manualEntry) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.PanTool,
+                            contentDescription = "Manuell hinzugefuegt",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    // Phenology-Badges (T74)
+                    if (phenologyEnabled) {
+                        if (!isInSeason) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Badge(
+                                containerColor = androidx.compose.ui.graphics.Color(0xFFFF9800),
+                                contentColor = androidx.compose.ui.graphics.Color.White
+                            ) {
+                                Text("Saison-untypisch", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        if (rarityScore > 0.7f) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = "Selten",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                    // Lock-Badge (T73): letzte Position in der Badge-Row
+                    if (detection.lockSpecies) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = "Gesperrt",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
@@ -317,21 +405,22 @@ fun SpeciesCard(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Bestaetigen (T52: FilledIconButton 56dp)
+                    // Bestaetigen (T52: FilledIconButton 56dp; T78: bei CONFIRMED zu Undo wechseln)
                     if (onConfirm != null) {
+                        val isConfirmed = detection.verificationStatus == VerificationStatus.CONFIRMED
                         FilledIconButton(
-                            onClick = onConfirm,
+                            onClick = if (isConfirmed) (onMarkUncertain ?: onConfirm) else onConfirm,
                             modifier = Modifier.size(56.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
+                                containerColor = if (isConfirmed)
                                     Color(0xFF4CAF50) else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (detection.verificationStatus == VerificationStatus.CONFIRMED)
+                                contentColor = if (isConfirmed)
                                     Color.White else MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = "Bestaetigen",
+                                imageVector = if (isConfirmed) Icons.AutoMirrored.Filled.Undo else Icons.Filled.Check,
+                                contentDescription = if (isConfirmed) "Bestaetigung rueckgaengig" else "Bestaetigen",
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -406,6 +495,22 @@ fun SpeciesCard(
                         }
                     }
 
+                    // Detail-Eingaben (T68): Stückzahl, Atlascode, Bemerkung
+                    if (onEditDetection != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { showEditDialog = true },
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.List,
+                                contentDescription = "Detail-Eingaben",
+                                tint = if (hasCustomData) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     // "Als Referenz speichern" fuer bestaetigte Detektionen
                     if (onSaveAsReference != null &&
                         (detection.verificationStatus == VerificationStatus.CONFIRMED ||
@@ -434,22 +539,6 @@ fun SpeciesCard(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.CompareArrows,
                                 contentDescription = "Vergleichen",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // Zum Chunk springen (T39)
-                    if (onJumpToChunk != null) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = onJumpToChunk,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.MyLocation,
-                                contentDescription = "Zum Chunk springen",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -551,7 +640,50 @@ fun SpeciesCard(
                     }
                 }
             }
+
+            // T73: Long-Press Kontext-Menue — Sperren / Entsperren (AC1)
+            if (onToggleLock != null) {
+                DropdownMenu(
+                    expanded = showLockMenu,
+                    onDismissRequest = { showLockMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (detection.lockSpecies) "Entsperren" else "Sperren") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (detection.lockSpecies) Icons.Filled.LockOpen
+                                              else Icons.Filled.Lock,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showLockMenu = false
+                            onToggleLock()
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    // Edit-Dialog (T68/T69): Stückzahl, Atlascode, Bemerkung + Sprach-Memo
+    if (showEditDialog && onEditDetection != null) {
+        val memoTargetFile = remember { onGetMemoTargetFile?.invoke() }
+        val memoTargetUri = remember { onGetMemoTargetUri?.invoke() }
+        EditDetectionDialog(
+            detection = detection,
+            atlasCodes = atlasCodes,
+            recorder = voiceMemoRecorder,
+            memoAudioPlayer = memoAudioPlayer,
+            memoTargetFile = memoTargetFile,
+            memoTargetUri = memoTargetUri,
+            onDismiss = { showEditDialog = false },
+            onSave = { count, atlasCode, note, memoFile ->
+                onEditDetection(count, atlasCode, note, memoFile)
+                showEditDialog = false
+            },
+            onSnackbar = onSnackbar,
+        )
     }
 
     // Korrektur-Dialog

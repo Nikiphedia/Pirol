@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ui.live
 
 import android.os.SystemClock
 import android.widget.Chronometer
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Stop
@@ -34,6 +38,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,8 +47,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -258,6 +265,9 @@ private fun CompactLiveLayout(
     onRequestPermission: () -> Unit,
     onRequestLocationPermission: () -> Unit = {}
 ) {
+    var showAddManualDialog by remember { mutableStateOf(false) }
+    var showMemoDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -301,8 +311,17 @@ private fun CompactLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
+                atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -312,20 +331,113 @@ private fun CompactLiveLayout(
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
+                    similarEnabled = uiState.similarEnabled,
+                    similarLines = uiState.similarLines,
+                    recentSpecies = uiState.recentSpecies,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        // FAB zentriert
-        Box(
+        // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp),
-            contentAlignment = Alignment.Center
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+            // Memo-Button + +Art-Button (F6): nur sichtbar wenn Recording aktiv
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Memo-Button
+                AnimatedVisibility(visible = uiState.isRecording) {
+                    IconButton(
+                        onClick = { showMemoDialog = true },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = "Memo aufnehmen",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                // +Art-Button
+                AnimatedVisibility(visible = uiState.isRecording) {
+                    IconButton(
+                        onClick = { showAddManualDialog = true },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AddCircle,
+                            contentDescription = "+ Art",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            // Preroll-Toggle (F5) + Haupt-FAB
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
+                if (uiState.isPrerollEnabled && !uiState.isRecording) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            if (uiState.isPrerollRunning) viewModel.userStopPreroll()
+                            else viewModel.userStartPreroll()
+                        },
+                        containerColor = if (uiState.isPrerollRunning)
+                            MaterialTheme.colorScheme.tertiary
+                        else
+                            MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.isPrerollRunning)
+                                Icons.Filled.Stop
+                            else
+                                Icons.Filled.Mic,
+                            contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                            tint = if (uiState.isPrerollRunning)
+                                Color.White
+                            else
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+                RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+            }
         }
+    }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = uiState.currentLatitude,
+            currentLon = uiState.currentLongitude,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
+    }
+    if (showMemoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoDialog = false },
+            title = { Text("Sprach-Memo") },
+            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            confirmButton = {
+                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
+            }
+        )
     }
 }
 
@@ -340,6 +452,9 @@ private fun MediumLiveLayout(
     onRequestPermission: () -> Unit,
     onRequestLocationPermission: () -> Unit = {}
 ) {
+    var showAddManualDialog by remember { mutableStateOf(false) }
+    var showMemoDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -390,8 +505,17 @@ private fun MediumLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
+                atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -401,19 +525,113 @@ private fun MediumLiveLayout(
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
+                    similarEnabled = uiState.similarEnabled,
+                    similarLines = uiState.similarLines,
+                    recentSpecies = uiState.recentSpecies,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            Box(
+            // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
-                contentAlignment = Alignment.CenterEnd
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+                // Memo-Button + +Art-Button (F6): nur sichtbar wenn Recording aktiv
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Memo-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = { showMemoDialog = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = "Memo aufnehmen",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    // +Art-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = { showAddManualDialog = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AddCircle,
+                                contentDescription = "+ Art",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Preroll-Toggle (F5) + Haupt-FAB
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
+                    if (uiState.isPrerollEnabled && !uiState.isRecording) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                if (uiState.isPrerollRunning) viewModel.userStopPreroll()
+                                else viewModel.userStartPreroll()
+                            },
+                            containerColor = if (uiState.isPrerollRunning)
+                                MaterialTheme.colorScheme.tertiary
+                            else
+                                MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isPrerollRunning)
+                                    Icons.Filled.Stop
+                                else
+                                    Icons.Filled.Mic,
+                                contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                                tint = if (uiState.isPrerollRunning)
+                                    Color.White
+                                else
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+                }
             }
         }
+    }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = uiState.currentLatitude,
+            currentLon = uiState.currentLongitude,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
+    }
+    if (showMemoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoDialog = false },
+            title = { Text("Sprach-Memo") },
+            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            confirmButton = {
+                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
+            }
+        )
     }
 }
 
@@ -428,6 +646,9 @@ private fun ExpandedLiveLayout(
     onRequestPermission: () -> Unit,
     onRequestLocationPermission: () -> Unit = {}
 ) {
+    var showAddManualDialog by remember { mutableStateOf(false) }
+    var showMemoDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -478,8 +699,17 @@ private fun ExpandedLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
+                atlasCodes = viewModel.atlasCodes,
                 watchlistSpecies = uiState.watchlistSpecies,
                 showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -489,20 +719,113 @@ private fun ExpandedLiveLayout(
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
+                    similarEnabled = uiState.similarEnabled,
+                    similarLines = uiState.similarLines,
+                    recentSpecies = uiState.recentSpecies,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            // FAB unten rechts im rechten Pane
-            Box(
+            // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB (unten rechts im rechten Pane)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp),
-                contentAlignment = Alignment.BottomEnd
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+                // Memo-Button + +Art-Button (F6): nur sichtbar wenn Recording aktiv
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Memo-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = { showMemoDialog = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = "Memo aufnehmen",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    // +Art-Button
+                    AnimatedVisibility(visible = uiState.isRecording) {
+                        IconButton(
+                            onClick = { showAddManualDialog = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AddCircle,
+                                contentDescription = "+ Art",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Preroll-Toggle (F5) + Haupt-FAB
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
+                    if (uiState.isPrerollEnabled && !uiState.isRecording) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                if (uiState.isPrerollRunning) viewModel.userStopPreroll()
+                                else viewModel.userStartPreroll()
+                            },
+                            containerColor = if (uiState.isPrerollRunning)
+                                MaterialTheme.colorScheme.tertiary
+                            else
+                                MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isPrerollRunning)
+                                    Icons.Filled.Stop
+                                else
+                                    Icons.Filled.Mic,
+                                contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                                tint = if (uiState.isPrerollRunning)
+                                    Color.White
+                                else
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
+                }
             }
         }
+    }
+
+    // AddManualDetectionDialog (T72)
+    if (showAddManualDialog) {
+        AddManualDetectionDialog(
+            onSearchSpecies = { query -> viewModel.searchSpecies(query) },
+            atlasCodes = viewModel.atlasCodes,
+            currentLat = uiState.currentLatitude,
+            currentLon = uiState.currentLongitude,
+            onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                showAddManualDialog = false
+            },
+            onDismiss = { showAddManualDialog = false }
+        )
+    }
+    if (showMemoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoDialog = false },
+            title = { Text("Sprach-Memo") },
+            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            confirmButton = {
+                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
+            }
+        )
     }
 }
 
@@ -700,7 +1023,7 @@ private fun SpectrogramBox(
 @Composable
 private fun PrerollIndicator(uiState: LiveUiState) {
     when {
-        uiState.isServiceBound && !uiState.isRecording -> {
+        uiState.isPrerollRunning && !uiState.isRecording -> {
             Text(
                 text = "\u25CF Buffer aktiv \u2014 letzte 30s verfuegbar",
                 style = MaterialTheme.typography.labelSmall,
@@ -726,6 +1049,7 @@ private fun PrerollIndicator(uiState: LiveUiState) {
  * READY: Mic, primary, enabled
  * RECORDING: Stop, rot, pulsierender Schatten
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecordingFab(
     uiState: LiveUiState,
@@ -800,51 +1124,74 @@ private fun RecordingFab(
     }
 
     Box(modifier = ringModifier.padding(4.dp)) {
-        FloatingActionButton(
-            onClick = {
-                // T52: 500ms Debounce-Gate im ViewModel
-                if (viewModel.onFabTap()) {
-                    when (fabState) {
-                        RecordingFabState.RECORDING -> viewModel.stopRecording()
-                        RecordingFabState.IDLE, RecordingFabState.READY -> {
-                            if (uiState.permissionGranted) {
-                                viewModel.startRecording()
-                            } else {
-                                onRequestPermission()
+        if (fabState == RecordingFabState.RECORDING) {
+            // F7: Stop nur per Long-Press (verhindert versehentliches Stoppen)
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .shadow(pulseElevation, CircleShape, clip = false)
+                    .clip(CircleShape)
+                    .background(fabColor)
+                    .combinedClickable(
+                        onClick = {
+                            if (viewModel.onFabTap()) viewModel.showLongPressHint()
+                        },
+                        onLongClick = { viewModel.stopRecording() }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Stop,
+                    contentDescription = "Aufnahme stoppen (lang drücken)",
+                    tint = Color.White
+                )
+            }
+        } else {
+            FloatingActionButton(
+                onClick = {
+                    // T52: 500ms Debounce-Gate im ViewModel
+                    if (viewModel.onFabTap()) {
+                        when (fabState) {
+                            RecordingFabState.IDLE, RecordingFabState.READY -> {
+                                if (uiState.permissionGranted) {
+                                    viewModel.startRecording()
+                                } else {
+                                    onRequestPermission()
+                                }
                             }
+                            else -> { /* CONNECTING oder PREROLL_BUFFERING: disabled */ }
                         }
-                        else -> { /* CONNECTING oder PREROLL_BUFFERING: disabled */ }
                     }
-                }
-            },
-            containerColor = fabColor,
-            modifier = Modifier.shadow(pulseElevation, CircleShape, clip = false),
-            shape = CircleShape
-        ) {
-            // T52: PREROLL_BUFFERING zeigt Mic + indeterminate Progress-Ring
-            if (fabState == RecordingFabState.PREROLL_BUFFERING) {
-                Box(contentAlignment = Alignment.Center) {
+                },
+                containerColor = fabColor,
+                modifier = Modifier.shadow(pulseElevation, CircleShape, clip = false),
+                shape = CircleShape
+            ) {
+                // T52: PREROLL_BUFFERING zeigt Mic + indeterminate Progress-Ring
+                if (fabState == RecordingFabState.PREROLL_BUFFERING) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            fabIcon,
+                            contentDescription = fabDescription,
+                            tint = Color.White
+                        )
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(44.dp),
+                            color = Color.White.copy(alpha = 0.7f),
+                            strokeWidth = 3.dp
+                        )
+                    }
+                } else {
                     Icon(
                         fabIcon,
                         contentDescription = fabDescription,
-                        tint = Color.White
-                    )
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(44.dp),
-                        color = Color.White.copy(alpha = 0.7f),
-                        strokeWidth = 3.dp
+                        tint = if (fabState == RecordingFabState.CONNECTING) {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        } else {
+                            Color.White
+                        }
                     )
                 }
-            } else {
-                Icon(
-                    fabIcon,
-                    contentDescription = fabDescription,
-                    tint = if (fabState == RecordingFabState.CONNECTING) {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    } else {
-                        Color.White
-                    }
-                )
             }
         }
     }

@@ -38,6 +38,16 @@ class MfccExtractor {
     // Vorberechnete Mel-Filterbank (lazy, da sie fuer gegebene Parameter immer gleich ist)
     private val melFilterbank: Array<FloatArray> by lazy { buildMelFilterbank() }
 
+    // Sparse-Sicht auf die Filterbank: pro Mel-Band nur der Bereich mit Gewichten != 0.
+    // Ein Dreiecksfilter deckt nur wenige der 1025 FFT-Bins ab — die dichte Schleife
+    // multiplizierte zu >95% mit 0. Ergebnis ist identisch (nur Null-Summanden entfallen).
+    private val filterStart: IntArray by lazy {
+        IntArray(N_MELS) { m -> melFilterbank[m].indexOfFirst { it != 0f }.coerceAtLeast(0) }
+    }
+    private val filterEnd: IntArray by lazy {
+        IntArray(N_MELS) { m -> melFilterbank[m].indexOfLast { it != 0f } + 1 }
+    }
+
     // Vorberechnete Hann-Window (N_FFT Samples)
     private val hannWindow: FloatArray by lazy { buildHannWindow(N_FFT) }
 
@@ -62,6 +72,7 @@ class MfccExtractor {
         val fftReal = FloatArray(N_FFT)
         val fftImag = FloatArray(N_FFT)
         val powerBins = FloatArray(N_FFT / 2 + 1)
+        val melEnergies = FloatArray(N_MELS)
 
         for (frameIdx in 0 until numFrames) {
             val offset = frameIdx * HOP_SIZE
@@ -83,7 +94,7 @@ class MfccExtractor {
             FFT.powerSpectrumInto(fftReal, fftImag, powerBins)
 
             // Mel-Filterbank anwenden → Log → DCT → MFCC
-            val melEnergies = applyMelFilterbank(powerBins)
+            applyMelFilterbank(powerBins, melEnergies)
             applyLogAndDct(melEnergies, frames[frameIdx])
         }
 
@@ -225,20 +236,18 @@ class MfccExtractor {
     }
 
     /**
-     * Mel-Filterbank auf Power-Spektrum anwenden.
-     * Gibt FloatArray(N_MELS) mit Mel-Band-Energien zurueck.
+     * Mel-Filterbank auf Power-Spektrum anwenden (sparse, zero-alloc).
+     * Schreibt N_MELS Mel-Band-Energien in [output].
      */
-    private fun applyMelFilterbank(powerSpectrum: FloatArray): FloatArray {
-        val melEnergies = FloatArray(N_MELS)
+    private fun applyMelFilterbank(powerSpectrum: FloatArray, output: FloatArray) {
         for (m in 0 until N_MELS) {
             var sum = 0f
             val filter = melFilterbank[m]
-            for (k in filter.indices) {
+            for (k in filterStart[m] until filterEnd[m]) {
                 sum += filter[k] * powerSpectrum[k]
             }
-            melEnergies[m] = sum
+            output[m] = sum
         }
-        return melEnergies
     }
 
     /**

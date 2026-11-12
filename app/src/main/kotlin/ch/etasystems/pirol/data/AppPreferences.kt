@@ -23,8 +23,13 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putFloat("pirol_confidence_threshold", value).apply()
 
     var topK: Int
-        get() = prefs.getInt("pirol_top_k", 5)
+        get() = prefs.getInt("pirol_top_k", 3)
         set(value) = prefs.edit().putInt("pirol_top_k", value).apply()
+
+    /** Mindest-Konfidenz fuer TopK-Erkennung (0.3 = mehr Arten, 0.5 = nur sichere) */
+    var topKThreshold: Float
+        get() = prefs.getFloat("pirol_topk_threshold", 0.3f)
+        set(value) = prefs.edit().putFloat("pirol_topk_threshold", value).apply()
 
     var regionFilter: String?
         get() = prefs.getString("pirol_region_filter", "ch_breeding")
@@ -147,6 +152,105 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_max_recording_minutes", 60)
         set(value) = prefs.edit().putInt("pirol_max_recording_minutes", value).apply()
 
+    // --- Watchlist-Alarm-Cooldown (T58) ---
+    /** Pause zwischen Alarmen derselben Art in Minuten. 0 = jeder Treffer alarmiert. Default 5. */
+    var alarmCooldownMinutes: Int
+        get() = prefs.getInt("pirol_alarm_cooldown_minutes", 5)
+        set(value) = prefs.edit().putInt("pirol_alarm_cooldown_minutes", value).apply()
+
+    // --- Detektions-Cluster (T70) ---
+    /** Raeumlich/zeitliches Zusammenfassen von Detektionen derselben Art. Default an. */
+    var clusterEnabled: Boolean
+        get() = prefs.getBoolean("pirol_cluster_enabled", true)
+        set(value) = prefs.edit().putBoolean("pirol_cluster_enabled", value).apply()
+
+    /** Cluster-Radius in Metern. 0 = kein Radius-Check (nur Zeit-Dedup). Default 10. */
+    var clusterRadiusM: Int
+        get() = prefs.getInt("pirol_cluster_radius_m", 10)
+        set(value) = prefs.edit().putInt("pirol_cluster_radius_m", value).apply()
+
+    /** Cluster-Zeitfenster in Minuten. 0 = kein Zeit-Check. Default 5. */
+    var clusterTimeWindowMin: Int
+        get() = prefs.getInt("pirol_cluster_timewindow_min", 5)
+        set(value) = prefs.edit().putInt("pirol_cluster_timewindow_min", value).apply()
+
+    // --- Saisonalitaet & Seltenheit (T74) ---
+    var phenologyEnabled: Boolean
+        get() = prefs.getBoolean("pirol_phenology_enabled", false)
+        set(value) = prefs.edit().putBoolean("pirol_phenology_enabled", value).apply()
+
+    // --- Aehnliche Arten (T75) ---
+    var similarEnabled: Boolean
+        get() = prefs.getBoolean("pirol_similar_enabled", true)
+        set(value) = prefs.edit().putBoolean("pirol_similar_enabled", value).apply()
+
+    /** 0.0=aus, 0.5=Laufschrift letzte 5, 1.0–10.0=Liste mit n Zeilen */
+    var similarLines: Float
+        get() = prefs.getFloat("pirol_similar_lines", 3.0f)
+        set(value) = prefs.edit().putFloat("pirol_similar_lines", value).apply()
+
+    // --- Auto-Loeschen kurzer leerer Sessions (T60) ---
+    var autoDeleteShortEmptySessions: Boolean
+        get() = prefs.getBoolean("pirol_autodelete_short_empty", true)
+        set(value) = prefs.edit().putBoolean("pirol_autodelete_short_empty", value).apply()
+
+    var autoDeleteMinSeconds: Int
+        get() = prefs.getInt("pirol_autodelete_min_seconds", 10)
+        set(value) = prefs.edit().putInt("pirol_autodelete_min_seconds", value).apply()
+
+    // --- Raven-Export Felder (T78) ---
+    var ravenFieldBeginTime: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_begin_time", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_begin_time", value).apply()
+
+    var ravenFieldEndTime: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_end_time", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_end_time", value).apply()
+
+    var ravenFieldLowFreq: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_low_freq", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_low_freq", value).apply()
+
+    var ravenFieldHighFreq: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_high_freq", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_high_freq", value).apply()
+
+    var ravenFieldSpecies: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_species", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_species", value).apply()
+
+    var ravenFieldConfidence: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_confidence", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_confidence", value).apply()
+
+    var ravenFieldBeginFile: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_begin_file", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_begin_file", value).apply()
+
+    var ravenFieldBeginDateTime: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_begin_date_time", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_begin_date_time", value).apply()
+
+    var ravenFieldLat: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_lat", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_lat", value).apply()
+
+    var ravenFieldLon: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_lon", true)
+        set(value) = prefs.edit().putBoolean("pirol_raven_field_lon", value).apply()
+
+    var ravenFieldSimultan: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_simultan", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_simultan", v).apply()
+
+    var ravenFieldMoeglich: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_moeglich", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_moeglich", v).apply()
+
+    var ravenFieldGleich: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_gleich", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_gleich", v).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)
@@ -156,11 +260,18 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_auto_upload", false)
         set(value) = prefs.edit().putBoolean("pirol_auto_upload", value).apply()
 
+    // --- Embedding-DB Format-Version (T61) ---
+    /** Version der gespeicherten Embedding-Basis; 0 = vor T61 (Embeddings aus Roh-Audio) */
+    var embeddingDbVersion: Int
+        get() = prefs.getInt("pirol_embedding_db_version", 0)
+        set(value) = prefs.edit().putInt("pirol_embedding_db_version", value).apply()
+
     /** Gespeicherte InferenceConfig laden */
     fun loadInferenceConfig(): InferenceConfig {
         return InferenceConfig(
             confidenceThreshold = confidenceThreshold,
             topK = topK,
+            topKThreshold = topKThreshold,
             regionFilter = regionFilter,
             showOnlyFiltered = showOnlyFiltered,
             inferenceIntervalMs = inferenceIntervalMs,
@@ -172,6 +283,7 @@ class AppPreferences(context: Context) {
     fun saveInferenceConfig(config: InferenceConfig) {
         confidenceThreshold = config.confidenceThreshold
         topK = config.topK
+        topKThreshold = config.topKThreshold
         regionFilter = config.regionFilter
         showOnlyFiltered = config.showOnlyFiltered
         inferenceIntervalMs = config.inferenceIntervalMs

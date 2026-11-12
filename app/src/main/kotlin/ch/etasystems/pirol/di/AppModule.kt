@@ -4,8 +4,10 @@ import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.OboeAudioEngine
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.StorageManager
+import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.data.repository.SpeciesColorRepository
 import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.AudioClassifier
@@ -15,6 +17,7 @@ import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.EmbeddingExtractor
 import ch.etasystems.pirol.ml.MfccExtractor
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistManager
@@ -23,6 +26,7 @@ import ch.etasystems.pirol.ui.analysis.AnalysisViewModel
 import ch.etasystems.pirol.ui.live.LiveViewModel
 import ch.etasystems.pirol.ui.map.MapViewModel
 import ch.etasystems.pirol.ui.reference.ReferenceViewModel
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -64,13 +68,14 @@ val appModule = module {
     single { ReferenceRepository(get()) }
 
     // Audio-Player — Singleton, WAV-Playback fuer Referenzen
-    single { AudioPlayer() }
+    // T62: Context fuer SAF-URI-Support (ContentResolver / setDataSource(context, uri))
+    single { AudioPlayer(androidContext()) }
 
     // WatchlistManager — Singleton, laedt/verwaltet Watchlist (T20)
     single { WatchlistManager(get()) }
 
-    // AlarmService — Singleton, Notification + Vibration fuer Watchlist-Matches (T20)
-    single { AlarmService(get()) }
+    // AlarmService — Singleton, Notification + Vibration fuer Watchlist-Matches (T20/T58)
+    single { AlarmService(get(), get()) }
 
     // AppPreferences — Singleton, SharedPreferences-Wrapper (T22)
     single { AppPreferences(get()) }
@@ -81,15 +86,27 @@ val appModule = module {
     // ModelManager — Singleton, Modell-Verfuegbarkeit + SAF-Import + Download (T22/T28/T37)
     single { ModelManager(get(), get()) }
 
+    // AtlasCodeRepository — Singleton, laedt CH-Atlascodes aus assets/atlas_codes.json (T68)
+    single { AtlasCodeRepository(androidContext()) }
+
+    // PhenologyRepository — Singleton, laedt species_phenology.json (T74)
+    single { PhenologyRepository(androidContext()) }
+
+    // SpeciesColorRepository — Singleton, laedt species_colors.json aus filesDir (T80)
+    single { SpeciesColorRepository(androidContext()) }
+
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
-    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
+    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }
 
     // ReferenceViewModel — Referenzbibliothek-UI
     viewModel { ReferenceViewModel(get(), get()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
-    viewModel { AnalysisViewModel(get(), get(), get(), get()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences (T56)
+    // T72: +1 Param (SpeciesNameResolver) fuer AddManualDetectionDialog (6→7 get())
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
-    viewModel { MapViewModel(get()) }  // SessionManager
+    // T83: +1 Param (LocationProvider) fuer Home-FAB (2→3 get())
+    viewModel { MapViewModel(get(), get(), get()) }  // SessionManager, DetectionListState, LocationProvider
 }

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -58,11 +59,57 @@ object WavWriter {
             // Sample-Daten schreiben (Little Endian)
             val sampleBuf = ByteBuffer.allocate(dataSize)
             sampleBuf.order(ByteOrder.LITTLE_ENDIAN)
-            for (s in samples) {
-                sampleBuf.putShort(s)
-            }
+            // Bulk-Konvertierung (statt putShort() pro Sample)
+            sampleBuf.asShortBuffer().put(samples)
             fos.write(sampleBuf.array())
         }
+    }
+
+    /**
+     * Repariert den Header einer 16-bit-PCM-Mono-WAV, deren erste 44 Bytes ueberschrieben wurden (T61).
+     *
+     * Hintergrund: StreamingWavWriter hat seit T51 bis T61 das erste append() ab Offset 0 geschrieben
+     * und damit den Header mit Audio ueberschrieben (nur Offset 4 und 40 wurden beim close() gepatcht).
+     * Das Audio ab Byte 44 ist intakt; die ersten 22 Samples sind verloren.
+     *
+     * Erkennung: Gueltige Dateien beginnen immer mit "RIFF" und haben "WAVE" an Offset 8.
+     * Dateien mit korrektem Header werden nicht angefasst.
+     *
+     * @return true wenn der Header neu geschrieben wurde
+     */
+    fun repairHeaderIfNeeded(file: File, sampleRate: Int): Boolean {
+        if (!file.exists() || file.length() < 44 || sampleRate <= 0) return false
+        RandomAccessFile(file, "rw").use { raf ->
+            val head = ByteArray(12)
+            raf.readFully(head)
+            val riff = String(head, 0, 4, Charsets.US_ASCII)
+            val wave = String(head, 8, 4, Charsets.US_ASCII)
+            if (riff == "RIFF" && wave == "WAVE") return false
+
+            val dataSize = (raf.length() - 44).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            raf.seek(0)
+            raf.write(buildHeader(sampleRate, dataSize))
+        }
+        return true
+    }
+
+    /** 44-Byte PCM-Mono-16-bit-Header */
+    private fun buildHeader(sampleRate: Int, dataSize: Int): ByteArray {
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray())
+        header.putInt(36 + dataSize)
+        header.put("WAVE".toByteArray())
+        header.put("fmt ".toByteArray())
+        header.putInt(16)
+        header.putShort(1)
+        header.putShort(1)
+        header.putInt(sampleRate)
+        header.putInt(sampleRate * 2)
+        header.putShort(2)
+        header.putShort(16)
+        header.put("data".toByteArray())
+        header.putInt(dataSize)
+        return header.array()
     }
 }
 
@@ -83,6 +130,34 @@ class StreamingWavWriter private constructor(
 ) {
     companion object {
         private const val FLUSH_INTERVAL_APPENDS = 20  // ~60s bei 3s-Chunks
+
+        /**
+         * T65: Crash-Recovery — finalisiert WAV-Header eines abgebrochen geschriebenen Files.
+         * Berechnet data-Groesse aus Datei-Groesse minus 44 Bytes Header und schreibt
+         * RIFF-fileSize (Offset 4) + data-dataSize (Offset 40) korrekt.
+         * Idempotent: sichere Mehrfach-Aufrufe, prueft Mindest-Groesse vorher.
+         *
+         * @param file WAV-Datei mit ggf. ungueltigem Header (Crash-Zustand)
+         */
+        fun finalizeHeader(file: File) {
+            val fileSize = file.length()
+            if (fileSize < 44) return  // Zu klein fuer gueltigen WAV-Header
+            val dataBytes = fileSize - 44L
+            RandomAccessFile(file, "rw").use { raf ->
+                val ch = raf.channel
+                // RIFF fileSize @ Offset 4
+                val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                riffBuf.putInt(minOf(36L + dataBytes, 0xFFFFFFFFL).toInt())
+                riffBuf.flip()
+                ch.write(riffBuf, 4L)
+                // data dataSize @ Offset 40
+                val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                dataBuf.putInt(minOf(dataBytes, 0xFFFFFFFFL).toInt())
+                dataBuf.flip()
+                ch.write(dataBuf, 40L)
+                ch.force(true)
+            }
+        }
 
         /**
          * Writer fuer File-basierte Aufnahme (getExternalFilesDir oder interner Speicher).
@@ -107,6 +182,8 @@ class StreamingWavWriter private constructor(
     }
 
     private var dataBytesWritten: Long = 0L
+    // Wiederverwendeter Sample-Buffer fuer append() (waechst bei Bedarf, sonst keine Allokation pro Chunk)
+    private var appendBuffer: ByteBuffer = ByteBuffer.allocate(0)
     private var appendCount: Int = 0
     private val numChannels = 1
     private val bitsPerSample = 16
@@ -130,17 +207,26 @@ class StreamingWavWriter private constructor(
         header.put("data".toByteArray())
         header.putInt(0)            // Platzhalter dataSize = 0
         header.flip()
-        channel.write(header, 0L)
+        // Relativer Write: verschiebt Channel-Position auf 44, sodass append() korrekt dahinter schreibt.
+        // Absolute close()-Writes (Offset 4 + 40 fuer RIFF/data-Groesse) bleiben unveraendert.
+        channel.write(header)
         dataBytesWritten = 0L
         appendCount = 0
     }
 
     /** Haengt Samples an. open() muss vorher aufgerufen worden sein. */
     fun append(samples: ShortArray) {
-        val buf = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-        for (s in samples) buf.putShort(s)
-        buf.flip()
-        channel.write(buf)
+        val byteCount = samples.size * 2
+        if (appendBuffer.capacity() < byteCount) {
+            appendBuffer = ByteBuffer.allocate(byteCount).order(ByteOrder.LITTLE_ENDIAN)
+        }
+        val buf = appendBuffer
+        buf.clear()
+        // Bulk-Konvertierung (statt putShort() pro Sample); ShortBuffer-View teilt Byte-Order + Daten
+        buf.asShortBuffer().put(samples)
+        buf.limit(byteCount)
+        // FileChannel.write() kann (v.a. bei SAF) weniger Bytes schreiben → bis Ende schreiben
+        while (buf.hasRemaining()) channel.write(buf)
         dataBytesWritten += samples.size * 2L
         appendCount++
         // Periodisches Flush: sichert Datei bei App-Kills in langen Sessions
@@ -148,12 +234,12 @@ class StreamingWavWriter private constructor(
             // T57-B2: Header-Felder aktualisieren damit Windows korrekte Hz + Laenge zeigt
             // Absolute channel.write(buf, pos) aendert die Channel-Position nicht → Append-Position bleibt korrekt
             val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            riffBuf.putInt((36 + dataBytesWritten).toInt())
+            riffBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
             riffBuf.flip()
             channel.write(riffBuf, 4L)
 
             val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            dataBuf.putInt(dataBytesWritten.toInt())
+            dataBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
             dataBuf.flip()
             channel.write(dataBuf, 40L)
 
@@ -168,13 +254,13 @@ class StreamingWavWriter private constructor(
     fun close() {
         // RIFF fileSize @ Offset 4
         val riffSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        riffSizeBuf.putInt((36 + dataBytesWritten).toInt())
+        riffSizeBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
         riffSizeBuf.flip()
         channel.write(riffSizeBuf, 4L)
 
         // data dataSize @ Offset 40
         val dataSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        dataSizeBuf.putInt(dataBytesWritten.toInt())
+        dataSizeBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
         dataSizeBuf.flip()
         channel.write(dataSizeBuf, 40L)
 

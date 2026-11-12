@@ -9,12 +9,15 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.RecordingService
+import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.repository.SessionMetadata
@@ -23,8 +26,11 @@ import kotlinx.serialization.json.Json as KJson
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
+import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
+import ch.etasystems.pirol.ml.ClusterResult
 import ch.etasystems.pirol.ml.DetectionListState
+import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.EmbeddingExtractor
 import ch.etasystems.pirol.ml.InferenceConfig
@@ -50,6 +56,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -91,11 +100,20 @@ class LiveViewModel(
     private val watchlistManager: WatchlistManager,
     private val alarmService: AlarmService,
     private val appPreferences: AppPreferences,
-    private val speciesNameResolver: SpeciesNameResolver
+    private val speciesNameResolver: SpeciesNameResolver,
+    private val atlasCodeRepository: AtlasCodeRepository,
+    private val context: android.content.Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "LiveViewModel"
+
+        /**
+         * Aktuelle Embedding-Basis (T61): Embeddings stammen aus dem Klassifikations-Durchlauf
+         * (vorverarbeitetes 32-kHz-Audio) statt aus einer separaten Inference auf Roh-Audio.
+         * Aeltere DBs werden einmalig geleert, damit die Aehnlichkeitssuche konsistent bleibt.
+         */
+        private const val EMBEDDING_DB_VERSION = 2
     }
 
     // --- Snackbar-Infrastruktur (T52) ---
@@ -117,8 +135,22 @@ class LiveViewModel(
     val snackbarEvents = _snackbarChannel.receiveAsFlow()
     private var pendingUndo: UndoEntry? = null
 
+    // --- T69: Voice-Memo ---
+
+    /** Sprach-Memo Recorder — separater AudioRecord, blockiert RecordingService nicht. */
+    val voiceMemoRecorder = VoiceMemoRecorder()
+
+    /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
+    val memoAudioPlayer by lazy { AudioPlayer(context) }
+
     // FAB-Debounce (T52): verhindert Doppel-Taps innerhalb 500 ms
     private var lastFabTapAt = 0L
+
+    // Serialisiert Verifikations-IO: verhindert Race bei Schnell-Taps (AC6)
+    private val verificationMutex = Mutex()
+
+    // T73: Referenz auf lockedSpecies-StateFlow in DetectionListState (fuer toggleLock)
+    private val lockedSpecies = detectionListState.lockedSpecies
 
     // --- Oeffentlicher State ---
     private val _uiState = MutableStateFlow(LiveUiState())
@@ -143,6 +175,9 @@ class LiveViewModel(
     // Preroll-Samples die nach startSession() angehaengt werden (T46)
     private var pendingPrerollSamples: ShortArray = ShortArray(0)
 
+    // F5: User hat Preroll explizit gestartet
+    private var prerollRunning = false
+
     // T54-Fix: Sequentieller Dispatcher fuer Session-Lifecycle-Operationen.
     // startSession+appendPreroll und endSession laufen auf demselben Single-Thread-Kontext,
     // damit endSession() niemals vor appendPreroll() ausgefuehrt wird (Race-Condition fix).
@@ -163,12 +198,15 @@ class LiveViewModel(
         // startSec VOR dem Append erfassen fuer korrekte Detection-Zeitstempel.
         val startSec = if (sessionManager.isActive) sessionManager.getCurrentRecordingOffsetSec() else 0f
         if (sessionManager.isActive) {
-            val shortSamples = ShortArray(audioBlock.samples.size) { i ->
+            // T61: Original-PCM verwenden statt Float→Short-Rueckkonvertierung (spart 144k Konvertierungen pro Block)
+            val shortSamples = audioBlock.pcm ?: ShortArray(audioBlock.samples.size) { i ->
                 (audioBlock.samples[i] * Short.MAX_VALUE).toInt().coerceIn(
                     Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()
                 ).toShort()
             }
-            viewModelScope.launch(Dispatchers.IO) {
+            // F3: sessionDispatcher (Single-Thread) serialisiert Preroll + Live-Chunks (T63)
+            // Verhindert concurrent append() auf StreamingWavWriter (nicht thread-safe)
+            viewModelScope.launch(sessionDispatcher) {
                 sessionManager.appendAudioSamples(shortSamples)
             }
         }
@@ -223,10 +261,45 @@ class LiveViewModel(
             if (Log.isLoggable(TAG, Log.DEBUG)) {
                 Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
             }
-            detectionListState.addDetections(sessionRelativeDetections)
+            // T70: Cluster-Algorithmus — addOrCluster statt addDetections
+            val newDetections = mutableListOf<DetectionResult>()
+            for (det in sessionRelativeDetections) {
+                // T73: gesperrte Art → Detection verwerfen (AC3)
+                val speciesKey = det.scientificName.replace(' ', '_')
+                if (detectionListState.isLocked(speciesKey)) continue
 
-            // Watchlist-Check: Alarm ausloesen fuer Watchlist-Arten (T20)
-            for (detection in sessionRelativeDetections) {
+                val result = detectionListState.addOrCluster(
+                    det,
+                    appPreferences.clusterEnabled,
+                    appPreferences.clusterRadiusM,
+                    appPreferences.clusterTimeWindowMin
+                )
+                when (result) {
+                    is ClusterResult.New -> newDetections.add(result.detection)
+                    is ClusterResult.Merged -> {
+                        if (sessionManager.isActive) {
+                            val anchor = result.anchor
+                            val absorbedId = result.absorbedId
+                            viewModelScope.launch(Dispatchers.IO) {
+                                sessionManager.replaceDetection(anchor)
+                                sessionManager.appendVerification(
+                                    VerificationEvent(
+                                        detectionId = anchor.id,
+                                        status = anchor.verificationStatus,
+                                        correctedSpecies = "merged:${absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}",
+                                        verifiedAtMs = System.currentTimeMillis(),
+                                        actionType = VerificationEvent.ACTION_CLUSTER_MERGED
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Watchlist-Check: Alarm ausloesen fuer neue Detektionen (T20)
+            // Cluster-Merges alarmieren nicht erneut (Cooldown via alarmCooldownMinutes als Fallback).
+            for (detection in newDetections) {
                 val priority = watchlistManager.getPriority(detection.scientificName)
                 if (priority != null) {
                     Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
@@ -234,16 +307,19 @@ class LiveViewModel(
                 }
             }
 
-            // Detektionen in JSONL schreiben
-            if (sessionManager.isActive) {
+            // Neue Detektionen in JSONL schreiben (Cluster-Merges werden via replaceDetection persistiert)
+            if (sessionManager.isActive && newDetections.isNotEmpty()) {
                 viewModelScope.launch(Dispatchers.IO) {
-                    sessionManager.appendDetections(sessionRelativeDetections)
+                    sessionManager.appendDetections(newDetections)
                 }
             }
 
             // Embedding-Arm: Bei erfolgreicher Detektion Embedding extrahieren
             viewModelScope.launch(Dispatchers.Default) {
-                val embedding = embeddingExtractor.extract(audioBlock.samples, audioBlock.sampleRate)
+                // T61: Embedding aus der Klassifikations-Inference wiederverwenden (keine zweite Inference)
+                val embedding = embeddingExtractor.extract(
+                    audioBlock.samples, audioBlock.sampleRate, precomputed = audioBlock.embedding
+                )
                 val topDetection = sessionRelativeDetections.maxByOrNull { it.confidence }!!
                 embeddingDatabase.add(
                     recordingId = topDetection.id,
@@ -254,6 +330,11 @@ class LiveViewModel(
                 _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
                 // Aehnlichkeitssuche ausloesen (filtert auf gleiche Art)
                 findSimilar(embedding, topDetection.scientificName)
+                // recentSpecies fuer Marquee-Mode aktualisieren
+                val recent = detectionListState.getDetections()
+                    .take(5)
+                    .map { speciesNameResolver.resolve(it.scientificName) }
+                _uiState.update { it.copy(recentSpecies = recent) }
                 // Periodisch persistieren (alle 10 neue Eintraege)
                 if (embeddingDatabase.size % 10 == 0) {
                     saveEmbeddingDatabase()
@@ -328,7 +409,10 @@ class LiveViewModel(
                 spectrogramMaxDb = savedMaxDb,
                 spectrogramGamma = savedGamma,
                 spectrogramCeilingDb = savedCeilingDb,
-                showTopNCandidates = savedShowTopN
+                showTopNCandidates = savedShowTopN,
+                similarEnabled = appPreferences.similarEnabled,
+                similarLines = appPreferences.similarLines,
+                isPrerollEnabled = appPreferences.prerollEnabled
             )
         }
 
@@ -347,6 +431,13 @@ class LiveViewModel(
 
         // Upload-Status beobachten → UiState aktualisieren
         startUploadStatusObserver()
+
+        // T69: 60s-Cap-Signal → Snackbar
+        viewModelScope.launch {
+            voiceMemoRecorder.capReached.collect {
+                _snackbarChannel.trySend(SnackbarEvent("Memo auf 60s gekürzt"))
+            }
+        }
     }
 
     // --- Service Connection ---
@@ -355,9 +446,6 @@ class LiveViewModel(
             val recordingBinder = binder as? RecordingService.RecordingBinder
             service = recordingBinder?.getService()
             _uiState.update { it.copy(isServiceBound = true) }
-
-            // Preroll-Buffer starten falls aktiviert (T35)
-            initPrerollIfEnabled()
 
             // Recording-State vom Service beobachten
             observeRecordingState()
@@ -399,6 +487,12 @@ class LiveViewModel(
         val ctx = applicationContext ?: return
         if (svc.isRecording.value) return
 
+        // F4: RECORD_AUDIO pruefen VOR Service-Start (verhindert startForegroundService ohne Mic-Permission, T63)
+        if (ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return  // AudioPermissionHandler zeigt Permission-Dialog
+        }
+
         // Sonogramm-Buffer leeren fuer Neustart
         spectrogramState.clear()
         resetMelSpectrogram()
@@ -430,20 +524,20 @@ class LiveViewModel(
             // startCollectionPipeline() starten, welche mel.process() auf Dispatchers.Default ruft.
             // Zwei concurrent process()-Aufrufe auf demselben Objekt → ArrayIndexOutOfBoundsException.
             //
-            // T54-Fix-2: Sonogramm-Darstellung auf max. 5 s begrenzen.
-            // process() laeuft synchron auf dem Main-Thread. Bei 30 s Preroll (1.440.000 Samples)
-            // blockiert es den Main-Thread mehrere Sekunden → ANR. Die WAV enthaelt weiterhin alle
-            // Preroll-Samples; nur die Darstellung wird auf die letzten 5 s gekuerzt.
-            val maxDisplaySamples = 5 * rate
+            // T61: Ganzer Preroll statt nur 5 s (T54-Fix-2). Der ANR kam vom quadratischen
+            // process() (behoben in T61). Berechnung laeuft trotzdem im Hintergrund; die Frames
+            // werden per prependFrames() VOR bereits eingetroffene Live-Frames gesetzt.
+            // Begrenzt auf die Kapazitaet des Sonogramm-Buffers (~22 s) — mehr waere unsichtbar.
+            val maxDisplaySamples = spectrogramState.maxFrames * config.hopSize + config.fftSize
             val displaySamples = if (prerollSamples.size > maxDisplaySamples) {
                 prerollSamples.copyOfRange(prerollSamples.size - maxDisplaySamples, prerollSamples.size)
             } else {
                 prerollSamples
             }
-            val prerollMel = MelSpectrogram(sampleRate = rate, config = config)
-            val frames = prerollMel.process(displaySamples)
-            if (frames.isNotEmpty()) {
-                spectrogramState.appendFrames(frames)
+            val generation = spectrogramState.currentGeneration
+            viewModelScope.launch(Dispatchers.Default) {
+                val frames = MelSpectrogram(sampleRate = rate, config = config).process(displaySamples)
+                spectrogramState.prependFrames(frames, expectedGeneration = generation)
             }
         }
 
@@ -467,6 +561,33 @@ class LiveViewModel(
             stopRecording()
         } else {
             startRecording(sampleRate)
+        }
+    }
+
+    /** Preroll-Engine explizit starten (F5). Nur wenn kein Recording laeuft. */
+    fun userStartPreroll() {
+        val svc = service ?: return
+        if (svc.isRecording.value) return
+        svc.initPreroll(
+            sampleRate = 48000,
+            prerollDurationSec = appPreferences.prerollDurationSec
+        )
+        prerollRunning = true
+        _uiState.update { it.copy(isPrerollRunning = true) }
+    }
+
+    /** Preroll-Engine explizit stoppen (F5). */
+    fun userStopPreroll() {
+        val svc = service ?: return
+        svc.stopPreroll()
+        prerollRunning = false
+        _uiState.update { it.copy(isPrerollRunning = false) }
+    }
+
+    /** Zeigt Hinweis-Snackbar wenn Stop-FAB kurz getippt wird (F7). */
+    fun showLongPressHint() {
+        viewModelScope.launch {
+            _snackbarChannel.send(SnackbarEvent(message = "Lang drücken zum Stoppen"))
         }
     }
 
@@ -517,15 +638,31 @@ class LiveViewModel(
 
         // Persistieren (falls Session aktiv)
         if (sessionManager.isActive) {
+            val undoSnapshot = pendingUndo
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.appendVerification(
-                    VerificationEvent(
-                        detectionId = detectionId,
-                        status = status,
-                        correctedSpecies = correctedSpecies,
-                        verifiedAtMs = System.currentTimeMillis()
-                    )
-                )
+                verificationMutex.withLock {
+                    try {
+                        sessionManager.appendVerification(
+                            VerificationEvent(
+                                detectionId = detectionId,
+                                status = status,
+                                correctedSpecies = correctedSpecies,
+                                verifiedAtMs = System.currentTimeMillis()
+                            )
+                        )
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            if (undoSnapshot != null && undoSnapshot.detectionId == detectionId) {
+                                detectionListState.updateVerification(
+                                    undoSnapshot.detectionId,
+                                    undoSnapshot.previousStatus,
+                                    undoSnapshot.previousCorrected
+                                )
+                            }
+                            _snackbarChannel.send(SnackbarEvent(message = "Speichern fehlgeschlagen"))
+                        }
+                    }
+                }
             }
         }
     }
@@ -540,10 +677,178 @@ class LiveViewModel(
         detectionListState.updateVerification(undo.detectionId, undo.previousStatus, undo.previousCorrected)
         if (sessionManager.isActive) {
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.removeLastVerification(undo.detectionId)
+                verificationMutex.withLock {
+                    try {
+                        sessionManager.removeLastVerification(undo.detectionId)
+                    } catch (_: Exception) { /* Undo-IO-Fehler still ignorieren */ }
+                }
             }
         }
     }
+
+    /** Atlas-Codes aus assets (T68), lazy geladen, fuer EditDetectionDialog */
+    val atlasCodes: List<AtlasCode> by lazy { atlasCodeRepository.loadCodes() }
+
+    /**
+     * Bearbeitet Stückzahl, Atlascode und Bemerkung einer Detektion (T68).
+     * Optimistisches UI-Update + atomares IO + Rollback bei Fehler.
+     */
+    fun editDetection(
+        detectionId: String,
+        count: Int,
+        atlasCode: String?,
+        note: String?,
+        voiceMemoFile: String? = null  // T69: relativer Pfad oder null (kein/gelöschtes Memo)
+    ) {
+        val current = detectionListState.getDetections().find { it.id == detectionId } ?: return
+        val updated = current.copy(
+            count = count,
+            atlasCode = atlasCode,
+            note = note,
+            voiceMemoFile = voiceMemoFile
+        )
+        detectionListState.updateDetection(updated)
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    sessionManager.replaceDetection(updated)
+                    val now = System.currentTimeMillis()
+                    if (current.count != count) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_COUNT_CHANGED))
+                    if (current.atlasCode != atlasCode) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_ATLAS_SET))
+                    if (current.note != note) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, current.verificationStatus,
+                            verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED))
+                    // T69: Memo-Events
+                    if (current.voiceMemoFile == null && voiceMemoFile != null) {
+                        sessionManager.appendVerification(VerificationEvent(
+                            detectionId, current.verificationStatus,
+                            verifiedAtMs = now,
+                            actionType = VerificationEvent.ACTION_MEMO_RECORDED,
+                            newValue = voiceMemoFile))
+                    }
+                    if (current.voiceMemoFile != null && voiceMemoFile == null) {
+                        getMemoTargetFile(detectionId)?.takeIf { it.exists() }?.delete()
+                        sessionManager.appendVerification(VerificationEvent(
+                            detectionId, current.verificationStatus,
+                            verifiedAtMs = now,
+                            actionType = VerificationEvent.ACTION_MEMO_DELETED))
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        detectionListState.updateDetection(current)
+                        _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Sperrt oder entsperrt eine Art (T73).
+     * Gesperrte Art: weitere Inference-Detektionen dieser Art werden unterdrueckt (AC3).
+     * Persistiert lockSpecies-Flag + loggt ACTION_SPECIES_LOCKED (AC5/AC7).
+     */
+    fun toggleLock(detectionId: String) {
+        val det = detectionListState.getDetections().find { it.id == detectionId } ?: return
+        val updated = det.copy(lockSpecies = !det.lockSpecies)
+        detectionListState.updateDetection(updated)
+
+        val speciesKey = det.scientificName.replace(' ', '_')
+        val newLocked = if (updated.lockSpecies) lockedSpecies.value + speciesKey
+                        else lockedSpecies.value - speciesKey
+        lockedSpecies.value = newLocked
+
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    sessionManager.replaceDetection(updated)
+                    sessionManager.appendVerification(
+                        VerificationEvent(
+                            detectionId = detectionId,
+                            status = det.verificationStatus,
+                            verifiedAtMs = System.currentTimeMillis(),
+                            actionType = VerificationEvent.ACTION_SPECIES_LOCKED,
+                            newValue = updated.lockSpecies.toString()
+                        )
+                    )
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        // Rollback: State zurueck auf vorherigen Wert
+                        detectionListState.updateDetection(det)
+                        lockedSpecies.value = if (det.lockSpecies) lockedSpecies.value + speciesKey
+                                              else lockedSpecies.value - speciesKey
+                        _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
+                    }
+                }
+            }
+        }
+    }
+
+    /** T69: Memo-Zieldatei fuer File-Modus berechnen. */
+    fun getMemoTargetFile(detectionId: String): File? =
+        sessionManager.currentSessionDir?.let { sessionManager.memoFile(it, detectionId) }
+
+    /** T69: Memo-Ziel-URI fuer SAF-Modus berechnen. */
+    fun getMemoTargetUri(detectionId: String): android.net.Uri? =
+        sessionManager.currentSessionDoc?.let { sessionManager.memoDocFile(it, detectionId)?.uri }
+
+    /**
+     * Fuegt eine Art manuell zur Detektions-Liste hinzu (T72).
+     * Bypass der Cluster-Logik, manualEntry=true, confidence=1.0.
+     */
+    fun addManualDetection(
+        speciesKey: String,
+        count: Int = 1,
+        atlasCode: String? = null,
+        note: String? = null,
+        lat: Double? = _uiState.value.currentLatitude,
+        lon: Double? = _uiState.value.currentLongitude
+    ) {
+        val now = System.currentTimeMillis()
+        val det = DetectionResult(
+            id = java.util.UUID.randomUUID().toString(),
+            scientificName = speciesKey,
+            commonName = speciesNameResolver.resolve(speciesKey),
+            confidence = 1.0f,
+            timestampMs = now,
+            chunkStartSec = 0f,
+            chunkEndSec = 0f,
+            sampleRate = 0,
+            latitude = lat,
+            longitude = lon,
+            firstSeenAtMs = now,
+            lastSeenAtMs = now,
+            lastDetectedMs = now,
+            count = count,
+            atlasCode = atlasCode,
+            note = note,
+            manualEntry = true
+        )
+        detectionListState.addManualDetection(det)
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            sessionManager.appendDetections(listOf(det))
+            sessionManager.appendVerification(
+                VerificationEvent(
+                    detectionId = det.id,
+                    status = VerificationStatus.CONFIRMED,
+                    verifiedAtMs = now,
+                    actionType = VerificationEvent.ACTION_MANUAL_ADD,
+                    newValue = "species:$speciesKey|count:$count"
+                )
+            )
+        }
+    }
+
+    /** Artsuche fuer AddManualDetectionDialog (T72). */
+    fun searchSpecies(query: String): List<Pair<String, String>> =
+        speciesNameResolver.searchSpecies(query)
 
     /**
      * FAB-Tap mit 500 ms Debounce (T52).
@@ -581,14 +886,23 @@ class LiveViewModel(
                 ))
             }
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.appendVerification(
-                    VerificationEvent(
-                        detectionId = detectionId,
-                        status = VerificationStatus.REPLACED,
-                        correctedSpecies = candidate.scientificName,
-                        verifiedAtMs = System.currentTimeMillis()
-                    )
-                )
+                verificationMutex.withLock {
+                    try {
+                        sessionManager.appendVerification(
+                            VerificationEvent(
+                                detectionId = detectionId,
+                                status = VerificationStatus.REPLACED,
+                                correctedSpecies = candidate.scientificName,
+                                verifiedAtMs = System.currentTimeMillis(),
+                                actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED  // T72
+                            )
+                        )
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            _snackbarChannel.send(SnackbarEvent(message = "Speichern fehlgeschlagen"))
+                        }
+                    }
+                }
             }
         }
     }
@@ -758,19 +1072,41 @@ class LiveViewModel(
      * Ergebnis wird in LiveUiState.similarMatches geschrieben.
      */
     private suspend fun findSimilar(embedding: FloatArray, speciesFilter: String? = null) {
+        val lines = appPreferences.similarLines
+        val enabled = appPreferences.similarEnabled
+        if (!enabled || lines == 0f) {
+            _uiState.update { it.copy(similarMatches = emptyList()) }
+            return
+        }
+        val fetchN = maxOf(20, (lines * 4).toInt())
         val filter = speciesFilter?.let { setOf(it) }
-        val matches = embeddingDatabase.search(
-            query = embedding,
-            topN = 5,
-            speciesFilter = filter
-        )
-        _uiState.update { it.copy(similarMatches = matches) }
+        val raw = embeddingDatabase.search(query = embedding, topN = fetchN, speciesFilter = filter)
+        val displayN = if (lines < 1f) 5 else lines.toInt()
+        val deduped = raw
+            .groupBy { it.species }
+            .map { (_, group) -> group.maxByOrNull { it.similarity }!! }
+            .sortedByDescending { it.similarity }
+            .take(displayN)
+            .mapIndexed { i, m -> m.copy(rank = i + 1) }
+        _uiState.update { it.copy(similarMatches = deduped) }
     }
 
     // --- Embedding-DB Persistenz ---
 
     private fun loadEmbeddingDatabase() {
         val file = getEmbeddingDbFile() ?: return
+        // T61: Einmalig alte Embedding-Basis verwerfen (Backup bleibt als .v1.bak liegen)
+        if (appPreferences.embeddingDbVersion < EMBEDDING_DB_VERSION) {
+            if (file.exists()) {
+                val backup = File(file.parentFile, file.name + ".v1.bak")
+                val moved = file.renameTo(backup)
+                if (!moved) file.delete()  // Backup existiert schon o.ae. → alte DB trotzdem verwerfen
+                Log.i(TAG, "Embedding-DB auf neue Basis umgestellt — alte DB gesichert: $moved")
+            }
+            embeddingDatabase.clear()
+            appPreferences.embeddingDbVersion = EMBEDDING_DB_VERSION
+            _uiState.update { it.copy(embeddingDbSize = 0) }
+        }
         if (file.exists()) {
             try {
                 embeddingDatabase.load(file)
@@ -816,6 +1152,12 @@ class LiveViewModel(
                     _uiState.update { it.copy(recordingPhase = phase) }
                 }
             }
+            // T63 AC5: Audio-Engine-Fehler als Snackbar anzeigen
+            launch {
+                service?.audioStartError?.collect { msg ->
+                    _snackbarChannel.send(SnackbarEvent(message = msg))
+                }
+            }
             service?.isRecording?.collect { recording ->
                 _uiState.update {
                     it.copy(
@@ -827,25 +1169,27 @@ class LiveViewModel(
                     locationProvider.start()
                     startCollectionPipeline()
                     startInferencePipeline()
-                    // Session starten + Preroll anhaengen (sessionDispatcher: sequentiell mit endSession, T54)
-                    viewModelScope.launch(sessionDispatcher) {
-                        val loc = locationProvider.location.value
-                        val config = _uiState.value.inferenceConfig
-                        val sessionId = sessionManager.startSession(
-                            sampleRate = service?.actualSampleRate ?: 48000,
-                            latitude = loc?.latitude,
-                            longitude = loc?.longitude,
-                            regionFilter = config.regionFilter,
-                            confidenceThreshold = config.confidenceThreshold
-                        )
-                        currentSessionId = sessionId
-                        // Fallback-Banner aktualisieren (T51)
-                        _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
-                        // Preroll nach startSession() anhaengen (T46)
-                        val preroll = pendingPrerollSamples
-                        pendingPrerollSamples = ShortArray(0)
-                        if (preroll.isNotEmpty()) {
-                            sessionManager.appendAudioSamples(preroll)
+                    // Session nur starten wenn keine aktive Session (verhindert Doppel-Session bei Tab-Wechsel, F1+F2)
+                    if (!sessionManager.isActive) {
+                        viewModelScope.launch(sessionDispatcher) {
+                            val loc = locationProvider.location.value
+                            val config = _uiState.value.inferenceConfig
+                            val sessionId = sessionManager.startSession(
+                                sampleRate = service?.actualSampleRate ?: 48000,
+                                latitude = loc?.latitude,
+                                longitude = loc?.longitude,
+                                regionFilter = config.regionFilter,
+                                confidenceThreshold = config.confidenceThreshold
+                            )
+                            currentSessionId = sessionId
+                            // Fallback-Banner aktualisieren (T51)
+                            _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
+                            // Preroll nach startSession() anhaengen (T46)
+                            val preroll = pendingPrerollSamples
+                            pendingPrerollSamples = ShortArray(0)
+                            if (preroll.isNotEmpty()) {
+                                sessionManager.appendAudioSamples(preroll)
+                            }
                         }
                     }
                 } else {
@@ -868,6 +1212,7 @@ class LiveViewModel(
                     val finishedSessionId = currentSessionId
                     viewModelScope.launch(sessionDispatcher) {
                         sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
+                        alarmService.clearCooldowns()  // AC6: Cooldown-Map pro Session leeren
                         if (finishedSessionId != null) {
                             _uiState.update { it.copy(lastSessionId = finishedSessionId) }
                         }
@@ -1006,6 +1351,7 @@ class LiveViewModel(
         cleanupScope.launch {
             try {
                 sessionManager.endSession()
+                alarmService.clearCooldowns()
                 // Finale Embedding-DB Sicherung
                 val file = getEmbeddingDbFile() ?: return@launch
                 file.parentFile?.mkdirs()
@@ -1021,5 +1367,8 @@ class LiveViewModel(
         }
         super.onCleared()
         // Service-Unbinding muss vom Screen gemacht werden (braucht Context)
+        // T69: Voice-Memo Cleanup
+        voiceMemoRecorder.release()
+        memoAudioPlayer.release()
     }
 }

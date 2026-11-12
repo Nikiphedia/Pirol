@@ -73,6 +73,33 @@ AMSEL Desktop (`D:\80002\AMSEL`) — Compose Desktop, Kotlin 2.1. Gemeinsame For
 
 **Zeitzone-Regel:** Alle Timestamps in `session.json`, `detections.jsonl` und `verifications.jsonl` werden in **lokaler Zeit mit Zonen-Offset** geschrieben. Kein reines UTC (`Z`), kein nacktes Datetime ohne Offset. Grund: Feldornithologen lesen Raven-Exporte direkt, lokale Zeit muss ohne Konversion erkennbar sein.
 
+## DetectionResult-Felder (V0.0.7+)
+
+Neue Felder ab T67 (Backward-kompatibel: Defaults greifen bei alten JSONL ohne diese Felder).
+
+| Feld | Typ | Default | Bedeutung |
+|------|-----|---------|-----------|
+| count | Int | 1 | Stueckzahl (User-Beobachtung), unabhaengig von detectionCount (Dedup-Zaehler) |
+| atlasCode | String? | null | ornitho-Atlascode (z.B. "A2", "B4"); null = nicht gesetzt |
+| note | String? | null | Freitext-Bemerkung |
+| voiceMemoFile | String? | null | relativer Pfad zu memos/&lt;id&gt;.wav |
+| manualEntry | Boolean | false | true = Art manuell hinzugefuegt (Cluster B, ab T68+) |
+| lockSpecies | Boolean | false | true = nur 1 Meldung pro Session (Cluster B, ab T68+) |
+| firstSeenAtMs | Long | timestampMs | erste Erfassung im Cluster (= timestampMs falls keine Aggregation); T70 |
+| lastSeenAtMs | Long | timestampMs | letzte Erfassung im Cluster; bei Cluster-Merge aktualisiert; T70 |
+
+## verifications.jsonl actionType-Werte (V0.0.7+)
+
+Feld `actionType: String?` in `VerificationEvent`. `null` = Legacy-Eintrag (V0.0.6).
+Konstanten in `VerificationEvent.companion object` (Prafix `ACTION_`).
+
+| Gruppe | Werte |
+|--------|-------|
+| Bestehend (6) | CONFIRMED, REJECTED, UNCERTAIN, CORRECTED, REPLACED, UNDO |
+| Cluster C — aktiv (5) | COUNT_CHANGED, ATLAS_SET, NOTE_ADDED, MEMO_RECORDED, MEMO_DELETED |
+| Cluster B/D — Konstante definiert, Verwendung spaeter (4) | MANUAL_ADD, SPECIES_LOCKED, ALTERNATIVE_CONFIRMED, POSITION_MOVED |
+| Cluster A — aktiv (1) | CLUSTER_MERGED — absorbierte Detection-ID + neuer Count + lastSeenAtMs in correctedSpecies-Feld |
+
 ## Session-Speicher (V0.0.6+)
 
 | Ebene | Pfad | Hinweis |
@@ -160,6 +187,28 @@ T{N}: Kurzbeschreibung
 - Detail 1
 - Detail 2
 ```
+
+## Worker-Konventionen (V0.0.7+)
+
+- **Kontextfenster pro Worker:** max. **60'000 Tokens**. Master dimensioniert APs entsprechend; grosse APs splitten (z.B. Karte V2 in D1/D2/D3). Master haengt vor jedem AP eine **Datei-Index-Tabelle** (Datei | Zeilen | Kurzbeschreibung) an, damit der Worker Token-Budget plant.
+- **Test-Build-Naming:** `V{aktuelles-Release}.T{AP-Nummer}`, z.B. `V0.0.6.T58`. Tag wird nach erfolgreichem Worker-Handover + Master-Review + `assembleDebug` gruen gesetzt. Erst nach abgeschlossenem AP-Cluster und Feldtest-Abnahme folgt der Release-Tag (z.B. `v0.0.7`).
+- **File-Indexer-Worker:** vor jedem AP-Cluster startet Master einen kurzen Indexer-Worker (<5k Tokens), der nur Pfade zaehlt und 1-Zeilen-Beschreibungen liefert.
+- **Quality-Gates auf User-Seite:** (1) Arbeitsplan freigegeben, (2) jedes AP vor Worker-Dispatch freigegeben, (3) jedes Handover vor Master-Schluss + Test-Build-Tag freigegeben. Master fragt explizit vor jedem dieser drei Gates.
+- **Worktree-Disziplin (HART, ab Block A T60-T63 verschaerft):** Jeder Worker startet in einem **frischen** `git worktree add ../<branch> master` von **aktuellem master** — kein Stapeln auf einem laufenden Worker-Branch. Master prueft beim Dispatch, dass der Worker den richtigen Branch hat. Konsequenz wenn nicht: Per-AP-Commits sind nicht rekonstruierbar, History wird unsauber (passiert bei T60-T63: alle in `T59-migration-fix` gestapelt → musste als Bundle gemerged werden, Tags T60-T63 zeigen auf denselben Commit).
+- **Merge-Regel (V0.0.7+):** Worker bleibt **in seinem Worktree-Branch** und merged **nicht** selbst in `master`. Reihenfolge:
+  1. Worker liefert `Handover_T{N}.md` und committet auf Worktree-Branch (z.B. `T58-watchlist-fix`).
+  2. Master reviewt gegen AC, legt Befund dem User vor.
+  3. **User fuehrt manuell `C:\Users\nleis\Documents\WindowsPowerShell\pirol-deploy.ps1` aus dem Worktree aus** (oder per Skript-Override `$project`-Pfad), APK wird auf Geraet installiert, User testet.
+  4. Bei Errors: Worker-Followup-AP oder Hotfix.
+  5. Bei OK: User gibt Freigabe → **Master** merged Worktree-Branch in `master` (Fast-Forward bevorzugt) → setzt Tag `V0.0.6.T{N}` → aktualisiert Briefing → loescht Worktree.
+- **Scope-Disziplin:** Worker darf keine Aenderungen ausserhalb des AP-Scopes machen (kein Autocomplete-Polish, keine Render-Bug-Drive-By-Fixes, keine Renamings). Wenn er ein out-of-scope-Problem findet: in `Handover.md` unter "Beobachtungen" notieren, NICHT fixen. Master entscheidet ob Folge-AP.
+- **Modell-Wahl pro AP** (Token-Effizienz): Master empfiehlt pro AP das guenstigste passende Modell.
+
+  | Aufgabentyp | Modell |
+  |-------------|--------|
+  | Indexer, Doku-Updates (BDA, Briefing), Sprach-Strings, simple Renamings | **Haiku 4.5** (`claude-haiku-4-5-20251001`) |
+  | Standard-Implementierung (Bugfixes, UI-Erweiterungen, Datenmodell-Felder, Settings-Slider) | **Sonnet 4.6** (`claude-sonnet-4-6`) |
+  | Architektur-Spikes, grosse Refactors, neues Subsystem (Disk-Pipeline-Spike, Karte V2 Architektur) | **Opus 4.7** (`claude-opus-4-7`) |
 
 ## Handover-Format
 
