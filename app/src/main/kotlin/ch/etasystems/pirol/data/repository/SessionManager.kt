@@ -481,9 +481,7 @@ class SessionManager(
                 val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
                 try {
                     val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                    val tmp = File(sessionDir, "verifications.jsonl.tmp")
-                    tmp.writeText(content)
-                    tmp.renameTo(file)
+                    writeFileReplacing(file, content)  // T93: renameTo ersetzt unter Windows nicht
                 } catch (e: Exception) {
                     Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
                 }
