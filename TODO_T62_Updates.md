@@ -40,6 +40,16 @@ Version-Catalog), `kotlinOptions { jvmTarget = "17" }` entfernt — jvmTarget fo
 
 ## Build-Ergebnis (Cloud)
 
+**Update 2026-11-12 — nach Merge von aktuellem `master` (T64–T91, inkl. T91 Effizienz-Port):**
+`compileDebugKotlin`, `testDebugUnitTest` (**96/96** gruen, 16 Suites) und `assembleDebug` erfolgreich.
+Deprecation-Warnungen aus neuem master-Code mit den neuen Versionen (nicht blockierend):
+- `ui/components/AddManualDetectionDialog.kt:196`, `ui/components/EditDetectionDialog.kt:123` —
+  `MenuAnchorType` → umbenennen in `ExposedDropdownMenuAnchorType`
+- `ui/map/MapScreen.kt:182` — `GestureDetectorCompat(...)` deprecated → `android.view.GestureDetector`
+- plus die drei unten genannten (SpeciesCard, LiveScreen; Zeilennummern inzwischen verschoben)
+
+Erster Stand (2026-10-20, vor dem Merge):
+
 - Kotlin-Warnungen (nicht blockierend):
   - `ui/components/SpeciesCard.kt:150` — `rememberSaveable(key = ...)` deprecated (Compose warnt vor
     State-Bugs mit eigenem Key) → bei Gelegenheit `key` entfernen
