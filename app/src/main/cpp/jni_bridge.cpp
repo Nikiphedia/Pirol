@@ -57,6 +57,37 @@ Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeGetAudioChunk(
     return result;
 }
 
+JNIEXPORT void JNICALL
+Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeResetReadCursor(
+        JNIEnv* /*env*/, jobject /*thiz*/) {
+    gEngine.resetReadCursor();
+}
+
+// T92: Alle neuen Samples seit dem Lese-Cursor; Array hat exakt die gelesene Laenge, null wenn nichts Neues
+JNIEXPORT jshortArray JNICALL
+Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeReadNewSamples(
+        JNIEnv* env, jobject /*thiz*/, jint maxSamples) {
+    if (maxSamples <= 0) return nullptr;
+
+    auto* buffer = new int16_t[maxSamples];
+    int32_t n = gEngine.readNewSamples(buffer, maxSamples);
+    jshortArray result = nullptr;
+    if (n > 0) {
+        result = env->NewShortArray(n);
+        if (result != nullptr) {
+            env->SetShortArrayRegion(result, 0, n, buffer);
+        }
+    }
+    delete[] buffer;
+    return result;
+}
+
+JNIEXPORT jlong JNICALL
+Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeGetDroppedSamples(
+        JNIEnv* /*env*/, jobject /*thiz*/) {
+    return static_cast<jlong>(gEngine.getDroppedSamples());
+}
+
 JNIEXPORT jint JNICALL
 Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeGetActualSampleRate(
         JNIEnv* /*env*/, jobject /*thiz*/) {

@@ -25,6 +25,9 @@ class OboeAudioEngine {
     private external fun nativeStopRecording()
     private external fun nativeIsRecording(): Boolean
     private external fun nativeGetAudioChunk(numSamples: Int): ShortArray?
+    private external fun nativeResetReadCursor()
+    private external fun nativeReadNewSamples(maxSamples: Int): ShortArray?
+    private external fun nativeGetDroppedSamples(): Long
     private external fun nativeGetActualSampleRate(): Int
     private external fun nativeSetBufferDurationSeconds(seconds: Int)
 
@@ -66,6 +69,19 @@ class OboeAudioEngine {
 
         return nativeGetAudioChunk(numSamples) ?: ShortArray(0)
     }
+
+    /** T92: Lese-Cursor auf "jetzt" setzen und Dropped-Zaehler zuruecksetzen. */
+    fun resetReadCursor() = nativeResetReadCursor()
+
+    /**
+     * T92: Alle neuen Samples seit dem letzten Aufruf lesen (lueckenlos, in Reihenfolge).
+     * @param maxSamples Obergrenze pro Aufruf
+     * @return frisches Array mit exakt der gelesenen Laenge, leer falls nichts Neues
+     */
+    fun readNewSamples(maxSamples: Int): ShortArray = nativeReadNewSamples(maxSamples) ?: ShortArray(0)
+
+    /** T92: Seit resetReadCursor() verlorene Samples (Ring-Buffer vom Schreiber ueberschrieben). */
+    fun getDroppedSamples(): Long = nativeGetDroppedSamples()
 
     /**
      * Ring-Buffer Preroll-Dauer setzen (in Sekunden).

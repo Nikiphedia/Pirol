@@ -38,6 +38,15 @@ public:
      */
     int32_t getLatestSamples(int32_t numSamples, int16_t* outBuffer);
 
+    /** T92: Lese-Cursor auf "jetzt" setzen und Dropped-Zaehler auf 0 (nur Konsumenten-Thread). */
+    void resetReadCursor();
+
+    /** T92: Alle neuen Samples seit dem Cursor lesen (max. maxSamples). Rueckgabe: Anzahl. */
+    int32_t readNewSamples(int16_t* outBuffer, int32_t maxSamples);
+
+    /** T92: Seit resetReadCursor() verlorene Samples (Ring-Buffer ueberschrieben). */
+    int64_t getDroppedSamples() const;
+
     /** Tatsaechlich vom Geraet gewaehrte Sample-Rate. */
     int32_t getActualSampleRate() const;
 
@@ -60,6 +69,9 @@ public:
 private:
     std::shared_ptr<oboe::AudioStream> stream_;
     RingBuffer ringBuffer_;
+    // T92: Lese-Cursor + Dropped-Zaehler, nur vom (einzigen) Konsumenten-Thread benutzt
+    int64_t readCursor_ = 0;
+    std::atomic<int64_t> droppedSamples_{0};
     std::atomic<bool> isRecording_;
     std::atomic<int32_t> actualSampleRate_;
     int32_t bufferDurationSeconds_;
