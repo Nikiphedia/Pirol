@@ -57,6 +57,8 @@ bool AudioEngine::start(int32_t sampleRate) {
     actualSampleRate_.store(actual, std::memory_order_release);
     int32_t bufferSize = actual * bufferDurationSeconds_;
     ringBuffer_.resize(bufferSize);
+    readCursor_ = 0;  // T92
+    droppedSamples_.store(0, std::memory_order_relaxed);
 
     // AC3: Log mit gewaeuhlter Rate + API (fuer Fairphone-Diagnose)
     LOGI("Audio-Stream: %d Hz, API: %s, Buffer: %d s (%d Samples)",
@@ -89,6 +91,22 @@ void AudioEngine::stop() {
 
 bool AudioEngine::isRecording() const {
     return isRecording_.load(std::memory_order_acquire);
+}
+
+void AudioEngine::resetReadCursor() {
+    readCursor_ = ringBuffer_.totalWritten();
+    droppedSamples_.store(0, std::memory_order_relaxed);
+}
+
+int32_t AudioEngine::readNewSamples(int16_t* outBuffer, int32_t maxSamples) {
+    int64_t dropped = droppedSamples_.load(std::memory_order_relaxed);
+    int32_t n = ringBuffer_.readSince(readCursor_, outBuffer, maxSamples, dropped);
+    droppedSamples_.store(dropped, std::memory_order_relaxed);
+    return n;
+}
+
+int64_t AudioEngine::getDroppedSamples() const {
+    return droppedSamples_.load(std::memory_order_relaxed);
 }
 
 int32_t AudioEngine::getLatestSamples(int32_t numSamples, int16_t* outBuffer) {
