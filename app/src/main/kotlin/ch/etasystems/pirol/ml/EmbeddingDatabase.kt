@@ -89,7 +89,30 @@ class EmbeddingDatabase {
      */
     fun add(recordingId: String, species: String, embedding: FloatArray) {
         val entry = EmbeddingEntry(recordingId, species, embedding.copyOf())
-        synchronized(lock) { entries[recordingId] = entry }
+        synchronized(lock) {
+            entries[recordingId] = entry
+            trimLocked()
+        }
+    }
+
+    /**
+     * T97: Obergrenze der Eintraege. Wird sie ueberschritten, fallen die aeltesten heraus
+     * (LinkedHashMap haelt die Einfuege-Reihenfolge). Beim Setzen wird sofort gekuerzt.
+     */
+    var maxEntries: Int = Int.MAX_VALUE
+        set(value) {
+            synchronized(lock) {
+                field = value.coerceAtLeast(1)
+                trimLocked()
+            }
+        }
+
+    /** Muss unter [lock] aufgerufen werden. */
+    private fun trimLocked() {
+        val excess = entries.size - maxEntries
+        if (excess <= 0) return
+        val oldest = entries.entries.iterator()
+        repeat(excess) { oldest.next(); oldest.remove() }
     }
 
     /**
@@ -243,7 +266,10 @@ class EmbeddingDatabase {
 
                     loaded[recordingId] = EmbeddingEntry(recordingId, species, embedding)
                 }
-                synchronized(lock) { entries.putAll(loaded) }
+                synchronized(lock) {
+                    entries.putAll(loaded)
+                    trimLocked()  // T97
+                }
 
                 Log.i(TAG, "Datenbank geladen: $numEntries Eintraege, dim=$dim ← ${file.name}")
             }
