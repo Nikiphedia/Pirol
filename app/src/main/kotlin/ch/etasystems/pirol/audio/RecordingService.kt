@@ -297,18 +297,43 @@ class RecordingService : Service() {
     private fun startChunkEmitter() {
         chunkJob = serviceScope.launch {
             var firstChunk = true
-            while (isActive && _isRecording.value) {
-                val samples = engine.getLatestChunk(CHUNK_INTERVAL_MS.toInt())
-                if (samples.isNotEmpty()) {
-                    if (firstChunk) { Log.d("RecordingService", "SMOKETEST_FIRST_CHUNK latency_ms=${SystemClock.elapsedRealtime() - recordingStartTimeMs}"); firstChunk = false }
-                    val chunk = AudioChunk(
-                        samples = samples.copyOf(), // Kopie, nicht der interne Buffer
-                        sampleRate = engine.actualSampleRate,
-                        timestampMs = SystemClock.elapsedRealtime()
-                    )
-                    _audioChunkFlow.emit(chunk)
+            // T92: Statistik fuer Feldtest (emittiert vs. Wanduhr-Soll)
+            val emitterStartMs = SystemClock.elapsedRealtime()
+            var totalEmitted = 0L
+            var lastDropped = 0L
+            val rate = engine.actualSampleRate
+            val maxRead = if (rate > 0) rate else OboeAudioEngine.SAMPLE_RATE_BIRDS // 1 s
+            // T92: Lese-Cursor auf "jetzt" -- ab hier wird jedes Sample genau einmal geliefert
+            engine.resetReadCursor()
+            try {
+                while (isActive && _isRecording.value) {
+                    var more: Boolean
+                    do {
+                        val samples = engine.readNewSamples(maxRead)
+                        if (samples.isNotEmpty()) {
+                            if (firstChunk) { Log.d("RecordingService", "SMOKETEST_FIRST_CHUNK latency_ms=${SystemClock.elapsedRealtime() - recordingStartTimeMs}"); firstChunk = false }
+                            val chunk = AudioChunk(
+                                samples = samples, // JNI liefert bereits ein frisches Array
+                                sampleRate = engine.actualSampleRate,
+                                timestampMs = SystemClock.elapsedRealtime()
+                            )
+                            totalEmitted += samples.size
+                            _audioChunkFlow.emit(chunk)
+                        }
+                        // Genau maxRead zurueck: vermutlich Rueckstand, sofort weiterlesen
+                        more = samples.size == maxRead
+                    } while (more && isActive)
+                    val dropped = engine.getDroppedSamples()
+                    if (dropped > lastDropped) {
+                        Log.w("RecordingService", "T92: Ring-Buffer-Ueberlauf, ${dropped - lastDropped} Samples verloren (gesamt $dropped)")
+                        lastDropped = dropped
+                    }
+                    delay(CHUNK_INTERVAL_MS)
                 }
-                delay(CHUNK_INTERVAL_MS)
+            } finally {
+                val wallMs = SystemClock.elapsedRealtime() - emitterStartMs
+                val expected = wallMs * engine.actualSampleRate / 1000L
+                Log.i("RecordingService", "T92_STATS emitted=$totalEmitted dropped=${engine.getDroppedSamples()} wall_ms=$wallMs expected=$expected")
             }
         }
     }
