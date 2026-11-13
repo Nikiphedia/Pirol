@@ -598,14 +598,13 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    val veriFile = File(session.sessionDir, "verifications.jsonl")
                     val event = VerificationEvent(
                         detectionId = detectionId,
                         status = status,
                         correctedSpecies = correctedSpecies,
                         verifiedAtMs = System.currentTimeMillis()
                     )
-                    veriFile.appendText(Json.encodeToString(event) + "\n")
+                    sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(event) + "\n")
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(
@@ -671,38 +670,24 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    // detections.jsonl: Zeile ersetzen (temp + rename fuer Atomaritaet)
-                    val detFile = File(session.sessionDir, "detections.jsonl")
-                    if (detFile.exists()) {
-                        val encodedLine = Json.encodeToString(updated)
-                        val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
-                        val lines = detFile.readLines().map { raw ->
-                            if (raw.isBlank()) raw
-                            else try {
-                                if (lenient.decodeFromString<DetectionResult>(raw).id == detectionId) encodedLine
-                                else raw
-                            } catch (_: Exception) { raw }
-                        }
-                        val tmp = File(session.sessionDir, "detections.jsonl.tmp")
-                        tmp.writeText(if (lines.isEmpty()) "" else lines.joinToString("\n") + "\n")
-                        tmp.renameTo(detFile)
-                    }
+                    // detections.jsonl: Zeile ersetzen — ueber SessionManager (T93b: gemeinsamer Mutex,
+                    // offener Writer der laufenden Session wird beruecksichtigt)
+                    sessionManager.replaceDetectionIn(session.sessionDir, updated)
 
                     // verifications.jsonl: granular appenden
-                    val veriFile = File(session.sessionDir, "verifications.jsonl")
                     val now = System.currentTimeMillis()
-                    if (current.count != count) veriFile.appendText(
+                    if (current.count != count) sessionManager.appendVerificationLine(session.sessionDir,
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_COUNT_CHANGED)) + "\n")
-                    if (current.atlasCode != atlasCode) veriFile.appendText(
+                    if (current.atlasCode != atlasCode) sessionManager.appendVerificationLine(session.sessionDir,
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_ATLAS_SET)) + "\n")
-                    if (current.note != note) veriFile.appendText(
+                    if (current.note != note) sessionManager.appendVerificationLine(session.sessionDir,
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED)) + "\n")
                     // T69: Memo-Events
                     if (current.voiceMemoFile == null && voiceMemoFile != null) {
-                        veriFile.appendText(Json.encodeToString(VerificationEvent(
+                        sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
                             detectionId, current.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_RECORDED,
@@ -710,7 +695,7 @@ class AnalysisViewModel(
                     }
                     if (current.voiceMemoFile != null && voiceMemoFile == null) {
                         getMemoTargetFile(detectionId, session.sessionDir)?.takeIf { it.exists() }?.delete()
-                        veriFile.appendText(Json.encodeToString(VerificationEvent(
+                        sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
                             detectionId, current.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_DELETED)) + "\n")
@@ -783,10 +768,8 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    val detFile = File(session.sessionDir, "detections.jsonl")
-                    detFile.appendText(Json.encodeToString(det) + "\n")
-                    val veriFile = File(session.sessionDir, "verifications.jsonl")
-                    veriFile.appendText(Json.encodeToString(VerificationEvent(
+                    sessionManager.appendDetectionLine(session.sessionDir, Json.encodeToString(det) + "\n")
+                    sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
                         detectionId = det.id,
                         status = VerificationStatus.CONFIRMED,
                         verifiedAtMs = now,
@@ -822,25 +805,11 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    // detections.jsonl: Zeile ersetzen (temp + rename fuer Atomaritaet)
-                    val detFile = File(session.sessionDir, "detections.jsonl")
-                    if (detFile.exists()) {
-                        val encodedLine = Json.encodeToString(updated)
-                        val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
-                        val lines = detFile.readLines().map { raw ->
-                            if (raw.isBlank()) raw
-                            else try {
-                                if (lenient.decodeFromString<DetectionResult>(raw).id == detectionId) encodedLine
-                                else raw
-                            } catch (_: Exception) { raw }
-                        }
-                        val tmp = File(session.sessionDir, "detections.jsonl.tmp")
-                        tmp.writeText(if (lines.isEmpty()) "" else lines.joinToString("\n") + "\n")
-                        tmp.renameTo(detFile)
-                    }
+                    // detections.jsonl: Zeile ersetzen — ueber SessionManager (T93b: gemeinsamer Mutex,
+                    // offener Writer der laufenden Session wird beruecksichtigt)
+                    sessionManager.replaceDetectionIn(session.sessionDir, updated)
                     // verifications.jsonl: SPECIES_LOCKED-Event appenden
-                    val veriFile = File(session.sessionDir, "verifications.jsonl")
-                    veriFile.appendText(
+                    sessionManager.appendVerificationLine(session.sessionDir,
                         Json.encodeToString(VerificationEvent(
                             detectionId = detectionId,
                             status = det.verificationStatus,
@@ -900,8 +869,7 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    val veriFile = File(session.sessionDir, "verifications.jsonl")
-                    veriFile.appendText(Json.encodeToString(VerificationEvent(
+                    sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
                         detectionId = detectionId,
                         status = VerificationStatus.REPLACED,
                         correctedSpecies = candidate.scientificName,
