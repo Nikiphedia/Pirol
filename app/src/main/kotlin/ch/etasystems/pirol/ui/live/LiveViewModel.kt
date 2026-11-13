@@ -55,7 +55,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -361,11 +360,11 @@ class LiveViewModel(
                 "(${regionalFilter.getSpeciesList().size} Arten)")
 
         // Artennamen-Sprache laden + species_master.json parsen (T26, T32-Fix)
-        // Synchron laden: species_master.json ist in assets (~200ms), muss VOR erster
-        // Inference abgeschlossen sein, sonst werden lateinische Namen angezeigt.
-        runBlocking(Dispatchers.IO) { speciesNameResolver.load() }
+        // T95: Im Hintergrund laden (species_master.json ist ~10 MB) statt den Main-Thread zu blockieren.
+        // Die ML-Pipeline wartet vor der Verarbeitung darauf (siehe startInferencePipeline),
+        // damit Detektionen nie mit lateinischem Namen angezeigt werden.
         speciesNameResolver.language = appPreferences.speciesLanguage
-        Log.i(TAG, "SpeciesNameResolver: ${speciesNameResolver.resolve("Turdus merula")}")
+        viewModelScope.launch { speciesNameResolver.load() }
 
         // Upload-Einstellungen aus SharedPreferences laden
         uploadManager.wifiOnly = appPreferences.wifiOnly
@@ -1280,6 +1279,9 @@ class LiveViewModel(
         inferenceJob = viewModelScope.launch(Dispatchers.Default) {
             Log.d(TAG, "ML-Pipeline gestartet")
             svc.audioChunkFlow.collect { chunk ->
+                // T95: kehrt sofort zurueck, sobald geladen. Waehrend des Ladens stauen sich die
+                // Chunks im SharedFlow-Puffer bzw. Ring-Buffer (T92) — es geht kein Audio verloren.
+                speciesNameResolver.load()
                 inferenceWorker.processChunk(chunk)
             }
         }

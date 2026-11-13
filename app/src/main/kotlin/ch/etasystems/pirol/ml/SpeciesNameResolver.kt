@@ -2,7 +2,10 @@ package ch.etasystems.pirol.ml
 
 import android.content.Context
 import android.util.Log
+import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -35,8 +38,10 @@ class SpeciesNameResolver(private val context: Context) {
     }
 
     // Lookup: scientificName (Unterstrich) → Map<langCode, commonName>
-    private val namesMap = mutableMapOf<String, Map<String, String>>()
-    private var loaded = false
+    // T95: wird im Hintergrund aufgebaut und dann als Ganzes zugewiesen (Leser sehen leer oder komplett)
+    @Volatile private var namesMap: Map<String, Map<String, String>> = emptyMap()
+    @Volatile private var loaded = false
+    private val loadMutex = Mutex()
 
     /** Aktuelle Sprache (Default: Deutsch) */
     var language: String = "de"
@@ -44,13 +49,25 @@ class SpeciesNameResolver(private val context: Context) {
     /**
      * species_master.json laden und Index aufbauen.
      * Wird einmalig beim App-Start aufgerufen.
+     *
+     * T95: Idempotent und nebenlaeufig aufrufbar — weitere Aufrufer warten, bis der erste
+     * Ladevorgang fertig ist. Ist bereits geladen, kehrt der Aufruf sofort zurueck.
      */
-    suspend fun load() = withContext(Dispatchers.IO) {
-        if (loaded) return@withContext
+    suspend fun load() {
+        if (loaded) return
+        loadMutex.withLock {
+            if (loaded) return
+            withContext(Dispatchers.IO) { loadFromAssets() }
+        }
+    }
+
+    private fun loadFromAssets() {
         try {
-            val jsonText = context.assets.open(SPECIES_PATH).bufferedReader().readText()
+            val startMs = SystemClock.elapsedRealtime()
+            val jsonText = context.assets.open(SPECIES_PATH).bufferedReader().use { it.readText() }
             val jsonObj = JSONObject(jsonText)
             val taxa = jsonObj.getJSONArray("taxa")
+            val map = HashMap<String, Map<String, String>>(taxa.length() * 2)
             for (i in 0 until taxa.length()) {
                 val taxon = taxa.getJSONObject(i)
                 val sciName = taxon.getString("scientific_name")
@@ -62,12 +79,15 @@ class SpeciesNameResolver(private val context: Context) {
                         langMap[key] = name
                     }
                 }
-                namesMap[sciName] = langMap
+                map[sciName] = langMap
             }
+            namesMap = map
             loaded = true
-            Log.i(TAG, "Species-Namen geladen: ${namesMap.size} Arten, Sprache: $language")
+            Log.i(TAG, "T95_STATS load_ms=${SystemClock.elapsedRealtime() - startMs} species=${map.size} lang=$language")
         } catch (e: Exception) {
             Log.e(TAG, "species_master.json laden fehlgeschlagen", e)
+            // T95: nicht bei jedem Aufruf erneut versuchen (10-MB-Parse) — Fallback sind wissenschaftliche Namen
+            loaded = true
         }
     }
 
