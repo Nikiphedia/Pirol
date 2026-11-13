@@ -16,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -82,7 +84,64 @@ class SessionManager(
             minSec: Int,
             enabled: Boolean
         ): Boolean = enabled && minSec > 0 && durationSec < minSec && detections == 0
+
+        private val companionJson = Json { prettyPrint = false }
+        private val companionJsonLenient = Json { ignoreUnknownKeys = true }
+
+        /**
+         * T93: Schreibt [content] atomar nach [target] (tmp-Datei + Move).
+         */
+        internal fun writeFileReplacing(target: File, content: String) {
+            val tmp = File(target.parentFile, target.name + ".tmp")
+            tmp.writeText(content)
+            try {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+        }
+
+        /**
+         * T93: Ersetzt die Zeile mit der ID von [updated] in [file] (File-Modus).
+         * Gibt den Writer zurueck, der danach fuer Appends zu verwenden ist.
+         */
+        internal fun replaceDetectionInFile(
+            file: File,
+            updated: DetectionResult,
+            writer: java.io.Writer?,
+            onError: (Exception) -> Unit = {}
+        ): java.io.Writer? {
+            if (!file.exists()) return writer
+            val encodedLine = companionJson.encodeToString(updated)
+            val lines = try { file.readLines() } catch (_: Exception) { return writer }
+            val replaced = lines.map { raw ->
+                if (raw.isBlank()) raw
+                else try {
+                    if (companionJsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine
+                    else raw
+                } catch (_: Exception) { raw }
+            }
+            // Offenen Writer vor dem Ersetzen schliessen (sonst zeigt er auf die alte Datei)
+            try { writer?.flush(); writer?.close() } catch (e: Exception) { onError(e) }
+            try {
+                writeFileReplacing(file, if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n")
+            } catch (e: Exception) {
+                onError(e)
+            }
+            // Immer wieder einen gueltigen Append-Writer liefern
+            return if (writer != null) java.io.FileWriter(file, true) else null
+        }
     }
+
+    /** T93: Serialisiert alle Schreib-/Rewrite-Zugriffe auf detections.jsonl und verifications.jsonl. */
+    private val fileMutex = Mutex()
 
     private val json = Json { prettyPrint = false }
     private val jsonLenient = Json { ignoreUnknownKeys = true }
@@ -339,14 +398,16 @@ class SessionManager(
      * Wird vom LiveViewModel nach jeder Inference aufgerufen.
      */
     suspend fun appendDetections(detections: List<DetectionResult>) = withContext(Dispatchers.IO) {
-        val writer = detectionWriter ?: return@withContext
-        for (detection in detections) {
-            val line = json.encodeToString(detection)
-            writer.append(line)
-            writer.append('\n')
-            detectionCounter++
+        fileMutex.withLock {
+            val writer = detectionWriter ?: return@withLock
+            for (detection in detections) {
+                val line = json.encodeToString(detection)
+                writer.append(line)
+                writer.append('\n')
+                detectionCounter++
+            }
+            writer.flush()
         }
-        writer.flush()
     }
 
     /**
@@ -354,21 +415,23 @@ class SessionManager(
      * Separate Datei von detections.jsonl (append-only, crash-sicher).
      */
     suspend fun appendVerification(event: VerificationEvent) = withContext(Dispatchers.IO) {
-        val line = json.encodeToString(event) + "\n"
-        val sessionDoc = activeSessionDoc
-        if (sessionDoc != null) {
-            // SAF-Modus: verifications.jsonl via ContentResolver appendieren
-            val veriFile = sessionDoc.findFile("verifications.jsonl")
-                ?: sessionDoc.createFile("application/jsonlines", "verifications.jsonl")
-            veriFile?.let { docFile ->
-                context.contentResolver.openOutputStream(docFile.uri, "wa")?.use { os ->
-                    os.write(line.toByteArray(Charsets.UTF_8))
+        fileMutex.withLock {
+            val line = json.encodeToString(event) + "\n"
+            val sessionDoc = activeSessionDoc
+            if (sessionDoc != null) {
+                // SAF-Modus: verifications.jsonl via ContentResolver appendieren
+                val veriFile = sessionDoc.findFile("verifications.jsonl")
+                    ?: sessionDoc.createFile("application/jsonlines", "verifications.jsonl")
+                veriFile?.let { docFile ->
+                    context.contentResolver.openOutputStream(docFile.uri, "wa")?.use { os ->
+                        os.write(line.toByteArray(Charsets.UTF_8))
+                    }
                 }
+            } else {
+                // File-Modus
+                val sessionDir = activeSessionDir ?: return@withLock
+                File(sessionDir, "verifications.jsonl").appendText(line)
             }
-        } else {
-            // File-Modus
-            val sessionDir = activeSessionDir ?: return@withContext
-            File(sessionDir, "verifications.jsonl").appendText(line)
         }
     }
 
@@ -378,106 +441,112 @@ class SessionManager(
      * Wird fuer Undo im Live-Tab verwendet (T52).
      */
     suspend fun removeLastVerification(detectionId: String) = withContext(Dispatchers.IO) {
-        val sessionDoc = activeSessionDoc
-        if (sessionDoc != null) {
-            // SAF-Modus
-            val veriFile = sessionDoc.findFile("verifications.jsonl") ?: return@withContext
-            val lines = try {
-                context.contentResolver.openInputStream(veriFile.uri)?.use {
-                    it.bufferedReader().readLines()
-                } ?: return@withContext
-            } catch (_: Exception) { return@withContext }
-            val lastMatchIdx = lines.indexOfLast { line ->
-                line.isNotBlank() && try {
-                    jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
-                } catch (_: Exception) { false }
-            }
-            if (lastMatchIdx < 0) return@withContext
-            val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
-            try {
-                context.contentResolver.openOutputStream(veriFile.uri, "wt")?.use { os ->
-                    val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                    os.write(content.toByteArray(Charsets.UTF_8))
+        fileMutex.withLock {
+            val sessionDoc = activeSessionDoc
+            if (sessionDoc != null) {
+                // SAF-Modus
+                val veriFile = sessionDoc.findFile("verifications.jsonl") ?: return@withLock
+                val lines = try {
+                    context.contentResolver.openInputStream(veriFile.uri)?.use {
+                        it.bufferedReader().readLines()
+                    } ?: return@withLock
+                } catch (_: Exception) { return@withLock }
+                val lastMatchIdx = lines.indexOfLast { line ->
+                    line.isNotBlank() && try {
+                        jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
+                    } catch (_: Exception) { false }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "removeLastVerification SAF fehlgeschlagen: $detectionId", e)
-            }
-        } else {
-            // File-Modus
-            val sessionDir = activeSessionDir ?: return@withContext
-            val file = File(sessionDir, "verifications.jsonl")
-            if (!file.exists()) return@withContext
-            val lines = try { file.readLines() } catch (_: Exception) { return@withContext }
-            val lastMatchIdx = lines.indexOfLast { line ->
-                line.isNotBlank() && try {
-                    jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
-                } catch (_: Exception) { false }
-            }
-            if (lastMatchIdx < 0) return@withContext
-            val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
-            try {
-                val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                val tmp = File(sessionDir, "verifications.jsonl.tmp")
-                tmp.writeText(content)
-                tmp.renameTo(file)
-            } catch (e: Exception) {
-                Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
+                if (lastMatchIdx < 0) return@withLock
+                val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
+                try {
+                    context.contentResolver.openOutputStream(veriFile.uri, "wt")?.use { os ->
+                        val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
+                        os.write(content.toByteArray(Charsets.UTF_8))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "removeLastVerification SAF fehlgeschlagen: $detectionId", e)
+                }
+            } else {
+                // File-Modus
+                val sessionDir = activeSessionDir ?: return@withLock
+                val file = File(sessionDir, "verifications.jsonl")
+                if (!file.exists()) return@withLock
+                val lines = try { file.readLines() } catch (_: Exception) { return@withLock }
+                val lastMatchIdx = lines.indexOfLast { line ->
+                    line.isNotBlank() && try {
+                        jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
+                    } catch (_: Exception) { false }
+                }
+                if (lastMatchIdx < 0) return@withLock
+                val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
+                try {
+                    val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
+                    writeFileReplacing(file, content)  // T93: renameTo ersetzt unter Windows nicht
+                } catch (e: Exception) {
+                    Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
+                }
             }
         }
     }
 
     /**
      * Ersetzt eine Detektion in detections.jsonl durch die aktualisierte Version.
-     * File-Modus: atomar via temp-File + rename.
+     * File-Modus: atomar via temp-File + Files.move (Writer wird dabei geschlossen und neu geoeffnet).
      * SAF-Modus: "wt"-Rewrite (kein atomarer rename moeglich via ContentResolver).
      * Silent no-op falls die Session-ID nicht gefunden wird.
      */
     suspend fun replaceDetection(updated: DetectionResult) = withContext(Dispatchers.IO) {
-        val encodedLine = json.encodeToString(updated) + "\n"
-        val sessionDoc = activeSessionDoc
-        if (sessionDoc != null) {
-            // SAF-Modus
-            val detFile = sessionDoc.findFile("detections.jsonl") ?: return@withContext
-            val lines = try {
-                context.contentResolver.openInputStream(detFile.uri)?.use {
-                    it.bufferedReader().readLines()
-                } ?: return@withContext
-            } catch (_: Exception) { return@withContext }
-            val replaced = lines.map { raw ->
-                if (raw.isBlank()) raw
-                else try {
-                    if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine.trimEnd('\n')
-                    else raw
-                } catch (_: Exception) { raw }
-            }
-            try {
-                context.contentResolver.openOutputStream(detFile.uri, "wt")?.use { os ->
-                    val content = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
-                    os.write(content.toByteArray(Charsets.UTF_8))
+        fileMutex.withLock {
+            val encodedLine = json.encodeToString(updated) + "\n"
+            val sessionDoc = activeSessionDoc
+            if (sessionDoc != null) {
+                // SAF-Modus
+                val detFile = sessionDoc.findFile("detections.jsonl") ?: return@withLock
+                val lines = try {
+                    context.contentResolver.openInputStream(detFile.uri)?.use {
+                        it.bufferedReader().readLines()
+                    } ?: return@withLock
+                } catch (_: Exception) { return@withLock }
+                val replaced = lines.map { raw ->
+                    if (raw.isBlank()) raw
+                    else try {
+                        if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine.trimEnd('\n')
+                        else raw
+                    } catch (_: Exception) { raw }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "replaceDetection SAF fehlgeschlagen: ${updated.id}", e)
-            }
-        } else {
-            // File-Modus: atomar via tmp + rename
-            val sessionDir = activeSessionDir ?: return@withContext
-            val file = File(sessionDir, "detections.jsonl")
-            if (!file.exists()) return@withContext
-            val lines = try { file.readLines() } catch (_: Exception) { return@withContext }
-            val replaced = lines.map { raw ->
-                if (raw.isBlank()) raw
-                else try {
-                    if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine.trimEnd('\n')
-                    else raw
-                } catch (_: Exception) { raw }
-            }
-            try {
-                val tmp = File(sessionDir, "detections.jsonl.tmp")
-                val content = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
-                tmp.writeText(content)
-                tmp.renameTo(file)
-            } catch (e: Exception) {
-                Log.e(TAG, "replaceDetection fehlgeschlagen: ${updated.id}", e)
+                // T93: offenen Append-Writer + PFD vor dem "wt"-Rewrite schliessen ...
+                try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
+                detectionWriter = null
+                try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
+                activeDetectionsFd = null
+                try {
+                    context.contentResolver.openOutputStream(detFile.uri, "wt")?.use { os ->
+                        val content = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
+                        os.write(content.toByteArray(Charsets.UTF_8))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "replaceDetection SAF fehlgeschlagen: ${updated.id}", e)
+                } finally {
+                    // ... und danach IMMER wieder im Append-Modus oeffnen
+                    try {
+                        val fd = context.contentResolver.openFileDescriptor(detFile.uri, "wa")
+                        if (fd != null) {
+                            activeDetectionsFd = fd
+                            detectionWriter = OutputStreamWriter(
+                                java.io.FileOutputStream(fd.fileDescriptor), Charsets.UTF_8
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "detections.jsonl konnte nicht neu geoeffnet werden", e)
+                    }
+                }
+            } else {
+                // File-Modus: Writer schliessen, atomar ersetzen, Writer neu oeffnen (T93)
+                val sessionDir = activeSessionDir ?: return@withLock
+                val file = File(sessionDir, "detections.jsonl")
+                detectionWriter = replaceDetectionInFile(file, updated, detectionWriter) { e ->
+                    Log.e(TAG, "replaceDetection fehlgeschlagen: ${updated.id}", e)
+                }
             }
         }
     }
@@ -565,10 +634,12 @@ class SessionManager(
         recordingWriter = null
 
         // JSONL-Writer schliessen
-        try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
-        detectionWriter = null
-        try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
-        activeDetectionsFd = null
+        fileMutex.withLock {  // T93: nicht parallel zu append/replace schliessen
+            try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
+            detectionWriter = null
+            try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
+            activeDetectionsFd = null
+        }
 
         // session.json aktualisieren (endedAt, Zaehler, gpsStats)
         val updatedMetadata = metadata.copy(
