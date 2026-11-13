@@ -119,6 +119,7 @@ fun SettingsScreen(
     // Aehnliche Arten State (T75)
     var similarEnabled by remember { mutableStateOf(appPreferences.similarEnabled) }
     var similarLines by remember { mutableFloatStateOf(appPreferences.similarLines) }
+    var embeddingDbMaxEntries by remember { mutableIntStateOf(appPreferences.embeddingDbMaxEntries) }  // T97
 
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
@@ -1485,6 +1486,29 @@ fun SettingsScreen(
         )
         Text(
             text = "0 = aus  •  0.5 = Laufschrift letzte 5  •  1–10 = Liste",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // T97: Obergrenze der Embedding-DB (1'000–20'000 in 1'000er-Schritten, ~4 KB pro Eintrag)
+        Text(
+            text = "Gespeicherte Vergleichsaufnahmen: max. $embeddingDbMaxEntries " +
+                    "(ca. ${embeddingDbMaxEntries * 4 / 1000} MB)",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Slider(
+            value = embeddingDbMaxEntries.toFloat(),
+            onValueChange = {
+                val v = (it / 1000f).roundToInt() * 1000
+                embeddingDbMaxEntries = v
+                appPreferences.embeddingDbMaxEntries = v
+            },
+            valueRange = 1000f..20000f,
+            steps = 18
+        )
+        Text(
+            text = "Ältere Einträge fallen heraus, sobald die Obergrenze erreicht ist.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

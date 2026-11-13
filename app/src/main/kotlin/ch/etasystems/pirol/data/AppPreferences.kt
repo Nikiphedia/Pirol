@@ -262,6 +262,11 @@ class AppPreferences(context: Context) {
 
     // --- Embedding-DB Format-Version (T61) ---
     /** Version der gespeicherten Embedding-Basis; 0 = vor T61 (Embeddings aus Roh-Audio) */
+    /** T97: Obergrenze der Embedding-DB (Eintraege). Ein Eintrag belegt rund 4 KB. Default 5000. */
+    var embeddingDbMaxEntries: Int
+        get() = prefs.getInt("pirol_embedding_db_max_entries", 5000)
+        set(value) = prefs.edit().putInt("pirol_embedding_db_max_entries", value).apply()
+
     var embeddingDbVersion: Int
         get() = prefs.getInt("pirol_embedding_db_version", 0)
         set(value) = prefs.edit().putInt("pirol_embedding_db_version", value).apply()

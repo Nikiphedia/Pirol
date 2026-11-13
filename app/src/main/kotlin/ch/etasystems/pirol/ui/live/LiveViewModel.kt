@@ -335,10 +335,7 @@ class LiveViewModel(
                     .take(5)
                     .map { speciesNameResolver.resolve(it.scientificName) }
                 _uiState.update { it.copy(recentSpecies = recent) }
-                // Periodisch persistieren (alle 10 neue Eintraege)
-                if (embeddingDatabase.size % 10 == 0) {
-                    saveEmbeddingDatabase()
-                }
+                // T97: kein Vollschreiben mehr alle 10 Eintraege — gespeichert wird beim Session-Ende
             }
         }
     }
@@ -980,6 +977,9 @@ class LiveViewModel(
         val gamma = appPreferences.spectrogramGamma
         val ceilingDb = appPreferences.spectrogramCeilingDb
         val showTopN = appPreferences.showTopNCandidates  // T52: bei Resume neu lesen
+        // T97: Obergrenze der Embedding-DB bei Resume neu lesen (Settings-Aenderung wirkt sofort)
+        embeddingDatabase.maxEntries = appPreferences.embeddingDbMaxEntries
+        _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
         _uiState.update {
             it.copy(
                 spectrogramAutoContrast = autoContrast,
@@ -1107,6 +1107,7 @@ class LiveViewModel(
             appPreferences.embeddingDbVersion = EMBEDDING_DB_VERSION
             _uiState.update { it.copy(embeddingDbSize = 0) }
         }
+        embeddingDatabase.maxEntries = appPreferences.embeddingDbMaxEntries  // T97
         if (file.exists()) {
             try {
                 embeddingDatabase.load(file)
@@ -1212,6 +1213,7 @@ class LiveViewModel(
                     val finishedSessionId = currentSessionId
                     viewModelScope.launch(sessionDispatcher) {
                         sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
+                        saveEmbeddingDatabase()  // T97: einmal pro Session statt alle 10 Eintraege
                         alarmService.clearCooldowns()  // AC6: Cooldown-Map pro Session leeren
                         if (finishedSessionId != null) {
                             _uiState.update { it.copy(lastSessionId = finishedSessionId) }
