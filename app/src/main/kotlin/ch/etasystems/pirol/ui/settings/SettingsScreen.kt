@@ -78,6 +78,9 @@ import ch.etasystems.pirol.ml.WatchlistEntry
 import ch.etasystems.pirol.ml.WatchlistManager
 import ch.etasystems.pirol.ml.WatchlistPriority
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.text.font.FontFamily
+import ch.etasystems.pirol.ml.OnnxBenchmark
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
@@ -119,6 +122,11 @@ fun SettingsScreen(
     // Aehnliche Arten State (T75)
     var similarEnabled by remember { mutableStateOf(appPreferences.similarEnabled) }
     var similarLines by remember { mutableFloatStateOf(appPreferences.similarLines) }
+
+    // Diagnose: Inference-Benchmark (T96)
+    var benchmarkRunning by remember { mutableStateOf(false) }
+    var benchmarkProgress by remember { mutableStateOf("") }
+    var benchmarkReport by remember { mutableStateOf("") }
 
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
@@ -1631,6 +1639,54 @@ fun SettingsScreen(
             Icon(Icons.Filled.Refresh, contentDescription = null)
             Spacer(modifier = Modifier.width(4.dp))
             Text("Phenology-JSON neu laden")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Diagnose: Inference-Benchmark (T96) ---
+        Text("Diagnose", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Misst die BirdNET-Inference des aktiven Modells mit 1/2/4 Threads, jeweils " +
+                    "Standard-CPU und XNNPACK. Dauert je nach Geraet 1–3 Minuten. " +
+                    "Nicht waehrend einer Aufnahme starten.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            enabled = !benchmarkRunning,
+            onClick = {
+                val modelFile = modelManager.getActiveModelFile()
+                if (modelFile == null) {
+                    benchmarkReport = "Kein Modell installiert."
+                } else {
+                    benchmarkRunning = true
+                    benchmarkReport = ""
+                    scope.launch {
+                        benchmarkReport = try {
+                            OnnxBenchmark.run(modelFile) { benchmarkProgress = it }
+                        } catch (e: Exception) {
+                            "Benchmark fehlgeschlagen: ${e.message}"
+                        }
+                        benchmarkRunning = false
+                    }
+                }
+            }
+        ) {
+            Text(if (benchmarkRunning) "Laeuft … $benchmarkProgress" else "Inference-Benchmark starten")
+        }
+        if (benchmarkReport.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            SelectionContainer {
+                Text(
+                    text = benchmarkReport,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
         }
     }
 
