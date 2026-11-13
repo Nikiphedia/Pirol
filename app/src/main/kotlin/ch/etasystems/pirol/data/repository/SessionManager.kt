@@ -551,6 +551,49 @@ class SessionManager(
         }
     }
 
+    // ── T93b: Zugriffe von aussen (Analyse-Tab) auf beliebige Session-Ordner ──────────
+    // Laufen ueber denselben fileMutex wie die Live-Pfade. Ist sessionDir die gerade aktive
+    // File-Session, wird deren offener detections-Writer verwendet bzw. neu geoeffnet.
+    // Fehler werden geworfen (Aufrufer macht Rollback + Fehlermeldung).
+
+    private fun isActiveDir(sessionDir: File): Boolean =
+        activeSessionDir?.absoluteFile == sessionDir.absoluteFile
+
+    /** Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session an. */
+    suspend fun appendVerificationLine(sessionDir: File, line: String) = withContext(Dispatchers.IO) {
+        fileMutex.withLock { File(sessionDir, "verifications.jsonl").appendText(line) }
+    }
+
+    /** Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an detections.jsonl der Session an. */
+    suspend fun appendDetectionLine(sessionDir: File, line: String) = withContext(Dispatchers.IO) {
+        fileMutex.withLock {
+            val writer = detectionWriter
+            if (writer != null && isActiveDir(sessionDir)) {
+                writer.append(line)
+                writer.flush()
+                detectionCounter++
+            } else {
+                File(sessionDir, "detections.jsonl").appendText(line)
+            }
+        }
+    }
+
+    /** Ersetzt die Detektion mit gleicher ID in detections.jsonl der Session. No-op falls Datei fehlt. */
+    suspend fun replaceDetectionIn(sessionDir: File, updated: DetectionResult) = withContext(Dispatchers.IO) {
+        fileMutex.withLock {
+            val file = File(sessionDir, "detections.jsonl")
+            // Fehler erst NACH der Writer-Zuweisung werfen, damit die aktive Session
+            // in jedem Fall wieder einen gueltigen Append-Writer hat.
+            var error: Exception? = null
+            if (isActiveDir(sessionDir)) {
+                detectionWriter = replaceDetectionInFile(file, updated, detectionWriter) { e -> error = e }
+            } else {
+                replaceDetectionInFile(file, updated, null) { e -> error = e }
+            }
+            error?.let { throw it }
+        }
+    }
+
     // ── T69: Voice-Memo Pfad-Helpers ─────────────────────────────────
 
     /**
@@ -1267,7 +1310,9 @@ class SessionManager(
             newValue = "$newLat,$newLon"
         )
         try {
-            File(dir, "verifications.jsonl").appendText(json.encodeToString(event) + "\n")
+            fileMutex.withLock {  // T93b
+                File(dir, "verifications.jsonl").appendText(json.encodeToString(event) + "\n")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "recordPositionMoved fehlgeschlagen: $detectionId", e)
         }
@@ -1297,8 +1342,10 @@ class SessionManager(
             newValue = detectionId1
         )
         try {
-            File(dir, "verifications.jsonl").appendText(json.encodeToString(event1) + "\n")
-            File(dir, "verifications.jsonl").appendText(json.encodeToString(event2) + "\n")
+            fileMutex.withLock {  // T93b
+                File(dir, "verifications.jsonl").appendText(json.encodeToString(event1) + "\n")
+                File(dir, "verifications.jsonl").appendText(json.encodeToString(event2) + "\n")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "recordSimultaneousLink fehlgeschlagen: $detectionId1/$detectionId2", e)
         }
