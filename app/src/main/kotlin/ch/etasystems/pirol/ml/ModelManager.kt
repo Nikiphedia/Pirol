@@ -7,8 +7,9 @@ import android.util.Log
 import ch.etasystems.pirol.data.AppPreferences
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.isSuccess
 import io.ktor.http.contentLength
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.Dispatchers
@@ -236,20 +237,32 @@ class ModelManager(
         }
         try {
             Log.i(TAG, "Starte Download: ${model.name} von ${model.url}")
-            val response = client.get(model.url)
-            val contentLength = response.contentLength() ?: (model.expectedSizeMB * 1_000_000L)
-            val channel = response.bodyAsChannel()
-
-            FileOutputStream(tempFile).use { fos ->
-                val buffer = ByteArray(65536) // 64 KB Buffer
-                var totalRead = 0L
-                while (!channel.isClosedForRead) {
-                    val read = channel.readAvailable(buffer)
-                    if (read <= 0) break
-                    fos.write(buffer, 0, read)
-                    totalRead += read
-                    onProgress((totalRead.toFloat() / contentLength).coerceAtMost(0.99f))
+            // T102: prepareGet + execute streamt den Body. client.get() laedt die ganze Datei
+            // (270-540 MB) zuerst in den Speicher — kein Fortschritt, hoher Heap-Verbrauch.
+            val statusOk = client.prepareGet(model.url).execute { response ->
+                if (!response.status.isSuccess()) {
+                    Log.e(TAG, "Download abgelehnt: HTTP ${response.status.value} fuer ${model.url}")
+                    return@execute false
                 }
+                val contentLength = response.contentLength() ?: (model.expectedSizeMB * 1_000_000L)
+                val channel = response.bodyAsChannel()
+
+                FileOutputStream(tempFile).use { fos ->
+                    val buffer = ByteArray(65536) // 64 KB Buffer
+                    var totalRead = 0L
+                    while (!channel.isClosedForRead) {
+                        val read = channel.readAvailable(buffer)
+                        if (read <= 0) break
+                        fos.write(buffer, 0, read)
+                        totalRead += read
+                        onProgress((totalRead.toFloat() / contentLength).coerceAtMost(0.99f))
+                    }
+                }
+                true
+            }
+            if (!statusOk) {
+                tempFile.delete()
+                return@withContext false
             }
 
             // Groesse verifizieren
