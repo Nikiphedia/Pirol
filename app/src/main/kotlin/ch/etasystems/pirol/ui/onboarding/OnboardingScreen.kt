@@ -32,6 +32,8 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -78,6 +80,18 @@ fun OnboardingScreen(
     var downloadProgress by remember { mutableFloatStateOf(0f) }
     var importError by remember { mutableStateOf<String?>(null) }
     var selectedModel by remember { mutableStateOf(ModelManager.AVAILABLE_MODELS.first()) }
+
+    // T102: laufender Download des ModelManager (ueberlebt das Verlassen des Screens)
+    val runningDownload by modelManager.downloadProgress.collectAsState()
+    var sawDownload by remember { mutableStateOf(false) }
+    LaunchedEffect(runningDownload) {
+        if (runningDownload != null) {
+            sawDownload = true
+        } else if (sawDownload) {
+            sawDownload = false
+            isModelInstalled = modelManager.isModelInstalled() || classifier.isModelAvailable()
+        }
+    }
 
     // SAF File-Picker fuer ONNX-Modell
     val modelImportLauncher = rememberLauncherForActivityResult(
@@ -290,7 +304,7 @@ fun OnboardingScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    if (isDownloading) {
+                    if (isDownloading || runningDownload != null) {
                         // Fortschrittsbalken waehrend Download
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -302,12 +316,12 @@ fun OnboardingScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             LinearProgressIndicator(
-                                progress = { downloadProgress },
+                                progress = { runningDownload ?: downloadProgress },
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${(downloadProgress * 100).toInt()}%",
+                                text = "${((runningDownload ?: downloadProgress) * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
