@@ -31,12 +31,12 @@ class ModelManager(
         private const val MIN_MODEL_SIZE_BYTES = 100_000_000L // 100 MB Minimum
         private const val LEGACY_MODEL_FILE = "birdnet_v3.onnx"
 
-        /** Verfuegbare Modelle zum Download von Zenodo */
+        /** Verfuegbare Modelle zum Download von Zenodo (T102: Preview 3.1, Labels identisch mit Preview 3) */
         val AVAILABLE_MODELS = listOf(
             ModelInfo(
                 id = "v3_fp16",
                 name = "BirdNET V3.0 FP16 (empfohlen)",
-                url = "https://zenodo.org/records/18247420/files/BirdNET%2B_V3.0-preview3_Global_11K_FP16.onnx",
+                url = "https://zenodo.org/records/20703646/files/BirdNET%2B_V3.0-preview3.1_Global_11K_FP16.onnx",
                 fileName = "birdnet_v3_fp16.onnx",
                 expectedSizeMB = 259,
                 speciesCount = 11560
@@ -44,7 +44,7 @@ class ModelManager(
             ModelInfo(
                 id = "v3_fp32",
                 name = "BirdNET V3.0 FP32 (volle Praezision)",
-                url = "https://zenodo.org/records/18247420/files/BirdNET%2B_V3.0-preview3_Global_11K_FP32.onnx",
+                url = "https://zenodo.org/records/20703646/files/BirdNET%2B_V3.0-preview3.1_Global_11K_FP32.onnx",
                 fileName = "birdnet_v3_fp32.onnx",
                 expectedSizeMB = 516,
                 speciesCount = 11560
