@@ -12,7 +12,15 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.isSuccess
 import io.ktor.http.contentLength
 import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -52,6 +60,15 @@ class ModelManager(
             )
         )
     }
+
+    // T102: eigener Scope, damit ein Download das Verlassen des Screens ueberlebt
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val downloadLock = Any()
+    private var activeDownload: Deferred<Boolean>? = null
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+
+    /** Fortschritt 0.0-1.0 des laufenden Downloads, null = kein Download aktiv */
+    val downloadProgress: StateFlow<Float?> = _downloadProgress
 
     /** Modell-Metadaten fuer Download-Auswahl */
     data class ModelInfo(
@@ -221,6 +238,33 @@ class ModelManager(
     suspend fun downloadModel(
         model: ModelInfo,
         onProgress: (Float) -> Unit = {}
+    ): Boolean {
+        // T102: Der Download laeuft im Scope des ModelManager (App-Lebensdauer), nicht im Scope des
+        // aufrufenden Screens. Verlaesst der User den Screen, wird nur das Warten abgebrochen.
+        // Laeuft bereits ein Download, haengt sich der Aufrufer an diesen an.
+        val job = synchronized(downloadLock) {
+            activeDownload?.takeIf { it.isActive } ?: downloadScope.async {
+                _downloadProgress.value = 0f
+                try {
+                    runDownload(model) { _downloadProgress.value = it }
+                } finally {
+                    _downloadProgress.value = null
+                }
+            }.also { activeDownload = it }
+        }
+        return coroutineScope {
+            val progressJob = launch { downloadProgress.collect { p -> if (p != null) onProgress(p) } }
+            try {
+                job.await()
+            } finally {
+                progressJob.cancel()
+            }
+        }
+    }
+
+    private suspend fun runDownload(
+        model: ModelInfo,
+        onProgress: (Float) -> Unit
     ): Boolean = withContext(Dispatchers.IO) {
         val targetDir = File(context.filesDir, MODEL_DIR)
         targetDir.mkdirs()

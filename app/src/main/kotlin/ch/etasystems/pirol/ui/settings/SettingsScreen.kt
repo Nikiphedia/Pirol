@@ -610,6 +610,17 @@ fun SettingsScreen(
         var installedModels by remember { mutableStateOf(modelManager.listInstalledModels()) }
         var isDownloading by remember { mutableStateOf(false) }
         var downloadProgress by remember { mutableFloatStateOf(0f) }
+        // T102: laufender Download des ModelManager (ueberlebt das Verlassen des Screens)
+        val runningDownload by modelManager.downloadProgress.collectAsState()
+        var sawDownload by remember { mutableStateOf(false) }
+        LaunchedEffect(runningDownload) {
+            if (runningDownload != null) {
+                sawDownload = true
+            } else if (sawDownload) {
+                sawDownload = false
+                installedModels = modelManager.listInstalledModels()
+            }
+        }
         var isImporting by remember { mutableStateOf(false) }
         var importProgress by remember { mutableFloatStateOf(0f) }
         var modelError by remember { mutableStateOf<String?>(null) }
@@ -687,16 +698,16 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Download-Sektion
-        if (isDownloading) {
+        if (isDownloading || runningDownload != null) {
             Text("Wird heruntergeladen...", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(
-                progress = { downloadProgress },
+                progress = { runningDownload ?: downloadProgress },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${(downloadProgress * 100).toInt()}%",
+                text = "${((runningDownload ?: downloadProgress) * 100).toInt()}%",
                 style = MaterialTheme.typography.bodySmall
             )
         } else if (isImporting) {
