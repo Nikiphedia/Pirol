@@ -39,9 +39,9 @@ class WatchlistManager(private val context: Context) {
     /** Normalisiert Artnamen: Leerzeichen → Unterstrich (Turdus merula → Turdus_merula) */
     private fun normalizeName(name: String): String = name.replace(' ', '_')
 
-    /** Aktive Watchlist-Arten als Set (schneller Lookup, Eintraege normalisiert) */
+    /** Aktive Watchlist-Arten als Set kanonischer Schluessel (T105: Synonyme aufgeloest, Kleinschreibung) */
     val watchedSpecies: Set<String>
-        get() = watchlist.species.map { normalizeName(it.scientificName) }.toSet()
+        get() = watchlist.species.map { SpeciesKey.of(it.scientificName) }.toSet()
 
     /** Alle Eintraege */
     val entries: List<WatchlistEntry>
@@ -107,6 +107,7 @@ class WatchlistManager(private val context: Context) {
      * Wenn externe Datei vorhanden → externe uebernehmen und intern kopieren.
      */
     suspend fun load() = withContext(Dispatchers.IO) {
+        SpeciesKey.load(context)
         // 1. Externe Datei pruefen (Downloads/PIROL/watchlist.json)
         val externalFile = getExternalWatchlistFile()
         val internalFile = File(context.filesDir, INTERNAL_FILE)

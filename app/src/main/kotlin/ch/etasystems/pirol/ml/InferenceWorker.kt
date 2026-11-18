@@ -207,9 +207,15 @@ class InferenceWorker(
         if (key == unmappedStatsKey) return
         unmappedStatsKey = key
         val region = regionalFilter.getSpeciesList()
-        val unmapped = region.filter { it !in labelNames }
+        val before = region.filter { it !in labelNames }
+        // T105: nach Alias-Aufloesung beide Seiten ueber den kanonischen Schluessel vergleichen
+        val labelKeys = labelNames.mapTo(HashSet()) { SpeciesKey.of(it) }
+        val after = region.filter { SpeciesKey.of(it) !in labelKeys }
         Log.i(TAG, "T103_STATS model=${classifier.modelId} region=${regionalFilter.getCurrentRegionId()} " +
-            "unmapped=${unmapped.size}/${region.size} examples=${unmapped.take(5)}")
+            "unmapped=${before.size}/${region.size} examples=${before.take(5)}")
+        Log.i(TAG, "T105_STATS model=${classifier.modelId} region=${regionalFilter.getCurrentRegionId()} " +
+            "region_unmapped_before=${before.size} after=${after.size} aliases=${SpeciesKey.aliasCount()} " +
+            "examples_after=${after.take(5)}")
     }
 
     private fun analyze(job: WindowJob) {

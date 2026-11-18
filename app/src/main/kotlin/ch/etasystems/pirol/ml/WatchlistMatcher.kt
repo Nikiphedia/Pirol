@@ -6,8 +6,11 @@ package ch.etasystems.pirol.ml
  */
 object WatchlistMatcher {
 
-    /** Schluessel fuer den Vergleich: getrimmt, Leerzeichen -> Unterstrich, Kleinschreibung. */
-    fun key(name: String): String = name.trim().replace(' ', '_').lowercase()
+    /**
+     * Schluessel fuer den Vergleich: getrimmt, Leerzeichen -> Unterstrich, Kleinschreibung,
+     * Synonyme auf den kanonischen Namen abgebildet (T105, [SpeciesKey]).
+     */
+    fun key(name: String): String = SpeciesKey.of(name)
 
     /** Findet den Watchlist-Eintrag zu einer Detektion (Leerzeichen/Unterstrich/Gross-Klein egal). */
     fun findEntry(entries: List<WatchlistEntry>, scientificName: String): WatchlistEntry? {
