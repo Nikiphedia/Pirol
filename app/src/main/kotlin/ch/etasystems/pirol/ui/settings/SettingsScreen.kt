@@ -1,5 +1,11 @@
 package ch.etasystems.pirol.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+import androidx.compose.material3.Checkbox
+import ch.etasystems.pirol.audio.AlarmService
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -117,6 +123,22 @@ fun SettingsScreen(
 
     // Alarm-Cooldown State (T58)
     var cooldownMinutes by remember { mutableIntStateOf(appPreferences.alarmCooldownMinutes) }
+    // T124: Alarm-Ausgaenge
+    var alarmVibration by remember { mutableStateOf(appPreferences.alarmVibrationEnabled) }
+    var alarmNotification by remember { mutableStateOf(appPreferences.alarmNotificationEnabled) }
+    var alarmBanner by remember { mutableStateOf(appPreferences.alarmBannerEnabled) }
+    val alarmService: AlarmService = koinInject()
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(
+                context,
+                "Benachrichtigungen sind nicht erlaubt - bitte in den Android-Einstellungen aktivieren",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     // Detektions-Cluster State (T70)
     var clusterEnabled by remember { mutableStateOf(appPreferences.clusterEnabled) }
@@ -1371,6 +1393,28 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
+        // --- Alarm-Ausgaenge (T124) ---
+        Text("Alarm-Ausgabe", style = MaterialTheme.typography.bodyMedium)
+        AlarmCheckRow("Vibration", alarmVibration) {
+            alarmVibration = it; appPreferences.alarmVibrationEnabled = it
+        }
+        AlarmCheckRow("Benachrichtigung", alarmNotification) {
+            alarmNotification = it; appPreferences.alarmNotificationEnabled = it
+            if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        AlarmCheckRow("Vollbild-Hinweis in der App", alarmBanner) {
+            alarmBanner = it; appPreferences.alarmBannerEnabled = it
+        }
+        OutlinedButton(onClick = { alarmService.triggerTestAlarm() }) {
+            Text("Alarm testen")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
         // --- Detektions-Cluster-Sektion (T70) ---
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
@@ -1782,5 +1826,17 @@ fun SettingsScreen(
                 }) { Text("Abbrechen") }
             }
         )
+    }
+}
+
+/** Checkbox-Zeile fuer die Alarm-Ausgaenge (T124), 48 dp Tap-Target. */
+@Composable
+private fun AlarmCheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChange)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

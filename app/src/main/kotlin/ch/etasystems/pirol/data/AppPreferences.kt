@@ -357,4 +357,20 @@ class AppPreferences(context: Context) {
     var overlapPercent: Int
         get() = prefs.getInt("pirol_overlap_percent", 0)
         set(value) = prefs.edit().putInt("pirol_overlap_percent", value).apply()
+
+    // --- T124: Watchlist-Alarm-Ausgaenge (alle Default an) ---
+    /** Vibrationsalarm bei Watchlist-Treffer */
+    var alarmVibrationEnabled: Boolean
+        get() = prefs.getBoolean("pirol_alarm_vibration", true)
+        set(value) = prefs.edit().putBoolean("pirol_alarm_vibration", value).apply()
+
+    /** Heads-up-Benachrichtigung bei Watchlist-Treffer */
+    var alarmNotificationEnabled: Boolean
+        get() = prefs.getBoolean("pirol_alarm_notification", true)
+        set(value) = prefs.edit().putBoolean("pirol_alarm_notification", value).apply()
+
+    /** Grosser Hinweis in der App bei Watchlist-Treffer */
+    var alarmBannerEnabled: Boolean
+        get() = prefs.getBoolean("pirol_alarm_banner", true)
+        set(value) = prefs.edit().putBoolean("pirol_alarm_banner", value).apply()
 }

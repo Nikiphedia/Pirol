@@ -76,7 +76,7 @@ val appModule = module {
     single { WatchlistManager(get()) }
 
     // AlarmService — Singleton, Notification + Vibration fuer Watchlist-Matches (T20/T58)
-    single { AlarmService(get(), get()) }
+    single { AlarmService(get(), get(), get()) }
 
     // AppPreferences — Singleton, SharedPreferences-Wrapper (T22)
     single { AppPreferences(get()) }

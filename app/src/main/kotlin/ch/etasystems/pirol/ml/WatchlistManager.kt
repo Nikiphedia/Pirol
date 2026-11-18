@@ -53,13 +53,12 @@ class WatchlistManager(private val context: Context) {
 
     /** Ob eine Art auf der Watchlist steht */
     fun isWatched(scientificName: String): Boolean {
-        return watchedSpecies.contains(normalizeName(scientificName))
+        return WatchlistMatcher.findEntry(watchlist.species, scientificName) != null
     }
 
     /** Priority fuer eine Art (null wenn nicht auf Watchlist) */
     fun getPriority(scientificName: String): WatchlistPriority? {
-        val normalized = normalizeName(scientificName)
-        return watchlist.species.find { normalizeName(it.scientificName) == normalized }?.priority
+        return WatchlistMatcher.findEntry(watchlist.species, scientificName)?.priority
     }
 
     /**
@@ -89,10 +88,9 @@ class WatchlistManager(private val context: Context) {
             lastAlarmTimes: Map<String, Long>,
             now: Long
         ): Boolean {
-            if (!watchedSet.contains(normalizedName)) return false
-            if (cooldownMs == 0L) return true
-            val lastTime = lastAlarmTimes[normalizedName] ?: 0L
-            return now - lastTime >= cooldownMs
+            val k = WatchlistMatcher.key(normalizedName)
+            if (watchedSet.none { WatchlistMatcher.key(it) == k }) return false
+            return WatchlistMatcher.isCooldownOver(lastAlarmTimes[normalizedName], cooldownMs, now)
         }
     }
 
@@ -206,6 +204,10 @@ class WatchlistManager(private val context: Context) {
         )
         val pirolDir = File(downloadsDir, EXTERNAL_DIR)
         val file = File(pirolDir, EXTERNAL_FILE)
-        return if (file.exists()) file else null
+        if (file.exists() && file.canRead()) return file
+        // T124: ab Android 11 sieht die App fremde Dateien in Downloads/ nicht (Scoped Storage).
+        // Fallback: app-eigener Ordner (Android/data/<pkg>/files/watchlist.json) oder SAF-Import.
+        val appFile = context.getExternalFilesDir(null)?.let { File(it, EXTERNAL_FILE) }
+        return if (appFile != null && appFile.exists() && appFile.canRead()) appFile else null
     }
 }
