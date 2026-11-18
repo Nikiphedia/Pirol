@@ -597,7 +597,10 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             if (cluster != null) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissCluster() },
-                    title = { Text(stringResource(R.string.map_detektionen_tippen_oder_lange_drueck, cluster.items.size)) },
+                    title = { Text(
+                        if (state.focusMode) stringResource(R.string.map_cluster_linkziel_waehlen, cluster.items.size)
+                        else stringResource(R.string.map_detektionen_tippen_oder_lange_drueck, cluster.items.size)
+                    ) },
                     text = {
                         LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
                             items(cluster.items) { m ->
@@ -605,8 +608,19 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .combinedClickable(
-                                            onClick = { viewModel.selectMarkerForEdit(m) },
-                                            onLongClick = { viewModel.selectMarkerForEdit(m) }
+                                            onClick = {
+                                                // T129: im Fokusmodus Cluster-Eintrag als Verknuepfungsziel waehlen
+                                                if (state.focusMode) {
+                                                    viewModel.dismissCluster()
+                                                    viewModel.selectLinkTarget(m)
+                                                } else viewModel.selectMarkerForEdit(m)
+                                            },
+                                            onLongClick = {
+                                                if (state.focusMode) {
+                                                    viewModel.dismissCluster()
+                                                    viewModel.selectLinkTarget(m)
+                                                } else viewModel.selectMarkerForEdit(m)
+                                            }
                                         )
                                         .padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -647,11 +661,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                         )
                                     }
                                 }
-                                MapVerifyButtons(
-                                    status = m.verificationStatus,
-                                    onVerify = { viewModel.verifyMarker(m, it) },
-                                    modifier = Modifier.padding(bottom = 6.dp)
-                                )
+                                if (!state.focusMode) {
+                                    MapVerifyButtons(
+                                        status = m.verificationStatus,
+                                        onVerify = { viewModel.verifyMarker(m, it) },
+                                        modifier = Modifier.padding(bottom = 6.dp)
+                                    )
+                                }
                                 HorizontalDivider()
                             }
                         }

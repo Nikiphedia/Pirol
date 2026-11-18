@@ -21,6 +21,7 @@ import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
+import ch.etasystems.pirol.ml.PirolFolder
 import ch.etasystems.pirol.ml.WatchlistManager
 import ch.etasystems.pirol.audio.AlarmService
 import ch.etasystems.pirol.ui.analysis.AnalysisViewModel
@@ -39,7 +40,7 @@ val appModule = module {
     single<AudioClassifier> { BirdNetV3Classifier(get(), get(), get()) }  // T103a: + SpeciesNameResolver
 
     // Regionaler Artenfilter — Singleton, laedt DACH-Artenliste aus assets/regions/
-    single { RegionalSpeciesFilter(get()) }
+    single { RegionalSpeciesFilter(get(), get()) }
 
     // MFCC-Feature-Extractor — Singleton, pure Kotlin (kein Context)
     single { MfccExtractor() }
@@ -73,7 +74,8 @@ val appModule = module {
     single { AudioPlayer(androidContext()) }
 
     // WatchlistManager — Singleton, laedt/verwaltet Watchlist (T20)
-    single { WatchlistManager(get()) }
+    single { PirolFolder(get(), get()) }  // T129: SAF-Ordnerfreigabe
+    single { WatchlistManager(get(), get()) }
 
     // AlarmService — Singleton, Notification + Vibration fuer Watchlist-Matches (T20/T58)
     single { AlarmService(get(), get(), get()) }

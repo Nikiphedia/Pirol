@@ -449,4 +449,15 @@
     <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polyphase (empfohlen, filtert Störgeräusche über 16 kHz)</string>
     <string name="settings_resampler_linear">Linear (alt, wie AMSEL)</string>
+    <string name="map_cluster_linkziel_waehlen">Verknüpfungsziel wählen (%1$d Detektionen)</string>
+    <string name="settings_pirol_ordner_freigeben">PIROL-Ordner freigeben</string>
+    <string name="settings_pirol_ordner_status">Freigegeben: %1$s</string>
+    <string name="settings_pirol_ordner_keine">Kein Ordner freigegeben (Watchlist und eigene Listen nur über Import)</string>
+    <string name="settings_pirol_ordner_entziehen">Freigabe entziehen</string>
+    <string name="settings_pirol_ordner_hinweis">Wähle einmalig den Ordner Downloads/PIROL. Darin werden watchlist.json und lists/*.json automatisch gelesen.</string>
+    <string name="settings_beispielliste_anlegen">Beispielliste anlegen</string>
+    <string name="settings_beispielliste_angelegt">Beispielliste lists/beispiel_liste.json angelegt</string>
+    <string name="settings_beispielliste_fehler">Beispielliste konnte nicht angelegt werden</string>
+    <string name="settings_eigene_liste">Eigene Liste</string>
+    <string name="settings_eigene_liste_warnung">Liste übersprungen: %1$s</string>
 </resources>
