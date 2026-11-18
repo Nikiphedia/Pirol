@@ -9,6 +9,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.http.contentLength
 import io.ktor.utils.io.readAvailable
@@ -69,6 +70,11 @@ class ModelManager(
 
     /** Fortschritt 0.0-1.0 des laufenden Downloads, null = kein Download aktiv */
     val downloadProgress: StateFlow<Float?> = _downloadProgress
+
+    /** T121: Grund des letzten fehlgeschlagenen Downloads fuer die UI (null = kein Fehler) */
+    @Volatile
+    var lastDownloadError: String? = null
+        private set
 
     /** Modell-Metadaten fuer Download-Auswahl */
     data class ModelInfo(
@@ -270,6 +276,16 @@ class ModelManager(
         targetDir.mkdirs()
         val targetFile = File(targetDir, model.fileName)
         val tempFile = File(targetDir, "${model.fileName}.tmp")
+        lastDownloadError = null
+
+        // T121: Speicher vorab pruefen (sonst bricht der Download bei 0 % mit irrefuehrender Meldung ab)
+        val neededBytes = model.expectedSizeMB * 1_048_576L + 50L * 1_048_576L
+        if (targetDir.usableSpace < neededBytes) {
+            lastDownloadError = "Zu wenig Speicher: ${targetDir.usableSpace / 1_048_576} MB frei, " +
+                "${neededBytes / 1_048_576} MB noetig"
+            Log.e(TAG, lastDownloadError!!)
+            return@withContext false
+        }
 
         val client = HttpClient(OkHttp) {
             engine {
@@ -283,8 +299,13 @@ class ModelManager(
             Log.i(TAG, "Starte Download: ${model.name} von ${model.url}")
             // T102: prepareGet + execute streamt den Body. client.get() laedt die ganze Datei
             // (270-540 MB) zuerst in den Speicher — kein Fortschritt, hoher Heap-Verbrauch.
-            val statusOk = client.prepareGet(model.url).execute { response ->
+            val statusOk = client.prepareGet(model.url) {
+                // T121: eindeutige Kennung; Zenodo lehnt Anfragen ohne User-Agent mit HTTP 403 ab
+                headers.append(HttpHeaders.UserAgent, "PIROL-Android (+https://github.com/Nikiphedia/Pirol)")
+            }.execute { response ->
                 if (!response.status.isSuccess()) {
+                    lastDownloadError = "Server antwortet HTTP ${response.status.value}" +
+                        if (response.status.value == 429) " (zu viele Anfragen, spaeter erneut versuchen)" else ""
                     Log.e(TAG, "Download abgelehnt: HTTP ${response.status.value} fuer ${model.url}")
                     return@execute false
                 }
@@ -311,6 +332,7 @@ class ModelManager(
 
             // Groesse verifizieren
             if (tempFile.length() < MIN_MODEL_SIZE_BYTES) {
+                lastDownloadError = "Download unvollstaendig (${tempFile.length() / 1_048_576} MB)"
                 Log.e(TAG, "Heruntergeladene Datei zu klein: ${tempFile.length()} Bytes")
                 tempFile.delete()
                 return@withContext false
@@ -328,6 +350,7 @@ class ModelManager(
             onProgress(1.0f)
             true
         } catch (e: Exception) {
+            lastDownloadError = "${e.javaClass.simpleName}: ${e.message?.take(120) ?: "ohne Meldung"}"
             Log.e(TAG, "Download fehlgeschlagen: ${model.name}", e)
             tempFile.delete()
             false

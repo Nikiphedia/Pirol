@@ -360,7 +360,7 @@ fun OnboardingScreen(
                                         classifier.resetSession()
                                         Toast.makeText(context, "Modell heruntergeladen", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        importError = "Download fehlgeschlagen — bitte Internetverbindung pruefen"
+                                        importError = "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121
                                     }
                                 }
                             },
