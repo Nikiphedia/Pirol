@@ -37,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.TextButton
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
@@ -243,6 +244,7 @@ private fun SessionDetailView(
     val context = LocalContext.current
     var showAddManualDialog by remember { mutableStateOf(false) }
     var showRavenPreviewDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }  // T109
 
     // T74: Phenology
     val phenologyRepository: ch.etasystems.pirol.ml.PhenologyRepository = org.koin.compose.koinInject()
@@ -292,6 +294,47 @@ private fun SessionDetailView(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        // T109: Session-Bemerkung (editierbar)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = session.metadata.note?.takeIf { it.isNotBlank() } ?: "Keine Bemerkung",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (session.metadata.note.isNullOrBlank())
+                    MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f).padding(start = 12.dp)
+            )
+            IconButton(onClick = { showNoteDialog = true }) {
+                Icon(Icons.Filled.Edit, contentDescription = "Bemerkung bearbeiten")
+            }
+        }
+        if (showNoteDialog) {
+            var noteText by remember { mutableStateOf(session.metadata.note.orEmpty()) }
+            AlertDialog(
+                onDismissRequest = { showNoteDialog = false },
+                title = { Text("Bemerkung zur Session") },
+                text = {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it.replace('\n', ' ').take(200) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.updateSessionNote(noteText)
+                        showNoteDialog = false
+                    }) { Text("Speichern") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNoteDialog = false }) { Text("Abbrechen") }
+                }
+            )
         }
 
         HorizontalDivider()

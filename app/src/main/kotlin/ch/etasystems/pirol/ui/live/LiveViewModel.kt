@@ -453,6 +453,17 @@ class LiveViewModel(
         }
     }
 
+    // --- T109: Session-Bemerkung (Vorbelegung = zuletzt verwendete, persistiert) ---
+    private val _sessionNote = MutableStateFlow(appPreferences.lastSessionNote)
+    val sessionNote: StateFlow<String> = _sessionNote.asStateFlow()
+
+    /** Bemerkung fuer die naechste Session setzen (wird sofort als "zuletzt verwendet" gespeichert). */
+    fun setSessionNote(text: String) {
+        val v = text.take(200).replace('\n', ' ')
+        _sessionNote.value = v
+        appPreferences.lastSessionNote = v
+    }
+
     /**
      * Aufnahme starten. Erstellt Foreground-Service und startet Audio-Capture.
      * Bei aktivem Preroll: gepufferte Samples als chunk_000 speichern + im Sonogramm darstellen.
@@ -1140,7 +1151,8 @@ class LiveViewModel(
                                 latitude = loc?.latitude,
                                 longitude = loc?.longitude,
                                 regionFilter = config.regionFilter,
-                                confidenceThreshold = config.confidenceThreshold
+                                confidenceThreshold = config.confidenceThreshold,
+                                note = _sessionNote.value  // T109
                             )
                             currentSessionId = sessionId
                             // Fallback-Banner aktualisieren (T51)

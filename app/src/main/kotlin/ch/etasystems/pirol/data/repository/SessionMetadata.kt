@@ -42,5 +42,6 @@ data class SessionMetadata(
     val totalRecordedSamples: Long = 0L,
     val totalDetections: Int = 0,
     val gpsStats: GpsStats? = null,         // T53: nullable fuer Rueckwaertskompatibilitaet mit alten Sessions
-    val recordingSegments: List<RecordingSegment>? = null  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
+    val recordingSegments: List<RecordingSegment>? = null,  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
+    val note: String? = null        // T109: Freitext-Bemerkung zur Session (null = keine; alte session.json ohne Feld)
 )

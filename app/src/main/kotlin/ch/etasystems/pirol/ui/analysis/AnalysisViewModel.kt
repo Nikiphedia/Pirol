@@ -651,6 +651,27 @@ class AnalysisViewModel(
         }
     }
 
+    /** T109: Bemerkung der geoeffneten Session aendern (session.json + Raven-Datei neu schreiben). */
+    fun updateSessionNote(text: String) {
+        val current = _uiState.value.selectedSession ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = sessionManager.updateSessionNote(current.sessionDir, text.take(200), appPreferences)
+            if (updated == null) {
+                _uiState.update { it.copy(saveErrorMessage = "Bemerkung konnte nicht gespeichert werden") }
+                return@launch
+            }
+            _uiState.update { st ->
+                st.copy(
+                    selectedSession = st.selectedSession?.takeIf { it.sessionDir == current.sessionDir }
+                        ?.copy(metadata = updated) ?: st.selectedSession,
+                    sessions = st.sessions.map {
+                        if (it.sessionDir == current.sessionDir) it.copy(metadata = updated) else it
+                    }
+                )
+            }
+        }
+    }
+
     /** Raven-Export-Feedback nach Anzeige zuruecksetzen */
     fun consumeRavenExportMessage() {
         _uiState.update { it.copy(ravenExportMessage = null) }

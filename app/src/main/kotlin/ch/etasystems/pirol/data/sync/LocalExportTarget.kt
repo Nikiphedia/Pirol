@@ -3,6 +3,7 @@ package ch.etasystems.pirol.data.sync
 import android.content.Context
 import android.os.Environment
 import ch.etasystems.pirol.data.repository.SessionMetadata
+import ch.etasystems.pirol.data.repository.SessionNoteUtil
 import java.io.File
 
 /**
@@ -27,7 +28,7 @@ class LocalExportTarget(private val context: Context) : UploadTarget {
         val pirolDir = File(downloadsDir, "PIROL")
         pirolDir.mkdirs()
 
-        val targetFile = File(pirolDir, "${metadata.sessionId}.zip")
+        val targetFile = File(pirolDir, SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note))
 
         return try {
             onProgress(0.1f)

@@ -81,12 +81,29 @@ fun SessionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "$startStr – $endStr",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f)
-                )
+                // T109: Bemerkung als Titel, Datum/Zeit als Untertitel
+                if (!meta.note.isNullOrBlank()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = meta.note,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 2
+                        )
+                        Text(
+                            text = "$startStr – $endStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "$startStr – $endStr",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 if (onDelete != null) {
                     IconButton(
                         onClick = onDelete,
