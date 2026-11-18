@@ -86,7 +86,7 @@ class MapViewModel(
         viewModelScope.launch {
             snapshotFlow { detectionListState.version.value }.collect { _ ->
                 val live = detectionListState.getDetections().mapNotNull { det ->
-                    if (det.latitude != null && det.longitude != null) {
+                    if (det.latitude != null && det.longitude != null && isVisibleOnMap(det.verificationStatus)) {
                         MapMarker(
                             detectionId = det.id,
                             sessionId = "",
@@ -134,7 +134,7 @@ class MapViewModel(
                 val meta = sessionManager.loadMetadata(dir) ?: continue
                 val detections = sessionManager.loadDetectionsWithVerifications(dir)
                 for (det in detections) {
-                    if (det.latitude != null && det.longitude != null) {
+                    if (det.latitude != null && det.longitude != null && isVisibleOnMap(det.verificationStatus)) {
                         allMarkers.add(
                             MapMarker(
                                 detectionId = det.id,
