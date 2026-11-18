@@ -107,7 +107,7 @@ val appModule = module {
     viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }
 
     // ReferenceViewModel — Referenzbibliothek-UI
-    viewModel { ReferenceViewModel(get(), get()) }
+    viewModel { ReferenceViewModel(get(), get(), get(), androidContext()) }
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
     // T72: +1 Param (SpeciesNameResolver) fuer AddManualDetectionDialog (6→7 get())

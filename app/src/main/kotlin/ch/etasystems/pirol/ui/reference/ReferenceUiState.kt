@@ -13,5 +13,11 @@ data class ReferenceUiState(
     val recordings: List<ReferenceEntry> = emptyList(),    // Aufnahmen der ausgewaehlten Art
     val totalReferences: Int = 0,
     val playbackState: AudioPlayer.PlaybackState = AudioPlayer.PlaybackState.IDLE,
-    val playingEntryId: String? = null                     // ID der gerade spielenden Referenz
+    val playingEntryId: String? = null,                    // ID der gerade spielenden Referenz
+    // T123: Import
+    val pendingImportUri: android.net.Uri? = null,         // gewaehlte Datei, wartet auf Artwahl
+    val pendingImportName: String? = null,
+    val speciesSearchResults: List<Pair<String, String>> = emptyList(),  // (wiss. Name mit Leerzeichen, Anzeigename)
+    val isImporting: Boolean = false,
+    val message: String? = null                            // Snackbar/Hinweis
 )

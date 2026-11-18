@@ -28,6 +28,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -64,7 +74,33 @@ fun ReferenceScreen(
     viewModel: ReferenceViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    // T123: beim Oeffnen des Tabs Index neu laden (neu gespeicherte Referenzen erscheinen sofort)
+    LaunchedEffect(Unit) { viewModel.reload() }
+    LaunchedEffect(uiState.message) {
+        uiState.message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeMessage()
+        }
+    }
+
+    // T123: SAF-Dateiwahl fuer Audio-Import
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.onImportPicked(uri)
+    }
+
+    if (uiState.pendingImportUri != null) {
+        ImportSpeciesDialog(
+            fileName = uiState.pendingImportName.orEmpty(),
+            results = uiState.speciesSearchResults,
+            onQuery = viewModel::searchSpecies,
+            onPick = { sci, common -> viewModel.confirmImport(sci, common) },
+            onDismiss = viewModel::cancelImport
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -89,6 +125,10 @@ fun ReferenceScreen(
                 SpeciesListView(
                     speciesList = uiState.speciesList,
                     totalReferences = uiState.totalReferences,
+                    isImporting = uiState.isImporting,
+                    onImport = {
+                        importLauncher.launch(arrayOf("audio/*", "application/ogg", "application/octet-stream"))
+                    },
                     recordings = viewModel::selectSpecies,
                     // commonName aus den Entries holen
                     getCommonName = { scientificName ->
@@ -118,6 +158,59 @@ fun ReferenceScreen(
             }
         }
     }
+    SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/** T123: Artwahl fuer den Import (Autocomplete ueber SpeciesNameResolver). */
+@Composable
+private fun ImportSpeciesDialog(
+    fileName: String,
+    results: List<Pair<String, String>>,
+    onQuery: (String) -> Unit,
+    onPick: (scientificName: String, commonName: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Art der Aufnahme") },
+        text = {
+            Column {
+                Text(fileName, style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it; onQuery(it) },
+                    label = { Text("Art suchen (mind. 2 Zeichen)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(results, key = { it.first }) { (sci, common) ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .clickable { onPick(sci, common) }
+                                .padding(vertical = 6.dp)
+                        ) {
+                            Text(common, fontWeight = FontWeight.Bold)
+                            Text(
+                                sci,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontStyle = FontStyle.Italic,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
 }
 
 /** commonName fuer eine Art aus dem Repository holen */
@@ -145,6 +238,8 @@ private fun getSpeciesCount(scientificName: String, viewModel: ReferenceViewMode
 private fun SpeciesListView(
     speciesList: List<String>,
     totalReferences: Int,
+    isImporting: Boolean,
+    onImport: () -> Unit,
     recordings: (String) -> Unit,
     getCommonName: (String) -> String,
     getCount: (String) -> Int
@@ -167,6 +262,21 @@ private fun SpeciesListView(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        FilledTonalButton(
+            onClick = onImport,
+            enabled = !isImporting,
+            modifier = Modifier.heightIn(min = 48.dp)
+        ) {
+            if (isImporting) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Filled.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Audio importieren")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -195,7 +305,7 @@ private fun SpeciesListView(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Bestaetigen Sie Detektionen im Live-Tab\nund speichern Sie diese als Referenz",
+                        text = "Bestaetigte Detektionen als Referenz speichern\noder oben eine Audiodatei importieren",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -428,7 +538,7 @@ private fun RecordingCard(
 
             // Zeile 2: Session-ID
             Text(
-                text = "Session: ${entry.sourceSessionId}",
+                text = if (entry.source == "IMPORT") "Import: ${entry.originalName ?: "-"}" else "Session: ${entry.sourceSessionId}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

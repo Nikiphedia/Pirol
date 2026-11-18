@@ -19,7 +19,9 @@ data class ReferenceEntry(
     val addedAtMs: Long,                // Zeitpunkt des Hinzufuegens zur Bibliothek
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val verificationStatus: String      // "CONFIRMED" oder "CORRECTED"
+    val verificationStatus: String,     // "CONFIRMED", "CORRECTED" oder "IMPORTED"
+    val source: String = "DETECTION",   // T123: "DETECTION" oder "IMPORT"
+    val originalName: String? = null    // T123: Dateiname bei Import
 )
 
 /**
