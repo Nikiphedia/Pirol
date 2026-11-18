@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 
 /** T108: Kachel-Limit, Zoom-Bereich, Quellenwahl und Marker-Filter. */
 class MapSourcesTest {
@@ -32,9 +33,33 @@ class MapSourcesTest {
 
     @Test
     fun `Automatik waehlt swisstopo ab Zoom 13, feste Modi ignorieren den Zoom`() {
-        assertSame(SwisstopoFarbeTileSource, tileSourceFor(MapSourceMode.AUTO, 13))
-        assertSame(SwisstopoFarbeTileSource, tileSourceFor(MapSourceMode.SWISS_MAP, 8))
-        assertSame(SwisstopoLuftbildTileSource, tileSourceFor(MapSourceMode.SWISS_IMAGE, 8))
+        assertSame(SwisstopoFarbeTileSource, tileSourceFor(MapSourceMode.AUTO, 13, ZH_LAT, ZH_LON))
+        assertSame(TileSourceFactory.MAPNIK, tileSourceFor(MapSourceMode.AUTO, 12, ZH_LAT, ZH_LON))
+        assertSame(SwisstopoFarbeTileSource, tileSourceFor(MapSourceMode.SWISS_MAP, 8, BERLIN_LAT, BERLIN_LON))
+        assertSame(SwisstopoLuftbildTileSource, tileSourceFor(MapSourceMode.SWISS_IMAGE, 8, BERLIN_LAT, BERLIN_LON))
+    }
+
+    @Test
+    fun `Automatik nutzt ausserhalb der Schweiz auch bei hohem Zoom OSM`() {
+        assertSame(TileSourceFactory.MAPNIK, tileSourceFor(MapSourceMode.AUTO, 16, BERLIN_LAT, BERLIN_LON))
+        assertSame(TileSourceFactory.MAPNIK, tileSourceFor(MapSourceMode.AUTO, 16, 48.1, 11.6))
+    }
+
+    @Test
+    fun `Schweiz-Bounding-Box enthaelt CH-Orte und schliesst Nachbarn aus`() {
+        assertTrue(isInSwitzerland(ZH_LAT, ZH_LON))
+        assertTrue(isInSwitzerland(46.0, 8.95))   // Lugano
+        assertTrue(isInSwitzerland(47.14, 9.52))  // Vaduz
+        assertFalse(isInSwitzerland(BERLIN_LAT, BERLIN_LON))
+        assertFalse(isInSwitzerland(45.4, 9.2))   // Mailand
+        assertFalse(isInSwitzerland(48.85, 2.35)) // Paris
+    }
+
+    private companion object {
+        const val ZH_LAT = 47.3769
+        const val ZH_LON = 8.5417
+        const val BERLIN_LAT = 52.52
+        const val BERLIN_LON = 13.40
     }
 
     @Test
