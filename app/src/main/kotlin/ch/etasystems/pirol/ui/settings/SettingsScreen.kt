@@ -715,6 +715,52 @@ fun SettingsScreen(
             }
         }
 
+        // --- Ueberlappung der Analysefenster (T110) ---
+        Spacer(modifier = Modifier.height(12.dp))
+        var selectedOverlap by remember { mutableIntStateOf(appPreferences.overlapPercent) }
+        Text("Ueberlappung", style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Mehr Ueberlappung erkennt kurze Rufe an Fenstergrenzen besser, braucht aber " +
+                "mehr Rechenzeit. Wirkt voll nur mit Profil \"Genau\". Ist das Geraet zu langsam, " +
+                "wird automatisch reduziert. Gilt ab der naechsten Aufnahme.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        val overlapOptions = listOf(
+            Triple(0, "0 %", "Fenster alle 3 s (Standard)"),
+            Triple(50, "50 %", "Fenster alle 1.5 s"),
+            Triple(67, "67 %", "Fenster jede Sekunde")
+        )
+        overlapOptions.forEach { (percent, label, description) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        selectedOverlap = percent
+                        appPreferences.overlapPercent = percent
+                    }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = selectedOverlap == percent,
+                    onClick = {
+                        selectedOverlap = percent
+                        appPreferences.overlapPercent = percent
+                    }
+                )
+                Column(modifier = Modifier.padding(start = 4.dp)) {
+                    Text(label, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))

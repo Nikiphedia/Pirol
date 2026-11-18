@@ -4,103 +4,166 @@ import android.util.Log
 import ch.etasystems.pirol.audio.AudioChunk
 import ch.etasystems.pirol.audio.dsp.AudioDspUtils
 import ch.etasystems.pirol.audio.dsp.AudioResampler
+import kotlinx.coroutines.channels.Channel
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Coroutine-basierter Worker fuer die Inference-Pipeline.
  *
- * Orchestriert den gesamten Ablauf:
- * AudioChunk → ChunkAccumulator (3s) → AudioBlock (immer) → Intervall-Check → Inference
+ * Ab T110 zwei getrennte Pfade:
+ * - **Audio-Persistenz** (Collector-Coroutine, [processChunk]): AudioChunk → ChunkAccumulator →
+ *   PersistHop → [onAudioPersist]. Jedes Sample genau einmal, in Reihenfolge, nie durch
+ *   Inference verzoegert.
+ * - **Analyse** (eigene Coroutine, [runAnalysisLoop]): 3-s-Fenster im Hop-Raster (Overlap
+ *   0/50/67 %) → Puffer (1 Platz, aeltestes Fenster wird bei Stau verworfen) → Resampling →
+ *   ONNX → Regionalfilter → [onWindowAnalyzed] (nur bei Treffern).
  *
- * Wird pro Chunk vom LiveViewModel aufgerufen (suspend fuer cooperative Cancellation).
- * Der onChunkProcessed-Callback liefert den AudioBlock bei jedem vollstaendigen 3s-Block,
- * unabhaengig davon ob Inference stattfand oder Detektionen gefunden wurden.
+ * T29: Energiesparmodus — Fenster werden uebersprungen, wenn seit dem letzten analysierten
+ * Fenster weniger als inferenceIntervalMs Aufnahmezeit vergangen ist. Intervalle <= 3 s
+ * (Profil "Genau") analysieren jedes Fenster.
  *
- * Ab T12: Der Callback erhaelt zusaetzlich den AudioBlock (48kHz Float-Samples),
- * damit die Embedding-Pipeline darauf zugreifen kann.
+ * T110 Auto-Fallback: siehe [OverlapFallback]. Reduktion gilt bis reset() (Session-Ende).
  *
- * Ab T29: Intervall-Steuerung — Inference wird uebersprungen wenn das konfigurierte
- * Mindest-Intervall (inferenceIntervalMs) nicht erreicht ist. Audio wird IMMER
- * gespeichert (Daueraufnahme, T51).
- *
- * Ab T51: Daueraufnahme — onChunkProcessed wird bei jedem vollstaendigen 3s-Block
- * aufgerufen, auch wenn keine Detektionen vorliegen. detections == null bedeutet:
- * kein Inference-Ergebnis (Intervall-Skip oder keine Treffer).
- *
- * @param classifier Audio-Klassifizierer (via Koin injiziert)
- * @param regionalFilter Filter fuer regionale Artenliste (Plausibilitaetspruefung)
- * @param config Laufzeit-Konfiguration fuer Inference-Parameter (topK, Schwellwert, Regionalfilter, Intervall)
- * @param onChunkProcessed Callback fuer jeden vollstaendigen 3s-Block: AudioBlock (immer)
- *   + optionale Detektionsliste (null = kein Inference-Ergebnis)
+ * @param onAudioPersist schreibt PCM in die Session; liefert den WAV-Offset (s) VOR dem Append
+ *   oder null wenn keine Session aktiv ist
+ * @param onOverlapReduced einmal pro Session bei der ersten automatischen Reduktion (neuer Wert in %)
+ * @param onWindowAnalyzed AudioBlock des Fensters (inkl. Embedding) + Detektionen (nie leer)
  */
 class InferenceWorker(
     private val classifier: AudioClassifier,
     private val regionalFilter: RegionalSpeciesFilter,
     var config: InferenceConfig = InferenceConfig.DEFAULT,
-    private val onChunkProcessed: (AudioBlock, List<DetectionResult>?) -> Unit
+    private val onAudioPersist: (ShortArray) -> Float?,
+    private val onOverlapReduced: (Int) -> Unit = {},
+    private val onWindowAnalyzed: (AudioBlock, List<DetectionResult>) -> Unit
 ) {
     companion object {
         private const val TAG = "InferenceWorker"
         private const val TARGET_RATE = 32000
-        private const val ORIGINAL_RATE = 48000
+        private const val STATS_EVERY_WINDOWS = 20
+        private const val MAX_ANCHORS = 16
     }
 
-    private val accumulator = ChunkAccumulator()
+    /** Fenster inkl. Zuordnung zur Aufnahme, wird an die Analyse-Coroutine uebergeben */
+    private class WindowJob(
+        val window: AnalysisWindow,
+        val overlapPercent: Int,
+        val hopMs: Int,
+        val budgetMs: Long,
+        /** Wanduhr-Zeit (Epoch ms) des Fensterstarts */
+        val startEpochMs: Long,
+        /** Offset des Fensterstarts in recording.wav (s), null = keine Session */
+        val recordingOffsetSec: Float?
+    )
 
-    /** Zeitstempel der letzten ausgefuehrten Inference (ms seit Epoch) */
-    private var lastInferenceMs: Long = 0L
+    /** Zuordnung Stream-Index → WAV-Offset, gesetzt beim Persistieren eines Hops */
+    private class Anchor(val streamIndex: Long, val offsetSec: Float?)
+
+    private val accumulator = ChunkAccumulator()
+    private val fallback = OverlapFallback()
+
+    // Kapazitaet 1: max. ein wartendes Fenster, bei Stau wird das aelteste verworfen
+    private val windowChannel = Channel<WindowJob>(capacity = 1)
+    private val droppedWindows = AtomicInteger(0)
+
+    /** Obergrenze durch Auto-Fallback (100 = keine Begrenzung). Schreibt Analyse, liest Collector. */
+    @Volatile
+    private var overlapCap: Int = 100
+    @Volatile
+    private var reductionNotified = false
+
+    // Nur Collector-Coroutine
+    private val anchors = ArrayDeque<Anchor>()
+    private var lastAnalyzedStart = -1L
+    private var activeOverlap = 0
+
+    // Nur Analyse-Coroutine
+    private var analyzedWindows = 0
+
+    private fun effectiveOverlap(): Int =
+        OverlapFallback.normalize(minOf(config.overlapPercent, overlapCap))
 
     /**
-     * Verarbeitet einen AudioChunk.
-     *
-     * Akkumuliert Chunks bis 3s voll sind, dann:
-     * 0. AudioBlock erstellen (48kHz Float — immer, unabhaengig von Inference)
-     * 1. Intervall-Check: Zu frueh seit letzter Inference? → onChunkProcessed(block, null), return
-     * 2. Resampling auf 32 kHz (fuer BirdNET)
-     * 3. ONNX-Klassifizierung
-     * 4. Optionaler Regionalfilter (Plausibilitaetspruefung)
-     * 5. Mapping auf DetectionResult
-     * 6. Callback mit AudioBlock + Ergebnissen
-     *
-     * Jeder vollstaendige Block fuehrt zu GENAU EINEM onChunkProcessed-Aufruf.
+     * Verarbeitet einen AudioChunk (Collector-Coroutine). Kehrt ohne Inference zurueck.
      */
-    suspend fun processChunk(chunk: AudioChunk) {
-        val block = try {
+    fun processChunk(chunk: AudioChunk) {
+        // Overlap-Stufe anwenden (Setting oder Auto-Fallback)
+        val overlap = effectiveOverlap()
+        if (overlap != activeOverlap) {
+            Log.i(TAG, "Overlap $activeOverlap% → $overlap%")
+            activeOverlap = overlap
+        }
+        accumulator.hopMs = OverlapFallback.hopMsFor(overlap)
+
+        val result = try {
             accumulator.feed(chunk)
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "Samplerate-Wechsel erkannt, Accumulator wird zurueckgesetzt: ${e.message}")
+            // Bereits gesammelte Samples nicht verlieren
+            accumulator.flushPending()?.let { onAudioPersist(it.pcm) }
             accumulator.reset()
-            return
+            anchors.clear()
+            lastAnalyzedStart = -1L
+            accumulator.hopMs = OverlapFallback.hopMsFor(overlap)
+            accumulator.feed(chunk)
         }
 
-        // Kein Block fertig — weiter sammeln
-        if (block == null) return
-
-        // AudioBlock immer erstellen (T51: Daueraufnahme)
-        val floatSamples = FloatArray(block.samples.size) { i ->
-            block.samples[i].toFloat() / Short.MAX_VALUE.toFloat()
+        // 1. Persistenz zuerst — unabhaengig von der Analyse
+        for (hop in result.hops) {
+            val offsetSec = onAudioPersist(hop.pcm)
+            anchors.addLast(Anchor(hop.startIndex, offsetSec))
+            while (anchors.size > MAX_ANCHORS) anchors.removeFirst()
         }
-        val audioBlock = AudioBlock(
-            samples = floatSamples,
-            sampleRate = block.sampleRate,
-            pcm = block.samples  // T61: Original-PCM fuer WAV-Schreiben (keine Rueckkonvertierung noetig)
-        )
 
-        // T29: Intervall-Check — zu frueh fuer naechste Inference?
-        // Audio wird trotzdem geschrieben (onChunkProcessed mit null-Detektionen).
-        val now = System.currentTimeMillis()
-        if (now - lastInferenceMs < config.inferenceIntervalMs) {
-            Log.d(TAG, "Inference uebersprungen (Intervall ${config.inferenceIntervalMs}ms) — Audio wird gespeichert")
-            onChunkProcessed(audioBlock, null)
-            return
+        // 2. Analyse-Fenster einreihen
+        val nowEpoch = System.currentTimeMillis()
+        for (window in result.windows) {
+            val sr = window.sampleRate
+            val hopMs = OverlapFallback.hopMsFor(overlap)
+            val intervalMs = config.inferenceIntervalMs
+            // T29: Energiesparmodus ueber Aufnahmezeit (Sample-Raster), nicht ueber Wanduhr
+            if (intervalMs > CHUNK_DURATION_MS && lastAnalyzedStart >= 0 &&
+                (window.startIndex - lastAnalyzedStart) < sr.toLong() * intervalMs / 1000
+            ) {
+                continue
+            }
+            lastAnalyzedStart = window.startIndex
+
+            val anchor = anchors.lastOrNull { it.streamIndex <= window.startIndex }
+            val recordingOffsetSec = anchor?.offsetSec?.let {
+                it + (window.startIndex - anchor.streamIndex).toFloat() / sr
+            }
+            val startEpochMs = nowEpoch - (accumulator.totalSamples - window.startIndex) * 1000 / sr
+            val budgetMs = if (intervalMs > CHUNK_DURATION_MS) maxOf(hopMs.toLong(), intervalMs) else hopMs.toLong()
+
+            val job = WindowJob(window, overlap, hopMs, budgetMs, startEpochMs, recordingOffsetSec)
+            if (!windowChannel.trySend(job).isSuccess) {
+                // Stau: aeltestes wartendes Fenster verwerfen, neues einreihen
+                if (windowChannel.tryReceive().isSuccess) droppedWindows.incrementAndGet()
+                if (!windowChannel.trySend(job).isSuccess) droppedWindows.incrementAndGet()
+            }
         }
-        lastInferenceMs = now
+    }
 
+    /**
+     * Analyse-Schleife — laeuft bis zur Cancellation der aufrufenden Coroutine.
+     * Muss parallel zum Collector gestartet werden (z.B. launch im Inference-Job).
+     */
+    suspend fun runAnalysisLoop() {
+        for (job in windowChannel) {
+            analyze(job)
+        }
+    }
+
+    private fun analyze(job: WindowJob) {
+        val window = job.window
+        val t0 = System.nanoTime()
+        var detections: List<DetectionResult>? = null
+        var embedding: FloatArray? = null
         try {
             // 1. Resampling: ShortArray → FloatArray @32kHz
-            val resampled = AudioResampler.resample(
-                block.samples, block.sampleRate, TARGET_RATE
-            )
+            val resampled = AudioResampler.resample(window.pcm, window.sampleRate, TARGET_RATE)
 
             // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34)
             if (config.highpassEnabled) {
@@ -109,84 +172,116 @@ class InferenceWorker(
             AudioDspUtils.peakNormalize(resampled, 0.95f)
             AudioDspUtils.brickwallLimit(resampled, 1.0f)
 
-            // 2. Klassifizierung via AudioClassifier (Parameter aus config)
-            // T71: topKThreshold (0.3f) statt confidenceThreshold (0.5f) — erlaubt Multi-Label
-            // T61: Embedding kommt aus demselben Modell-Durchlauf (keine zweite Inference im Embedding-Arm)
+            // 2. Klassifizierung (T71: topKThreshold, T61: Embedding aus demselben Durchlauf)
             val output = classifier.classifyWithEmbedding(
                 samples = resampled,
                 sampleRate = TARGET_RATE,
                 topK = config.topK,
                 threshold = config.topKThreshold
             )
-            val classifierResults = output.results
-
-            if (classifierResults.isEmpty()) {
-                // Keine Ergebnisse ueber Schwellwert — Audio trotzdem speichern
-                onChunkProcessed(audioBlock, null)
-                return
-            }
-
-            // 3. Regionalfilter anwenden (falls konfiguriert)
-            val filteredResults = if (config.regionFilter != null && config.showOnlyFiltered) {
-                // Nur plausible Arten durchlassen
-                classifierResults.filter { cr ->
-                    val plausible = regionalFilter.isPlausible(cr.scientificName)
-                    if (!plausible) {
-                        Log.d(TAG, "Herausgefiltert (nicht regional plausibel): " +
-                                "${cr.commonName} (${cr.scientificName})")
-                    }
-                    plausible
-                }
-            } else {
-                // Alle behalten, aber ungewoehnliche Arten loggen
-                if (config.regionFilter != null) {
-                    classifierResults.forEach { cr ->
-                        if (!regionalFilter.isPlausible(cr.scientificName)) {
-                            Log.d(TAG, "Ungewoehnlich (nicht regional erwartet): " +
-                                    "${cr.commonName} (${cr.scientificName}) " +
-                                    "${(cr.confidence * 100).toInt()}%")
-                        }
-                    }
-                }
-                classifierResults
-            }
-
-            // 4. Mapping: ClassifierResult → DetectionResult (nur bei Treffern)
-            if (filteredResults.isNotEmpty()) {
-                val detections = filteredResults.map { cr ->
-                    DetectionResult(
-                        id = UUID.randomUUID().toString(),
-                        scientificName = cr.scientificName,
-                        commonName = cr.commonName,
-                        confidence = cr.confidence,
-                        timestampMs = now,
-                        chunkStartSec = cr.timeStartSec,
-                        chunkEndSec = cr.timeEndSec,
-                        sampleRate = block.sampleRate
-                    )
-                }
-
-                Log.d(TAG, "Detektionen: ${detections.size} Arten " +
-                        "(Top: ${detections.first().commonName} " +
-                        "${(detections.first().confidence * 100).toInt()}%)")
-
-                // 5. Ergebnisse + AudioBlock (inkl. Embedding) an Consumer liefern
-                onChunkProcessed(audioBlock.copy(embedding = output.embedding), detections)
-            } else {
-                // Nach Regionalfilter keine Treffer mehr — Audio trotzdem speichern
-                onChunkProcessed(audioBlock, null)
-            }
+            embedding = output.embedding
+            detections = mapResults(filterRegional(output.results), job)
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)
-            // Audio trotzdem sichern, auch bei Inference-Fehler
-            onChunkProcessed(audioBlock, null)
+        }
+        val inferMs = (System.nanoTime() - t0) / 1_000_000
+
+        // T110: Auto-Fallback + Statistik
+        analyzedWindows++
+        val dropped = droppedWindows.get()
+        val reduced = fallback.evaluate(job.overlapPercent, job.budgetMs, inferMs, dropped)
+        if (reduced != null && reduced < overlapCap && reduced < OverlapFallback.normalize(job.overlapPercent)) {
+            overlapCap = reduced
+            logStats(job, dropped, "fallback_to=$reduced")
+            if (!reductionNotified) {
+                reductionNotified = true
+                onOverlapReduced(reduced)
+            }
+        } else if (analyzedWindows % STATS_EVERY_WINDOWS == 0) {
+            logStats(job, dropped, null)
+        }
+
+        val dets = detections
+        if (!dets.isNullOrEmpty()) {
+            val floatSamples = FloatArray(window.pcm.size) { i ->
+                window.pcm[i].toFloat() / Short.MAX_VALUE.toFloat()
+            }
+            Log.d(TAG, "Detektionen: ${dets.size} Arten " +
+                    "(Top: ${dets.first().commonName} ${(dets.first().confidence * 100).toInt()}%)")
+            onWindowAnalyzed(
+                AudioBlock(floatSamples, window.sampleRate, pcm = window.pcm, embedding = embedding),
+                dets
+            )
         }
     }
 
-    /** Pipeline zuruecksetzen (bei Recording-Stop/Neustart) */
+    private fun logStats(job: WindowJob, dropped: Int, extra: String?) {
+        Log.i(
+            TAG,
+            "T110_STATS overlap=${job.overlapPercent} hop_ms=${job.hopMs} " +
+                    "infer_ms_median=${fallback.medianMs()} dropped_windows=$dropped " +
+                    "analyzed_windows=$analyzedWindows" + (extra?.let { " $it" } ?: "")
+        )
+    }
+
+    private fun filterRegional(classifierResults: List<AudioClassifier.ClassifierResult>): List<AudioClassifier.ClassifierResult> {
+        if (config.regionFilter != null && config.showOnlyFiltered) {
+            // Nur plausible Arten durchlassen
+            return classifierResults.filter { cr ->
+                val plausible = regionalFilter.isPlausible(cr.scientificName)
+                if (!plausible) {
+                    Log.d(TAG, "Herausgefiltert (nicht regional plausibel): " +
+                            "${cr.commonName} (${cr.scientificName})")
+                }
+                plausible
+            }
+        }
+        // Alle behalten, aber ungewoehnliche Arten loggen
+        if (config.regionFilter != null) {
+            classifierResults.forEach { cr ->
+                if (!regionalFilter.isPlausible(cr.scientificName)) {
+                    Log.d(TAG, "Ungewoehnlich (nicht regional erwartet): " +
+                            "${cr.commonName} (${cr.scientificName}) " +
+                            "${(cr.confidence * 100).toInt()}%")
+                }
+            }
+        }
+        return classifierResults
+    }
+
+    /**
+     * ClassifierResult → DetectionResult.
+     * T110: timestampMs = Wanduhr des Fensterstarts; chunkStartSec/EndSec = Fenster in recording.wav
+     * (nur mit aktiver Session, sonst Classifier-Werte wie bisher).
+     */
+    private fun mapResults(results: List<AudioClassifier.ClassifierResult>, job: WindowJob): List<DetectionResult> {
+        val window = job.window
+        val durationSec = window.pcm.size.toFloat() / window.sampleRate
+        return results.map { cr ->
+            DetectionResult(
+                id = UUID.randomUUID().toString(),
+                scientificName = cr.scientificName,
+                commonName = cr.commonName,
+                confidence = cr.confidence,
+                timestampMs = job.startEpochMs,
+                chunkStartSec = job.recordingOffsetSec ?: cr.timeStartSec,
+                chunkEndSec = job.recordingOffsetSec?.let { it + durationSec } ?: cr.timeEndSec,
+                sampleRate = window.sampleRate
+            )
+        }
+    }
+
+    /** Pipeline zuruecksetzen (bei Recording-Stop/Neustart). Jobs muessen vorher gestoppt sein. */
     fun reset() {
         accumulator.reset()
-        lastInferenceMs = 0L
+        while (windowChannel.tryReceive().isSuccess) { /* wartende Fenster verwerfen */ }
+        anchors.clear()
+        lastAnalyzedStart = -1L
+        fallback.reset()
+        droppedWindows.set(0)
+        overlapCap = 100
+        reductionNotified = false
+        analyzedWindows = 0
         Log.d(TAG, "Pipeline zurueckgesetzt")
     }
 }

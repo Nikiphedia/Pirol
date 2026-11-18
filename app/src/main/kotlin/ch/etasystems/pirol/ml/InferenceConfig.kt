@@ -33,7 +33,10 @@ data class InferenceConfig(
     val inferenceIntervalMs: Long = CHUNK_DURATION_MS,
 
     /** Hochpassfilter (~200Hz Butterworth 2. Ordnung) gegen Wind/Trittschall (T34) */
-    val highpassEnabled: Boolean = true
+    val highpassEnabled: Boolean = true,
+
+    /** Ueberlappung der 3-s-Analysefenster in Prozent: 0 (Hop 3 s), 50 (1.5 s), 67 (1 s) — T110 */
+    val overlapPercent: Int = 0
 ) {
     companion object {
         /** Standard-Konfiguration: ausgewogen (TopK=3, Threshold=0.3) */

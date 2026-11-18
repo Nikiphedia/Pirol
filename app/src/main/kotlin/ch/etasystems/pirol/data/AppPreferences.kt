@@ -341,4 +341,9 @@ class AppPreferences(context: Context) {
     var mapSourceMode: String
         get() = prefs.getString("pirol_map_source_mode", "AUTO") ?: "AUTO"
         set(value) = prefs.edit().putString("pirol_map_source_mode", value).apply()
+
+    /** T110: Ueberlappung der Analysefenster in Prozent (0, 50, 67), Default 0 */
+    var overlapPercent: Int
+        get() = prefs.getInt("pirol_overlap_percent", 0)
+        set(value) = prefs.edit().putInt("pirol_overlap_percent", value).apply()
 }
