@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.navigation
 
+import androidx.annotation.StringRes
+import ch.etasystems.pirol.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Analytics
@@ -11,14 +13,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 // 5 Haupttabs: Live | Analyse | Referenzen | Karte | Settings
 enum class Screen(
     val route: String,
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: ImageVector
 ) {
-    Live("live", "Live", Icons.Filled.Mic),
-    Analysis("analysis", "Analyse", Icons.Filled.Analytics),
-    Reference("reference", "Referenzen", Icons.AutoMirrored.Filled.LibraryBooks),
-    Map("map", "Karte", Icons.Filled.Map),
-    Settings("settings", "Settings", Icons.Filled.Settings)
+    Live("live", R.string.tab_live, Icons.Filled.Mic),
+    Analysis("analysis", R.string.tab_analysis, Icons.Filled.Analytics),
+    Reference("reference", R.string.tab_reference, Icons.AutoMirrored.Filled.LibraryBooks),
+    Map("map", R.string.tab_map, Icons.Filled.Map),
+    Settings("settings", R.string.tab_settings, Icons.Filled.Settings)
 }
 
 /** Route fuer den Onboarding-Screen (nicht im Tab-Bar sichtbar) */

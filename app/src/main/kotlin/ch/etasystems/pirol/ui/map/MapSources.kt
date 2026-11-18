@@ -1,15 +1,17 @@
 package ch.etasystems.pirol.ui.map
 
+import androidx.annotation.StringRes
+import ch.etasystems.pirol.R
 import ch.etasystems.pirol.ml.VerificationStatus
 import org.osmdroid.tileprovider.tilesource.ITileSource
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 
 /** Waehlbare Kartenquelle (T108), gespeichert als Name in AppPreferences. */
-enum class MapSourceMode(val label: String) {
-    AUTO("Automatisch"),
-    OSM("OpenStreetMap"),
-    SWISS_MAP("swisstopo Karte"),
-    SWISS_IMAGE("swisstopo Luftbild");
+enum class MapSourceMode(@StringRes val labelRes: Int) {
+    AUTO(R.string.map_source_auto),
+    OSM(R.string.map_source_osm),
+    SWISS_MAP(R.string.map_source_swiss_map),
+    SWISS_IMAGE(R.string.map_source_swiss_image);
 
     companion object {
         fun fromName(name: String?): MapSourceMode = entries.firstOrNull { it.name == name } ?: AUTO

@@ -94,6 +94,9 @@ import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
 import ch.etasystems.pirol.ui.components.forDisplay
 import ch.etasystems.pirol.ui.components.onSpectrogramLongPress
 import kotlin.math.roundToInt
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 @Composable
 fun LiveScreen(
@@ -260,7 +263,7 @@ private fun StorageFallbackBanner() {
                 tint = MaterialTheme.colorScheme.onErrorContainer
             )
             Text(
-                text = "Speicherort nicht erreichbar — Aufnahme im Fallback-Ordner gespeichert.",
+                text = stringResource(R.string.live_speicherort_nicht_erreichbar_aufnahm),
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 8.dp),
@@ -379,7 +382,7 @@ private fun CompactLiveLayout(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Mic,
-                            contentDescription = "Memo aufnehmen",
+                            contentDescription = stringResource(R.string.ui_memo_aufnehmen),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -392,7 +395,7 @@ private fun CompactLiveLayout(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.AddCircle,
-                            contentDescription = "+ Art",
+                            contentDescription = stringResource(R.string.analysis_art),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -421,7 +424,7 @@ private fun CompactLiveLayout(
                                 Icons.Filled.Stop
                             else
                                 Icons.Filled.Mic,
-                            contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                            contentDescription = if (uiState.isPrerollRunning) stringResource(R.string.live_preroll_stoppen) else stringResource(R.string.live_preroll_starten),
                             tint = if (uiState.isPrerollRunning)
                                 Color.White
                             else
@@ -451,8 +454,8 @@ private fun CompactLiveLayout(
     if (showMemoDialog) {
         AlertDialog(
             onDismissRequest = { showMemoDialog = false },
-            title = { Text("Sprach-Memo") },
-            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            title = { Text(stringResource(R.string.ui_sprach_memo)) },
+            text = { Text(stringResource(R.string.live_sprach_memo_funktion_wird_in)) },
             confirmButton = {
                 TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
             }
@@ -576,7 +579,7 @@ private fun MediumLiveLayout(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Mic,
-                                contentDescription = "Memo aufnehmen",
+                                contentDescription = stringResource(R.string.ui_memo_aufnehmen),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -589,7 +592,7 @@ private fun MediumLiveLayout(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.AddCircle,
-                                contentDescription = "+ Art",
+                                contentDescription = stringResource(R.string.analysis_art),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -618,7 +621,7 @@ private fun MediumLiveLayout(
                                     Icons.Filled.Stop
                                 else
                                     Icons.Filled.Mic,
-                                contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                                contentDescription = if (uiState.isPrerollRunning) stringResource(R.string.live_preroll_stoppen) else stringResource(R.string.live_preroll_starten),
                                 tint = if (uiState.isPrerollRunning)
                                     Color.White
                                 else
@@ -649,8 +652,8 @@ private fun MediumLiveLayout(
     if (showMemoDialog) {
         AlertDialog(
             onDismissRequest = { showMemoDialog = false },
-            title = { Text("Sprach-Memo") },
-            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            title = { Text(stringResource(R.string.ui_sprach_memo)) },
+            text = { Text(stringResource(R.string.live_sprach_memo_funktion_wird_in)) },
             confirmButton = {
                 TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
             }
@@ -774,7 +777,7 @@ private fun ExpandedLiveLayout(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Mic,
-                                contentDescription = "Memo aufnehmen",
+                                contentDescription = stringResource(R.string.ui_memo_aufnehmen),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -787,7 +790,7 @@ private fun ExpandedLiveLayout(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.AddCircle,
-                                contentDescription = "+ Art",
+                                contentDescription = stringResource(R.string.analysis_art),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -816,7 +819,7 @@ private fun ExpandedLiveLayout(
                                     Icons.Filled.Stop
                                 else
                                     Icons.Filled.Mic,
-                                contentDescription = if (uiState.isPrerollRunning) "Preroll stoppen" else "Preroll starten",
+                                contentDescription = if (uiState.isPrerollRunning) stringResource(R.string.live_preroll_stoppen) else stringResource(R.string.live_preroll_starten),
                                 tint = if (uiState.isPrerollRunning)
                                     Color.White
                                 else
@@ -847,8 +850,8 @@ private fun ExpandedLiveLayout(
     if (showMemoDialog) {
         AlertDialog(
             onDismissRequest = { showMemoDialog = false },
-            title = { Text("Sprach-Memo") },
-            text = { Text("Sprach-Memo Funktion — wird in Cluster E implementiert") },
+            title = { Text(stringResource(R.string.ui_sprach_memo)) },
+            text = { Text(stringResource(R.string.live_sprach_memo_funktion_wird_in)) },
             confirmButton = {
                 TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
             }
@@ -874,7 +877,7 @@ private fun LiveHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Live-Aufnahme",
+            text = stringResource(R.string.live_live_aufnahme),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -893,7 +896,7 @@ private fun LiveHeader(
             }) {
                 Icon(
                     Icons.Filled.Palette,
-                    contentDescription = "Farbpalette wechseln (${palette.name})",
+                    contentDescription = stringResource(R.string.live_farbpalette_wechseln, palette.name),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -936,11 +939,11 @@ private fun SessionNoteField(viewModel: LiveViewModel) {
         onValueChange = { viewModel.setSessionNote(it) },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodySmall,
-        placeholder = { Text("Bemerkung zur Session (optional)", style = MaterialTheme.typography.bodySmall) },
+        placeholder = { Text(stringResource(R.string.live_bemerkung_zur_session_optional), style = MaterialTheme.typography.bodySmall) },
         trailingIcon = if (note.isNotEmpty()) {
             {
                 IconButton(onClick = { viewModel.setSessionNote("") }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Bemerkung leeren")
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.live_bemerkung_leeren))
                 }
             }
         } else null,
@@ -960,17 +963,17 @@ private fun ScanStatusRow(
     viewModel: LiveViewModel
 ) {
     val configLabel = when (uiState.spectrogramConfig) {
-        SpectrogramConfig.BIRDS -> "Voegel"
-        SpectrogramConfig.BATS -> "Fledermaus"
-        SpectrogramConfig.WIDEBAND -> "Breitband"
-        else -> "Voegel"
+        SpectrogramConfig.BIRDS -> AppStrings.get(R.string.live_voegel)
+        SpectrogramConfig.BATS -> AppStrings.get(R.string.live_fledermaus)
+        SpectrogramConfig.WIDEBAND -> AppStrings.get(R.string.live_breitband)
+        else -> AppStrings.get(R.string.live_voegel)
     }
     val regionLabel = when (uiState.inferenceConfig.regionFilter) {
         "ch_breeding" -> "CH"
         "ch_all" -> "CH+"
         "central_europe" -> "EU"
-        "all" -> "Alle"
-        null -> "Aus"
+        "all" -> AppStrings.get(R.string.common_all)
+        null -> AppStrings.get(R.string.common_off)
         else -> uiState.inferenceConfig.regionFilter ?: "?"
     }
 
@@ -1012,7 +1015,7 @@ private fun ScanStatusRow(
                 } else {
                     Icon(
                         imageVector = Icons.Filled.Upload,
-                        contentDescription = "Session exportieren",
+                        contentDescription = stringResource(R.string.live_session_exportieren),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -1115,9 +1118,9 @@ private fun SpectrogramBox(
             ) {
                 Text(
                     text = when {
-                        uiState.isRecording -> "Sonogramm wird geladen\u2026"
-                        uiState.isServiceBound -> "Bereit \u2014 Aufnahme starten"
-                        else -> "Sonogramm \u2014 Aufnahme starten"
+                        uiState.isRecording -> stringResource(R.string.live_sonogramm_wird_geladen)
+                        uiState.isServiceBound -> stringResource(R.string.live_bereit_aufnahme_starten)
+                        else -> stringResource(R.string.live_sonogramm_aufnahme_starten)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.6f)
@@ -1137,7 +1140,7 @@ private fun PrerollIndicator(uiState: LiveUiState) {
     when {
         uiState.isPrerollRunning && !uiState.isRecording -> {
             Text(
-                text = "\u25CF Buffer aktiv \u2014 letzte 30s verfuegbar",
+                text = stringResource(R.string.live_buffer_aktiv_letzte_30s_verfuegbar),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.padding(top = 4.dp, start = 4.dp)
@@ -1145,7 +1148,7 @@ private fun PrerollIndicator(uiState: LiveUiState) {
         }
         uiState.isRecording -> {
             Text(
-                text = "\u25B6 Live-Aufnahme \u2014 Preroll-Buffer gesichert",
+                text = stringResource(R.string.live_live_aufnahme_preroll_buffer_gesiche),
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(0xFFD32F2F).copy(alpha = 0.8f),
                 modifier = Modifier.padding(top = 4.dp, start = 4.dp)
@@ -1187,10 +1190,10 @@ private fun RecordingFab(
     }
 
     val fabDescription = when (fabState) {
-        RecordingFabState.RECORDING        -> "Aufnahme stoppen"
-        RecordingFabState.PREROLL_BUFFERING -> "Preroll\u2026"
-        RecordingFabState.CONNECTING       -> "Verbinde\u2026"
-        else -> "Aufnahme starten"
+        RecordingFabState.RECORDING        -> AppStrings.get(R.string.ui_aufnahme_stoppen)
+        RecordingFabState.PREROLL_BUFFERING -> AppStrings.get(R.string.live_preroll)
+        RecordingFabState.CONNECTING       -> AppStrings.get(R.string.live_verbinde)
+        else -> AppStrings.get(R.string.live_aufnahme_starten)
     }
 
     // T52: PREROLL_BUFFERING und CONNECTING deaktivieren (kein Tap moeglich)
@@ -1254,7 +1257,7 @@ private fun RecordingFab(
             ) {
                 Icon(
                     Icons.Filled.Stop,
-                    contentDescription = "Aufnahme stoppen (lang drücken)",
+                    contentDescription = stringResource(R.string.live_aufnahme_stoppen_lang_druecken),
                     tint = Color.White
                 )
             }
@@ -1349,7 +1352,7 @@ private fun LocationBar(
             )
             if (fixAgeSeconds != null) {
                 Text(
-                    text = "Fix: vor ${fixAgeSeconds}s",
+                    text = stringResource(R.string.live_fix_vor_s, fixAgeSeconds),
                     style = MaterialTheme.typography.labelSmall,
                     color = fixAgeColor
                 )
@@ -1357,7 +1360,7 @@ private fun LocationBar(
         }
     } else {
         Text(
-            text = "GPS nicht verfuegbar",
+            text = stringResource(R.string.live_gps_nicht_verfuegbar),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier

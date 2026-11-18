@@ -34,6 +34,8 @@ import org.koin.compose.koinInject
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 /**
  * Grosser Watchlist-Alarm-Hinweis (T124). Wird app-weit ueber allen Tabs angezeigt,
@@ -68,7 +70,7 @@ fun AlarmOverlay(alarmService: AlarmService = koinInject()) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = if (e.isTest) "WATCHLIST-ALARM (Test)" else "WATCHLIST-ALARM",
+                    text = if (e.isTest) stringResource(R.string.ui_watchlist_alarm_test) else stringResource(R.string.ui_watchlist_alarm),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -87,7 +89,7 @@ fun AlarmOverlay(alarmService: AlarmService = koinInject()) {
                 )
                 Spacer(Modifier.padding(4.dp))
                 Text(
-                    text = "${(e.confidence * 100).toInt()}% Konfidenz - $time",
+                    text = stringResource(R.string.ui_konfidenz, (e.confidence * 100).toInt(), time),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -99,11 +101,11 @@ fun AlarmOverlay(alarmService: AlarmService = koinInject()) {
                     OutlinedButton(
                         onClick = { alarmService.dismissActiveAlarm() },
                         modifier = Modifier.weight(1f).heightIn(min = 56.dp)
-                    ) { Text("Schliessen") }
+                    ) { Text(stringResource(R.string.common_close)) }
                     Button(
                         onClick = { alarmService.confirmActiveAlarm() },
                         modifier = Modifier.weight(1f).heightIn(min = 56.dp)
-                    ) { Text(if (e.isTest) "OK" else "Bestaetigen") }
+                    ) { Text(if (e.isTest) "OK" else stringResource(R.string.ui_bestaetigen)) }
                 }
             }
         }

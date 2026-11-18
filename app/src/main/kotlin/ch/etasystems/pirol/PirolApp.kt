@@ -2,6 +2,7 @@ package ch.etasystems.pirol
 
 import android.app.Application
 import ch.etasystems.pirol.di.appModule
+import ch.etasystems.pirol.ui.AppStrings
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
@@ -11,6 +12,7 @@ class PirolApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppStrings.init(this)
 
         // osmdroid — zwingend vor erstem MapView-Konstruktor
         Configuration.getInstance().apply {

@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.map
 
+import ch.etasystems.pirol.R
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import org.junit.Assert.assertEquals
@@ -37,7 +38,10 @@ class MapVerificationTest {
     }
 
     @Test fun messageAndWithStatus() {
-        assertTrue(MapVerification.message(VerificationStatus.REJECTED, "Amsel").contains("abgelehnt"))
+        assertEquals(
+            "${R.string.live_abgelehnt}:Amsel",
+            MapVerification.message(VerificationStatus.REJECTED, "Amsel") { id, arg -> "$id:$arg" }
+        )
         assertEquals(VerificationStatus.CONFIRMED,
             MapVerification.withStatus(marker, VerificationStatus.CONFIRMED).verificationStatus)
     }

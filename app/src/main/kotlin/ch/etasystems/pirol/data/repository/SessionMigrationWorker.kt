@@ -14,6 +14,8 @@ import androidx.work.workDataOf
 import ch.etasystems.pirol.data.AppPreferences
 import java.io.File
 import java.util.UUID
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * WorkManager CoroutineWorker fuer Session-Migration im Hintergrund.
@@ -132,10 +134,10 @@ class SessionMigrationWorker(
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Session-Migration",
+            AppStrings.get(R.string.svc_session_migration),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Sessions werden an neuen Speicherort kopiert"
+            description = AppStrings.get(R.string.svc_sessions_werden_an_neuen_speicherort)
         }
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
@@ -145,8 +147,8 @@ class SessionMigrationWorker(
         val progressPercent = if (total > 0) (progress * 100 / total) else 0
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_save)
-            .setContentTitle("Sessions werden verschoben")
-            .setContentText(if (total > 0) "$progress / $total" else "Vorbereitung...")
+            .setContentTitle(AppStrings.get(R.string.svc_sessions_werden_verschoben))
+            .setContentText(if (total > 0) "$progress / $total" else AppStrings.get(R.string.svc_vorbereitung))
             .setProgress(100, progressPercent, total == 0)
             .setOngoing(true)
             .setSilent(true)

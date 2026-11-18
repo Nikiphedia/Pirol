@@ -49,6 +49,9 @@ import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * Sprach-Memo UI-Sektion fuer den EditDetectionDialog (T69).
@@ -101,7 +104,7 @@ fun VoiceMemoSection(
     // 60s-Cap-Signal
     LaunchedEffect(recorder) {
         recorder.capReached.collect {
-            onSnackbar("Memo auf 60s gekürzt")
+            onSnackbar(AppStrings.get(R.string.analysis_memo_auf_60s_gekuerzt))
             currentRelPath = "memos/$detectionId.wav"
             onMemoChanged(currentRelPath)
         }
@@ -142,14 +145,14 @@ fun VoiceMemoSection(
                                     currentRelPath = "memos/$detectionId.wav"
                                     onMemoChanged(currentRelPath)
                                 }.onFailure {
-                                    onSnackbar("Aufnahme konnte nicht gespeichert werden")
+                                    onSnackbar(AppStrings.get(R.string.ui_aufnahme_konnte_nicht_gespeichert_we))
                                 }
                             }
                         }
                     ) {
                         Icon(
                             Icons.Filled.Stop,
-                            contentDescription = "Aufnahme stoppen",
+                            contentDescription = stringResource(R.string.ui_aufnahme_stoppen),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -180,12 +183,12 @@ fun VoiceMemoSection(
                     ) {
                         Icon(
                             if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) "Pausieren" else "Abspielen",
+                            contentDescription = if (isPlaying) stringResource(R.string.ui_pausieren) else stringResource(R.string.common_play),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     Text(
-                        text = "Sprach-Memo",
+                        text = stringResource(R.string.ui_sprach_memo),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -201,7 +204,7 @@ fun VoiceMemoSection(
                     ) {
                         Icon(
                             Icons.Filled.Delete,
-                            contentDescription = "Memo löschen",
+                            contentDescription = stringResource(R.string.ui_memo_loeschen),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -224,19 +227,19 @@ fun VoiceMemoSection(
                                 } else {
                                     Result.failure(IllegalStateException("Kein Ziel konfiguriert"))
                                 }
-                                result.onFailure { onSnackbar("Aufnahme fehlgeschlagen: ${it.message}") }
+                                result.onFailure { onSnackbar(AppStrings.get(R.string.ui_aufnahme_fehlgeschlagen, it.message)) }
                             }
                         },
                         enabled = targetFile != null || targetUri != null
                     ) {
                         Icon(
                             Icons.Filled.Mic,
-                            contentDescription = "Memo aufnehmen",
+                            contentDescription = stringResource(R.string.ui_memo_aufnehmen),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     Text(
-                        text = "Memo aufnehmen",
+                        text = stringResource(R.string.ui_memo_aufnehmen),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

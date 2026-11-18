@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -153,7 +155,7 @@ private fun TimeAxis(
     ) {
         // "Jetzt" rechts
         Text(
-            text = "jetzt",
+            text = stringResource(R.string.ui_jetzt),
             fontSize = 9.sp,
             color = Color.White.copy(alpha = 0.85f),
             modifier = Modifier

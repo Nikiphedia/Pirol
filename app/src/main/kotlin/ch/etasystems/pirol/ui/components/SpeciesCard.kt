@@ -82,6 +82,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * Material 3 Card fuer eine einzelne Artendetektion.
@@ -257,7 +260,7 @@ fun SpeciesCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Filled.NotificationsActive,
-                            contentDescription = "Watchlist",
+                            contentDescription = stringResource(R.string.ui_watchlist),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(16.dp)
                         )
@@ -267,7 +270,7 @@ fun SpeciesCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Filled.PanTool,
-                            contentDescription = "Manuell hinzugefuegt",
+                            contentDescription = stringResource(R.string.ui_manuell_hinzugefuegt),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
                         )
@@ -280,14 +283,14 @@ fun SpeciesCard(
                                 containerColor = androidx.compose.ui.graphics.Color(0xFFFF9800),
                                 contentColor = androidx.compose.ui.graphics.Color.White
                             ) {
-                                Text("Saison-untypisch", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.ui_saison_untypisch), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                         if (rarityScore > 0.7f) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Filled.Star,
-                                contentDescription = "Selten",
+                                contentDescription = stringResource(R.string.ui_selten),
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(14.dp)
                             )
@@ -298,7 +301,7 @@ fun SpeciesCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Filled.Lock,
-                            contentDescription = "Gesperrt",
+                            contentDescription = stringResource(R.string.ui_gesperrt),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
                         )
@@ -362,7 +365,7 @@ fun SpeciesCard(
                 when (detection.verificationStatus) {
                     VerificationStatus.CONFIRMED -> {
                         Text(
-                            text = "Bestaetigt",
+                            text = stringResource(R.string.ui_bestaetigt),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF4CAF50)
@@ -370,7 +373,7 @@ fun SpeciesCard(
                     }
                     VerificationStatus.REJECTED -> {
                         Text(
-                            text = "Abgelehnt",
+                            text = stringResource(R.string.ui_abgelehnt),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.error
@@ -386,7 +389,7 @@ fun SpeciesCard(
                     }
                     VerificationStatus.UNCERTAIN -> {
                         Text(
-                            text = "Unsicher",
+                            text = stringResource(R.string.ui_unsicher),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFFF9800)
@@ -394,7 +397,7 @@ fun SpeciesCard(
                     }
                     VerificationStatus.REPLACED -> {
                         Text(
-                            text = "Ersetzt \u2192 ${detection.correctedSpecies ?: "?"}",
+                            text = stringResource(R.string.ui_ersetzt, detection.correctedSpecies ?: "?"),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.error
@@ -422,7 +425,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = if (isConfirmed) (onMarkUncertain ?: onConfirm) else onConfirm,
                             icon = if (isConfirmed) Icons.AutoMirrored.Filled.Undo else Icons.Filled.Check,
-                            description = if (isConfirmed) "Bestaetigung rueckgaengig" else "Bestaetigen",
+                            description = if (isConfirmed) AppStrings.get(R.string.ui_bestaetigung_rueckgaengig) else AppStrings.get(R.string.ui_bestaetigen),
                             containerColor = if (isConfirmed) Color(0xFF4CAF50) else neutralContainer,
                             contentColor = if (isConfirmed) Color.White else neutralContent
                         )
@@ -434,7 +437,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onMarkUncertain,
                             icon = Icons.AutoMirrored.Filled.Help,
-                            description = "Unsicher",
+                            description = AppStrings.get(R.string.ui_unsicher),
                             containerColor = if (active) Color(0xFFFF9800) else neutralContainer,
                             contentColor = if (active) Color.White else neutralContent
                         )
@@ -446,7 +449,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onReject,
                             icon = Icons.Filled.Close,
-                            description = "Ablehnen",
+                            description = AppStrings.get(R.string.ui_ablehnen),
                             containerColor = if (active) MaterialTheme.colorScheme.error else neutralContainer,
                             contentColor = if (active) MaterialTheme.colorScheme.onError else neutralContent
                         )
@@ -461,7 +464,7 @@ fun SpeciesCard(
                                 showCorrectionDialog = true
                             },
                             icon = Icons.Filled.Edit,
-                            description = "Korrigieren",
+                            description = AppStrings.get(R.string.ui_korrigieren),
                             containerColor = if (active) Color(0xFF2196F3) else neutralContainer,
                             contentColor = if (active) Color.White else neutralContent
                         )
@@ -472,7 +475,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = { showEditDialog = true },
                             icon = Icons.AutoMirrored.Filled.List,
-                            description = "Detail-Eingaben",
+                            description = AppStrings.get(R.string.ui_detail_eingaben),
                             containerColor = if (hasCustomData) MaterialTheme.colorScheme.primaryContainer else neutralContainer,
                             contentColor = if (hasCustomData) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent
                         )
@@ -484,7 +487,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onSaveAsReference,
                             icon = if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd,
-                            description = if (isReference) "Referenz entfernen" else "Als Referenz speichern",
+                            description = if (isReference) AppStrings.get(R.string.ui_referenz_entfernen) else AppStrings.get(R.string.ui_als_referenz_speichern),
                             containerColor = if (isReference) MaterialTheme.colorScheme.primary else neutralContainer,
                             contentColor = if (isReference) MaterialTheme.colorScheme.onPrimary else neutralContent
                         )
@@ -495,7 +498,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onCompare,
                             icon = Icons.AutoMirrored.Filled.CompareArrows,
-                            description = "Vergleichen",
+                            description = AppStrings.get(R.string.ui_vergleichen),
                             containerColor = neutralContainer,
                             contentColor = neutralContent
                         )
@@ -506,7 +509,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onPlay,
                             icon = Icons.Filled.PlayArrow,
-                            description = "Abspielen",
+                            description = AppStrings.get(R.string.common_play),
                             containerColor = neutralContainer,
                             contentColor = neutralContent,
                             enabled = isPlayEnabled
@@ -517,7 +520,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onShare,
                             icon = Icons.Filled.Share,
-                            description = "Teilen",
+                            description = AppStrings.get(R.string.ui_teilen),
                             containerColor = neutralContainer,
                             contentColor = neutralContent
                         )
@@ -533,9 +536,9 @@ fun SpeciesCard(
                     modifier = Modifier.padding(top = 2.dp)
                 ) {
                     Text(
-                        text = if (candidatesExpanded) "Alternativen ausblenden"
-                               else if (onSelectAlternative != null) "\u25B8 Alternative waehlen (${detection.candidates.size})"
-                               else "Alternativen (${detection.candidates.size})",
+                        text = if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
+                               else if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
+                               else stringResource(R.string.ui_alternativen, detection.candidates.size),
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -590,7 +593,7 @@ fun SpeciesCard(
                     onDismissRequest = { showLockMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text(if (detection.lockSpecies) "Entsperren" else "Sperren") },
+                        text = { Text(if (detection.lockSpecies) stringResource(R.string.ui_entsperren) else stringResource(R.string.ui_sperren)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = if (detection.lockSpecies) Icons.Filled.LockOpen
@@ -632,12 +635,12 @@ fun SpeciesCard(
     if (showCorrectionDialog && onCorrect != null) {
         AlertDialog(
             onDismissRequest = { showCorrectionDialog = false },
-            title = { Text("Art korrigieren") },
+            title = { Text(stringResource(R.string.ui_art_korrigieren)) },
             text = {
                 OutlinedTextField(
                     value = correctedName,
                     onValueChange = { correctedName = it },
-                    label = { Text("Artname") },
+                    label = { Text(stringResource(R.string.ui_artname)) },
                     singleLine = true
                 )
             },
@@ -645,10 +648,10 @@ fun SpeciesCard(
                 TextButton(onClick = {
                     onCorrect(correctedName)
                     showCorrectionDialog = false
-                }) { Text("Korrigieren") }
+                }) { Text(stringResource(R.string.ui_korrigieren)) }
             },
             dismissButton = {
-                TextButton(onClick = { showCorrectionDialog = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showCorrectionDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

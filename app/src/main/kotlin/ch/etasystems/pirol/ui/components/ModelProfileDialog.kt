@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ml.ModelProfile
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 /**
  * T103a: Rueckfrage beim Import einer Modelldatei, deren Profil nicht an der Groesse erkennbar ist.
@@ -35,11 +37,11 @@ fun ModelProfileDialog(
     var selected by remember { mutableStateOf(ModelProfile.CATALOG.first()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Welches Modell ist das?") },
+        title = { Text(stringResource(R.string.ui_welches_modell_ist_das)) },
         text = {
             Column(modifier = Modifier.selectableGroup()) {
                 Text(
-                    "Die Datei ($fileSizeMB MB) ist keinem bekannten Modell zuzuordnen. Bitte waehlen:",
+                    stringResource(R.string.ui_die_datei_mb_ist_keinem, fileSizeMB),
                     style = MaterialTheme.typography.bodySmall
                 )
                 ModelProfile.CATALOG.forEach { profile ->
@@ -58,7 +60,7 @@ fun ModelProfileDialog(
                         Column(modifier = Modifier.padding(start = 8.dp)) {
                             Text(profile.name, style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "${profile.speciesCount} Klassen — ${profile.licenseNote}",
+                                stringResource(R.string.ui_klassen, profile.speciesCount, profile.licenseNote),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -67,7 +69,7 @@ fun ModelProfileDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(selected) }) { Text("Uebernehmen") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        confirmButton = { TextButton(onClick = { onConfirm(selected) }) { Text(stringResource(R.string.ui_uebernehmen)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }

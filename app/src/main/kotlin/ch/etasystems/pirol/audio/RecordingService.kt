@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import android.util.Log
 import kotlinx.coroutines.launch
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * Aufnahme-Phase fuer FAB-3-State (T52).
@@ -250,7 +252,7 @@ class RecordingService : Service() {
             val started = engine.start(sampleRate)
             if (!started) {
                 // AC5: Fehler signalisieren + Service sauber beenden (verhindert 5s-ANR, T63)
-                serviceScope.launch { _audioStartError.emit("Audio-Engine konnte nicht starten") }
+                serviceScope.launch { _audioStartError.emit(AppStrings.get(R.string.svc_audio_engine_konnte_nicht_starten)) }
                 stopSelf()
                 return
             }
@@ -308,10 +310,10 @@ class RecordingService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Aufnahme",
+            AppStrings.get(R.string.svc_aufnahme),
             NotificationManager.IMPORTANCE_LOW // Kein Ton, minimale Stoerung
         ).apply {
-            description = "Zeigt an, dass PIROL Audio aufnimmt"
+            description = AppStrings.get(R.string.svc_zeigt_an_dass_pirol_audio)
             setShowBadge(false)
         }
         val manager = getSystemService(NotificationManager::class.java)
@@ -339,7 +341,7 @@ class RecordingService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("PIROL")
-            .setContentText("Aufnahme läuft")
+            .setContentText(AppStrings.get(R.string.svc_aufnahme_laeuft))
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(tapPending)
             .setUsesChronometer(true)
@@ -347,7 +349,7 @@ class RecordingService : Service() {
             .setOngoing(true)
             .addAction(
                 android.R.drawable.ic_media_pause,
-                "Stopp",
+                AppStrings.get(R.string.reference_stopp),
                 stopPending
             )
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)

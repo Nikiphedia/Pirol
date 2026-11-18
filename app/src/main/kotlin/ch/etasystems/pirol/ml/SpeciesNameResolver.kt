@@ -29,6 +29,7 @@ class SpeciesNameResolver(private val context: Context) {
             "it" to "Italiano",
             "es" to "Español",
             "pt" to "Português",
+            "ca" to "Català",
             "nl" to "Nederlands",
             "pl" to "Polski",
             "ru" to "Русский",

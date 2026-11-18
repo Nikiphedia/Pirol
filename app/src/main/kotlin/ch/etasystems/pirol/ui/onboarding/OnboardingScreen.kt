@@ -54,6 +54,9 @@ import ch.etasystems.pirol.ml.ModelProfile
 import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * Onboarding-Screen bei Erststart.
@@ -92,7 +95,7 @@ fun OnboardingScreen(
                 isModelInstalled = modelManager.isModelInstalled()
                 // Classifier-Session zuruecksetzen damit das neue Modell geladen wird
                 classifier.resetSession()
-                Toast.makeText(context, "Importiert: ${result.profile.name}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, AppStrings.get(R.string.onboarding_importiert, result.profile.name), Toast.LENGTH_SHORT).show()
             }
             is ModelManager.ImportResult.NeedsProfile -> pendingImport = result
             is ModelManager.ImportResult.Failed -> importError = result.message
@@ -181,7 +184,7 @@ fun OnboardingScreen(
     ) {
         // Fortschrittsanzeige
         Text(
-            text = "Schritt ${currentStep + 1} von 3",
+            text = stringResource(R.string.onboarding_schritt_von_3, currentStep + 1),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -196,21 +199,21 @@ fun OnboardingScreen(
             // ---- SCHRITT 1: Region waehlen ----
             0 -> {
                 Text(
-                    text = "Willkommen bei PIROL",
+                    text = stringResource(R.string.onboarding_willkommen_bei_pirol),
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Waehle deine Region fuer die Artenerkennung:",
+                    text = stringResource(R.string.onboarding_waehle_deine_region_fuer_die),
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 val regionOptions = listOf(
-                    "ch_breeding" to "Schweizer Brutvoegel (180 Arten)",
+                    "ch_breeding" to AppStrings.get(R.string.onboarding_schweizer_brutvoegel_180_arten),
                     // T106: ID muss in region_sets.json existieren ("dach" gab es nie → Filter war aus)
-                    "central_europe" to "Mitteleuropa (302 Arten)",
-                    null to "Alle Arten (11'560)"
+                    "central_europe" to AppStrings.get(R.string.onboarding_mitteleuropa_302_arten),
+                    null to AppStrings.get(R.string.onboarding_alle_arten_11_560)
                 )
 
                 Column(modifier = Modifier.selectableGroup()) {
@@ -246,19 +249,19 @@ fun OnboardingScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Weiter")
+                    Text(stringResource(R.string.onboarding_weiter))
                 }
             }
 
             // ---- SCHRITT 2: Modell herunterladen / importieren ----
             1 -> {
                 Text(
-                    text = "BirdNET V3.0 Modell",
+                    text = stringResource(R.string.onboarding_birdnet_v3_0_modell),
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Fuer die Artenerkennung wird das BirdNET-Modell benoetigt.",
+                    text = stringResource(R.string.onboarding_fuer_die_artenerkennung_wird_das),
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(modifier = Modifier.height(24.dp))
@@ -273,7 +276,7 @@ fun OnboardingScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Installiert (${modelManager.getInstalledModelSizeMB()} MB)",
+                            text = stringResource(R.string.onboarding_installiert_mb, modelManager.getInstalledModelSizeMB()),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -285,7 +288,7 @@ fun OnboardingScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Nicht installiert",
+                            text = stringResource(R.string.onboarding_nicht_installiert),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -297,7 +300,7 @@ fun OnboardingScreen(
                 if (!isModelInstalled) {
                     // --- Modell-Auswahl ---
                     Text(
-                        text = "Modell-Variante waehlen:",
+                        text = stringResource(R.string.onboarding_modell_variante_waehlen),
                         style = MaterialTheme.typography.titleSmall
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -326,7 +329,7 @@ fun OnboardingScreen(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = "${model.expectedSizeMB} MB — ${model.speciesCount} Klassen — ${model.licenseNote}",
+                                        text = stringResource(R.string.onboarding_mb_klassen, model.expectedSizeMB, model.speciesCount, model.licenseNote),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -344,7 +347,7 @@ fun OnboardingScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Wird heruntergeladen...",
+                                text = stringResource(R.string.onboarding_wird_heruntergeladen),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -360,7 +363,7 @@ fun OnboardingScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             // T104: Abbrechen behaelt die Teildatei zum Fortsetzen
                             OutlinedButton(onClick = { modelManager.cancelDownload() }) {
-                                Text("Abbrechen")
+                                Text(stringResource(R.string.common_cancel))
                             }
                         }
                     } else if (isImporting) {
@@ -398,18 +401,18 @@ fun OnboardingScreen(
                                     if (success) {
                                         isModelInstalled = true
                                         classifier.resetSession()
-                                        Toast.makeText(context, "Modell heruntergeladen", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, AppStrings.get(R.string.onboarding_modell_heruntergeladen), Toast.LENGTH_SHORT).show()
                                     } else {
-                                        importError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) "Download abgebrochen — Teil bleibt zum Fortsetzen erhalten"
-                                        else "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121/T104
+                                        importError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) AppStrings.get(R.string.onboarding_download_abgebrochen_teil_bleibt_zum)
+                                        else AppStrings.get(R.string.onboarding_download_fehlgeschlagen) + (modelManager.lastDownloadError ?: AppStrings.get(R.string.onboarding_internetverbindung_pruefen))  // T121/T104
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                if (partialBytes > 0L) "Fortsetzen (${partialBytes / 1_000_000} von ${selectedModel.expectedSizeMB} MB)"
-                                else "Herunterladen (${selectedModel.expectedSizeMB} MB)"
+                                if (partialBytes > 0L) AppStrings.get(R.string.onboarding_fortsetzen_von_mb, partialBytes / 1_000_000, selectedModel.expectedSizeMB)
+                                else AppStrings.get(R.string.onboarding_herunterladen_mb, selectedModel.expectedSizeMB)
                             )
                         }
                         if (partialBytes > 0L) {
@@ -417,7 +420,7 @@ fun OnboardingScreen(
                                 modelManager.discardPartialDownload()
                                 partialTick++
                             }) {
-                                Text("Verwerfen")
+                                Text(stringResource(R.string.onboarding_verwerfen))
                             }
                         }
 
@@ -429,7 +432,7 @@ fun OnboardingScreen(
                                 modelImportLauncher.launch(arrayOf("*/*"))
                             }
                         ) {
-                            Text("Modell-Datei manuell auswaehlen...")
+                            Text(stringResource(R.string.onboarding_modell_datei_manuell_auswaehlen))
                         }
                     }
                 }
@@ -451,12 +454,12 @@ fun OnboardingScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TextButton(onClick = { currentStep = 0 }) {
-                        Text("Zurueck")
+                        Text(stringResource(R.string.common_back))
                     }
                     Row {
                         if (!isModelInstalled) {
                             TextButton(onClick = { currentStep = 2 }) {
-                                Text("Ueberspringen")
+                                Text(stringResource(R.string.onboarding_ueberspringen))
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                         }
@@ -464,7 +467,7 @@ fun OnboardingScreen(
                             onClick = { currentStep = 2 },
                             enabled = isModelInstalled
                         ) {
-                            Text("Weiter")
+                            Text(stringResource(R.string.onboarding_weiter))
                         }
                     }
                 }
@@ -473,26 +476,26 @@ fun OnboardingScreen(
             // ---- SCHRITT 3: Berechtigungen ----
             2 -> {
                 Text(
-                    text = "Berechtigungen",
+                    text = stringResource(R.string.onboarding_berechtigungen),
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "PIROL benoetigt folgende Berechtigungen:",
+                    text = stringResource(R.string.onboarding_pirol_benoetigt_folgende_berechtigun),
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Mikrofon-Status
                 PermissionRow(
-                    label = "Mikrofon (Artenerkennung)",
+                    label = stringResource(R.string.onboarding_mikrofon_artenerkennung),
                     granted = micGranted
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // GPS-Status
                 PermissionRow(
-                    label = "GPS (Beobachtungen verorten)",
+                    label = stringResource(R.string.onboarding_gps_beobachtungen_verorten),
                     granted = locationGranted
                 )
                 Spacer(modifier = Modifier.height(24.dp))
@@ -515,7 +518,7 @@ fun OnboardingScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Berechtigungen erteilen")
+                        Text(stringResource(R.string.onboarding_berechtigungen_erteilen))
                     }
                 }
 
@@ -526,7 +529,7 @@ fun OnboardingScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     TextButton(onClick = { currentStep = 1 }) {
-                        Text("Zurueck")
+                        Text(stringResource(R.string.common_back))
                     }
                     Button(
                         onClick = {
@@ -534,7 +537,7 @@ fun OnboardingScreen(
                             onFinished()
                         }
                     ) {
-                        Text("Fertig")
+                        Text(stringResource(R.string.ui_fertig))
                     }
                 }
             }

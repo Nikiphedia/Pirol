@@ -117,6 +117,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.core.view.GestureDetectorCompat
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 // ── Hilfsfunktionen: Kreis-Marker mit Kuerzel ────────────────────────────────
 
@@ -524,7 +527,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     mapView.resources, blueColor, speciesLabel(m.species),
                                     atlasCode = m.atlasCode, count = m.count
                                 )
-                                marker.title = "${m.species} (Live, ${(m.confidence * 100).toInt()}%)"
+                                marker.title = AppStrings.get(R.string.map_live_2, m.species, (m.confidence * 100).toInt())
                             } else {
                                 val isAnchor = m.detectionId == state.linkAnchor?.detectionId
                                 val color = colorRepo.getColor(m.species)
@@ -549,7 +552,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 mapView.resources, clusterColor, "+${cluster.items.size}",
                                 ringColor = if (hasLive) blueColor else null
                             )
-                            marker.title = "${cluster.items.size} Detektionen"
+                            marker.title = AppStrings.get(R.string.ui_detektionen, cluster.items.size)
                             marker.snippet = null
                             marker.setOnMarkerClickListener { _, _ ->
                                 viewModel.selectCluster(cluster)
@@ -594,7 +597,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             if (cluster != null) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissCluster() },
-                    title = { Text("${cluster.items.size} Detektionen — Tippen oder lange druecken zum Bearbeiten") },
+                    title = { Text(stringResource(R.string.map_detektionen_tippen_oder_lange_drueck, cluster.items.size)) },
                     text = {
                         LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
                             items(cluster.items) { m ->
@@ -618,7 +621,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        nameResolver.language = prefs.speciesLanguage
+                                        nameResolver.language = prefs.effectiveSpeciesLanguage()
                                         val shownName = if (m.scientificName.isNotBlank())
                                             nameResolver.resolve(m.scientificName) else m.species
                                         Text(shownName, style = MaterialTheme.typography.bodyMedium)
@@ -631,7 +634,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                             )
                                         }
                                         val meta = buildString {
-                                            if (m.isLive) append("Live  •  ")
+                                            if (m.isLive) append(stringResource(R.string.map_live))
                                             append("${(m.confidence * 100).toInt()}%")
                                             if (m.atlasCode != null) append("  •  ${m.atlasCode}")
                                             if (m.count > 1) append("  •  ${m.count}×")
@@ -654,7 +657,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { viewModel.dismissCluster() }) { Text("Schliessen") }
+                        TextButton(onClick = { viewModel.dismissCluster() }) { Text(stringResource(R.string.common_close)) }
                     }
                 )
             }
@@ -696,7 +699,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     viewModel.dismissLongPressMenu()
                                     viewModel.selectMarkerForEdit(longPressTarget)
                                 }
-                            ) { Text("Bearbeiten") }
+                            ) { Text(stringResource(R.string.common_edit)) }
                             if (!longPressTarget.isLive) {
                                 OutlinedButton(
                                     modifier = Modifier.fillMaxWidth(),
@@ -704,19 +707,19 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                         viewModel.dismissLongPressMenu()
                                         viewModel.selectMarkerForMove(longPressTarget)
                                     }
-                                ) { Text("Position verschieben") }
+                                ) { Text(stringResource(R.string.map_position_verschieben)) }
                                 Button(
                                     modifier = Modifier.fillMaxWidth(),
                                     onClick = {
                                         viewModel.dismissLongPressMenu()
                                         viewModel.enterFocusMode(longPressTarget)
                                     }
-                                ) { Text("Simultanbeobachtung") }
+                                ) { Text(stringResource(R.string.map_simultanbeobachtung)) }
                             }
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { viewModel.dismissLongPressMenu() }) { Text("Abbrechen") }
+                        TextButton(onClick = { viewModel.dismissLongPressMenu() }) { Text(stringResource(R.string.common_cancel)) }
                     }
                 )
             }
@@ -730,7 +733,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         .padding(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                 ) {
-                    Text("Fokus beenden (${state.focusSpecies})")
+                    Text(stringResource(R.string.map_fokus_beenden, state.focusSpecies ?: ""))
                 }
             }
 
@@ -739,29 +742,29 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             if (linkTarget != null) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissLinkTarget() },
-                    title = { Text("Verbindungstyp") },
+                    title = { Text(stringResource(R.string.map_verbindungstyp)) },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                                 onClick = { viewModel.confirmLink(MapViewModel.LinkType.SIMULTANEOUS) }
-                            ) { Text("//  Simultanbeobachtung") }
+                            ) { Text(stringResource(R.string.map_simultanbeobachtung_2)) }
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
                                 onClick = { viewModel.confirmLink(MapViewModel.LinkType.PROBABLE) }
-                            ) { Text("?  Vermutete Simultanbeobachtung") }
+                            ) { Text(stringResource(R.string.map_vermutete_simultanbeobachtung)) }
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
                                 onClick = { viewModel.confirmLink(MapViewModel.LinkType.SAME_INDIVIDUAL) }
-                            ) { Text("!  Gleiches Tier") }
+                            ) { Text(stringResource(R.string.map_gleiches_tier)) }
                         }
                     },
                     confirmButton = {},
                     dismissButton = {
-                        TextButton(onClick = { viewModel.dismissLinkTarget() }) { Text("Abbrechen") }
+                        TextButton(onClick = { viewModel.dismissLinkTarget() }) { Text(stringResource(R.string.common_cancel)) }
                     }
                 )
             }
@@ -782,7 +785,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     .align(Alignment.BottomEnd)
                     .padding(16.dp)
             ) {
-                Icon(Icons.Filled.MyLocation, contentDescription = "Mein Standort")
+                Icon(Icons.Filled.MyLocation, contentDescription = stringResource(R.string.map_mein_standort))
             }
 
             // T108: Download-Fortschritt mit Abbrechen
@@ -794,7 +797,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), MaterialTheme.shapes.medium)
                         .padding(12.dp)
                 ) {
-                    Text("Karte laden: $downloadDone / $downloadTotal Kacheln", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.map_karte_laden_kacheln, downloadDone, downloadTotal), style = MaterialTheme.typography.bodyMedium)
                     LinearProgressIndicator(
                         progress = { if (downloadTotal > 0) downloadDone.toFloat() / downloadTotal else 0f },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
@@ -802,17 +805,17 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     TextButton(onClick = {
                         downloadTask?.cancel(true)
                         downloadTask = null
-                        offlineDialog = OfflineDialog.Info("Download abgebrochen. Bereits geladene Kacheln bleiben gespeichert.")
-                    }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Abbrechen") }
+                        offlineDialog = OfflineDialog.Info(AppStrings.get(R.string.map_download_abgebrochen_bereits_geladen))
+                    }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_cancel)) }
                 }
             }
 
             when (val d = offlineDialog) {
                 is OfflineDialog.Confirm -> AlertDialog(
                     onDismissRequest = { offlineDialog = null },
-                    title = { Text("Ausschnitt herunterladen?") },
+                    title = { Text(stringResource(R.string.map_ausschnitt_herunterladen)) },
                     text = {
-                        Text("${d.tiles} Kacheln (Zoom ${d.zoomMin}-${d.zoomMax}), ca. ${OfflineTilePlan.estimatedMegabytes(d.tiles)} MB.")
+                        Text(stringResource(R.string.map_kacheln_zoom_ca_mb, d.tiles, d.zoomMin, d.zoomMax, OfflineTilePlan.estimatedMegabytes(d.tiles)))
                     },
                     confirmButton = {
                         TextButton(onClick = {
@@ -826,12 +829,12 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     object : CacheManager.CacheManagerCallback {
                                         override fun onTaskComplete() {
                                             downloadTask = null
-                                            offlineDialog = OfflineDialog.Info("Download abgeschlossen (${d.tiles} Kacheln).")
+                                            offlineDialog = OfflineDialog.Info(AppStrings.get(R.string.map_download_abgeschlossen_kacheln, d.tiles))
                                         }
                                         override fun onTaskFailed(errors: Int) {
                                             downloadTask = null
                                             offlineDialog = OfflineDialog.Info(
-                                                "Download beendet, $errors Kacheln fehlgeschlagen (Netz?). Erneut starten laedt nur Fehlendes."
+                                                AppStrings.get(R.string.map_download_beendet_kacheln_fehlgeschla, errors)
                                             )
                                         }
                                         override fun updateProgress(progress: Int, currentZoomLevel: Int, zoomMin: Int, zoomMax: Int) {
@@ -842,12 +845,12 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     }
                                 )
                             } catch (e: Exception) {
-                                offlineDialog = OfflineDialog.Info("Download nicht moeglich: ${e.message}")
+                                offlineDialog = OfflineDialog.Info(AppStrings.get(R.string.map_download_nicht_moeglich, e.message))
                                 null
                             }
-                        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Herunterladen") }
+                        }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.map_herunterladen)) }
                     },
-                    dismissButton = { TextButton(onClick = { offlineDialog = null }) { Text("Abbrechen") } }
+                    dismissButton = { TextButton(onClick = { offlineDialog = null }) { Text(stringResource(R.string.common_cancel)) } }
                 )
                 is OfflineDialog.Info -> AlertDialog(
                     onDismissRequest = { offlineDialog = null },
@@ -856,8 +859,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 )
                 OfflineDialog.ConfirmDelete -> AlertDialog(
                     onDismissRequest = { offlineDialog = null },
-                    title = { Text("Offline-Karten loeschen?") },
-                    text = { Text("Alle gespeicherten swisstopo-Kacheln (${cacheBytes / 1_000_000} MB) werden entfernt. Das kann nicht rueckgaengig gemacht werden.") },
+                    title = { Text(stringResource(R.string.map_offline_karten_loeschen)) },
+                    text = { Text(stringResource(R.string.map_alle_gespeicherten_swisstopo_kacheln, cacheBytes / 1_000_000)) },
                     confirmButton = {
                         TextButton(onClick = {
                             offlineDialog = null
@@ -866,9 +869,9 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 mapViewRef.value?.let { it.tileProvider.clearTileCache(); it.invalidate() }
                                 cacheBytes = withContext(Dispatchers.IO) { runCatching { tileCacheBytes() }.getOrDefault(0L) }
                             }
-                        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Loeschen") }
+                        }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_delete)) }
                     },
-                    dismissButton = { TextButton(onClick = { offlineDialog = null }) { Text("Abbrechen") } }
+                    dismissButton = { TextButton(onClick = { offlineDialog = null }) { Text(stringResource(R.string.common_cancel)) } }
                 )
                 null -> {}
             }
@@ -883,13 +886,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { panelOpen = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Kartenmenue oeffnen")
+                        Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_kartenmenue_oeffnen))
                     }
                     Text(
                         when (state.filterMode) {
-                            FilterMode.ALL -> "Alle"
-                            FilterMode.LIVE_ONLY -> "Nur Live"
-                            FilterMode.RECENT_3 -> "Letzte 3"
+                            FilterMode.ALL -> AppStrings.get(R.string.common_all)
+                            FilterMode.LIVE_ONLY -> AppStrings.get(R.string.map_nur_live)
+                            FilterMode.RECENT_3 -> AppStrings.get(R.string.map_letzte_3)
                         },
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(end = 14.dp)
@@ -932,7 +935,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     shadowElevation = 6.dp
                 ) {
                     Text(
-                        text = "Noch keine georeferenzierten Detektionen",
+                        text = stringResource(R.string.map_noch_keine_georeferenzierten_detekti),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                     )
@@ -986,34 +989,34 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Karte", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                            Text(stringResource(R.string.map_karte), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                             IconButton(onClick = { panelOpen = false }, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Filled.Close, contentDescription = "Menue schliessen")
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_menue_schliessen))
                             }
                         }
 
-                        Text("Anzeige", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.map_anzeige), style = MaterialTheme.typography.titleSmall)
                         @OptIn(ExperimentalLayoutApi::class)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = state.filterMode == FilterMode.ALL,
                                 onClick = { viewModel.setFilter(FilterMode.ALL) },
-                                label = { Text("Alle") }
+                                label = { Text(stringResource(R.string.common_all)) }
                             )
                             FilterChip(
                                 selected = state.filterMode == FilterMode.LIVE_ONLY,
                                 onClick = { viewModel.setFilter(FilterMode.LIVE_ONLY) },
-                                label = { Text("Nur Live") }
+                                label = { Text(stringResource(R.string.map_nur_live)) }
                             )
                             FilterChip(
                                 selected = state.filterMode == FilterMode.RECENT_3,
                                 onClick = { viewModel.setFilter(FilterMode.RECENT_3) },
-                                label = { Text("Letzte 3") }
+                                label = { Text(stringResource(R.string.map_letzte_3)) }
                             )
                         }
                         HorizontalDivider()
 
-                        Text("Kartenquelle", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.map_kartenquelle), style = MaterialTheme.typography.titleSmall)
                         for (mode in MapSourceMode.entries) {
                             Row(
                                 modifier = Modifier
@@ -1027,12 +1030,12 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             ) {
                                 RadioButton(selected = mode == sourceMode, onClick = null)
                                 Spacer(Modifier.width(12.dp))
-                                Text(mode.label, style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(mode.labelRes), style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                         HorizontalDivider()
 
-                        Text("Offline-Karten", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.map_offline_karten), style = MaterialTheme.typography.titleSmall)
                         Button(
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             enabled = downloadTask == null,
@@ -1042,8 +1045,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 val source = mv.tileProvider.tileSource as? SwisstopoWmtsTileSource
                                 if (source == null) {
                                     offlineDialog = OfflineDialog.Info(
-                                        "Offline-Download gibt es nur fuer swisstopo-Karten. " +
-                                            "Waehle eine swisstopo-Quelle (bei Automatisch: ab Zoom $AUTO_SWISSTOPO_MIN_ZOOM)."
+                                        AppStrings.get(R.string.map_offline_download_gibt_es_nur, AUTO_SWISSTOPO_MIN_ZOOM)
                                     )
                                     return@Button
                                 }
@@ -1056,19 +1058,18 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     OfflineDialog.Confirm(box, zooms.first, zooms.last, tiles)
                                 } else {
                                     OfflineDialog.Info(
-                                        "Dieser Ausschnitt braucht $tiles Kacheln (Zoom ${zooms.first}-${zooms.last}). " +
-                                            "Erlaubt sind maximal ${OfflineTilePlan.MAX_TILES}. Bitte weiter hineinzoomen."
+                                        AppStrings.get(R.string.map_dieser_ausschnitt_braucht_kacheln_zo, tiles, zooms.first, zooms.last, OfflineTilePlan.MAX_TILES)
                                     )
                                 }
                             }
-                        ) { Text("Ausschnitt herunterladen") }
+                        ) { Text(stringResource(R.string.map_ausschnitt_herunterladen_2)) }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             onClick = {
                                 panelOpen = false
                                 offlineDialog = OfflineDialog.ConfirmDelete
                             }
-                        ) { Text("Offline-Karten: ${cacheBytes / 1_000_000} MB — loeschen") }
+                        ) { Text(stringResource(R.string.map_offline_karten_mb_loeschen, cacheBytes / 1_000_000)) }
 
                         // Legende: Artfarben der historischen Marker (max. 12)
                         val legendSpecies = remember(state.markers) {
@@ -1076,11 +1077,11 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         }
                         if (legendSpecies.isNotEmpty()) {
                             HorizontalDivider()
-                            Text("Legende", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.map_legende), style = MaterialTheme.typography.titleSmall)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(14.dp).background(Color(0xFF1976D2), CircleShape))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Live-Detektion", style = MaterialTheme.typography.bodyMedium)
+                                Text(stringResource(R.string.map_live_detektion), style = MaterialTheme.typography.bodyMedium)
                             }
                             for (sp in legendSpecies) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1100,7 +1101,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             // Fadenkreuz in der Mitte
             Icon(
                 imageVector = Icons.Filled.Add,
-                contentDescription = "Zielposition",
+                contentDescription = stringResource(R.string.map_zielposition),
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -1114,7 +1115,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     .align(Alignment.TopStart)
                     .padding(8.dp)
             ) {
-                Icon(Icons.Filled.Close, contentDescription = "Abbrechen",
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel),
                     tint = MaterialTheme.colorScheme.onSurface)
             }
 
@@ -1132,7 +1133,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
             ) {
-                Icon(Icons.Filled.Check, contentDescription = "Speichern",
+                Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.common_save),
                     tint = MaterialTheme.colorScheme.primary)
             }
 
