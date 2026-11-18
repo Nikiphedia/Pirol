@@ -27,6 +27,9 @@ class MapViewModel(
 
     val currentLocation: StateFlow<LocationData?> = locationProvider.location
 
+    /** T112: letzte bekannte Position holen (startet kein Tracking), damit die Karte auf den Standort zoomen kann. */
+    fun requestLastKnownLocation() = locationProvider.publishLastKnown()
+
     data class MapMarker(
         val detectionId: String,
         val sessionId: String,
