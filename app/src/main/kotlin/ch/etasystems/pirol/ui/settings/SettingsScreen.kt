@@ -658,7 +658,7 @@ fun SettingsScreen(
                                 installedModels = modelManager.listInstalledModels()
                                 Toast.makeText(context, "${model.name} heruntergeladen", Toast.LENGTH_SHORT).show()
                             } else {
-                                modelError = "Download fehlgeschlagen — Internetverbindung pruefen"
+                                modelError = "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121
                             }
                         }
                     },
