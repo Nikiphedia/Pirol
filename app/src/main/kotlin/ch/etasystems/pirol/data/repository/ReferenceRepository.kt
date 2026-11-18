@@ -76,8 +76,9 @@ class ReferenceRepository(private val context: Context) {
         sessionId: String,
         range: DetectionExcerpt.Range
     ): ReferenceEntry? = withContext(Dispatchers.IO) {
-        if (recording.parts.none { it.file.exists() }) {
-            Log.e(TAG, "WAV nicht gefunden: ${recording.firstFile?.absolutePath}")
+        // T131: File- oder SAF-Segment (Laenge > Header = Aufnahme vorhanden)
+        if (recording.parts.none { runCatching { it.source.length() > 0L }.getOrDefault(false) }) {
+            Log.e(TAG, "WAV nicht gefunden: ${recording.firstSource?.name}")
             return@withContext null
         }
         val pcm = try {

@@ -146,9 +146,7 @@ class AnalysisViewModel(
                 val meta = sessionManager.loadMetadata(dir) ?: return@mapNotNull null
                 val detections = sessionManager.loadDetectionsWithVerifications(dir)
                 // T52: WAV-Dateigrösse ermitteln (T130: Summe aller Segmente)
-                val wavBytes = try {
-                    SegmentedRecording.segmentFiles(dir).sumOf { it.length() }
-                } catch (_: Exception) { 0L }
+                val wavBytes = sessionManager.recordingSizeBytes(dir)  // T131: File + SAF
                 SessionSummary(
                     sessionDir = dir,
                     metadata = meta,
@@ -177,18 +175,22 @@ class AnalysisViewModel(
             val detections = sessionManager.loadDetectionsWithVerifications(summary.sessionDir)
             // T61: Defekte WAV-Header aus V0.0.6 reparieren, bevor Dauer/Sonogramm/Playback die Datei lesen
             sessionManager.repairRecordingHeaders(summary.sessionDir)
-            val recFile = sessionManager.getRecordingFile(summary.sessionDir)
-            // T62: URI aus File ableiten (fuer SAF-Pfade auf SD-Karte via content://)
-            val recUri  = recFile?.let { Uri.fromFile(it) }
+            // T131: SAF-Session → kein File-Pfad; Aufnahme nur ueber content://-Segmente (rec)
+            val isDoc = sessionManager.docFor(summary.sessionDir) != null
+            val recFile = if (isDoc) null else sessionManager.getRecordingFile(summary.sessionDir)
             // T130: alle Segmente; Dauer = ganze Session (vorher nur recording.wav)
             val rec = sessionManager.loadRecording(summary.sessionDir)
             recording = rec
+            // T62: URI aus File ableiten; T131: bei SAF content://-URI des ersten Segments
+            val recUri  = recFile?.let { Uri.fromFile(it) }
+                ?: rec?.firstSource?.uriString?.let { Uri.parse(it) }
             val durationSec = rec?.durationSec?.takeIf { it > 0f } ?: recFile?.let { readWavDurationSec(it) } ?: 0f
             _uiState.update {
                 it.copy(
                     selectedSession = summary,
                     detections = detections,
                     recordingFile = recFile,
+                    hasRecording = rec != null || recFile != null,
                     recordingUri  = recUri,
                     recordingDurationSec = durationSec,
                     zoomRange = null,
@@ -200,6 +202,8 @@ class AnalysisViewModel(
                 renderSessionSonogramStreaming(rec.virtualWavLength) { rec.openWavStream() }
             } else if (recFile != null) {
                 renderSessionSonogramStreaming(recFile.length()) { recFile.inputStream() }
+            } else if (rec != null) {
+                renderSessionSonogramStreaming(rec.virtualWavLength) { rec.openWavStream() }  // T131: SAF
             }
         }
     }
@@ -213,6 +217,7 @@ class AnalysisViewModel(
                 selectedSession = null,
                 detections = emptyList(),
                 recordingFile = null,
+                hasRecording = false,
                 recordingUri = null,
                 spectrogramState = SpectrogramState(),
                 sonogramLoading = false,
@@ -307,7 +312,8 @@ class AnalysisViewModel(
 
     /** T116: Share-Dialog fuer eine Detektion oeffnen. */
     fun requestShare(detection: DetectionResult) {
-        val f = _uiState.value.recordingFile ?: return
+        val f = _uiState.value.recordingFile
+        if (f == null && recording == null) return  // T131: SAF → nur ueber recording
         val dir = _uiState.value.selectedSession?.sessionDir
         viewModelScope.launch {
             val note = dir?.let { sessionManager.loadMetadata(it)?.note }
@@ -329,13 +335,13 @@ class AnalysisViewModel(
     fun saveAsReference(detection: DetectionResult) {
         val file = _uiState.value.recordingFile
         val session = _uiState.value.selectedSession
-        if (file == null || session == null) {
+        if ((file == null && recording == null) || session == null) {
             reportError(AppStrings.get(R.string.analysis_referenz_keine_aufnahme_vorhanden))
             return
         }
         val duration = _uiState.value.recordingDurationSec
         // T130: alle Segmente der Session
-        val rec = recording ?: SegmentedRecording.forRecordingFile(file)
+        val rec = recording ?: SegmentedRecording.forRecordingFile(file!!)
         viewModelScope.launch(Dispatchers.IO) {
             // T127: Umschalten — vorhandene Referenz entfernen statt doppelt zu speichern
             referenceRepository.findByDetection(detection.id)?.let { existing ->
@@ -482,14 +488,15 @@ class AnalysisViewModel(
      * Kurze Clips (≤3 s @ 48kHz Mono) = ≤288 KB → kein OOM-Risiko.
      */
     private fun renderDetectionSonogram(detection: DetectionResult) {
-        val recFile = _uiState.value.recordingFile ?: return
+        val recFile = _uiState.value.recordingFile
         val rec = recording
+        if (recFile == null && rec == null) return  // T131: SAF → nur ueber recording
         viewModelScope.launch(Dispatchers.Default) {
             // T130: bei mehreren Segmenten ueber die Session-Achse lesen
             val d = rec?.sessionRelative(detection) ?: detection
             val samples = readWavSamplesRange(
-                openStream = { rec?.openWavStream() ?: recFile.inputStream() },
-                fileLength  = rec?.virtualWavLength ?: recFile.length(),
+                openStream = { rec?.openWavStream() ?: recFile!!.inputStream() },
+                fileLength  = rec?.virtualWavLength ?: recFile!!.length(),
                 startSec    = d.chunkStartSec,
                 endSec      = d.chunkEndSec
             ) ?: return@launch
@@ -856,7 +863,7 @@ class AnalysisViewModel(
                             newValue = voiceMemoFile)) + "\n")
                     }
                     if (current.voiceMemoFile != null && voiceMemoFile == null) {
-                        getMemoTargetFile(detectionId, session.sessionDir)?.takeIf { it.exists() }?.delete()
+                        sessionManager.deleteMemo(session.sessionDir, detectionId)  // T131: File + SAF
                         sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
                             detectionId, current.verificationStatus,
                             verifiedAtMs = now,
@@ -877,13 +884,16 @@ class AnalysisViewModel(
     /** T69: Memo-Zieldatei fuer File-Modus (Analyse-Tab: aus Session-Verzeichnis). */
     fun getMemoTargetFile(detectionId: String, sessionDir: File? = _uiState.value.selectedSession?.sessionDir): File? {
         val dir = sessionDir ?: return null
+        if (sessionManager.docFor(dir) != null) return null  // T131: SAF-Session → getMemoTargetUri
         return sessionManager.memoFile(dir, detectionId)
     }
 
     /** T69: Memo-Ziel-URI fuer SAF-Modus (Analyse-Tab: aus Session-Verzeichnis via DocumentFile). */
     fun getMemoTargetUri(detectionId: String): Uri? {
         val sessionDir = _uiState.value.selectedSession?.sessionDir ?: return null
-        val doc = androidx.documentfile.provider.DocumentFile.fromFile(sessionDir)
+        // T131: SAF-Session → echtes DocumentFile statt fromFile(virtueller Pfad)
+        val doc = sessionManager.docFor(sessionDir)
+            ?: androidx.documentfile.provider.DocumentFile.fromFile(sessionDir)
         return sessionManager.memoDocFile(doc, detectionId)?.uri
     }
 

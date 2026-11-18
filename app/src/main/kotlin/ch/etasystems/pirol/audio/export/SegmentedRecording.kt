@@ -29,12 +29,17 @@ class SegmentedRecording(
 ) {
 
     /** Ein Segment: Datei, Start-Frame auf der Session-Achse, Anzahl Frames (16-bit Mono). */
-    data class Part(val file: File, val startFrame: Long, val frames: Long) {
+    data class Part(val source: SegmentSource, val startFrame: Long, val frames: Long) {
+        /** File-Segment (File-Modus, Tests) */
+        constructor(file: File, startFrame: Long, frames: Long) : this(FileSegment(file), startFrame, frames)
+
         val endFrame: Long get() = startFrame + frames
+        /** T131: Datei, falls das Segment ein File ist (SAF-Segmente: null, siehe [SegmentSource.uriString]) */
+        val file: File? get() = source.file
     }
 
     /** Position innerhalb eines Segments */
-    data class Location(val partIndex: Int, val file: File, val offsetSec: Float)
+    data class Location(val partIndex: Int, val source: SegmentSource, val offsetSec: Float)
 
     val totalFrames: Long get() = parts.lastOrNull()?.endFrame ?: 0L
 
@@ -42,6 +47,9 @@ class SegmentedRecording(
 
     /** Erste Datei (recording.wav) — fuer Aufrufer, die nur eine Datei kennen. */
     val firstFile: File? get() = parts.firstOrNull()?.file
+
+    /** T131: Erstes Segment (File oder content://) */
+    val firstSource: SegmentSource? get() = parts.firstOrNull()?.source
 
     /** Laenge der virtuellen, zusammengefuegten WAV (44-Byte-Header + alle Daten). */
     val virtualWavLength: Long get() = HEADER_SIZE + totalFrames * 2L
@@ -53,7 +61,7 @@ class SegmentedRecording(
         var idx = parts.indexOfFirst { frame < it.endFrame }
         if (idx < 0) idx = parts.lastIndex
         val p = parts[idx]
-        return Location(idx, p.file, (frame - p.startFrame).toFloat() / sampleRate)
+        return Location(idx, p.source, (frame - p.startFrame).toFloat() / sampleRate)
     }
 
     /** Liest [startSec, endSec) der Session als Mono-Samples, ueber Segmentgrenzen hinweg. */
@@ -71,10 +79,8 @@ class SegmentedRecording(
             if (to <= from) continue
             val count = (to - from).toInt()
             val bytes = ByteArray(count * 2)
-            RandomAccessFile(p.file, "r").use { raf ->
-                raf.seek(HEADER_SIZE + (from - p.startFrame) * 2L)
-                raf.readFully(bytes)
-            }
+            // T131: Seek + Lesen ueber SegmentSource (File: RandomAccessFile, SAF: FileDescriptor/Stream-Skip)
+            p.source.readFully(HEADER_SIZE + (from - p.startFrame) * 2L, bytes)
             ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(out, written, count)
             written += count
         }
@@ -109,7 +115,8 @@ class SegmentedRecording(
         )
         private var pos = 0L                     // Position im virtuellen Stream
         private var partIdx = -1
-        private var current: RandomAccessFile? = null
+        private var current: InputStream? = null
+        private var currentPos = 0L                // Leseposition (Byte) im geoeffneten Segment-Stream
 
         override fun read(): Int {
             val b = ByteArray(1)
@@ -131,15 +138,22 @@ class SegmentedRecording(
             val p = parts[idx]
             if (idx != partIdx) {
                 current?.close()
-                current = RandomAccessFile(p.file, "r")
+                current = null
                 partIdx = idx
             }
-            val raf = current!!
             val local = frameByte - p.startFrame * 2L
             val n = minOf(len.toLong(), p.frames * 2L - local).toInt()
-            raf.seek(HEADER_SIZE + local)
-            val r = raf.read(b, off, n)
+            // T131: sequentieller Stream pro Segment; nach einem Sprung (skip) neu positionieren
+            val target = HEADER_SIZE + local
+            var stream = current
+            if (stream == null || currentPos != target) {
+                stream?.close()
+                stream = p.source.openStreamAt(target)
+                current = stream
+            }
+            val r = stream.read(b, off, n)
             if (r <= 0) return -1
+            currentPos = target + r
             pos += r
             return r
         }
@@ -190,6 +204,25 @@ class SegmentedRecording(
             if (read < ExcerptWav.HEADER_SIZE) 0
             else ByteBuffer.wrap(h).order(ByteOrder.LITTLE_ENDIAN).getInt(24).coerceAtLeast(0)
         } catch (_: Exception) { 0 }
+
+        /** T131: Segment-Namen (z.B. aus einem SAF-Listing) in Aufnahme-Reihenfolge. */
+        fun orderedSegmentNames(names: List<String>): List<String> =
+            names.filter { segmentIndex(it) != null }.sortedBy { segmentIndex(it) }
+
+        /** T131: Baut die Segmentfolge aus beliebigen Quellen (File oder content://); null = keine. */
+        fun fromSources(
+            sources: List<SegmentSource>,
+            legacyLocalOffsets: Boolean = false,
+            startedAtEpochMs: Long? = null
+        ): SegmentedRecording? {
+            if (sources.isEmpty()) return null
+            var start = 0L
+            val parts = sources.map { src ->
+                val frames = ((src.length() - HEADER_SIZE) / 2L).coerceAtLeast(0L)
+                Part(src, start, frames).also { start += frames }
+            }
+            return SegmentedRecording(parts, sources.first().sampleRate(), legacyLocalOffsets, startedAtEpochMs)
+        }
 
         /** Baut die Segmentfolge aus Dateien; Start jedes Segments = Summe der vorherigen Laengen. */
         fun fromFiles(
