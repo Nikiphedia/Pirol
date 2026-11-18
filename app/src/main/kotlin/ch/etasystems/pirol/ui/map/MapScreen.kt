@@ -8,6 +8,8 @@ import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import org.osmdroid.views.overlay.CopyrightOverlay
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -70,6 +72,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import ch.etasystems.pirol.ml.SpeciesNameResolver
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -98,7 +106,10 @@ private fun createCircleMarkerIcon(
     color: Int,
     label: String = "",
     locked: Boolean = false,
-    size: Int = 64
+    size: Int = 64,
+    atlasCode: String? = null,   // T111: kleines Etikett unten
+    count: Int = 1,              // T111: Badge oben rechts ab 2
+    ringColor: Int? = null       // T111: farbiger Ring (Cluster mit Live-Detektionen)
 ): Drawable {
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
@@ -115,6 +126,15 @@ private fun createCircleMarkerIcon(
         strokeWidth = 3f
     }
     canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, paintBorder)
+
+    if (ringColor != null) {
+        val paintRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = ringColor
+            style = Paint.Style.STROKE
+            strokeWidth = 6f
+        }
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 6f, paintRing)
+    }
 
     if (label.isNotEmpty()) {
         val paintText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -133,18 +153,46 @@ private fun createCircleMarkerIcon(
         canvas.drawText(label, size / 2f, size / 2f + yOffset, paintText)
     }
 
+    if (!atlasCode.isNullOrBlank()) {
+        val paintTag = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = android.graphics.Color.WHITE
+            textSize = size * 0.22f
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+        }
+        val tw = paintTag.measureText(atlasCode)
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = android.graphics.Color.parseColor("#CC263238") }
+        val h = size * 0.26f
+        val rect = android.graphics.RectF(size / 2f - tw / 2f - 4f, size - h - 1f, size / 2f + tw / 2f + 4f, size - 1f)
+        canvas.drawRoundRect(rect, h / 2f, h / 2f, bg)
+        canvas.drawText(atlasCode, size / 2f, size - 1f - h * 0.25f, paintTag)
+    }
+
+    if (count > 1) {
+        val badge = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = android.graphics.Color.WHITE }
+        val r = size * 0.18f
+        canvas.drawCircle(size - r - 1f, r + 1f, r, badge)
+        val paintCount = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = android.graphics.Color.BLACK
+            textSize = r * (if (count > 9) 1.1f else 1.4f)
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+        }
+        canvas.drawText(count.coerceAtMost(99).toString(), size - r - 1f, r + 1f + r * 0.45f, paintCount)
+    }
+
     if (locked) {
         val lockFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = android.graphics.Color.BLACK
             style = Paint.Style.FILL
         }
-        canvas.drawCircle(size - 8f, 8f, 6f, lockFill)
+        canvas.drawCircle(8f, 8f, 6f, lockFill)
         val lockBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = android.graphics.Color.WHITE
             style = Paint.Style.STROKE
             strokeWidth = 2f
         }
-        canvas.drawCircle(size - 8f, 8f, 6f, lockBorder)
+        canvas.drawCircle(8f, 8f, 6f, lockBorder)
     }
 
     return BitmapDrawable(resources, bitmap)
@@ -170,11 +218,13 @@ private sealed interface OfflineDialog {
 
 // ── Haupt-Composable ──────────────────────────────────────────────────────────
 
+@OptIn(FlowPreview::class, ExperimentalFoundationApi::class)
 @Composable
 fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsState()
     val colorRepo: SpeciesColorRepository = koinInject()
     val atlasCodeRepo: AtlasCodeRepository = koinInject()
+    val nameResolver: SpeciesNameResolver = koinInject()
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
 
@@ -196,8 +246,25 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val locationState by viewModel.currentLocation.collectAsState()
 
     // Marker-Referenz fuer GestureDetector (aktuell, thread-safe via MutableState)
-    val longPressMarkersRef = remember { mutableStateOf<List<MapViewModel.MapMarker>>(emptyList()) }
     val positionMoveRef = remember { mutableStateOf<MapViewModel.MapMarker?>(null) }
+    val longPressClustersRef = remember { mutableStateOf<List<MapViewModel.MarkerCluster>>(emptyList()) }
+
+    // T111: Zoom -> Clustering. Roh-Zoom aus dem MapListener, entprellt (150 ms) fuer die Gruppierung.
+    val rawZoom = remember { mutableDoubleStateOf(14.0) }
+    var clusterZoom by remember { mutableDoubleStateOf(14.0) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { rawZoom.doubleValue }.debounce(150L).collect { clusterZoom = it }
+    }
+    val thresholdPx = 48f * LocalDensity.current.density  // ~1 Icon-Durchmesser (48 dp)
+    val clusters = remember(state.markers, state.liveMarkers, state.filterMode, state.focusMode, state.focusSpecies, clusterZoom, thresholdPx) {
+        val input = when {
+            state.filterMode == FilterMode.LIVE_ONLY -> state.liveMarkers
+            // Fokus-Modus: nur historische Marker der Fokus-Art (Live hat keine Session fuer Verknuepfungen)
+            state.focusMode -> state.markers.filter { it.species == state.focusSpecies }
+            else -> state.markers + state.liveMarkers
+        }
+        buildClusters(input, clusterZoom, thresholdPx.toDouble())
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -214,11 +281,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 MapView(ctx).apply {
                     setMultiTouchControls(true)
                     controller.setZoom(14.0)
+                    rawZoom.doubleValue = 14.0
                     controller.setCenter(GeoPoint(state.centerLat, state.centerLon))
                     setTileSource(tileSourceFor(sourceModeRef.value, 14))
                     addMapListener(object : org.osmdroid.events.MapListener {
                         override fun onZoom(event: org.osmdroid.events.ZoomEvent): Boolean {
                             // T106: nur bei Wechsel der Quelle setzen (setTileSource leert den Kachel-Cache)
+                            rawZoom.doubleValue = event.zoomLevel
                             val source = tileSourceFor(sourceModeRef.value, event.zoomLevel.toInt())
                             if (tileProvider.tileSource != source) setTileSource(source)
                             return false
@@ -233,24 +302,27 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         ctx,
                         object : GestureDetector.SimpleOnGestureListener() {
                             override fun onLongPress(e: MotionEvent) {
-                                val markers = longPressMarkersRef.value
+                                val clustersNow = longPressClustersRef.value
                                 val proj = mapView.projection
-                                val historisch = markers.filter { !it.isLive }
-                                val nearest = historisch.minByOrNull { m ->
-                                    val px = proj.toPixels(GeoPoint(m.latitude, m.longitude), null)
+                                val nearest = clustersNow.minByOrNull { c ->
+                                    val px = proj.toPixels(GeoPoint(c.centerLat, c.centerLon), null)
                                     val dx = (px.x - e.x).toDouble()
                                     val dy = (px.y - e.y).toDouble()
                                     dx * dx + dy * dy
                                 } ?: return
-                                val nearPx = proj.toPixels(
-                                    GeoPoint(nearest.latitude, nearest.longitude), null
-                                )
+                                val nearPx = proj.toPixels(GeoPoint(nearest.centerLat, nearest.centerLon), null)
                                 val dist = Math.hypot(
                                     (nearPx.x - e.x).toDouble(),
                                     (nearPx.y - e.y).toDouble()
                                 )
-                                if (dist < 120.0) {   // 120px ≈ 40dp — grosszügiger Tap-Target
-                                    viewModel.onMarkerLongPress(nearest)
+                                if (dist < 120.0) {   // 120px ~ 40dp - grosszuegiger Tap-Target
+                                    if (nearest.items.size > 1) {
+                                        viewModel.selectCluster(nearest)
+                                    } else {
+                                        val m = nearest.items.first()
+                                        if (m.isLive) viewModel.selectMarkerForEdit(m)
+                                        else viewModel.onMarkerLongPress(m)
+                                    }
                                 }
                             }
                         }
@@ -265,7 +337,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             },
             update = { mapView ->
                 // Marker-Referenz aktuell halten (für GestureDetector)
-                longPressMarkersRef.value = state.markers
+                longPressClustersRef.value = if (state.positionMoveTarget == null) clusters else emptyList()
 
                 // animateTo nur beim Eintritt in Move-Modus (prevMoveTarget war null)
                 val moveTarget = state.positionMoveTarget
@@ -319,34 +391,42 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         mapView.overlays.add(polyline)
                     }
 
-                    val clustersToRender = when {
-                        state.filterMode == FilterMode.LIVE_ONLY -> emptyList()
-                        state.focusMode -> state.clusters.filter { cluster ->
-                            cluster.items.any { it.species == state.focusSpecies }
-                        }
-                        else -> state.clusters
-                    }
-                    for (cluster in clustersToRender) {
+                    for (cluster in clusters) {
                         val marker = Marker(mapView)
                         marker.position = GeoPoint(cluster.centerLat, cluster.centerLon)
                         marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                         if (cluster.items.size == 1) {
                             val m = cluster.items.first()
-                            val isAnchor = m.detectionId == state.linkAnchor?.detectionId
-                            val color = colorRepo.getColor(m.species)
-                            val iconSize = if (isAnchor) 80 else 64
-                            marker.icon = createCircleMarkerIcon(mapView.resources, color, speciesLabel(m.species), locked = state.lockedSpecies.contains(m.species), size = iconSize)
-                            marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
-                            marker.snippet = m.sessionId.take(16)
-                            if (state.focusMode) {
-                                marker.setOnMarkerClickListener { _, _ ->
-                                    viewModel.selectLinkTarget(m)
-                                    true
+                            if (m.isLive) {
+                                marker.icon = createCircleMarkerIcon(
+                                    mapView.resources, blueColor, speciesLabel(m.species),
+                                    atlasCode = m.atlasCode, count = m.count
+                                )
+                                marker.title = "${m.species} (Live, ${(m.confidence * 100).toInt()}%)"
+                            } else {
+                                val isAnchor = m.detectionId == state.linkAnchor?.detectionId
+                                val color = colorRepo.getColor(m.species)
+                                val iconSize = if (isAnchor) 80 else 64
+                                marker.icon = createCircleMarkerIcon(
+                                    mapView.resources, color, speciesLabel(m.species),
+                                    locked = state.lockedSpecies.contains(m.species), size = iconSize,
+                                    atlasCode = m.atlasCode, count = m.count
+                                )
+                                marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
+                                marker.snippet = m.sessionId.take(16)
+                                if (state.focusMode) {
+                                    marker.setOnMarkerClickListener { _, _ ->
+                                        viewModel.selectLinkTarget(m)
+                                        true
+                                    }
                                 }
                             }
                         } else {
-                            val label = "+${cluster.items.size}"
-                            marker.icon = createCircleMarkerIcon(mapView.resources, clusterColor, label)
+                            val hasLive = cluster.items.any { it.isLive }
+                            marker.icon = createCircleMarkerIcon(
+                                mapView.resources, clusterColor, "+${cluster.items.size}",
+                                ringColor = if (hasLive) blueColor else null
+                            )
                             marker.title = "${cluster.items.size} Detektionen"
                             marker.snippet = null
                             marker.setOnMarkerClickListener { _, _ ->
@@ -354,17 +434,6 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 true
                             }
                         }
-                        mapView.overlays.add(marker)
-                    }
-
-                    val liveToRender = if (state.filterMode == FilterMode.LIVE_ONLY || state.filterMode == FilterMode.ALL)
-                        state.liveMarkers else emptyList()
-                    for (m in liveToRender) {
-                        val marker = Marker(mapView)
-                        marker.position = GeoPoint(m.latitude, m.longitude)
-                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        marker.icon = createCircleMarkerIcon(mapView.resources, blueColor, speciesLabel(m.species))
-                        marker.title = "${m.species} (Live, ${(m.confidence * 100).toInt()}%)"
                         mapView.overlays.add(marker)
                     }
                 }
@@ -380,14 +449,17 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             if (cluster != null) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissCluster() },
-                    title = { Text("${cluster.items.size} Detektionen — Tippen zum Bearbeiten") },
+                    title = { Text("${cluster.items.size} Detektionen — Tippen oder lange druecken zum Bearbeiten") },
                     text = {
                         LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
                             items(cluster.items) { m ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { viewModel.selectMarkerForEdit(m) }
+                                        .combinedClickable(
+                                            onClick = { viewModel.selectMarkerForEdit(m) },
+                                            onLongClick = { viewModel.selectMarkerForEdit(m) }
+                                        )
                                         .padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -401,8 +473,20 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(m.species, style = MaterialTheme.typography.bodyMedium)
+                                        nameResolver.language = prefs.speciesLanguage
+                                        val shownName = if (m.scientificName.isNotBlank())
+                                            nameResolver.resolve(m.scientificName) else m.species
+                                        Text(shownName, style = MaterialTheme.typography.bodyMedium)
+                                        if (m.scientificName.isNotBlank()) {
+                                            Text(
+                                                m.scientificName.replace('_', ' '),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                         val meta = buildString {
+                                            if (m.isLive) append("Live  •  ")
                                             append("${(m.confidence * 100).toInt()}%")
                                             if (m.atlasCode != null) append("  •  ${m.atlasCode}")
                                             if (m.count > 1) append("  •  ${m.count}×")
@@ -782,5 +866,21 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+    }
+}
+
+/** T111: Marker bei gegebenem Zoom zu Clustern gruppieren (Pixel-Schwelle, Web-Mercator). */
+private fun buildClusters(
+    markers: List<MapViewModel.MapMarker>,
+    zoom: Double,
+    thresholdPx: Double
+): List<MapViewModel.MarkerCluster> {
+    if (markers.isEmpty()) return emptyList()
+    val lats = DoubleArray(markers.size) { markers[it].latitude }
+    val lons = DoubleArray(markers.size) { markers[it].longitude }
+    val groups = MarkerClustering.groupByZoom(lats, lons, zoom, thresholdPx, org.osmdroid.util.TileSystem.getTileSize())
+    return groups.map { g ->
+        val items = g.map { markers[it] }
+        MapViewModel.MarkerCluster(items.sumOf { it.latitude } / items.size, items.sumOf { it.longitude } / items.size, items)
     }
 }

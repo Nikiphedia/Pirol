@@ -33,6 +33,7 @@ class MapViewModel(
         val latitude: Double,
         val longitude: Double,
         val species: String,
+        val scientificName: String = "",  // T111: fuer SpeciesNameResolver im Cluster-Dialog
         val confidence: Float,
         val timestampMs: Long,
         val verificationStatus: VerificationStatus,
@@ -60,7 +61,6 @@ class MapViewModel(
     data class MapUiState(
         val markers: List<MapMarker> = emptyList(),
         val liveMarkers: List<MapMarker> = emptyList(),
-        val clusters: List<MarkerCluster> = emptyList(),
         val selectedCluster: MarkerCluster? = null,
         val centerLat: Double = 47.38,
         val centerLon: Double = 8.54,
@@ -93,10 +93,13 @@ class MapViewModel(
                             latitude = det.latitude,
                             longitude = det.longitude,
                             species = det.commonName,
+                            scientificName = det.scientificName,
                             confidence = det.confidence,
                             timestampMs = det.timestampMs,
                             verificationStatus = det.verificationStatus,
-                            isLive = true
+                            isLive = true,
+                            count = det.count,
+                            atlasCode = det.atlasCode
                         )
                     } else null
                 }
@@ -116,7 +119,7 @@ class MapViewModel(
     fun setFilter(mode: FilterMode) {
         _uiState.update { it.copy(filterMode = mode) }
         if (mode == FilterMode.LIVE_ONLY) {
-            _uiState.update { it.copy(markers = emptyList(), clusters = emptyList(), isLoading = false) }
+            _uiState.update { it.copy(markers = emptyList(), isLoading = false) }
         } else {
             loadHistoricalDetections(mode)
         }
@@ -142,6 +145,7 @@ class MapViewModel(
                                 latitude = det.latitude,
                                 longitude = det.longitude,
                                 species = det.commonName,
+                                scientificName = det.scientificName,
                                 confidence = det.confidence,
                                 timestampMs = det.timestampMs,
                                 verificationStatus = det.verificationStatus,
@@ -158,37 +162,12 @@ class MapViewModel(
             _uiState.update {
                 it.copy(
                     markers = allMarkers,
-                    clusters = computeClusters(allMarkers),
                     centerLat = center?.latitude ?: 47.38,
                     centerLon = center?.longitude ?: 8.54,
                     isLoading = false
                 )
             }
         }
-    }
-
-    private fun computeClusters(markers: List<MapMarker>): List<MarkerCluster> {
-        val radiusDeg = 0.003
-        val processed = BooleanArray(markers.size)
-        val result = mutableListOf<MarkerCluster>()
-        for (i in markers.indices) {
-            if (processed[i]) continue
-            val group = mutableListOf(markers[i])
-            processed[i] = true
-            for (j in (i + 1) until markers.size) {
-                if (processed[j]) continue
-                val dLat = markers[j].latitude - markers[i].latitude
-                val dLon = markers[j].longitude - markers[i].longitude
-                if (dLat * dLat + dLon * dLon < radiusDeg * radiusDeg) {
-                    group.add(markers[j])
-                    processed[j] = true
-                }
-            }
-            val centerLat = group.sumOf { it.latitude } / group.size
-            val centerLon = group.sumOf { it.longitude } / group.size
-            result.add(MarkerCluster(centerLat, centerLon, group))
-        }
-        return result
     }
 
     fun selectCluster(cluster: MarkerCluster) {
@@ -231,7 +210,7 @@ class MapViewModel(
                         m.copy(latitude = newLat, longitude = newLon)
                     else m
                 }
-                state.copy(markers = updated, clusters = computeClusters(updated), positionMoveTarget = null)
+                state.copy(markers = updated, positionMoveTarget = null)
             }
         }
     }
@@ -241,9 +220,13 @@ class MapViewModel(
         _uiState.update { it.copy(positionMoveTarget = null) }
     }
 
-    /** Long-Press auf historischen Marker → volle DetectionResult laden, Edit-Dialog oeffnen */
+    /** Marker bearbeiten: historisch aus Session-Datei, live aus DetectionListState (T111) */
     fun selectMarkerForEdit(marker: MapMarker) {
-        if (marker.isLive) return
+        if (marker.isLive) {
+            val det = detectionListState.getDetections().firstOrNull { it.id == marker.detectionId } ?: return
+            _uiState.update { it.copy(editTarget = marker, editDetection = det) }
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val dir = sessionManager.listSessions().firstOrNull {
                 sessionManager.loadMetadata(it)?.sessionId == marker.sessionId
@@ -258,18 +241,46 @@ class MapViewModel(
     fun saveDetectionEdit(count: Int, atlasCode: String?, note: String?) {
         val marker = _uiState.value.editTarget ?: return
         val det = _uiState.value.editDetection ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            val updated = det.copy(count = count, atlasCode = atlasCode, note = note)
-            sessionManager.replaceDetection(updated)
+        val updated = det.copy(count = count, atlasCode = atlasCode, note = note)
+        fun patch(m: MapMarker) =
+            if (m.detectionId == marker.detectionId) m.copy(count = count, atlasCode = atlasCode) else m
+        if (marker.isLive) {
+            // Live: Liste aktualisieren (triggert liveMarkers-Neuaufbau), Datei nur bei laufender Session
+            detectionListState.updateDetection(updated)
             _uiState.update { state ->
-                val updatedMarkers = state.markers.map { m ->
-                    if (m.detectionId == marker.detectionId)
-                        m.copy(count = count, atlasCode = atlasCode)
-                    else m
-                }
                 state.copy(
-                    markers = updatedMarkers,
-                    clusters = computeClusters(updatedMarkers),
+                    selectedCluster = state.selectedCluster?.let { c -> c.copy(items = c.items.map(::patch)) },
+                    editTarget = null,
+                    editDetection = null
+                )
+            }
+            if (!sessionManager.isActive) return
+            viewModelScope.launch(Dispatchers.IO) {
+                sessionManager.replaceDetection(updated)
+                val now = System.currentTimeMillis()
+                if (det.count != count) sessionManager.appendVerification(
+                    VerificationEvent(det.id, det.verificationStatus, verifiedAtMs = now,
+                        actionType = VerificationEvent.ACTION_COUNT_CHANGED))
+                if (det.atlasCode != atlasCode) sessionManager.appendVerification(
+                    VerificationEvent(det.id, det.verificationStatus, verifiedAtMs = now,
+                        actionType = VerificationEvent.ACTION_ATLAS_SET))
+                if (det.note != note) sessionManager.appendVerification(
+                    VerificationEvent(det.id, det.verificationStatus, verifiedAtMs = now,
+                        actionType = VerificationEvent.ACTION_NOTE_ADDED))
+            }
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            // Historisch: in die Datei der Marker-Session schreiben (replaceDetection trifft nur die aktive Session)
+            val dir = sessionManager.listSessions().firstOrNull {
+                sessionManager.loadMetadata(it)?.sessionId == marker.sessionId
+            }
+            if (dir != null) sessionManager.replaceDetectionIn(dir, updated)
+            else sessionManager.replaceDetection(updated)
+            _uiState.update { state ->
+                state.copy(
+                    markers = state.markers.map(::patch),
+                    selectedCluster = state.selectedCluster?.let { c -> c.copy(items = c.items.map(::patch)) },
                     editTarget = null,
                     editDetection = null
                 )
