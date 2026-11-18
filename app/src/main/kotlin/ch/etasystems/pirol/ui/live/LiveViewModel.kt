@@ -204,6 +204,7 @@ class LiveViewModel(
 
     // F5: User hat Preroll explizit gestartet
     private var prerollRunning = false
+    private var prerollRequested = false  // T122
 
     // T54-Fix: Sequentieller Dispatcher fuer Session-Lifecycle-Operationen.
     // startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf demselben Single-Thread-Kontext,
@@ -449,6 +450,7 @@ class LiveViewModel(
             val recordingBinder = binder as? RecordingService.RecordingBinder
             service = recordingBinder?.getService()
             _uiState.update { it.copy(isServiceBound = true) }
+            if (prerollRequested) userStartPreroll()  // T122
 
             // Recording-State vom Service beobachten
             observeRecordingState()
@@ -577,7 +579,13 @@ class LiveViewModel(
 
     /** Preroll-Engine explizit starten (F5). Nur wenn kein Recording laeuft. */
     fun userStartPreroll() {
-        val svc = service ?: return
+        Log.i(TAG, "T122 userStartPreroll: service=${service != null} recording=${service?.isRecording?.value}")
+        val svc = service ?: run {
+            // T122: Dienst noch nicht verbunden → Wunsch merken, in onServiceConnected nachholen
+            prerollRequested = true
+            return
+        }
+        prerollRequested = false
         if (svc.isRecording.value) return
         svc.initPreroll(
             sampleRate = 48000,
