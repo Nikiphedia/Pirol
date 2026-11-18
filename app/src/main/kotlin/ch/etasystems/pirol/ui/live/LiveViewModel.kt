@@ -288,6 +288,7 @@ class LiveViewModel(
             }
             // T70: Cluster-Algorithmus — addOrCluster statt addDetections
             val newDetections = mutableListOf<DetectionResult>()
+            val mergedAnchors = mutableListOf<DetectionResult>()  // T124: auch Merges koennen alarmieren
             for (det in sessionRelativeDetections) {
                 // T73: gesperrte Art → Detection verwerfen (AC3)
                 val speciesKey = det.scientificName.replace(' ', '_')
@@ -302,6 +303,7 @@ class LiveViewModel(
                 when (result) {
                     is ClusterResult.New -> newDetections.add(result.detection)
                     is ClusterResult.Merged -> {
+                        mergedAnchors.add(result.anchor)
                         if (sessionManager.isActive) {
                             val anchor = result.anchor
                             val absorbedId = result.absorbedId
@@ -323,8 +325,9 @@ class LiveViewModel(
             }
 
             // Watchlist-Check: Alarm ausloesen fuer neue Detektionen (T20)
-            // Cluster-Merges alarmieren nicht erneut (Cooldown via alarmCooldownMinutes als Fallback).
-            for (detection in newDetections) {
+            // T124: Cluster-Merges werden ebenfalls geprueft; die Alarm-Pause (alarmCooldownMinutes)
+            // verhindert Dauerfeuer, laesst aber einen erneuten Alarm nach Ablauf zu.
+            for (detection in newDetections + mergedAnchors) {
                 val priority = watchlistManager.getPriority(detection.scientificName)
                 if (priority != null) {
                     Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
@@ -427,6 +430,13 @@ class LiveViewModel(
         viewModelScope.launch {
             watchlistManager.watchedSpeciesFlow.collect { species ->
                 _uiState.update { it.copy(watchlistSpecies = species) }
+            }
+        }
+
+        // T124: "Bestaetigen" im Alarm-Hinweis -> Detektion verifizieren
+        viewModelScope.launch {
+            alarmService.confirmRequests.collect { id ->
+                verifyDetection(id, VerificationStatus.CONFIRMED)
             }
         }
 
