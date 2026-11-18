@@ -16,6 +16,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 enum class FilterMode { ALL, LIVE_ONLY, RECENT_3 }
 
@@ -183,7 +190,6 @@ class MapViewModel(
 
     /** Long-Press auf historischen Marker → Auswahl-Dialog oeffnen */
     fun onMarkerLongPress(marker: MapMarker) {
-        if (marker.isLive) return
         _uiState.update { it.copy(longPressTarget = marker) }
     }
 
@@ -287,6 +293,127 @@ class MapViewModel(
                     editTarget = null,
                     editDetection = null
                 )
+            }
+        }
+    }
+
+    // ── T113: Verifikation auf der Karte ─────────────────────────────
+
+    data class MapSnackbar(val message: String, val actionLabel: String? = null, val onAction: (() -> Unit)? = null)
+
+    private val snackbarChannel = Channel<MapSnackbar>(Channel.BUFFERED)
+    val snackbarEvents = snackbarChannel.receiveAsFlow()
+
+    // Serialisiert Verifikations-IO (Schnell-Taps)
+    private val verificationMutex = Mutex()
+    private val verifyJson = Json { encodeDefaults = true }
+
+    private suspend fun findSessionDir(sessionId: String) = sessionManager.listSessions().firstOrNull {
+        sessionManager.loadMetadata(it)?.sessionId == sessionId
+    }
+
+    /** Aktualisiert Marker in Hauptliste + offenem Cluster; abgelehnte verschwinden (T108). */
+    private fun applyMarkerStatus(marker: MapMarker, status: VerificationStatus) {
+        val visible = MapVerification.visibleAfter(status)
+        fun patch(list: List<MapMarker>) =
+            if (visible) list.map { if (it.detectionId == marker.detectionId) MapVerification.withStatus(it, status) else it }
+            else list.filter { it.detectionId != marker.detectionId }
+        _uiState.update { state ->
+            state.copy(
+                markers = patch(state.markers),
+                selectedCluster = state.selectedCluster?.let { c ->
+                    val items = patch(c.items)
+                    if (items.isEmpty()) null else c.copy(items = items)
+                },
+                longPressTarget = null
+            )
+        }
+    }
+
+    /** Bestaetigen / Unsicher / Ablehnen direkt auf der Karte, mit Snackbar-Undo. */
+    fun verifyMarker(marker: MapMarker, status: VerificationStatus) {
+        viewModelScope.launch {
+            var prevCorrected: String? = null
+            if (marker.isLive) {
+                val det = detectionListState.getDetections().firstOrNull { it.id == marker.detectionId } ?: return@launch
+                prevCorrected = det.correctedSpecies
+                // Gleiche Logik wie LiveViewModel.verifyDetection: Liste (Live-Tab zieht nach) + Datei bei aktiver Session
+                detectionListState.updateVerification(marker.detectionId, status, null)
+                if (sessionManager.isActive) withContext(Dispatchers.IO) {
+                    verificationMutex.withLock {
+                        runCatching {
+                            sessionManager.appendVerification(
+                                MapVerification.eventFor(marker.detectionId, status, System.currentTimeMillis()))
+                        }.onFailure {
+                            detectionListState.updateVerification(marker.detectionId, marker.verificationStatus, prevCorrected)
+                            snackbarChannel.trySend(MapSnackbar("Speichern fehlgeschlagen"))
+                        }
+                    }
+                }
+            } else {
+                val ok = withContext(Dispatchers.IO) {
+                    verificationMutex.withLock {
+                        val dir = findSessionDir(marker.sessionId) ?: return@withLock false
+                        prevCorrected = sessionManager.loadDetectionsWithVerifications(dir)
+                            .firstOrNull { it.id == marker.detectionId }?.correctedSpecies
+                        runCatching {
+                            sessionManager.appendVerificationLine(
+                                dir,
+                                verifyJson.encodeToString(
+                                    MapVerification.eventFor(marker.detectionId, status, System.currentTimeMillis())
+                                ) + "\n"
+                            )
+                        }.isSuccess
+                    }
+                }
+                if (!ok) {
+                    snackbarChannel.trySend(MapSnackbar("Speichern fehlgeschlagen"))
+                    return@launch
+                }
+            }
+            applyMarkerStatus(marker, status)
+            val record = MapVerification.UndoRecord(marker, marker.verificationStatus, prevCorrected)
+            snackbarChannel.trySend(
+                MapSnackbar(MapVerification.message(status, marker.species), "Rückgängig") {
+                    undoVerification(record)
+                }
+            )
+        }
+    }
+
+    private fun undoVerification(record: MapVerification.UndoRecord) {
+        val m = record.marker
+        viewModelScope.launch {
+            if (m.isLive) {
+                // Live-Marker bauen sich ueber die Liste neu auf
+                detectionListState.updateVerification(m.detectionId, record.previousStatus, record.previousCorrected)
+                if (sessionManager.isActive) withContext(Dispatchers.IO) {
+                    verificationMutex.withLock { runCatching { sessionManager.removeLastVerification(m.detectionId) } }
+                }
+            } else {
+                withContext(Dispatchers.IO) {
+                    verificationMutex.withLock {
+                        val dir = findSessionDir(m.sessionId) ?: return@withLock
+                        runCatching {
+                            sessionManager.appendVerificationLine(
+                                dir,
+                                verifyJson.encodeToString(MapVerification.undoEvent(record, System.currentTimeMillis())) + "\n"
+                            )
+                        }
+                    }
+                }
+                // Marker wieder einblenden bzw. Status zuruecksetzen
+                _uiState.update { state ->
+                    val restored = MapVerification.withStatus(m, record.previousStatus)
+                    val exists = state.markers.any { it.detectionId == m.detectionId }
+                    state.copy(
+                        markers = when {
+                            exists -> state.markers.map { if (it.detectionId == m.detectionId) restored else it }
+                            MapVerification.visibleAfter(record.previousStatus) -> state.markers + restored
+                            else -> state.markers
+                        }
+                    )
+                }
             }
         }
     }

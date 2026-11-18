@@ -36,6 +36,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Add
@@ -344,8 +348,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                         viewModel.selectCluster(nearest)
                                     } else {
                                         val m = nearest.items.first()
-                                        if (m.isLive) viewModel.selectMarkerForEdit(m)
-                                        else viewModel.onMarkerLongPress(m)
+                                        viewModel.onMarkerLongPress(m)
                                     }
                                 }
                             }
@@ -467,6 +470,24 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             modifier = Modifier.fillMaxSize()
         )
 
+        // T113: Snackbar mit Undo (Long = 10 s, also >= 5 s)
+        val snackbarHostState = remember { SnackbarHostState() }
+        LaunchedEffect(viewModel) {
+            viewModel.snackbarEvents.collect { ev ->
+                snackbarHostState.currentSnackbarData?.dismiss()
+                val result = snackbarHostState.showSnackbar(
+                    message = ev.message,
+                    actionLabel = ev.actionLabel,
+                    duration = SnackbarDuration.Long
+                )
+                if (result == SnackbarResult.ActionPerformed) ev.onAction?.invoke()
+            }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 72.dp)
+        )
+
         if (!inMoveMode) {
             // Cluster-Dialog
             val cluster = state.selectedCluster
@@ -523,6 +544,11 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                         )
                                     }
                                 }
+                                MapVerifyButtons(
+                                    status = m.verificationStatus,
+                                    onVerify = { viewModel.verifyMarker(m, it) },
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
                                 HorizontalDivider()
                             }
                         }
@@ -553,7 +579,15 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissLongPressMenu() },
                     title = { Text(longPressTarget.species) },
-                    text = { Text("Was moechten Sie tun?") },
+                    text = {
+                        MapVerifyButtons(
+                            status = longPressTarget.verificationStatus,
+                            onVerify = {
+                                viewModel.dismissLongPressMenu()
+                                viewModel.verifyMarker(longPressTarget, it)
+                            }
+                        )
+                    },
                     confirmButton = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
@@ -563,20 +597,22 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     viewModel.selectMarkerForEdit(longPressTarget)
                                 }
                             ) { Text("Bearbeiten") }
-                            OutlinedButton(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = {
-                                    viewModel.dismissLongPressMenu()
-                                    viewModel.selectMarkerForMove(longPressTarget)
-                                }
-                            ) { Text("Position verschieben") }
-                            Button(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = {
-                                    viewModel.dismissLongPressMenu()
-                                    viewModel.enterFocusMode(longPressTarget)
-                                }
-                            ) { Text("Simultanbeobachtung") }
+                            if (!longPressTarget.isLive) {
+                                OutlinedButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        viewModel.dismissLongPressMenu()
+                                        viewModel.selectMarkerForMove(longPressTarget)
+                                    }
+                                ) { Text("Position verschieben") }
+                                Button(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        viewModel.dismissLongPressMenu()
+                                        viewModel.enterFocusMode(longPressTarget)
+                                    }
+                                ) { Text("Simultanbeobachtung") }
+                            }
                         }
                     },
                     dismissButton = {
