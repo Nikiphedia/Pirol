@@ -14,6 +14,7 @@ import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.audio.export.DetectionExcerpt
 import ch.etasystems.pirol.audio.export.ExcerptEncoders
 import ch.etasystems.pirol.audio.export.ExcerptWav
+import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import ch.etasystems.pirol.ml.DetectionResult
@@ -33,7 +34,9 @@ import kotlin.math.pow
 data class DetectionShareRequest(
     val detection: DetectionResult,
     val recordingFile: File,
-    val sessionNote: String?
+    val sessionNote: String?,
+    /** T130: alle Segmente der Session; null = aus [recordingFile] und Nachbar-Segmenten ableiten */
+    val recording: SegmentedRecording? = null
 )
 
 /** Export-Formate (T116). */
@@ -75,9 +78,10 @@ class DetectionExporter(
         onProgress: (Float) -> Unit = {}
     ): File = withContext(Dispatchers.IO) {
         val det = request.detection
-        val duration = ExcerptWav.durationSec(request.recordingFile)
-        val range = DetectionExcerpt.compute(det, duration, prefs.excerptMaxSec.toFloat())
-        val pcm = ExcerptWav.readRange(request.recordingFile, range.startSec, range.endSec)
+        // T130: Session-Zeitachse ueber alle WAV-Segmente (Ausschnitt darf eine Segmentgrenze queren)
+        val recording = request.recording ?: SegmentedRecording.forRecordingFile(request.recordingFile)
+        val range = recording.excerptRange(det, prefs.excerptMaxSec.toFloat())
+        val pcm = recording.readRange(range.startSec, range.endSec)
             ?: throw IllegalStateException("Ausschnitt nicht lesbar (Aufnahme leer oder ausserhalb)")
 
         val dir = File(context.cacheDir, "share").apply { mkdirs() }

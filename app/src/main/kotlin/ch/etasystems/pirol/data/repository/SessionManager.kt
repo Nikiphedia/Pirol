@@ -30,7 +30,9 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
+import ch.etasystems.pirol.audio.export.SegmentedRecording
 
 /**
  * Info ueber vorhandene Sessions am aktuellen Speicherort.
@@ -76,6 +78,51 @@ class SessionManager(
         private const val PIROL_DIR = "PIROL"
         /** Veraltetes Sessions-Verzeichnis (pre-T51, fuer Rueckwaertskompatibilitaet) */
         private const val LEGACY_SESSIONS_DIR = "sessions"
+
+        /** Dateiname fuer Segment-Index: 0 → "recording.wav", 1 → "recording-002.wav", ... */
+        internal fun segmentFileName(index: Int): String =
+            if (index == 0) "recording.wav" else "recording-${String.format(Locale.ROOT, "%03d", index + 1)}.wav"
+
+        /** T130: Session-relativer Offset = abgeschlossene Segmente + aktuelles Segment. */
+        internal fun sessionOffsetSec(completedSamples: Long, currentSegmentSamples: Long, sampleRate: Int): Float =
+            if (sampleRate <= 0) 0f
+            else ((completedSamples + currentSegmentSamples).toDouble() / sampleRate).toFloat()
+
+        /**
+         * T130: Metadaten einer nach Prozess-Kill verwaisten Session aus den Dateien rekonstruieren.
+         * Segmentliste + Gesamtsamples aus den WAV-Dateilaengen, Detektionen aus detections.jsonl.
+         * endedAt = letzte Schreibzeit der WAV; ist diese unplausibel (0 / vor startedAt, z.B. nach
+         * Kopieren), dann startedAt + Aufnahmedauer.
+         */
+        internal fun recoverMetadata(
+            metadata: SessionMetadata,
+            segmentFiles: List<File>,
+            detectionLineCount: Int?
+        ): SessionMetadata {
+            val sr = metadata.sampleRate
+            val frames = segmentFiles.map { SegmentedRecording.framesOf(it) }
+            val totalFrames = frames.sum()
+            val segments = if (segmentFiles.size > 1 && sr > 0) {
+                var start = 0L
+                segmentFiles.mapIndexed { i, f ->
+                    RecordingSegment(f.name, start.toFloat() / sr, frames[i].toFloat() / sr).also { start += frames[i] }
+                }
+            } else null
+            val started = runCatching { ZonedDateTime.parse(metadata.startedAt) }.getOrNull()
+            val lastWrite = segmentFiles.maxOfOrNull { it.lastModified() } ?: 0L
+            val endedAt = when {
+                started != null && (lastWrite <= 0L || lastWrite < started.toInstant().toEpochMilli()) ->
+                    started.plusNanos(if (sr > 0) totalFrames * 1_000_000_000L / sr else 0L)
+                lastWrite > 0L -> java.time.Instant.ofEpochMilli(lastWrite).atZone(ZoneId.systemDefault())
+                else -> ZonedDateTime.now(ZoneId.systemDefault())
+            }.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            return metadata.copy(
+                endedAt = endedAt,
+                totalRecordedSamples = if (segmentFiles.isEmpty()) metadata.totalRecordedSamples else totalFrames,
+                totalDetections = detectionLineCount ?: metadata.totalDetections,
+                recordingSegments = segments ?: metadata.recordingSegments
+            )
+        }
 
         /** Pure-Logic-Funktion fuer Unit-Tests (T60). */
         /** T117: Aktionstypen, die einen Verifikationsstatus setzen (Undo-faehig). null = Legacy. */
@@ -318,7 +365,8 @@ class SessionManager(
             regionFilter = regionFilter,
             confidenceThreshold = confidenceThreshold,
             note = note?.trim()?.ifEmpty { null },  // T109
-            modelId = modelId  // T103a
+            modelId = modelId,  // T103a
+            sessionRelativeOffsets = true  // T130: Offsets laufen ueber alle Segmente
         )
 
         val safUri = appPreferences.storageBaseUri
@@ -669,7 +717,8 @@ class SessionManager(
         get() = totalSamplesCompleted + (recordingWriter?.sampleCount ?: 0L)
 
     /**
-     * Aktueller Schreib-Offset in recording.wav in Sekunden.
+     * Aktueller Schreib-Offset der Session in Sekunden (T130: Session-relativ ueber alle
+     * WAV-Segmente, vorher nur im aktuellen Segment → nach einer Rotation falsche Positionen).
      * Wird VOR appendAudioSamples() aufgerufen fuer korrekte Detection-Zeitstempel.
      *
      * @return Offset in Sekunden, oder 0f wenn keine Session aktiv
@@ -677,7 +726,7 @@ class SessionManager(
     fun getCurrentRecordingOffsetSec(): Float {
         val writer = recordingWriter ?: return 0f
         val sampleRate = activeMetadata?.sampleRate ?: return 0f
-        return writer.sampleCount.toFloat() / sampleRate.toFloat()
+        return sessionOffsetSec(totalSamplesCompleted, writer.sampleCount, sampleRate)
     }
 
     /**
@@ -814,9 +863,7 @@ class SessionManager(
 
     // ── WAV-Rotation (T57-B1) ─────────────────────────────────────────
 
-    /** Dateiname fuer Segment-Index: 0 → "recording.wav", 1 → "recording-002.wav", ... */
-    private fun segmentFileName(index: Int): String =
-        if (index == 0) "recording.wav" else "recording-${String.format("%03d", index + 1)}.wav"
+    private fun segmentFileName(index: Int): String = Companion.segmentFileName(index)
 
     /**
      * Schliesst den aktuellen WAV-Writer, speichert das abgeschlossene Segment,
@@ -942,6 +989,8 @@ class SessionManager(
                 return@forEach
             }
             if (metadata.endedAt != null) return@forEach  // Normal beendet — nichts zu tun
+            // T130: laufende Session (Analyse-Tab waehrend der Aufnahme geoeffnet) nicht anfassen
+            if (isActiveDir(sessionDir) || activeMetadata?.sessionId == metadata.sessionId) return@forEach
 
             // Verwaiste Session gefunden
             Log.i(TAG, "recoverOrphan: verwaiste Session gefunden: ${sessionDir.name}")
@@ -957,12 +1006,14 @@ class SessionManager(
                 }
             }
 
-            // session.json: endedAt = last-modified der neuesten WAV (oder json selbst)
-            val refFile = wavFiles.maxByOrNull { it.lastModified() } ?: jsonFile
-            val endedAt = java.time.Instant.ofEpochMilli(refFile.lastModified())
-                .atZone(ZoneId.systemDefault())
-                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-            val recoveredMeta = metadata.copy(endedAt = endedAt)
+            // T130: endedAt, Gesamtsamples, Segmentliste und Detektionszahl aus den Dateien
+            // (endSession() lief nicht → session.json kennt weder Rotation noch Dauer)
+            val detectionLines = runCatching {
+                File(sessionDir, "detections.jsonl").takeIf { it.exists() }
+                    ?.useLines { lines -> lines.count { it.isNotBlank() } }
+            }.getOrNull()
+            val recoveredMeta = recoverMetadata(metadata, SegmentedRecording.segmentFiles(sessionDir), detectionLines)
+            val endedAt = recoveredMeta.endedAt
             try {
                 val prettyJson = Json { prettyPrint = true }
                 jsonFile.writeText(prettyJson.encodeToString(recoveredMeta))
@@ -1116,6 +1167,23 @@ class SessionManager(
     }
 
     /**
+     * T130: Alle WAV-Segmente einer Session als eine Zeitachse (Wiedergabe, Sonogramm, Ausschnitte).
+     * null = keine Aufnahme. Alte Sessions mit mehreren Segmenten (vor T130) haben segment-lokale
+     * Detektions-Offsets; das wird hier aus session.json abgeleitet.
+     */
+    suspend fun loadRecording(sessionDir: File): SegmentedRecording? = withContext(Dispatchers.IO) {
+        val meta = loadMetadata(sessionDir)
+        val startedMs = meta?.startedAt?.let { s ->
+            runCatching { ZonedDateTime.parse(s).toInstant().toEpochMilli() }.getOrNull()
+        }
+        SegmentedRecording.forSession(
+            sessionDir,
+            legacyLocalOffsets = meta != null && !meta.sessionRelativeOffsets,
+            startedAtEpochMs = startedMs
+        )
+    }
+
+    /**
      * Repariert defekte WAV-Header aller Aufnahme-Segmente einer Session (T61).
      * Betrifft Aufnahmen aus V0.0.6 (siehe [WavWriter.repairHeaderIfNeeded]).
      * Dateien mit gueltigem Header bleiben unveraendert.
@@ -1128,11 +1196,18 @@ class SessionManager(
             f.isFile && f.name.startsWith("recording") && f.name.endsWith(".wav")
         }?.toList() ?: emptyList()) + listOfNotNull(File(sessionDir, "audio/recording.wav").takeIf { it.exists() })
         var repaired = 0
+        // T130: Segmente der laufenden Session werden noch geschrieben → nicht anfassen
+        val active = isActiveDir(sessionDir)
         for (file in candidates) {
             try {
                 if (WavWriter.repairHeaderIfNeeded(file, sampleRate)) {
                     repaired++
                     Log.w(TAG, "WAV-Header repariert: ${sessionDir.name}/${file.name}")
+                } else if (!active && WavWriter.headerSizesStale(file)) {
+                    // T130: nach Prozess-Kill veraltete RIFF-/data-Groessen aus der Dateilaenge setzen
+                    StreamingWavWriter.finalizeHeader(file)
+                    repaired++
+                    Log.w(TAG, "WAV-Groessen nachgefuehrt: ${sessionDir.name}/${file.name}")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "WAV-Header-Reparatur fehlgeschlagen: ${file.absolutePath}", e)
@@ -1153,7 +1228,10 @@ class SessionManager(
     ): File? = withContext(Dispatchers.IO) {
         getRecordingFile(sessionDir) ?: return@withContext null
         val outputFile = File(sessionDir, "recording.selections.txt")
+        // T130: alte Sessions mit mehreren Segmenten → segment-lokale Offsets auf Session-Achse umrechnen
+        val recording = loadRecording(sessionDir)
         val detections = loadDetectionsWithVerifications(sessionDir)
+            .let { list -> if (recording != null) list.map { recording.sessionRelative(it) } else list }
         // Metadaten fuer startedAt + recordingSegments laden (T57-B3)
         val meta = runCatching {
             val jsonText = File(sessionDir, "session.json").readText()

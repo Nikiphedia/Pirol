@@ -10,6 +10,7 @@ import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.audio.export.DetectionExcerpt
 import ch.etasystems.pirol.audio.export.ExcerptWav
+import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.data.export.DetectionShareRequest
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
@@ -85,6 +86,9 @@ class AnalysisViewModel(
     /** T107: Polling-Job fuer die Abspielposition. */
     private var positionJob: Job? = null
 
+    /** T130: Aufnahme der geoeffneten Session ueber alle WAV-Segmente (Session-Zeitachse). */
+    @Volatile private var recording: SegmentedRecording? = null
+
     init {
         // T65: Crash-Recovery vor erstem Session-Laden (verwaiste Sessions reparieren)
         viewModelScope.launch {
@@ -141,9 +145,9 @@ class AnalysisViewModel(
             val summaries = dirs.mapNotNull { dir ->
                 val meta = sessionManager.loadMetadata(dir) ?: return@mapNotNull null
                 val detections = sessionManager.loadDetectionsWithVerifications(dir)
-                // T52: WAV-Dateigrösse ermitteln (recording.wav)
+                // T52: WAV-Dateigrösse ermitteln (T130: Summe aller Segmente)
                 val wavBytes = try {
-                    File(dir, "recording.wav").length()
+                    SegmentedRecording.segmentFiles(dir).sumOf { it.length() }
                 } catch (_: Exception) { 0L }
                 SessionSummary(
                     sessionDir = dir,
@@ -176,7 +180,10 @@ class AnalysisViewModel(
             val recFile = sessionManager.getRecordingFile(summary.sessionDir)
             // T62: URI aus File ableiten (fuer SAF-Pfade auf SD-Karte via content://)
             val recUri  = recFile?.let { Uri.fromFile(it) }
-            val durationSec = recFile?.let { readWavDurationSec(it) } ?: 0f
+            // T130: alle Segmente; Dauer = ganze Session (vorher nur recording.wav)
+            val rec = sessionManager.loadRecording(summary.sessionDir)
+            recording = rec
+            val durationSec = rec?.durationSec?.takeIf { it > 0f } ?: recFile?.let { readWavDurationSec(it) } ?: 0f
             _uiState.update {
                 it.copy(
                     selectedSession = summary,
@@ -189,7 +196,9 @@ class AnalysisViewModel(
                 )
             }
             // T62: Sonogramm streaming rendern (kein readBytes() auf ganzes File)
-            if (recFile != null) {
+            if (rec != null && rec.parts.size > 1) {
+                renderSessionSonogramStreaming(rec.virtualWavLength) { rec.openWavStream() }
+            } else if (recFile != null) {
                 renderSessionSonogramStreaming(recFile.length()) { recFile.inputStream() }
             }
         }
@@ -198,6 +207,7 @@ class AnalysisViewModel(
     /** Zurueck zur Session-Liste */
     fun closeSession() {
         audioPlayer.stop()
+        recording = null
         _uiState.update {
             it.copy(
                 selectedSession = null,
@@ -223,7 +233,9 @@ class AnalysisViewModel(
     fun playChunk(chunkIndex: Int) {
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
+        val rec = recording
         when {
+            rec != null && rec.parts.size > 1 -> audioPlayer.play(rec)  // T130: Segmente nacheinander
             uri != null -> audioPlayer.play(uri)
             f   != null -> audioPlayer.play(f)
             else -> return
@@ -251,17 +263,20 @@ class AnalysisViewModel(
     fun playDetection(detection: DetectionResult) {
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
+        val rec = recording
         // T116: Ausschnitt mit Kontext (3 s davor, 5 s danach, max. excerptMaxSec)
-        val range = DetectionExcerpt.compute(
-            detection, _uiState.value.recordingDurationSec, appPreferences.excerptMaxSec.toFloat()
-        )
+        // T130: auf der Session-Achse ueber alle Segmente
+        val range = rec?.excerptRange(detection, appPreferences.excerptMaxSec.toFloat())
+            ?: DetectionExcerpt.compute(detection, _uiState.value.recordingDurationSec, appPreferences.excerptMaxSec.toFloat())
         when {
+            rec != null -> audioPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
             uri != null -> audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
             f   != null -> audioPlayer.playFromOffset(f,   startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
             else -> return
         }
         _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id) }
-        if (f != null) renderZoomSonogram(f, range)
+        if (rec != null) renderZoomSonogram(range) { rec.readRange(range.startSec, range.endSec) }
+        else if (f != null) renderZoomSonogram(range) { ExcerptWav.readRange(f, range.startSec, range.endSec) }
     }
 
     private var zoomJob: Job? = null
@@ -273,11 +288,11 @@ class AnalysisViewModel(
     }
 
     /** T116: Mel-Frames nur fuer den Ausschnitt berechnen; Anzeige zoomt darauf. */
-    private fun renderZoomSonogram(file: File, range: DetectionExcerpt.Range) {
+    private fun renderZoomSonogram(range: DetectionExcerpt.Range, read: () -> ExcerptWav.Pcm?) {
         zoomJob?.cancel()
         zoomJob = viewModelScope.launch(Dispatchers.Default) {
             val frames = try {
-                val pcm = ExcerptWav.readRange(file, range.startSec, range.endSec) ?: return@launch
+                val pcm = read() ?: return@launch
                 MelSpectrogram(sampleRate = pcm.sampleRate).process(pcm.samples)
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "T116 Zoom-Sonogramm fehlgeschlagen", e)
@@ -296,7 +311,7 @@ class AnalysisViewModel(
         val dir = _uiState.value.selectedSession?.sessionDir
         viewModelScope.launch {
             val note = dir?.let { sessionManager.loadMetadata(it)?.note }
-            _uiState.update { it.copy(shareRequest = DetectionShareRequest(detection, f, note)) }
+            _uiState.update { it.copy(shareRequest = DetectionShareRequest(detection, f, note, recording)) }
         }
     }
 
@@ -319,6 +334,8 @@ class AnalysisViewModel(
             return
         }
         val duration = _uiState.value.recordingDurationSec
+        // T130: alle Segmente der Session
+        val rec = recording ?: SegmentedRecording.forRecordingFile(file)
         viewModelScope.launch(Dispatchers.IO) {
             // T127: Umschalten — vorhandene Referenz entfernen statt doppelt zu speichern
             referenceRepository.findByDetection(detection.id)?.let { existing ->
@@ -328,8 +345,9 @@ class AnalysisViewModel(
                 }
                 return@launch
             }
-            val range = DetectionExcerpt.compute(detection, duration, appPreferences.excerptMaxSec.toFloat())
-            val entry = referenceRepository.addFromDetection(detection, file, session.sessionDir.name, range)
+            val range = if (rec.durationSec > 0f) rec.excerptRange(detection, appPreferences.excerptMaxSec.toFloat())
+                else DetectionExcerpt.compute(detection, duration, appPreferences.excerptMaxSec.toFloat())
+            val entry = referenceRepository.addFromDetection(detection, rec, session.sessionDir.name, range)
             withContext(Dispatchers.Main) {
                 reportError(
                     if (entry != null) AppStrings.get(R.string.analysis_als_referenz_gespeichert, entry.commonName)
@@ -435,7 +453,12 @@ class AnalysisViewModel(
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
         val det = _uiState.value.compareDetection ?: return
+        val rec = recording
         when {
+            // T130: Session-Achse ueber alle Segmente
+            rec != null -> rec.sessionRelative(det).let { d ->
+                audioPlayer.playFromOffset(rec, startSec = d.chunkStartSec, endSec = d.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
+            }
             uri != null -> audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
             f   != null -> audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
             else -> return
@@ -460,12 +483,15 @@ class AnalysisViewModel(
      */
     private fun renderDetectionSonogram(detection: DetectionResult) {
         val recFile = _uiState.value.recordingFile ?: return
+        val rec = recording
         viewModelScope.launch(Dispatchers.Default) {
+            // T130: bei mehreren Segmenten ueber die Session-Achse lesen
+            val d = rec?.sessionRelative(detection) ?: detection
             val samples = readWavSamplesRange(
-                openStream = { recFile.inputStream() },
-                fileLength  = recFile.length(),
-                startSec    = detection.chunkStartSec,
-                endSec      = detection.chunkEndSec
+                openStream = { rec?.openWavStream() ?: recFile.inputStream() },
+                fileLength  = rec?.virtualWavLength ?: recFile.length(),
+                startSec    = d.chunkStartSec,
+                endSec      = d.chunkEndSec
             ) ?: return@launch
             val state  = SpectrogramState(maxFrames = 2048)
             val mel    = MelSpectrogram(sampleRate = 48000)
