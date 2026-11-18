@@ -102,9 +102,25 @@ val appModule = module {
     // DetectionExporter — Singleton, Detektions-Ausschnitt teilen (T116)
     single { ch.etasystems.pirol.data.export.DetectionExporter(androidContext(), get(), get(), get()) }
 
+    // T94: Embedding-DB-Datei (Laden/Modellwechsel/Speichern) — vorher im LiveViewModel
+    single { ch.etasystems.pirol.audio.EmbeddingDbStore(androidContext(), get(), get(), get()) }
+
+    // T94: Session-Pipeline (Persistenz + Inference + Detektionen), gesteuert vom RecordingService
+    single {
+        ch.etasystems.pirol.audio.RecordingPipeline(
+            classifier = get(),
+            regionalFilter = get(),
+            detectionListState = get(),
+            session = ch.etasystems.pirol.audio.SessionManagerPipelineSession(get()),
+            hooks = ch.etasystems.pirol.audio.AndroidPipelineHooks(
+                get(), get(), get(), get(), get(), get(), get(), get(), get(), get()
+            )
+        )
+    }
+
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
-    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }
+    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }  // T94: EmbeddingExtractor -> RecordingPipeline, + EmbeddingDbStore
 
     // ReferenceViewModel — Referenzbibliothek-UI
     viewModel { ReferenceViewModel(get(), get(), get(), androidContext()) }
