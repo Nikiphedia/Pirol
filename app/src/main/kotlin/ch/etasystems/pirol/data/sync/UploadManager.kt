@@ -2,15 +2,16 @@ package ch.etasystems.pirol.data.sync
 
 import android.content.Context
 import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Orchestriert Session-Uploads via WorkManager.
@@ -22,8 +23,7 @@ class UploadManager(private val context: Context) {
         private const val TAG = "UploadManager"
     }
 
-    private val _status = MutableStateFlow<UploadStatus>(UploadStatus.Idle)
-    val status: StateFlow<UploadStatus> = _status.asStateFlow()
+    val status: StateFlow<UploadStatus> = UploadStatusHolder.status
 
     /** Ob Uploads nur bei WLAN erlaubt sind (Standard: true) */
     var wifiOnly: Boolean = true
@@ -38,7 +38,7 @@ class UploadManager(private val context: Context) {
      */
     fun enqueue(sessionDir: File) {
         val sessionId = sessionDir.name
-        _status.value = UploadStatus.InProgress(sessionId, 0f)
+        UploadStatusHolder.set(UploadStatus.InProgress(sessionId, 0f))
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(
@@ -51,11 +51,13 @@ class UploadManager(private val context: Context) {
             .setInputData(
                 workDataOf(SessionUploadWorker.KEY_SESSION_DIR to sessionDir.absolutePath)
             )
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .addTag("session_upload")
             .addTag(sessionId)
             .build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork("upload_$sessionId", ExistingWorkPolicy.REPLACE, workRequest)
         Log.i(TAG, "Upload eingereiht: $sessionId (wifiOnly=$wifiOnly)")
     }
 }

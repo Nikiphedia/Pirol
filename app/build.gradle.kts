@@ -112,6 +112,10 @@ dependencies {
     // DocumentFile (SAF-Unterstuetzung fuer oeffentlichen Speicher, T51)
     implementation(libs.documentfile)
 
+    // NAS-Upload via SMB + verschluesseltes Passwort (T125)
+    implementation(libs.smbj)
+    implementation(libs.security.crypto)
+
     // Unit-Tests (T53: AccuracyFilterTest, MedianSmoothingTest)
     testImplementation("junit:junit:4.13.2")
 }

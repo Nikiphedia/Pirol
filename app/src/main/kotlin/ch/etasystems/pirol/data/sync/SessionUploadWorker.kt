@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.SessionMetadata
 import kotlinx.serialization.json.Json
 import java.io.BufferedOutputStream
@@ -27,6 +28,8 @@ class SessionUploadWorker(
     companion object {
         const val KEY_SESSION_DIR = "session_dir"
         private const val TAG = "SessionUploadWorker"
+        /** Maximale Anzahl Versuche inkl. erstem (danach endgueltig fehlgeschlagen) */
+        const val MAX_ATTEMPTS = 5
     }
 
     override suspend fun doWork(): Result {
@@ -54,25 +57,67 @@ class SessionUploadWorker(
             return Result.failure()
         }
 
-        // Upload via LocalExportTarget
-        val target = LocalExportTarget(applicationContext)
-        val success = try {
-            target.upload(zipFile, metadata)
-        } catch (e: Exception) {
-            Log.e(TAG, "Upload fehlgeschlagen", e)
-            false
+        // T125: konfiguriertes Ziel (NAS/Ordner); ohne Ziel (manueller Export) nur lokale Kopie
+        val prefs = AppPreferences(applicationContext)
+        var error: String? = null
+        var retryable = true
+        var remoteDone = false
+        val remoteConfigured = UploadTargetFactory.isConfigured(prefs)
+        if (remoteConfigured) {
+            try {
+                val target = UploadTargetFactory.create(
+                    applicationContext, prefs, UploadCredentialStore(applicationContext)
+                )!!
+                remoteDone = target.upload(zipFile, metadata) { p ->
+                    UploadStatusHolder.set(UploadStatus.InProgress(metadata.sessionId, p))
+                }
+                if (!remoteDone) error = "Upload fehlgeschlagen"
+            } catch (e: UploadConfigException) {
+                error = UploadConfig.describeError(e)
+                retryable = false
+            } catch (e: Exception) {
+                // Kein Passwort in Logs: nur Klasse und bereinigte Meldung
+                Log.e(TAG, "Upload fehlgeschlagen: ${e.javaClass.simpleName}")
+                error = UploadConfig.describeError(e)
+            }
         }
 
-        // Temporaere ZIP aufraeumen
+        // Lokale ZIP-Kopie nach Downloads/PIROL: ohne Ziel immer; mit Ziel nur wenn nicht abgewaehlt (best effort)
+        var localOk = true
+        if (!remoteConfigured || (remoteDone && !prefs.deleteLocalZipAfterUpload)) {
+            localOk = try {
+                LocalExportTarget(applicationContext).upload(zipFile, metadata)
+            } catch (e: Exception) {
+                false
+            }
+            if (!remoteConfigured && !localOk) error = "Lokaler Export fehlgeschlagen"
+        }
+
+        // Temporaere ZIP aufraeumen (Session-Ordner bleibt immer erhalten)
         zipFile.delete()
 
-        return if (success) {
+        val success = error == null
+        if (success) {
             Log.i(TAG, "Session exportiert: ${metadata.sessionId}")
-            Result.success()
-        } else {
-            Log.e(TAG, "Export fehlgeschlagen: ${metadata.sessionId}")
-            Result.retry()
+            record(prefs, "Erfolgreich: ${metadata.sessionId}")
+            UploadStatusHolder.set(UploadStatus.Success(metadata.sessionId))
+            return Result.success()
         }
+        Log.e(TAG, "Export fehlgeschlagen: ${metadata.sessionId}")
+        val giveUp = !retryable || runAttemptCount >= MAX_ATTEMPTS - 1
+        if (giveUp) {
+            record(prefs, "Fehlgeschlagen: $error")
+            UploadStatusHolder.set(UploadStatus.Failed(metadata.sessionId, error ?: "Unbekannter Fehler"))
+            return Result.failure()
+        }
+        // Zwischenstand: Retry mit exponentiellem Backoff (WorkManager)
+        record(prefs, "Fehler (Versuch ${runAttemptCount + 1}/$MAX_ATTEMPTS), neuer Versuch: $error")
+        return Result.retry()
+    }
+
+    private fun record(prefs: AppPreferences, text: String) {
+        prefs.lastUploadTimeMs = System.currentTimeMillis()
+        prefs.lastUploadResult = text
     }
 }
 

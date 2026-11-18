@@ -1244,10 +1244,12 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Ziel: Downloads/PIROL/",
+            text = "Automatischer Upload findet nur mit gewaehltem Ziel statt.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        UploadSettingsSection(appPreferences)
 
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()

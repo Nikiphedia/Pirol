@@ -16,6 +16,8 @@ play-services-location = "21.3.0"
 work = "2.10.0"
 osmdroid = "6.1.18"
 documentfile = "1.0.1"
+smbj = "0.14.0"
+security-crypto = "1.1.0-alpha06"
 
 [libraries]
 # Compose
@@ -66,6 +68,12 @@ osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "os
 
 # DocumentFile (SAF-Unterstuetzung, T51)
 documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
+
+# SMB2/3-Client fuer NAS-Upload (T125, Apache 2.0)
+smbj = { module = "com.hierynomus:smbj", version.ref = "smbj" }
+
+# Verschluesselte Preferences fuer NAS-Passwort (T125)
+security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

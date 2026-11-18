@@ -373,4 +373,47 @@ class AppPreferences(context: Context) {
     var alarmBannerEnabled: Boolean
         get() = prefs.getBoolean("pirol_alarm_banner", true)
         set(value) = prefs.edit().putBoolean("pirol_alarm_banner", value).apply()
+
+    // --- T125: Upload-Ziel (Passwort liegt NICHT hier, sondern im UploadCredentialStore) ---
+
+    /** UploadTargetType.name, Default OFF (nichts wird automatisch hochgeladen) */
+    var uploadTargetType: String
+        get() = prefs.getString("pirol_upload_target_type", "OFF") ?: "OFF"
+        set(value) = prefs.edit().putString("pirol_upload_target_type", value).apply()
+
+    /** SAF-Baum-URI des gewaehlten Zielordners */
+    var uploadFolderUri: String
+        get() = prefs.getString("pirol_upload_folder_uri", "") ?: ""
+        set(value) = prefs.edit().putString("pirol_upload_folder_uri", value).apply()
+
+    var smbHost: String
+        get() = prefs.getString("pirol_smb_host", "") ?: ""
+        set(value) = prefs.edit().putString("pirol_smb_host", value).apply()
+
+    var smbShare: String
+        get() = prefs.getString("pirol_smb_share", "") ?: ""
+        set(value) = prefs.edit().putString("pirol_smb_share", value).apply()
+
+    var smbPath: String
+        get() = prefs.getString("pirol_smb_path", "PIROL") ?: "PIROL"
+        set(value) = prefs.edit().putString("pirol_smb_path", value).apply()
+
+    var smbUser: String
+        get() = prefs.getString("pirol_smb_user", "") ?: ""
+        set(value) = prefs.edit().putString("pirol_smb_user", value).apply()
+
+    /** Lokale ZIP-Kopie nach erfolgreichem Upload weglassen (Default false = Kopie in Downloads/PIROL bleibt) */
+    var deleteLocalZipAfterUpload: Boolean
+        get() = prefs.getBoolean("pirol_upload_delete_local_zip", false)
+        set(value) = prefs.edit().putBoolean("pirol_upload_delete_local_zip", value).apply()
+
+    /** Zeitpunkt des letzten Upload-Versuchs (ms, 0 = nie) */
+    var lastUploadTimeMs: Long
+        get() = prefs.getLong("pirol_last_upload_time", 0L)
+        set(value) = prefs.edit().putLong("pirol_last_upload_time", value).apply()
+
+    /** Ergebnistext des letzten Upload-Versuchs (Deutsch) */
+    var lastUploadResult: String
+        get() = prefs.getString("pirol_last_upload_result", "") ?: ""
+        set(value) = prefs.edit().putString("pirol_last_upload_result", value).apply()
 }
