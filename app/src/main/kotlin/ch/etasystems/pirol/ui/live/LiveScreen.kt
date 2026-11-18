@@ -980,6 +980,7 @@ private fun ScanStatusRow(
             kotlinx.coroutines.delay(1000L)
         }
     }
+    val modelLabel = koinInject<ch.etasystems.pirol.ml.AudioClassifier>().modelName  // T122
     val sessionTimeLabel = if (uiState.isRecording) {
         " · %02d:%02d".format(elapsedSecs / 60L, elapsedSecs % 60L)
     } else ""
@@ -990,7 +991,8 @@ private fun ScanStatusRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "$configLabel · ${(uiState.inferenceConfig.confidenceThreshold * 100).roundToInt()}% · $regionLabel$sessionTimeLabel",
+            // T122: aktives Modell anzeigen (Feldtest: unklar, welches Modell laeuft)
+            text = "${modelLabel} · $configLabel · ${(uiState.inferenceConfig.confidenceThreshold * 100).roundToInt()}% · $regionLabel$sessionTimeLabel",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)

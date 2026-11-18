@@ -430,13 +430,27 @@ class BirdNetV3Classifier(
      * Extrahiert die Prediction-Scores aus dem ONNX-Output (T103a: Ausgang laut Profil).
      * Passt die Laenge nicht zu den Labels, wird nichts gemeldet (sonst falsche Arten).
      */
+    @Volatile private var loggedOutputFallback = false  // T122
+
     private fun extractPredictions(result: OrtSession.Result, session: OrtSession): FloatArray {
         val p = profile
         val idx = selectOutputIndex(session.outputNames.toList(), p.scoreOutputName, p.scoreOutputIndex)
-        val scores = flattenOutput(result[idx].value) ?: return FloatArray(0)
+        var scores = flattenOutput(result[idx].value) ?: return FloatArray(0)
         if (scores.size != labels.size) {
-            Log.e(TAG, "Score-Ausgang[$idx] hat ${scores.size} Werte, Labels ${labels.size} — Profil ${p.id} passt nicht zum Modell")
-            return FloatArray(0)
+            // T122: Rueckfall auf den Ausgang mit passender Laenge (Preview 3.1 hat das Layout von 3.0 final,
+            // nicht von Preview 3 — feste Indizes im Profil waren falsch → keine Erkennung mehr)
+            val match = (0 until session.outputNames.size).firstOrNull { i ->
+                flattenOutput(result[i].value)?.size == labels.size
+            }
+            if (match == null) {
+                Log.e(TAG, "Kein Ausgang mit ${labels.size} Werten — Profil ${p.id} passt nicht zum Modell")
+                return FloatArray(0)
+            }
+            if (!loggedOutputFallback) {
+                loggedOutputFallback = true
+                Log.w(TAG, "T122 Score-Ausgang per Laenge gewaehlt: [$match] statt [$idx] (Profil ${p.id})")
+            }
+            scores = flattenOutput(result[match].value) ?: return FloatArray(0)
         }
         return applyTransform(scores, p.scoreTransform)
     }
@@ -489,7 +503,9 @@ class BirdNetV3Classifier(
         val p = profile
         val outputNames = session.outputNames.toList()
         if (outputNames.isEmpty()) return null
-        val idx = selectOutputIndex(outputNames, p.embeddingOutputName, p.embeddingOutputIndex)
+        var idx = selectOutputIndex(outputNames, p.embeddingOutputName, p.embeddingOutputIndex)
+        // T122: liegt auf dem Index der Score-Vektor, den anderen Ausgang nehmen
+        if (outputNames.size == 2 && flattenOutput(result[idx].value)?.size == labels.size) idx = 1 - idx
         val flat = flattenOutput(result[idx].value) ?: run {
             Log.w(TAG, "Kein Embedding-Output gefunden")
             return null

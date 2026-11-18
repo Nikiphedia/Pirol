@@ -565,6 +565,8 @@ class LiveViewModel(
         if (!svc.isRecording.value) return
         svc.stopRecording()
         // Collection-Job und MelSpectrogram werden via Recording-Observer gestoppt
+        // T122: Preroll war aktiv → nach dem Stopp wieder puffern (vorher musste man ihn zweimal umschalten)
+        if (prerollRunning) userStartPreroll()
     }
 
     /** Toggle-Convenience (fuer FAB). */

@@ -117,8 +117,8 @@ data class ModelProfile(
             windowSamples = 96000,
             labelFormat = LabelFormat.PREVIEW_SEMICOLON,
             labelAssetPath = "models/birdnet_v3_labels.csv",
-            scoreOutputIndex = 1,
-            embeddingOutputIndex = 0,
+            scoreOutputIndex = 0,  // T122: Preview 3.1 hat das Layout von 3.0 final (Geraet: [1] = 1280 Werte)
+            embeddingOutputIndex = 1,
             scoreTransform = ScoreTransform.NONE,
             speciesCount = 11560,
             licenseNote = LICENSE_BIRDNET3,
