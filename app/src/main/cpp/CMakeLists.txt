@@ -29,3 +29,9 @@ target_link_libraries(pirol_audio
     android
     log
 )
+
+# 16-KB-Page-Size: ELF-Segmente auf 16384 ausrichten (zusaetzlich zu ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES)
+target_link_options(pirol_audio PRIVATE
+    -Wl,-z,max-page-size=16384
+    -Wl,-z,common-page-size=16384
+)
