@@ -58,11 +58,14 @@ fun SpectrogramSettingsPanel(
     val cfgMin = config.fMin
     val activePreset = settings.matchingPreset()
 
+    // Eigenes Scrollen nur mit endlicher Hoehe. Eingebettet in den (selbst scrollenden) Settings-Screen
+    // wuerde verticalScroll mit unendlicher Hoehe gemessen → IllegalStateException (Absturz).
+    val scrollState = rememberScrollState()
+    val scrollModifier = if (maxHeight == Dp.Infinity) Modifier
+        else Modifier.heightIn(max = maxHeight).verticalScroll(scrollState)
     Card(modifier = modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier
-                .heightIn(max = maxHeight)
-                .verticalScroll(rememberScrollState())
+            modifier = scrollModifier
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
