@@ -155,7 +155,9 @@ class LiveViewModel(
         }
         viewModelScope.launch {
             val note = sessionManager.loadMetadata(dir)?.note
-            _shareRequest.value = ch.etasystems.pirol.data.export.DetectionShareRequest(detection, wav, note)
+            // T130: alle WAV-Segmente der Session
+            val recording = sessionManager.loadRecording(dir)
+            _shareRequest.value = ch.etasystems.pirol.data.export.DetectionShareRequest(detection, wav, note, recording)
         }
     }
 
@@ -959,16 +961,14 @@ class LiveViewModel(
                 return@launch
             }
             val sessionDir = sessionManager.currentSessionDir ?: sessionManager.listSessions().firstOrNull()
-            val recording = sessionDir?.let { sessionManager.getRecordingFile(it) }
+            // T130: alle WAV-Segmente der Session (Session-Zeitachse)
+            val recording = sessionDir?.let { sessionManager.loadRecording(it) }
             if (sessionDir == null || recording == null) {
                 Log.e(TAG, "Referenz: keine Aufnahme gefunden")
                 return@launch
             }
             // Bei laufender Aufnahme ist die Datei evtl. noch kuerzer als der Ausschnitt -> auf Dauer begrenzen
-            val duration = ch.etasystems.pirol.audio.export.ExcerptWav.durationSec(recording)
-            val range = ch.etasystems.pirol.audio.export.DetectionExcerpt.compute(
-                detection, duration, appPreferences.excerptMaxSec.toFloat()
-            )
+            val range = recording.excerptRange(detection, appPreferences.excerptMaxSec.toFloat())
             val result = referenceRepository.addFromDetection(detection, recording, sessionDir.name, range)
             if (result != null) {
                 Log.i(TAG, "Referenz gespeichert: ${result.commonName} (${result.wavFileName})")

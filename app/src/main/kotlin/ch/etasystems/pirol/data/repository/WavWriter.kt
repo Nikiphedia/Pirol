@@ -93,6 +93,26 @@ object WavWriter {
         return true
     }
 
+    /**
+     * T130: true, wenn eine gueltige PIROL-WAV in RIFF- oder data-Groesse nicht zur Dateilaenge passt
+     * (Prozess-Kill vor close(): Groessen stehen auf dem Stand des letzten periodischen Updates).
+     */
+    fun headerSizesStale(file: File): Boolean {
+        if (!file.exists() || file.length() < 44) return false
+        RandomAccessFile(file, "r").use { raf ->
+            val head = ByteArray(44)
+            raf.readFully(head)
+            if (String(head, 0, 4, Charsets.US_ASCII) != "RIFF" ||
+                String(head, 8, 4, Charsets.US_ASCII) != "WAVE" ||
+                String(head, 36, 4, Charsets.US_ASCII) != "data") return false
+            val bb = ByteBuffer.wrap(head).order(ByteOrder.LITTLE_ENDIAN)
+            val dataBytes = minOf(raf.length() - 44L, 0xFFFFFFFFL)
+            val riff = bb.getInt(4).toLong() and 0xFFFFFFFFL
+            val data = bb.getInt(40).toLong() and 0xFFFFFFFFL
+            return data != dataBytes || riff != minOf(36L + dataBytes, 0xFFFFFFFFL)
+        }
+    }
+
     /** 44-Byte PCM-Mono-16-bit-Header */
     private fun buildHeader(sampleRate: Int, dataSize: Int): ByteArray {
         val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
@@ -120,8 +140,9 @@ object WavWriter {
  * 16-bit PCM Mono. Nicht thread-safe — Aufrufer muss serialisieren.
  *
  * Unterstuetzt sowohl File-basierte als auch SAF-basierte Ausgabe via FileChannel.
- * Periodisches Flush (alle FLUSH_INTERVAL_APPENDS Aufrufe) sichert die Datei
- * bei langen Sessions gegen App-Kills.
+ * T130: Alle [SYNC_INTERVAL_SEC] s Audio werden die Header-Groessen nachgefuehrt und force()
+ * aufgerufen; nach einem Kill ist die Datei damit ohne Reparatur abspielbar (fehlt hoechstens
+ * der Header-Stand der letzten <5 s, die Daten selbst sind vollstaendig).
  */
 class StreamingWavWriter private constructor(
     private val channel: FileChannel,
@@ -129,7 +150,11 @@ class StreamingWavWriter private constructor(
     private val onClose: (() -> Unit)? = null
 ) {
     companion object {
-        private const val FLUSH_INTERVAL_APPENDS = 20  // ~60s bei 3s-Chunks
+        /**
+         * T130: Intervall (Sekunden Audio) fuer Header-Update + force(). Vorher alle 20 Appends
+         * (= 20-60 s je nach Overlap); nach einem Kill stimmten die Header-Groessen bis dahin nicht.
+         */
+        const val SYNC_INTERVAL_SEC = 5
 
         /**
          * T65: Crash-Recovery — finalisiert WAV-Header eines abgebrochen geschriebenen Files.
@@ -184,7 +209,8 @@ class StreamingWavWriter private constructor(
     private var dataBytesWritten: Long = 0L
     // Wiederverwendeter Sample-Buffer fuer append() (waechst bei Bedarf, sonst keine Allokation pro Chunk)
     private var appendBuffer: ByteBuffer = ByteBuffer.allocate(0)
-    private var appendCount: Int = 0
+    private var lastSyncBytes: Long = 0L
+    private val syncIntervalBytes: Long = sampleRate.toLong() * 2L * SYNC_INTERVAL_SEC
     private val numChannels = 1
     private val bitsPerSample = 16
 
@@ -211,7 +237,7 @@ class StreamingWavWriter private constructor(
         // Absolute close()-Writes (Offset 4 + 40 fuer RIFF/data-Groesse) bleiben unveraendert.
         channel.write(header)
         dataBytesWritten = 0L
-        appendCount = 0
+        lastSyncBytes = 0L
     }
 
     /** Haengt Samples an. open() muss vorher aufgerufen worden sein. */
@@ -228,23 +254,30 @@ class StreamingWavWriter private constructor(
         // FileChannel.write() kann (v.a. bei SAF) weniger Bytes schreiben → bis Ende schreiben
         while (buf.hasRemaining()) channel.write(buf)
         dataBytesWritten += samples.size * 2L
-        appendCount++
-        // Periodisches Flush: sichert Datei bei App-Kills in langen Sessions
-        if (appendCount % FLUSH_INTERVAL_APPENDS == 0) {
-            // T57-B2: Header-Felder aktualisieren damit Windows korrekte Hz + Laenge zeigt
-            // Absolute channel.write(buf, pos) aendert die Channel-Position nicht → Append-Position bleibt korrekt
-            val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            riffBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
-            riffBuf.flip()
-            channel.write(riffBuf, 4L)
-
-            val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            dataBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
-            dataBuf.flip()
-            channel.write(dataBuf, 40L)
-
+        // T130: alle ~5 s Audio Header-Groessen nachfuehren + auf den Datentraeger schreiben.
+        // Die Samples selbst liegen nach channel.write() bereits im Kernel (kein Puffer im Prozess),
+        // ein Prozess-Kill verliert hier also nichts; force() sichert zusaetzlich gegen Stromausfall.
+        if (dataBytesWritten - lastSyncBytes >= syncIntervalBytes) {
+            writeSizeFields()
             channel.force(false)
+            lastSyncBytes = dataBytesWritten
         }
+    }
+
+    /**
+     * RIFF-fileSize (Offset 4) und data-dataSize (Offset 40) auf den aktuellen Stand setzen.
+     * Absolute channel.write(buf, pos) aendert die Channel-Position nicht → Append-Position bleibt korrekt.
+     */
+    private fun writeSizeFields() {
+        val riffBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        riffBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
+        riffBuf.flip()
+        while (riffBuf.hasRemaining()) channel.write(riffBuf, 4L + riffBuf.position())
+
+        val dataBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        dataBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
+        dataBuf.flip()
+        while (dataBuf.hasRemaining()) channel.write(dataBuf, 40L + dataBuf.position())
     }
 
     /**
@@ -252,18 +285,7 @@ class StreamingWavWriter private constructor(
      * Nutzt absolute Channel-Writes ohne Positionswechsel (FileChannel.write(buf, pos)).
      */
     fun close() {
-        // RIFF fileSize @ Offset 4
-        val riffSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        riffSizeBuf.putInt(minOf(36L + dataBytesWritten, 0xFFFFFFFFL).toInt())
-        riffSizeBuf.flip()
-        channel.write(riffSizeBuf, 4L)
-
-        // data dataSize @ Offset 40
-        val dataSizeBuf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        dataSizeBuf.putInt(minOf(dataBytesWritten, 0xFFFFFFFFL).toInt())
-        dataSizeBuf.flip()
-        channel.write(dataSizeBuf, 40L)
-
+        writeSizeFields()
         channel.force(true)
         channel.close()
         onClose?.invoke()

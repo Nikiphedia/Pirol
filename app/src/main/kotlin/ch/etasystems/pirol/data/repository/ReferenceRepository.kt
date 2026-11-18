@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import ch.etasystems.pirol.audio.export.DetectionExcerpt
 import ch.etasystems.pirol.audio.export.ExcerptWav
+import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationStatus
 import kotlinx.coroutines.Dispatchers
@@ -66,21 +67,21 @@ class ReferenceRepository(private val context: Context) {
      * und schreibt ihn als eigene WAV nach references/{Art}/. Vorher wurde ein nicht mehr
      * existierender Pfad audio/recording.wav gesucht (seit T51 flach) und still abgebrochen.
      *
-     * @param recordingFile recording.wav der Session
+     * @param recording Aufnahme der Session (T130: alle WAV-Segmente, [range] auf der Session-Achse)
      * @return ReferenceEntry oder null bei Fehler
      */
     suspend fun addFromDetection(
         detection: DetectionResult,
-        recordingFile: File,
+        recording: SegmentedRecording,
         sessionId: String,
         range: DetectionExcerpt.Range
     ): ReferenceEntry? = withContext(Dispatchers.IO) {
-        if (!recordingFile.exists()) {
-            Log.e(TAG, "WAV nicht gefunden: ${recordingFile.absolutePath}")
+        if (recording.parts.none { it.file.exists() }) {
+            Log.e(TAG, "WAV nicht gefunden: ${recording.firstFile?.absolutePath}")
             return@withContext null
         }
         val pcm = try {
-            ExcerptWav.readRange(recordingFile, range.startSec, range.endSec)
+            recording.readRange(range.startSec, range.endSec)
         } catch (e: Exception) {
             Log.e(TAG, "Ausschnitt lesen fehlgeschlagen", e)
             null

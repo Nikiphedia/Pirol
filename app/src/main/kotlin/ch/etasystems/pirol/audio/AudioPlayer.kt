@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.net.Uri
+import ch.etasystems.pirol.audio.export.SegmentedRecording
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -44,6 +45,8 @@ class AudioPlayer(private val context: Context) {
     // Kopfposition relativ zum Clip-Start, daher Offset + Samplerate merken.
     private var trackOffsetSec = 0f
     private var trackSampleRate = 0
+    // T130: Start des gerade gespielten Segments auf der Session-Achse (MediaPlayer-Wiedergabe)
+    private var mediaPlayerOffsetSec = 0f
 
     /**
      * T107: Aktuelle Abspielposition in Sekunden relativ zum Datei-Anfang, null wenn nichts spielt.
@@ -52,7 +55,7 @@ class AudioPlayer(private val context: Context) {
     fun currentPositionSec(): Float? {
         if (_state.value == PlaybackState.IDLE) return null
         try {
-            mediaPlayer?.let { return it.currentPosition / 1000f }
+            mediaPlayer?.let { return mediaPlayerOffsetSec + it.currentPosition / 1000f }
             val t = audioTrack ?: return null
             if (trackSampleRate <= 0) return null
             return trackOffsetSec + t.playbackHeadPosition.toFloat() / trackSampleRate
@@ -117,6 +120,69 @@ class AudioPlayer(private val context: Context) {
             endSec      = endSec,
             normalizeDbfs = normalizeDbfs
         )
+    }
+
+    /**
+     * T130: Zeitabschnitt einer Session-Aufnahme (alle WAV-Segmente, Session-Zeitachse) abspielen.
+     * Ueberspannt der Abschnitt eine Segmentgrenze, werden beide Teile lueckenlos gespielt.
+     */
+    fun playFromOffset(recording: SegmentedRecording, startSec: Float, endSec: Float? = null, normalizeDbfs: Float? = null) {
+        stop()
+        playFromOffsetInternal(
+            openStream = { recording.openWavStream() },
+            fileLength  = recording.virtualWavLength,
+            startSec    = startSec,
+            endSec      = endSec,
+            normalizeDbfs = normalizeDbfs
+        )
+    }
+
+    /**
+     * T130: Ganze Session-Aufnahme abspielen — Segmente nacheinander via MediaPlayer.
+     * [currentPositionSec] liefert die Position auf der Session-Zeitachse.
+     */
+    fun play(recording: SegmentedRecording) {
+        if (recording.parts.size <= 1) {
+            recording.firstFile?.let { play(it) }
+            return
+        }
+        stop()
+        playPart(recording, 0)
+    }
+
+    private fun playPart(recording: SegmentedRecording, index: Int) {
+        val part = recording.parts.getOrNull(index)
+        if (part == null) {
+            mediaPlayer?.release()
+            mediaPlayer = null
+            mediaPlayerOffsetSec = 0f
+            _state.value = PlaybackState.IDLE
+            return
+        }
+        mediaPlayer?.release()
+        mediaPlayerOffsetSec = if (recording.sampleRate > 0) part.startFrame.toFloat() / recording.sampleRate else 0f
+        val mp = MediaPlayer()
+        mediaPlayer = mp
+        try {
+            mp.setDataSource(part.file.absolutePath)
+            mp.setOnErrorListener { _, what, extra ->
+                _state.value = PlaybackState.IDLE
+                _playerError.tryEmit("Wiedergabe-Fehler (Code $what/$extra)")
+                true
+            }
+            mp.prepare()
+            mp.setOnCompletionListener { done ->
+                if (mediaPlayer === done) playPart(recording, index + 1)
+            }
+            mp.start()
+        } catch (e: Exception) {
+            mp.release()
+            mediaPlayer = null
+            _state.value = PlaybackState.IDLE
+            _playerError.tryEmit("Wiedergabe-Fehler (${part.file.name})")
+            return
+        }
+        _state.value = PlaybackState.PLAYING
     }
 
     /**
@@ -257,6 +323,7 @@ class AudioPlayer(private val context: Context) {
     fun stop() {
         mediaPlayer?.release()
         mediaPlayer = null
+        mediaPlayerOffsetSec = 0f
         try { audioTrack?.stop() } catch (_: Exception) {}
         audioTrack?.release()
         audioTrack = null
