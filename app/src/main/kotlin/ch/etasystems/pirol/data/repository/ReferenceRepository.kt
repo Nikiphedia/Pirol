@@ -2,7 +2,10 @@ package ch.etasystems.pirol.data.repository
 
 import android.content.Context
 import android.util.Log
+import ch.etasystems.pirol.audio.export.DetectionExcerpt
+import ch.etasystems.pirol.audio.export.ExcerptWav
 import ch.etasystems.pirol.ml.DetectionResult
+import ch.etasystems.pirol.ml.VerificationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -43,69 +46,123 @@ class ReferenceRepository(private val context: Context) {
     }
 
     /**
-     * Fuegt eine verifizierte Detektion als Referenz hinzu.
+     * Fuegt eine verifizierte Detektion als Referenz hinzu (T123).
      *
-     * 1. Kopiert WAV aus Session-Ordner in references/{species}/
-     * 2. Erstellt ReferenceEntry
-     * 3. Aktualisiert Index
+     * Schneidet den Ausschnitt [range] (T116: 3 s davor, 5 s danach) aus der Session-Aufnahme
+     * und schreibt ihn als eigene WAV nach references/{Art}/. Vorher wurde ein nicht mehr
+     * existierender Pfad audio/recording.wav gesucht (seit T51 flach) und still abgebrochen.
      *
-     * @param detection Verifizierte Detektion (CONFIRMED oder CORRECTED)
-     * @param sessionDir Session-Ordner der die Audio-Chunks enthaelt
-     * @param chunkIndex Index des 3s-Chunks (fuer Dateiname)
+     * @param recordingFile recording.wav der Session
      * @return ReferenceEntry oder null bei Fehler
      */
     suspend fun addFromDetection(
         detection: DetectionResult,
-        sessionDir: File,
-        chunkIndex: Int
+        recordingFile: File,
+        sessionId: String,
+        range: DetectionExcerpt.Range
     ): ReferenceEntry? = withContext(Dispatchers.IO) {
-        // 1. Quell-WAV finden (T46: ganze recording.wav; T48/T49 schneidet mit Zeitoffset)
-        val sourceWav = File(sessionDir, "audio/recording.wav")
-        if (!sourceWav.exists()) {
-            Log.e(TAG, "WAV nicht gefunden: ${sourceWav.absolutePath}")
+        if (!recordingFile.exists()) {
+            Log.e(TAG, "WAV nicht gefunden: ${recordingFile.absolutePath}")
             return@withContext null
         }
-
-        // 2. Zielordner erstellen
-        val speciesName = detection.scientificName.replace(' ', '_')
-        val refsRoot = File(context.filesDir, REFERENCES_DIR)
-        val speciesDir = File(refsRoot, speciesName)
-        speciesDir.mkdirs()
-
-        // 3. Naechste ID + Dateiname
-        val existingCount = getBySpecies(speciesName).size
-        val refId = UUID.randomUUID().toString().take(8)
-        val wavFileName = "ref_${String.format("%03d", existingCount + 1)}_${speciesName}.wav"
-
-        // 4. WAV kopieren
-        val targetWav = File(speciesDir, wavFileName)
-        try {
-            sourceWav.copyTo(targetWav, overwrite = false)
+        val pcm = try {
+            ExcerptWav.readRange(recordingFile, range.startSec, range.endSec)
         } catch (e: Exception) {
-            Log.e(TAG, "WAV kopieren fehlgeschlagen", e)
-            return@withContext null
-        }
+            Log.e(TAG, "Ausschnitt lesen fehlgeschlagen", e)
+            null
+        } ?: return@withContext null
 
-        // 5. Entry erstellen
-        val entry = ReferenceEntry(
-            id = refId,
-            scientificName = speciesName,
-            commonName = detection.commonName,
+        // Bei CORRECTED zaehlt die korrigierte Art
+        val corrected = detection.correctedSpecies
+        val sciName = if (detection.verificationStatus == VerificationStatus.CORRECTED &&
+            !corrected.isNullOrBlank()) corrected else detection.scientificName
+        val common = if (sciName == detection.scientificName) detection.commonName else sciName.replace('_', ' ')
+        store(
+            pcm = pcm,
+            speciesKey = ReferenceNaming.speciesKey(sciName),
+            commonName = common,
             confidence = detection.confidence,
-            wavFileName = wavFileName,
-            sourceSessionId = sessionDir.name,
+            sourceSessionId = sessionId,
             sourceDetectionId = detection.id,
             recordedAtMs = detection.timestampMs,
-            addedAtMs = System.currentTimeMillis(),
-            latitude = detection.latitude,
-            longitude = detection.longitude,
-            verificationStatus = detection.verificationStatus.name
+            lat = detection.latitude,
+            lon = detection.longitude,
+            status = detection.verificationStatus.name,
+            source = "DETECTION",
+            originalName = null
         )
+    }
 
-        entries.add(entry)
+    /** Importiert eine externe Aufnahme (bereits zu Mono-PCM dekodiert) als Referenz (T123). */
+    suspend fun addImported(
+        pcm: ExcerptWav.Pcm,
+        scientificName: String,
+        commonName: String,
+        originalName: String?
+    ): ReferenceEntry? = withContext(Dispatchers.IO) {
+        store(
+            pcm = pcm,
+            speciesKey = ReferenceNaming.speciesKey(scientificName),
+            commonName = commonName,
+            confidence = 1f,
+            sourceSessionId = "import",
+            sourceDetectionId = "",
+            recordedAtMs = System.currentTimeMillis(),
+            lat = null,
+            lon = null,
+            status = "IMPORTED",
+            source = "IMPORT",
+            originalName = originalName
+        )
+    }
+
+    private suspend fun store(
+        pcm: ExcerptWav.Pcm,
+        speciesKey: String,
+        commonName: String,
+        confidence: Float,
+        sourceSessionId: String,
+        sourceDetectionId: String,
+        recordedAtMs: Long,
+        lat: Double?,
+        lon: Double?,
+        status: String,
+        source: String,
+        originalName: String?
+    ): ReferenceEntry? {
+        val speciesDir = File(File(context.filesDir, REFERENCES_DIR), speciesKey)
+        speciesDir.mkdirs()
+        val existing = speciesDir.list()?.toSet().orEmpty() +
+            getBySpecies(speciesKey).map { it.wavFileName }
+        val wavFileName = ReferenceNaming.nextWavFileName(speciesKey, existing)
+        val targetWav = File(speciesDir, wavFileName)
+        try {
+            ExcerptWav.write(targetWav, pcm)
+        } catch (e: Exception) {
+            Log.e(TAG, "WAV schreiben fehlgeschlagen", e)
+            targetWav.delete()
+            return null
+        }
+        val entry = ReferenceEntry(
+            id = UUID.randomUUID().toString().take(8),
+            scientificName = speciesKey,
+            commonName = commonName,
+            confidence = confidence,
+            wavFileName = wavFileName,
+            sourceSessionId = sourceSessionId,
+            sourceDetectionId = sourceDetectionId,
+            recordedAtMs = recordedAtMs,
+            addedAtMs = System.currentTimeMillis(),
+            latitude = lat,
+            longitude = lon,
+            verificationStatus = status,
+            source = source,
+            originalName = originalName
+        )
+        synchronized(entries) { entries.add(entry) }
         saveIndex()
-        Log.i(TAG, "Referenz gespeichert: ${entry.commonName} → ${targetWav.name}")
-        entry
+        Log.i(TAG, "Referenz gespeichert: ${entry.commonName} -> ${targetWav.name}")
+        return entry
     }
 
     /** Einzelne Referenz loeschen (WAV + Index-Eintrag) */

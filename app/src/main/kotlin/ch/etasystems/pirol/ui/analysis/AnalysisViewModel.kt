@@ -302,6 +302,30 @@ class AnalysisViewModel(
         _uiState.update { it.copy(shareRequest = null) }
     }
 
+    /**
+     * T123: Bestaetigte/korrigierte Detektion als Referenz speichern (Ausschnitt gemaess T116).
+     * Rueckmeldung ueber den Snackbar-Kanal.
+     */
+    fun saveAsReference(detection: DetectionResult) {
+        val file = _uiState.value.recordingFile
+        val session = _uiState.value.selectedSession
+        if (file == null || session == null) {
+            reportError("Referenz: keine Aufnahme vorhanden")
+            return
+        }
+        val duration = _uiState.value.recordingDurationSec
+        viewModelScope.launch(Dispatchers.IO) {
+            val range = DetectionExcerpt.compute(detection, duration, appPreferences.excerptMaxSec.toFloat())
+            val entry = referenceRepository.addFromDetection(detection, file, session.sessionDir.name, range)
+            withContext(Dispatchers.Main) {
+                reportError(
+                    if (entry != null) "Als Referenz gespeichert: ${entry.commonName}"
+                    else "Referenz speichern fehlgeschlagen"
+                )
+            }
+        }
+    }
+
     /** T116: Fehlermeldung ueber den bestehenden Snackbar-Kanal anzeigen. */
     fun reportError(message: String) {
         _uiState.update { it.copy(saveErrorMessage = message) }

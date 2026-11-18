@@ -929,40 +929,29 @@ class LiveViewModel(
     }
 
     /**
-     * Speichert eine verifizierte Detektion als Referenz-Aufnahme.
-     * Kopiert den zugehoerigen WAV-Chunk in die Referenzbibliothek.
+     * Speichert eine verifizierte Detektion als Referenz-Aufnahme (T123).
+     * Schneidet den Ausschnitt (T116: 3 s davor, 5 s danach) aus recording.wav der Session.
      */
     fun saveAsReference(detectionId: String) {
         val detection = detectionListState.getDetections().find { it.id == detectionId } ?: return
 
-        val sessions = sessionManager.listSessions()
-        if (sessions.isEmpty()) return
-
         viewModelScope.launch(Dispatchers.IO) {
-            // Chunk-Index aus Timestamp ableiten (jeder Chunk = 3s)
-            val sessionDir = sessions.first()
-            val metadataFile = File(sessionDir, "session.json")
-            if (!metadataFile.exists()) return@launch
-
-            val metadata = try {
-                val metaJson = KJson { ignoreUnknownKeys = true }
-                metaJson.decodeFromString<SessionMetadata>(metadataFile.readText())
-            } catch (e: Exception) {
-                Log.e(TAG, "Session-Metadata lesen fehlgeschlagen", e)
+            val sessionDir = sessionManager.currentSessionDir ?: sessionManager.listSessions().firstOrNull()
+            val recording = sessionDir?.let { sessionManager.getRecordingFile(it) }
+            if (sessionDir == null || recording == null) {
+                Log.e(TAG, "Referenz: keine Aufnahme gefunden")
                 return@launch
             }
-
-            // Chunk-Index: (detectionTime - sessionStart) / 3000ms
-            val startMs = try {
-                java.time.OffsetDateTime.parse(metadata.startedAt).toInstant().toEpochMilli()
-            } catch (_: Exception) {
-                java.time.Instant.parse(metadata.startedAt).toEpochMilli()
-            }
-            val chunkIndex = ((detection.timestampMs - startMs) / CHUNK_DURATION_MS).toInt().coerceAtLeast(0)
-
-            val result = referenceRepository.addFromDetection(detection, sessionDir, chunkIndex)
+            // Bei laufender Aufnahme ist die Datei evtl. noch kuerzer als der Ausschnitt -> auf Dauer begrenzen
+            val duration = ch.etasystems.pirol.audio.export.ExcerptWav.durationSec(recording)
+            val range = ch.etasystems.pirol.audio.export.DetectionExcerpt.compute(
+                detection, duration, appPreferences.excerptMaxSec.toFloat()
+            )
+            val result = referenceRepository.addFromDetection(detection, recording, sessionDir.name, range)
             if (result != null) {
                 Log.i(TAG, "Referenz gespeichert: ${result.commonName} (${result.wavFileName})")
+            } else {
+                Log.e(TAG, "Referenz speichern fehlgeschlagen")
             }
         }
     }

@@ -620,6 +620,8 @@ private fun SessionDetailContent(
                         // T73: Lock-Species
                         onToggleLock = { viewModel.toggleLock(detection.id) },
                         // T116: Teilen (Formatwahl-Dialog)
+                        // T123: Als Referenz speichern (Button erscheint bei CONFIRMED/CORRECTED)
+                        onSaveAsReference = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.saveAsReference(detection) } } else null,
                         onShare = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.requestShare(detection) } } else null,
                     )
                     }
