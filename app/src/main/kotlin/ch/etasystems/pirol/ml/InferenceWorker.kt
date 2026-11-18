@@ -61,6 +61,8 @@ class InferenceWorker(
     private class Anchor(val streamIndex: Long, val offsetSec: Float?)
 
     private val accumulator = ChunkAccumulator()
+    // T117: processChunk und flushPendingAudio teilen den Accumulator (Collector vs. Stop-Pfad)
+    private val persistLock = Any()
     private val fallback = OverlapFallback()
 
     // Kapazitaet 1: max. ein wartendes Fenster, bei Stau wird das aelteste verworfen
@@ -87,7 +89,7 @@ class InferenceWorker(
     /**
      * Verarbeitet einen AudioChunk (Collector-Coroutine). Kehrt ohne Inference zurueck.
      */
-    fun processChunk(chunk: AudioChunk) {
+    fun processChunk(chunk: AudioChunk) = synchronized(persistLock) {
         // Overlap-Stufe anwenden (Setting oder Auto-Fallback)
         val overlap = effectiveOverlap()
         if (overlap != activeOverlap) {
@@ -269,6 +271,18 @@ class InferenceWorker(
                 sampleRate = window.sampleRate
             )
         }
+    }
+
+    /**
+     * T117: Noch nicht persistierte Samples (Rest unter einem Hop, bis zu 3 s) in die Session schreiben.
+     * Beim Stopp VOR reset() aufrufen, sonst fehlt das Ende der Aufnahme in recording.wav.
+     */
+    fun flushPendingAudio() = synchronized(persistLock) {
+        accumulator.flushPending()?.let { hop ->
+            onAudioPersist(hop.pcm)
+            Log.d(TAG, "T117 Audio-Rest beim Stopp geschrieben: ${hop.pcm.size} Samples")
+        }
+        Unit
     }
 
     /** Pipeline zuruecksetzen (bei Recording-Stop/Neustart). Jobs muessen vorher gestoppt sein. */

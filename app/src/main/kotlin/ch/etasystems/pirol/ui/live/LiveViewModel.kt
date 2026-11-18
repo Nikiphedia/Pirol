@@ -1195,6 +1195,9 @@ class LiveViewModel(
                     stopCollectionJob()
                     stopInferenceJob()
                     resetMelSpectrogram()
+                    // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
+                    // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
+                    inferenceWorker.flushPendingAudio()
                     // InferenceWorker Accumulator leeren
                     inferenceWorker.reset()
                     // Detektionsliste leeren — jede Aufnahme startet frisch (T33-AP5)
