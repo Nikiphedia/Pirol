@@ -448,4 +448,15 @@
     <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polyphase (recommended, filters noise above 16 kHz)</string>
     <string name="settings_resampler_linear">Linear (old, as in AMSEL)</string>
+    <string name="map_cluster_linkziel_waehlen">Choose link target (%1$d detections)</string>
+    <string name="settings_pirol_ordner_freigeben">Grant PIROL folder access</string>
+    <string name="settings_pirol_ordner_status">Granted: %1$s</string>
+    <string name="settings_pirol_ordner_keine">No folder granted (watchlist and custom lists via import only)</string>
+    <string name="settings_pirol_ordner_entziehen">Revoke access</string>
+    <string name="settings_pirol_ordner_hinweis">Pick the Downloads/PIROL folder once. watchlist.json and lists/*.json inside are then read automatically.</string>
+    <string name="settings_beispielliste_anlegen">Create example list</string>
+    <string name="settings_beispielliste_angelegt">Example list lists/beispiel_liste.json created</string>
+    <string name="settings_beispielliste_fehler">Could not create example list</string>
+    <string name="settings_eigene_liste">Custom list</string>
+    <string name="settings_eigene_liste_warnung">List skipped: %1$s</string>
 </resources>

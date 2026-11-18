@@ -452,4 +452,9 @@ class AppPreferences(context: Context) {
     fun setSettingsSectionExpanded(key: String, expanded: Boolean) {
         prefs.edit().putBoolean("pirol_settings_section_$key", expanded).apply()
     }
+
+    /** T129: freigegebener PIROL-Ordner (SAF-Tree-URI, persistierbar); null = keine Freigabe */
+    var pirolFolderUri: String?
+        get() = prefs.getString("pirol_folder_uri", null)
+        set(value) = prefs.edit().putString("pirol_folder_uri", value).apply()
 }

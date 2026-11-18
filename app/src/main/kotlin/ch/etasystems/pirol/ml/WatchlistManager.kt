@@ -22,7 +22,7 @@ import java.io.IOException
  * Thread-safe: Alle IO-Operationen laufen auf Dispatchers.IO via suspend.
  * Exponiert watchedSpeciesFlow als StateFlow fuer reaktive UI-Updates.
  */
-class WatchlistManager(private val context: Context) {
+class WatchlistManager(private val context: Context, private val pirolFolder: PirolFolder? = null) {
 
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
@@ -108,6 +108,19 @@ class WatchlistManager(private val context: Context) {
      */
     suspend fun load() = withContext(Dispatchers.IO) {
         SpeciesKey.load(context)
+        // 0. T129: freigegebener Ordner (SAF) hat Vorrang, umgeht Scoped Storage
+        val grantedText = try { pirolFolder?.readText(EXTERNAL_FILE) } catch (e: Exception) { null }
+        if (grantedText != null) {
+            try {
+                watchlist = json.decodeFromString<Watchlist>(grantedText)
+                File(context.filesDir, INTERNAL_FILE).writeText(json.encodeToString(Watchlist.serializer(), watchlist))
+                Log.i(TAG, "Watchlist aus freigegebenem Ordner geladen: ${watchlist.species.size} Arten")
+                emitFlows()
+                return@withContext
+            } catch (e: Exception) {
+                Log.e(TAG, "Watchlist im freigegebenen Ordner fehlerhaft", e)
+            }
+        }
         // 1. Externe Datei pruefen (Downloads/PIROL/watchlist.json)
         val externalFile = getExternalWatchlistFile()
         val internalFile = File(context.filesDir, INTERNAL_FILE)

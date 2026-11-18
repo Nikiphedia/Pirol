@@ -10,7 +10,7 @@ import org.json.JSONObject
  * Format identisch mit AMSEL Desktop (region_sets.json v3).
  * Artennamen verwenden Unterstrich-Konvention: "Turdus_merula" (BirdNET-Standard).
  */
-class RegionalSpeciesFilter(private val context: Context) {
+class RegionalSpeciesFilter(private val context: Context, private val pirolFolder: PirolFolder? = null) {
 
     companion object {
         private const val TAG = "RegionalSpeciesFilter"
@@ -30,6 +30,36 @@ class RegionalSpeciesFilter(private val context: Context) {
     // T105: kanonische Schluessel der aktiven Region (Synonyme aufgeloest) fuer den Vergleich
     private var canonicalSet: Set<String> = emptySet()
     private var allSets: List<RegionInfo> = emptyList()
+
+    // T129: eigene Listen aus <Ordner>/lists/NAME.json
+    @Volatile
+    private var customLists: List<CustomSpeciesList> = emptyList()
+    @Volatile
+    private var customWarnings: List<String> = emptyList()
+
+    /** T129: Listen aus dem freigegebenen Ordner neu einlesen (IO). Warnungen siehe [getCustomWarnings]. */
+    fun refreshCustomLists() {
+        val lists = mutableListOf<CustomSpeciesList>()
+        val warnings = mutableListOf<String>()
+        try {
+            SpeciesKey.load(context)
+            for ((name, text) in pirolFolder?.readListFiles().orEmpty()) {
+                if (text == null) { warnings.add("$name: nicht lesbar"); continue }
+                val r = CustomSpeciesLists.parse(name, text)
+                lists.addAll(r.lists)
+                if (r.error != null) warnings.add("$name: ${r.error}")
+            }
+        } catch (e: Exception) {
+            warnings.add("lists: ${e.message}")
+        }
+        customLists = lists
+        customWarnings = warnings
+        // aktive eigene Liste neu laden, falls sie sich geaendert hat
+        val cur = currentRegionId
+        if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(cur)
+    }
+
+    fun getCustomWarnings(): List<String> = customWarnings
 
     /**
      * Laedt die Region-Sets aus der JSON-Datei (einmalig beim ersten Aufruf).
@@ -53,6 +83,21 @@ class RegionalSpeciesFilter(private val context: Context) {
                 canonicalSet = emptySet()
                 currentRegionId = "all"
                 Log.i(TAG, "Region 'all' aktiviert — kein Artenfilter")
+                return
+            }
+
+            // T129: eigene Liste
+            if (regionId.startsWith(CustomSpeciesLists.ID_PREFIX)) {
+                if (customLists.isEmpty()) refreshCustomLists()
+                val custom = customLists.firstOrNull { it.id == regionId }
+                if (custom != null) {
+                    speciesSet = custom.species
+                    canonicalSet = custom.canonical()
+                    currentRegionId = regionId
+                    Log.i(TAG, "Eigene Liste '$regionId' geladen: ${custom.species.size} Arten")
+                } else {
+                    Log.w(TAG, "Eigene Liste '$regionId' nicht gefunden")
+                }
                 return
             }
 
@@ -108,7 +153,9 @@ class RegionalSpeciesFilter(private val context: Context) {
         if (allSets.isEmpty()) {
             parseRegionSets()
         }
-        return allSets
+        return allSets + customLists.map {
+            RegionInfo(it.id, it.nameDe, it.nameEn, it.species.size, isCustom = true)
+        }
     }
 
     /**
@@ -146,5 +193,7 @@ data class RegionInfo(
     val id: String,
     val nameDe: String,
     val nameEn: String,
-    val speciesCount: Int
+    val speciesCount: Int,
+    /** T129: eigene Liste aus dem PIROL-Ordner */
+    val isCustom: Boolean = false
 )

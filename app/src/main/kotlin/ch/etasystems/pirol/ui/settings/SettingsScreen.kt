@@ -83,6 +83,8 @@ import ch.etasystems.pirol.ml.ModelProfile
 import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.RegionInfo
+import ch.etasystems.pirol.ml.PirolFolder
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistEntry
 import ch.etasystems.pirol.ml.WatchlistManager
@@ -179,6 +181,30 @@ fun SettingsScreen(
         speciesNameResolver.load()
         allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
             Pair(scientific, speciesNameResolver.resolve(scientific))
+        }
+    }
+
+    // T129: PIROL-Ordner-Freigabe, eigene Listen
+    val pirolFolder: PirolFolder = koinInject()
+    var folderName by remember { mutableStateOf<String?>(null) }
+    var customRegions by remember { mutableStateOf<List<RegionInfo>>(emptyList()) }
+    var customWarnings by remember { mutableStateOf<List<String>>(emptyList()) }
+    suspend fun refreshFolder() {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (pirolFolder.isAvailable()) watchlistManager.load()
+            regionalFilter.refreshCustomLists()
+        }
+        folderName = pirolFolder.displayName()
+        customRegions = regionalFilter.getAvailableRegions().filter { it.isCustom }
+        customWarnings = regionalFilter.getCustomWarnings()
+    }
+    LaunchedEffect(Unit) { refreshFolder() }
+    val folderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            pirolFolder.grant(uri)
+            scope.launch { refreshFolder() }
         }
     }
 
@@ -594,7 +620,8 @@ fun SettingsScreen(
                     "central_europe" to "EU",
                     "all" to AppStrings.get(R.string.common_all),
                     null to AppStrings.get(R.string.common_off)
-                ).forEach { (regionId, label) ->
+                ).plus(customRegions.map { it.id to (it.nameDe + " (" + AppStrings.get(R.string.settings_eigene_liste) + ")") })
+                .forEach { (regionId, label) ->
                     FilterChip(
                         selected = selectedRegion == regionId,
                         onClick = {
@@ -608,6 +635,14 @@ fun SettingsScreen(
                         )
                     )
                 }
+            }
+
+            customWarnings.forEach {
+                Text(
+                    AppStrings.get(R.string.settings_eigene_liste_warnung, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1546,6 +1581,41 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
+
+            // T129: PIROL-Ordner freigeben (Watchlist + eigene Listen)
+            Text(
+                text = if (folderName != null) stringResource(R.string.settings_pirol_ordner_status, folderName ?: "")
+                       else stringResource(R.string.settings_pirol_ordner_keine),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.settings_pirol_ordner_hinweis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { folderLauncher.launch(null) }) {
+                    Text(stringResource(R.string.settings_pirol_ordner_freigeben))
+                }
+                if (folderName != null) {
+                    OutlinedButton(onClick = {
+                        val ok = pirolFolder.writeExampleList()
+                        Toast.makeText(
+                            context,
+                            AppStrings.get(if (ok) R.string.settings_beispielliste_angelegt else R.string.settings_beispielliste_fehler),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        scope.launch { refreshFolder() }
+                    }) { Text(stringResource(R.string.settings_beispielliste_anlegen)) }
+                    TextButton(onClick = {
+                        pirolFolder.revoke()
+                        scope.launch { refreshFolder() }
+                    }) { Text(stringResource(R.string.settings_pirol_ordner_entziehen)) }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 // SAF-Import-Button (AP-2)
