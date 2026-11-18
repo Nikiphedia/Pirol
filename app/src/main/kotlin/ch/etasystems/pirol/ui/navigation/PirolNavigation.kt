@@ -18,6 +18,7 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -98,8 +99,8 @@ fun PirolNavHost(
                         it.route == screen.route
                     } == true
                     NavigationRailItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
+                        icon = { Icon(screen.icon, contentDescription = stringResource(screen.labelRes)) },
+                        label = { Text(stringResource(screen.labelRes)) },
                         selected = selected,
                         onClick = { navigateToScreen(screen) }
                     )
@@ -136,8 +137,8 @@ fun PirolNavHost(
                             it.route == screen.route
                         } == true
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.label) },
-                            label = { Text(screen.label) },
+                            icon = { Icon(screen.icon, contentDescription = stringResource(screen.labelRes)) },
+                            label = { Text(stringResource(screen.labelRes)) },
                             selected = selected,
                             onClick = { navigateToScreen(screen) }
                         )

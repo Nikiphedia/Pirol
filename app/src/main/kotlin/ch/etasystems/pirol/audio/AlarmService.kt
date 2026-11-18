@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /** Ein ausgeloester Alarm (fuer den In-App-Hinweis). */
 data class AlarmEvent(
@@ -86,10 +88,10 @@ class AlarmService(
         manager.deleteNotificationChannel(OLD_CHANNEL_ID)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Watchlist-Alarm",
+            AppStrings.get(R.string.svc_watchlist_alarm),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Alarm bei Erkennung von Watchlist-Arten"
+            description = AppStrings.get(R.string.svc_alarm_bei_erkennung_von_watchlist)
             enableVibration(false)  // Vibration steuert die App selbst (Settings-Schalter)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
@@ -185,7 +187,7 @@ class AlarmService(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (event.isTest) "Test: ${event.commonName}" else "${event.commonName} erkannt!"
+        val title = if (event.isTest) AppStrings.get(R.string.svc_test, event.commonName) else AppStrings.get(R.string.svc_erkannt, event.commonName)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText("${event.scientificName.replace('_', ' ')} - $pct% - $time")

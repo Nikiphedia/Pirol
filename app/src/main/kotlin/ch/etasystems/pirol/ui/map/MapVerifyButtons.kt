@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ml.VerificationStatus
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * T113: Bestaetigen / Unsicher / Ablehnen auf der Karte.
@@ -53,10 +55,10 @@ fun MapVerifyButtons(
                 Icon(icon, contentDescription = description, modifier = Modifier.size(28.dp))
             }
         }
-        item(VerificationStatus.CONFIRMED, Icons.Filled.Check, "Bestaetigen", Color(0xFF4CAF50), Color.White)
-        item(VerificationStatus.UNCERTAIN, Icons.AutoMirrored.Filled.Help, "Unsicher", Color(0xFFFF9800), Color.White)
+        item(VerificationStatus.CONFIRMED, Icons.Filled.Check, AppStrings.get(R.string.ui_bestaetigen), Color(0xFF4CAF50), Color.White)
+        item(VerificationStatus.UNCERTAIN, Icons.AutoMirrored.Filled.Help, AppStrings.get(R.string.ui_unsicher), Color(0xFFFF9800), Color.White)
         item(
-            VerificationStatus.REJECTED, Icons.Filled.Close, "Ablehnen",
+            VerificationStatus.REJECTED, Icons.Filled.Close, AppStrings.get(R.string.ui_ablehnen),
             MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError
         )
     }

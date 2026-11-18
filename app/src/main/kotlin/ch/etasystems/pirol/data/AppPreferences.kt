@@ -74,6 +74,25 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_species_language", "de") ?: "de"
         set(value) = prefs.edit().putString("pirol_species_language", value).apply()
 
+    /**
+     * T120a: true = Artnamen-Sprache wurde vom User explizit gesetzt; sonst folgt sie der App-Sprache.
+     * Migration: ein bereits gespeicherter Sprachwert gilt als explizit.
+     */
+    var speciesLanguageExplicit: Boolean
+        get() = prefs.getBoolean("pirol_species_language_explicit", prefs.contains("pirol_species_language"))
+        set(value) {
+            prefs.edit().putBoolean("pirol_species_language_explicit", value).apply()
+            if (!value) prefs.edit().remove("pirol_species_language").apply()
+        }
+
+    /** T120a: wirksame Artnamen-Sprache (explizit oder gekoppelt an die App-Sprache) */
+    fun effectiveSpeciesLanguage(): String =
+        ch.etasystems.pirol.ui.AppLanguage.effectiveSpeciesLanguage(
+            speciesLanguageExplicit, speciesLanguage,
+            ch.etasystems.pirol.ui.AppLanguage.currentTag(),
+            ch.etasystems.pirol.ui.AppLanguage.systemLanguage()
+        )
+
     // --- Top-N Kandidaten-Anzeige (T52) ---
     /** true = Alternativen in SpeciesCard aufklappbar; false = Expand-Bereich verborgen. */
     var showTopNCandidates: Boolean

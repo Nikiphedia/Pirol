@@ -27,6 +27,9 @@ import java.time.Duration
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * Card fuer eine Session in der Session-Liste.
@@ -111,7 +114,7 @@ fun SessionCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "Session loeschen",
+                            contentDescription = stringResource(R.string.ui_session_loeschen),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp)
                         )
@@ -125,7 +128,7 @@ fun SessionCard(
             Row {
                 val parts = mutableListOf<String>()
                 if (durationLabel != null) parts.add(durationLabel)
-                parts.add("${summary.detectionCount} Detektionen")
+                parts.add(AppStrings.get(R.string.ui_detektionen, summary.detectionCount))
                 if (summary.verifiedCount > 0) parts.add("${summary.verifiedCount} \u2713")
                 if (sizeLabel != null) parts.add(sizeLabel)
                 Text(

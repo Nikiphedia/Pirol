@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ml.AtlasCode
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 private const val MAX_MANUAL_COUNT = 999_999
 private const val MAX_MANUAL_NOTE_LENGTH = 500
@@ -90,13 +92,13 @@ fun AddManualDetectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Art manuell hinzufuegen") },
+        title = { Text(stringResource(R.string.ui_art_manuell_hinzufuegen)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
                 // 1. Art-Autocomplete
                 Column {
-                    Text("Art", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.ui_art), style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     Box {
                         OutlinedTextField(
@@ -109,7 +111,7 @@ fun AddManualDetectionDialog(
                                 speciesSuggestions = if (input.length >= 2) onSearchSpecies(input) else emptyList()
                                 speciesDropdownExpanded = speciesSuggestions.isNotEmpty()
                             },
-                            label = { Text("Art suchen (DE oder wissenschaftlich)") },
+                            label = { Text(stringResource(R.string.ui_art_suchen_de_oder_wissenschaftlich)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -148,7 +150,7 @@ fun AddManualDetectionDialog(
 
                 // 2. Stueckzahl-Spinner
                 Column {
-                    Text("Stueckzahl", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.ui_stueckzahl), style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -158,7 +160,7 @@ fun AddManualDetectionDialog(
                             onClick = { if (count > 1) count-- },
                             modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(Icons.Filled.Remove, contentDescription = "Weniger")
+                            Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.ui_weniger))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -170,14 +172,14 @@ fun AddManualDetectionDialog(
                             onClick = { if (count < MAX_MANUAL_COUNT) count++ },
                             modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = "Mehr")
+                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.ui_mehr))
                         }
                     }
                 }
 
                 // 3. Atlascode-Dropdown
                 Column {
-                    Text("Atlascode", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.ui_atlascode), style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = atlasDropdownExpanded,
@@ -188,7 +190,7 @@ fun AddManualDetectionDialog(
                                 atlasCodes.find { it.code == code }
                                     ?.let { "${it.code} — ${it.label_de}" }
                                     ?: code
-                            } ?: "(keiner)",
+                            } ?: stringResource(R.string.ui_keiner),
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(atlasDropdownExpanded) },
@@ -201,7 +203,7 @@ fun AddManualDetectionDialog(
                             onDismissRequest = { atlasDropdownExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("(keiner)") },
+                                text = { Text(stringResource(R.string.ui_keiner)) },
                                 onClick = {
                                     selectedCode = null
                                     atlasDropdownExpanded = false
@@ -224,7 +226,7 @@ fun AddManualDetectionDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { if (it.length <= MAX_MANUAL_NOTE_LENGTH) note = it },
-                    label = { Text("Bemerkung") },
+                    label = { Text(stringResource(R.string.ui_bemerkung)) },
                     maxLines = 3,
                     supportingText = { Text("${note.length}/$MAX_MANUAL_NOTE_LENGTH") },
                     modifier = Modifier.fillMaxWidth()
@@ -238,14 +240,14 @@ fun AddManualDetectionDialog(
                     OutlinedTextField(
                         value = latText,
                         onValueChange = { latText = it },
-                        label = { Text("Lat") },
+                        label = { Text(stringResource(R.string.ui_lat)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = lonText,
                         onValueChange = { lonText = it },
-                        label = { Text("Lon") },
+                        label = { Text(stringResource(R.string.ui_lon)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
@@ -261,10 +263,10 @@ fun AddManualDetectionDialog(
                     onAdd(sp.first, count, selectedCode, note.ifEmpty { null }, lat, lon)
                 },
                 enabled = canSave
-            ) { Text("Hinzufuegen") }
+            ) { Text(stringResource(R.string.ui_hinzufuegen)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

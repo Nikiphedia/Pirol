@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import kotlin.math.roundToInt
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * T107: Langdruck auf das Sonogramm. Tippen bleibt unberuehrt (andere Gesten werden nicht konsumiert).
@@ -81,11 +84,11 @@ fun SpectrogramSettingsPanel(
                         FilterChip(
                             selected = activePreset == preset,
                             onClick = { repository.applyPreset(preset) },
-                            label = { Text(preset.label) }
+                            label = { Text(stringResource(preset.labelRes)) }
                         )
                     }
                 }
-                if (onClose != null) TextButton(onClick = onClose) { Text("Fertig") }
+                if (onClose != null) TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
             }
 
             // Helligkeit/Kontrast: Auto-Kontrast + dB-Schwellen
@@ -94,7 +97,7 @@ fun SpectrogramSettingsPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Auto-Kontrast",
+                    AppStrings.get(R.string.ui_auto_kontrast),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
@@ -104,8 +107,8 @@ fun SpectrogramSettingsPanel(
                 )
             }
             Text(
-                text = if (settings.autoContrast) "dB-Schwelle: automatisch aus dem Signal"
-                else "dB-Schwelle: ${settings.minDb.roundToInt()} bis ${settings.maxDb.roundToInt()} dB",
+                text = if (settings.autoContrast) stringResource(R.string.ui_db_schwelle_automatisch_aus_dem)
+                else stringResource(R.string.ui_db_schwelle_bis_db, settings.minDb.roundToInt(), settings.maxDb.roundToInt()),
                 style = MaterialTheme.typography.bodySmall
             )
             RangeSlider(
@@ -120,7 +123,7 @@ fun SpectrogramSettingsPanel(
             )
 
             Text(
-                "Intensitaet (Gamma): ${"%.2f".format(settings.gamma)}  (kleiner = leise heller)",
+                AppStrings.get(R.string.ui_intensitaet_gamma_kleiner_leise_hell, "%.2f".format(settings.gamma)),
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
@@ -130,7 +133,11 @@ fun SpectrogramSettingsPanel(
             )
 
             Text(
-                "Helligkeits-Deckel: ${if (settings.ceilingDb >= 0f) "aus" else "${settings.ceilingDb.roundToInt()} dB"}",
+                stringResource(
+                    R.string.ui_helligkeits_deckel,
+                    if (settings.ceilingDb >= 0f) stringResource(R.string.ui_deckel_aus)
+                    else stringResource(R.string.ui_deckel_db, settings.ceilingDb.roundToInt())
+                ),
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
@@ -139,7 +146,7 @@ fun SpectrogramSettingsPanel(
                 valueRange = -50f..0f
             )
 
-            Text("Farbpalette", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.ui_farbpalette), style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SpectrogramPalette.entries.forEach { p ->
                     FilterChip(
@@ -154,7 +161,7 @@ fun SpectrogramSettingsPanel(
             val fLo = settings.freqMinHz.coerceIn(cfgMin, cfgMax - 500f)
             val fHi = settings.freqMaxHz.coerceIn(fLo + 500f, cfgMax)
             Text(
-                "Frequenz: ${"%.1f".format(fLo / 1000f)} bis ${"%.1f".format(fHi / 1000f)} kHz",
+                AppStrings.get(R.string.ui_frequenz_bis_khz, "%.1f".format(fLo / 1000f), "%.1f".format(fHi / 1000f)),
                 style = MaterialTheme.typography.bodySmall
             )
             RangeSlider(
@@ -169,7 +176,7 @@ fun SpectrogramSettingsPanel(
 
             if (showWindow) {
                 Text(
-                    "Zeitfenster: ${settings.windowSec.roundToInt()} s",
+                    AppStrings.get(R.string.ui_zeitfenster_s, settings.windowSec.roundToInt()),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Slider(

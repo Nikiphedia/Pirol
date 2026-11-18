@@ -64,6 +64,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * ViewModel fuer den LiveScreen.
@@ -150,7 +152,7 @@ class LiveViewModel(
             ?: _uiState.value.lastSessionId?.let { id -> sessionManager.listSessions().firstOrNull { it.name == id } }
         val wav = dir?.let { sessionManager.getRecordingFile(it) }
         if (dir == null || wav == null || !wav.exists()) {
-            _snackbarChannel.trySend(SnackbarEvent("Aufnahme nicht verfuegbar - Teilen in der Analyse moeglich"))
+            _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_aufnahme_nicht_verfuegbar_teilen_in)))
             return
         }
         viewModelScope.launch {
@@ -244,7 +246,7 @@ class LiveViewModel(
         },
         onOverlapReduced = { percent ->
             _snackbarChannel.trySend(
-                SnackbarEvent("Analyse zu langsam — Ueberlappung auf $percent % reduziert")
+                SnackbarEvent(AppStrings.get(R.string.live_analyse_zu_langsam_ueberlappung_auf, percent))
             )
         }
     ) { audioBlock, detections ->
@@ -386,14 +388,13 @@ class LiveViewModel(
         // Region laden (aus gespeicherter Config)
         val region = savedConfig.regionFilter ?: "ch_breeding"
         regionalFilter.loadRegion(region)
-        Log.d(TAG, "Regionaler Filter geladen: ${regionalFilter.getCurrentRegionId()} " +
-                "(${regionalFilter.getSpeciesList().size} Arten)")
+        Log.d(TAG, "Regionaler Filter geladen: ${regionalFilter.getCurrentRegionId()} (${regionalFilter.getSpeciesList().size} Arten)")
 
         // Artennamen-Sprache laden + species_master.json parsen (T26, T32-Fix)
         // T95: Im Hintergrund laden (species_master.json ist ~10 MB) statt den Main-Thread zu blockieren.
         // Die ML-Pipeline wartet vor der Verarbeitung darauf (siehe startInferencePipeline),
         // damit Detektionen nie mit lateinischem Namen angezeigt werden.
-        speciesNameResolver.language = appPreferences.speciesLanguage
+        speciesNameResolver.language = appPreferences.effectiveSpeciesLanguage()
         viewModelScope.launch { speciesNameResolver.load() }
 
         // Upload-Einstellungen aus SharedPreferences laden
@@ -452,7 +453,7 @@ class LiveViewModel(
         // T69: 60s-Cap-Signal → Snackbar
         viewModelScope.launch {
             voiceMemoRecorder.capReached.collect {
-                _snackbarChannel.trySend(SnackbarEvent("Memo auf 60s gekürzt"))
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.analysis_memo_auf_60s_gekuerzt)))
             }
         }
     }
@@ -621,7 +622,7 @@ class LiveViewModel(
     /** Zeigt Hinweis-Snackbar wenn Stop-FAB kurz getippt wird (F7). */
     fun showLongPressHint() {
         viewModelScope.launch {
-            _snackbarChannel.send(SnackbarEvent(message = "Lang drücken zum Stoppen"))
+            _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.live_lang_druecken_zum_stoppen)))
         }
     }
 
@@ -656,16 +657,16 @@ class LiveViewModel(
         // Snackbar senden (T52)
         val name = detection?.commonName ?: ""
         val message = when (status) {
-            VerificationStatus.CONFIRMED  -> "\u2713 $name bestaetigt"
-            VerificationStatus.REJECTED   -> "\u2717 $name abgelehnt"
-            VerificationStatus.UNCERTAIN  -> "? $name als unsicher markiert"
+            VerificationStatus.CONFIRMED  -> AppStrings.get(R.string.live_bestaetigt, name)
+            VerificationStatus.REJECTED   -> AppStrings.get(R.string.live_abgelehnt, name)
+            VerificationStatus.UNCERTAIN  -> AppStrings.get(R.string.live_als_unsicher_markiert, name)
             VerificationStatus.CORRECTED  -> "\u270E $name \u2192 ${correctedSpecies ?: "?"}"
             else -> name
         }
         viewModelScope.launch {
             _snackbarChannel.send(SnackbarEvent(
                 message = message,
-                actionLabel = "R\u00FCckg\u00E4ngig",
+                actionLabel = AppStrings.get(R.string.common_undo),
                 onAction = { undoLastVerification() }
             ))
         }
@@ -693,7 +694,7 @@ class LiveViewModel(
                                     undoSnapshot.previousCorrected
                                 )
                             }
-                            _snackbarChannel.send(SnackbarEvent(message = "Speichern fehlgeschlagen"))
+                            _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.common_save_failed)))
                         }
                     }
                 }
@@ -775,7 +776,7 @@ class LiveViewModel(
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         detectionListState.updateDetection(current)
-                        _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
+                        _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.common_save_failed)))
                     }
                 }
             }
@@ -817,7 +818,7 @@ class LiveViewModel(
                         detectionListState.updateDetection(det)
                         lockedSpecies.value = if (det.lockSpecies) lockedSpecies.value + speciesKey
                                               else lockedSpecies.value - speciesKey
-                        _snackbarChannel.trySend(SnackbarEvent("Speichern fehlgeschlagen"))
+                        _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.common_save_failed)))
                     }
                 }
             }
@@ -914,8 +915,8 @@ class LiveViewModel(
             // Snackbar senden (T52)
             viewModelScope.launch {
                 _snackbarChannel.send(SnackbarEvent(
-                    message = "Alternative: ${candidate.commonName} gew\u00E4hlt",
-                    actionLabel = "R\u00FCckg\u00E4ngig",
+                    message = AppStrings.get(R.string.live_alternative_gewaehlt, candidate.commonName),
+                    actionLabel = AppStrings.get(R.string.common_undo),
                     onAction = { undoLastVerification() }
                 ))
             }
@@ -933,7 +934,7 @@ class LiveViewModel(
                         )
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
-                            _snackbarChannel.send(SnackbarEvent(message = "Speichern fehlgeschlagen"))
+                            _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.common_save_failed)))
                         }
                     }
                 }
@@ -1044,8 +1045,7 @@ class LiveViewModel(
         _uiState.update { it.copy(inferenceConfig = config) }
         // In SharedPreferences persistieren
         appPreferences.saveInferenceConfig(config)
-        Log.d(TAG, "InferenceConfig aktualisiert: threshold=${config.confidenceThreshold}, " +
-                "topK=${config.topK}, region=${config.regionFilter}")
+        Log.d(TAG, "InferenceConfig aktualisiert: threshold=${config.confidenceThreshold}, topK=${config.topK}, region=${config.regionFilter}")
     }
 
     // --- Service-Binding ---
@@ -1283,8 +1283,7 @@ class LiveViewModel(
                     val finishedSessionId = currentSessionId
                     viewModelScope.launch(sessionDispatcher) {
                         // T118: alle Appends (inkl. Preroll + Rest) liegen vor diesem Block auf sessionDispatcher
-                        Log.i(TAG, "T118_STATS preroll_samples=$statsPreroll live_samples=$statsLive " +
-                                "wav_samples=${sessionManager.recordedSampleCount}")
+                        Log.i(TAG, "T118_STATS preroll_samples=$statsPreroll live_samples=$statsLive wav_samples=${sessionManager.recordedSampleCount}")
                         sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
                         saveEmbeddingDatabase()  // T97: einmal pro Session statt alle 10 Eintraege
                         alarmService.clearCooldowns()  // AC6: Cooldown-Map pro Session leeren
@@ -1462,8 +1461,8 @@ class LiveViewModel(
                 // T125: Snackbar nur bei Uebergang (nicht fuer veralteten Anfangszustand)
                 if (previous != null && previous != status) {
                     when (status) {
-                        is UploadStatus.Success -> postSnackbar("Upload abgeschlossen")
-                        is UploadStatus.Failed -> postSnackbar("Upload fehlgeschlagen: ${status.error}")
+                        is UploadStatus.Success -> postSnackbar(AppStrings.get(R.string.live_upload_abgeschlossen))
+                        is UploadStatus.Failed -> postSnackbar(AppStrings.get(R.string.live_upload_fehlgeschlagen, status.error))
                         else -> Unit
                     }
                 }

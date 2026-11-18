@@ -40,6 +40,8 @@ import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionResult
 import java.io.File
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 private const val MAX_COUNT = 999_999
 private const val MAX_NOTE_LENGTH = 500
@@ -70,12 +72,12 @@ fun EditDetectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Detail-Eingaben") },
+        title = { Text(stringResource(R.string.ui_detail_eingaben)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // 1. Stückzahl-Spinner
                 Column {
-                    Text("Stückzahl", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.ui_stueckzahl_2), style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -85,7 +87,7 @@ fun EditDetectionDialog(
                             onClick = { if (count > 1) count-- },
                             modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(Icons.Filled.Remove, contentDescription = "Weniger")
+                            Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.ui_weniger))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -97,14 +99,14 @@ fun EditDetectionDialog(
                             onClick = { if (count < MAX_COUNT) count++ },
                             modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = "Mehr")
+                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.ui_mehr))
                         }
                     }
                 }
 
                 // 2. Atlascode-Dropdown
                 Column {
-                    Text("Atlascode", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.ui_atlascode), style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = dropdownExpanded,
@@ -115,7 +117,7 @@ fun EditDetectionDialog(
                                 atlasCodes.find { it.code == code }
                                     ?.let { "${it.code} — ${it.label_de}" }
                                     ?: code
-                            } ?: "(keiner)",
+                            } ?: stringResource(R.string.ui_keiner),
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dropdownExpanded) },
@@ -128,7 +130,7 @@ fun EditDetectionDialog(
                             onDismissRequest = { dropdownExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("(keiner)") },
+                                text = { Text(stringResource(R.string.ui_keiner)) },
                                 onClick = {
                                     selectedCode = null
                                     dropdownExpanded = false
@@ -152,7 +154,7 @@ fun EditDetectionDialog(
                     OutlinedTextField(
                         value = note,
                         onValueChange = { if (it.length <= MAX_NOTE_LENGTH) note = it },
-                        label = { Text("Bemerkung") },
+                        label = { Text(stringResource(R.string.ui_bemerkung)) },
                         maxLines = 5,
                         supportingText = { Text("${note.length}/$MAX_NOTE_LENGTH") },
                         modifier = Modifier.fillMaxWidth()
@@ -162,7 +164,7 @@ fun EditDetectionDialog(
                 // 4. Sprach-Memo (T69)
                 if (recorder != null && memoAudioPlayer != null) {
                     HorizontalDivider()
-                    Text("Sprach-Memo", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.ui_sprach_memo), style = MaterialTheme.typography.labelMedium)
                     VoiceMemoSection(
                         detectionId = detection.id,
                         initialMemoRelPath = detection.voiceMemoFile,
@@ -182,10 +184,10 @@ fun EditDetectionDialog(
                     onSave(count, selectedCode, note.ifEmpty { null }, currentMemoRelPath)
                 },
                 enabled = hasChanged
-            ) { Text("Speichern") }
+            ) { Text(stringResource(R.string.common_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

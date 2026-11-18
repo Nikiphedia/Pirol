@@ -78,6 +78,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 @Composable
 fun AnalysisScreen(
@@ -142,11 +145,10 @@ private fun SessionListView(
     sessionToDelete?.let { session ->
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
-            title = { Text("Session loeschen?") },
+            title = { Text(stringResource(R.string.analysis_session_loeschen)) },
             text = {
                 Text(
-                    "Session '${session.metadata.startedAt.take(10)}' " +
-                        "mit ${session.detectionCount} Detektionen wirklich loeschen?"
+                    stringResource(R.string.analysis_session_mit_detektionen_wirklich_loe, session.metadata.startedAt.take(10), session.detectionCount)
                 )
             },
             confirmButton = {
@@ -154,12 +156,12 @@ private fun SessionListView(
                     viewModel.deleteSession(session)
                     sessionToDelete = null
                 }) {
-                    Text("Loeschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { sessionToDelete = null }) {
-                    Text("Abbrechen")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -177,12 +179,12 @@ private fun SessionListView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Aufnahmen",
+                text = stringResource(R.string.analysis_aufnahmen),
                 style = MaterialTheme.typography.headlineSmall
             )
             if (state.sessions.isNotEmpty()) {
                 Text(
-                    text = "${state.sessions.size} Ses.",
+                    text = stringResource(R.string.analysis_ses, state.sessions.size),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -208,7 +210,7 @@ private fun SessionListView(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Noch keine Aufnahmen\nStarte eine Aufnahme im Live-Tab",
+                        text = stringResource(R.string.analysis_noch_keine_aufnahmen_starte_eine),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -303,7 +305,7 @@ private fun SessionDetailContent(
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         ) {
             IconButton(onClick = { viewModel.closeSession() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
             }
             Spacer(modifier = Modifier.width(4.dp))
             Column {
@@ -326,21 +328,21 @@ private fun SessionDetailContent(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = session.metadata.note?.takeIf { it.isNotBlank() } ?: "Keine Bemerkung",
+                text = session.metadata.note?.takeIf { it.isNotBlank() } ?: stringResource(R.string.analysis_keine_bemerkung),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (session.metadata.note.isNullOrBlank())
                     MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f).padding(start = 12.dp)
             )
             IconButton(onClick = { showNoteDialog = true }) {
-                Icon(Icons.Filled.Edit, contentDescription = "Bemerkung bearbeiten")
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.analysis_bemerkung_bearbeiten))
             }
         }
         if (showNoteDialog) {
             var noteText by remember { mutableStateOf(session.metadata.note.orEmpty()) }
             AlertDialog(
                 onDismissRequest = { showNoteDialog = false },
-                title = { Text("Bemerkung zur Session") },
+                title = { Text(stringResource(R.string.analysis_bemerkung_zur_session)) },
                 text = {
                     androidx.compose.material3.OutlinedTextField(
                         value = noteText,
@@ -353,10 +355,10 @@ private fun SessionDetailContent(
                     TextButton(onClick = {
                         viewModel.updateSessionNote(noteText)
                         showNoteDialog = false
-                    }) { Text("Speichern") }
+                    }) { Text(stringResource(R.string.common_save)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showNoteDialog = false }) { Text("Abbrechen") }
+                    TextButton(onClick = { showNoteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
                 }
             )
         }
@@ -376,8 +378,7 @@ private fun SessionDetailContent(
                         .padding(bottom = 8.dp)
                 ) {
                     Text(
-                        text = "Diese Session wurde im alten Chunk-Format gespeichert. " +
-                               "Audio-Wiedergabe nicht verfuegbar \u2014 Detektions-Daten sind weiterhin sichtbar.",
+                        text = stringResource(R.string.analysis_diese_session_wurde_im_alten),
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -398,7 +399,7 @@ private fun SessionDetailContent(
                     onClick = { viewModel.exportRavenTable() },
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
-                    Text("Raven (.txt)")
+                    Text(stringResource(R.string.analysis_raven_txt))
                 }
                 IconButton(onClick = {
                     if (state.playbackState == AudioPlayer.PlaybackState.PLAYING) {
@@ -410,7 +411,7 @@ private fun SessionDetailContent(
                     Icon(
                         imageVector = if (state.playbackState == AudioPlayer.PlaybackState.PLAYING)
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = "Abspielen"
+                        contentDescription = stringResource(R.string.common_play)
                     )
                 }
             }
@@ -422,7 +423,7 @@ private fun SessionDetailContent(
             if (ravenFile.exists()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { showRavenPreviewDialog = true }) {
-                        Text("Raven-Datei anzeigen")
+                        Text(stringResource(R.string.analysis_raven_datei_anzeigen))
                     }
                 }
             }
@@ -465,7 +466,7 @@ private fun SessionDetailContent(
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Sonogramm wird berechnet\u2026", color = Color.White.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.analysis_sonogramm_wird_berechnet), color = Color.White.copy(alpha = 0.8f))
                     }
                 } else if (state.sonogramError != null) {
                     Text(
@@ -494,7 +495,7 @@ private fun SessionDetailContent(
                         onClick = { viewModel.clearZoom() },
                         modifier = Modifier.align(Alignment.TopEnd).defaultMinSize(minHeight = 48.dp)
                     ) {
-                        Text("Gesamte Session", color = Color.White)
+                        Text(stringResource(R.string.analysis_gesamte_session), color = Color.White)
                     }
                 }
             }
@@ -521,23 +522,23 @@ private fun SessionDetailContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Detektionen (${state.detections.size}):",
+                text = stringResource(R.string.analysis_detektionen, state.detections.size),
                 style = MaterialTheme.typography.titleSmall
             )
             TextButton(onClick = { showAddManualDialog = true }) {
                 Icon(
                     imageVector = Icons.Filled.AddCircle,
-                    contentDescription = "+ Art",
+                    contentDescription = stringResource(R.string.analysis_art),
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("+ Art")
+                Text(stringResource(R.string.analysis_art))
             }
         }
 
         if (state.detections.isEmpty()) {
             Text(
-                text = "Keine Detektionen in dieser Session",
+                text = stringResource(R.string.analysis_keine_detektionen_in_dieser_session),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -646,7 +647,7 @@ private fun SessionDetailContent(
     if (showRavenPreviewDialog) {
         val ravenPreviewFile = java.io.File(session.sessionDir, "recording.selections.txt")
         val lines = remember(session.sessionDir) {
-            runCatching { ravenPreviewFile.readLines() }.getOrElse { listOf("Fehler: Datei nicht lesbar") }
+            runCatching { ravenPreviewFile.readLines() }.getOrElse { listOf(AppStrings.get(R.string.analysis_fehler_datei_nicht_lesbar)) }
         }
         AlertDialog(
             onDismissRequest = { showRavenPreviewDialog = false },
@@ -664,7 +665,7 @@ private fun SessionDetailContent(
             },
             confirmButton = {
                 TextButton(onClick = { showRavenPreviewDialog = false }) {
-                    Text("Schliessen")
+                    Text(stringResource(R.string.common_close))
                 }
             }
         )
@@ -705,11 +706,11 @@ private fun CompareView(
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         ) {
             IconButton(onClick = { viewModel.closeCompare() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
             }
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "Vergleich: ${state.compareDetection?.commonName ?: ""}",
+                text = stringResource(R.string.analysis_vergleich, state.compareDetection?.commonName ?: ""),
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -777,7 +778,7 @@ private fun CompareView(
                     imageVector = if (state.playingSource == PlayingSource.DETECTION &&
                         state.playbackState == AudioPlayer.PlaybackState.PLAYING)
                         Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                    contentDescription = "Detektion abspielen"
+                    contentDescription = stringResource(R.string.analysis_detektion_abspielen)
                 )
             }
         }
@@ -843,7 +844,7 @@ private fun CompareView(
                         imageVector = if (state.playingSource == PlayingSource.REFERENCE &&
                             state.playbackState == AudioPlayer.PlaybackState.PLAYING)
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = "Referenz abspielen"
+                        contentDescription = stringResource(R.string.analysis_referenz_abspielen)
                     )
                 }
             }
@@ -852,7 +853,7 @@ private fun CompareView(
             if (state.referenceEntries.size > 1) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Weitere Referenzen:",
+                    text = stringResource(R.string.analysis_weitere_referenzen),
                     style = MaterialTheme.typography.labelMedium
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -874,8 +875,7 @@ private fun CompareView(
         } else {
             // Keine Referenzen vorhanden
             Text(
-                text = "Keine Referenzen fuer diese Art gespeichert.\n" +
-                    "Bestaetigen Sie Detektionen und speichern Sie diese als Referenz.",
+                text = stringResource(R.string.analysis_keine_referenzen_fuer_diese_art),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

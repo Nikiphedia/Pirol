@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * Zustand der Audio-Permission.
@@ -119,7 +121,7 @@ fun AudioPermissionHandler(
     if (showRationale) {
         AlertDialog(
             onDismissRequest = { showRationale = false },
-            title = { Text("Mikrofon-Zugriff benötigt") },
+            title = { Text(AppStrings.get(R.string.svc_mikrofon_zugriff_benoetigt)) },
             text = {
                 Column(
                     modifier = Modifier
@@ -128,11 +130,11 @@ fun AudioPermissionHandler(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "PIROL benötigt Mikrofon-Zugriff für die akustische Artenerkennung.",
+                        AppStrings.get(R.string.svc_pirol_benoetigt_mikrofon_zugriff_fue),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        "Ohne diese Berechtigung kann keine Live-Aufnahme gestartet werden.",
+                        AppStrings.get(R.string.svc_ohne_diese_berechtigung_kann_keine),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -143,12 +145,12 @@ fun AudioPermissionHandler(
                     showRationale = false
                     permissionLauncher.launch(requiredAudioPermissions())
                 }) {
-                    Text("Erneut versuchen")
+                    Text(AppStrings.get(R.string.svc_erneut_versuchen))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showRationale = false }) {
-                    Text("Abbrechen")
+                    Text(AppStrings.get(R.string.common_cancel))
                 }
             }
         )
@@ -158,7 +160,7 @@ fun AudioPermissionHandler(
     if (showSettingsDialog) {
         AlertDialog(
             onDismissRequest = { showSettingsDialog = false },
-            title = { Text("Berechtigung dauerhaft verweigert") },
+            title = { Text(AppStrings.get(R.string.svc_berechtigung_dauerhaft_verweigert)) },
             text = {
                 Column(
                     modifier = Modifier
@@ -167,13 +169,12 @@ fun AudioPermissionHandler(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "Die Mikrofon-Berechtigung wurde dauerhaft verweigert.",
+                        AppStrings.get(R.string.svc_die_mikrofon_berechtigung_wurde_daue),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Bitte aktiviere die Berechtigung in den App-Einstellungen unter " +
-                                "\"Berechtigungen → Mikrofon\".",
+                        AppStrings.get(R.string.svc_bitte_aktiviere_die_berechtigung_in),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -188,12 +189,12 @@ fun AudioPermissionHandler(
                     }
                     context.startActivity(intent)
                 }) {
-                    Text("Einstellungen öffnen")
+                    Text(AppStrings.get(R.string.svc_einstellungen_oeffnen))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSettingsDialog = false }) {
-                    Text("Abbrechen")
+                    Text(AppStrings.get(R.string.common_cancel))
                 }
             }
         )

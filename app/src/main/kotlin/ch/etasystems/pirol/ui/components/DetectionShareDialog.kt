@@ -29,6 +29,9 @@ import ch.etasystems.pirol.data.export.DetectionExporter
 import ch.etasystems.pirol.data.export.DetectionShareRequest
 import ch.etasystems.pirol.data.export.ShareFormat
 import kotlinx.coroutines.launch
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * T116: Formatwahl + Export einer Detektion. Erzeugt die Datei im Hintergrund (Fortschritt im Dialog),
@@ -49,11 +52,11 @@ fun DetectionShareDialog(
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Detektion teilen") },
+        title = { Text(stringResource(R.string.ui_detektion_teilen)) },
         text = {
             Column {
                 Text(
-                    "Ausschnitt mit 3 s davor und 5 s danach.",
+                    stringResource(R.string.ui_ausschnitt_mit_3_s_davor),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -90,14 +93,14 @@ fun DetectionShareDialog(
                             onDismiss()
                         } catch (e: Exception) {
                             busy = false
-                            onError("Export fehlgeschlagen: ${e.message ?: e.javaClass.simpleName}")
+                            onError(AppStrings.get(R.string.ui_export_fehlgeschlagen, e.message ?: e.javaClass.simpleName))
                         }
                     }
                 }
-            ) { Text("Teilen") }
+            ) { Text(stringResource(R.string.ui_teilen)) }
         },
         dismissButton = {
-            TextButton(enabled = !busy, onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

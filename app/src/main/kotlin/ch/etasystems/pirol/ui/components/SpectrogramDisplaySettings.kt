@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import androidx.annotation.StringRes
+import ch.etasystems.pirol.R
 import ch.etasystems.pirol.audio.dsp.MelFilterbank
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -64,10 +66,10 @@ data class SpectrogramDisplaySettings(
 }
 
 /** Die 3 Presets des Sonogramm-Panels. */
-enum class SpectrogramPreset(val label: String) {
-    STANDARD("Standard"),
-    LEISE_RUFE("Leise Rufe"),
-    LAUTE_UMGEBUNG("Laute Umgebung")
+enum class SpectrogramPreset(@StringRes val labelRes: Int) {
+    STANDARD(R.string.spectro_preset_standard),
+    LEISE_RUFE(R.string.spectro_preset_quiet),
+    LAUTE_UMGEBUNG(R.string.spectro_preset_loud)
 }
 
 /** Kleinste erlaubte dB-Spanne zwischen Unter- und Obergrenze beim Mapping. */

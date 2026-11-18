@@ -33,6 +33,8 @@ import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.PhenologyRepository
 import java.io.File
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 /**
  * LazyColumn mit SpeciesCards fuer alle erkannten Arten.
@@ -106,12 +108,12 @@ fun DetectionList(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "BirdNET-Modell nicht installiert",
+                        text = stringResource(R.string.ui_birdnet_modell_nicht_installiert),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error
                     )
                     Text(
-                        text = "birdnet_v3.onnx in assets/models/ ablegen",
+                        text = stringResource(R.string.ui_birdnet_v3_onnx_in_assets),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -130,7 +132,7 @@ fun DetectionList(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Warte auf Erkennung\u2026",
+                        text = stringResource(R.string.ui_warte_auf_erkennung),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -2,6 +2,8 @@ package ch.etasystems.pirol.ui.map
 
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * T113: Reine Logik fuer die Verifikation auf der Karte (testbar ohne Android).
@@ -32,11 +34,15 @@ object MapVerification {
     /** Marker nach der Aktion in der Karte sichtbar? (T108-Filter) */
     fun visibleAfter(status: VerificationStatus): Boolean = isVisibleOnMap(status)
 
-    /** Snackbar-Text (Deutsch). */
-    fun message(status: VerificationStatus, name: String): String = when (status) {
-        VerificationStatus.CONFIRMED -> "✓ $name bestätigt"
-        VerificationStatus.REJECTED -> "✗ $name abgelehnt"
-        VerificationStatus.UNCERTAIN -> "? $name als unsicher markiert"
+    /** Snackbar-Text in der App-Sprache; [get] loest die String-Ressource auf (in Tests austauschbar). */
+    fun message(
+        status: VerificationStatus,
+        name: String,
+        get: (Int, String) -> String = { id, arg -> AppStrings.get(id, arg) }
+    ): String = when (status) {
+        VerificationStatus.CONFIRMED -> get(R.string.map_bestaetigt, name)
+        VerificationStatus.REJECTED -> get(R.string.live_abgelehnt, name)
+        VerificationStatus.UNCERTAIN -> get(R.string.live_als_unsicher_markiert, name)
         else -> name
     }
 

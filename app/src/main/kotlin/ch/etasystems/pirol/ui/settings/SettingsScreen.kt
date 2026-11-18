@@ -94,6 +94,10 @@ import ch.etasystems.pirol.ml.OnnxBenchmark
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppLanguage
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 @Composable
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -134,7 +138,7 @@ fun SettingsScreen(
         if (!granted) {
             Toast.makeText(
                 context,
-                "Benachrichtigungen sind nicht erlaubt - bitte in den Android-Einstellungen aktivieren",
+                AppStrings.get(R.string.settings_benachrichtigungen_sind_nicht_erlaub),
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -187,9 +191,9 @@ fun SettingsScreen(
             scope.launch {
                 try {
                     watchlistManager.importFromUri(uri)
-                    Toast.makeText(context, "Watchlist importiert", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, AppStrings.get(R.string.settings_watchlist_importiert), Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Import fehlgeschlagen: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, AppStrings.get(R.string.settings_import_fehlgeschlagen, e.message), Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -202,7 +206,7 @@ fun SettingsScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Einstellungen",
+            text = stringResource(R.string.settings_einstellungen),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -210,7 +214,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // --- Sonogramm (T30) ---
-        Text("Sonogramm", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_sonogramm), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         // SpectrogramConfig Chips: Voegel / Fledermaus / Breitband
@@ -218,9 +222,9 @@ fun SettingsScreen(
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
-                "BIRDS" to "Voegel",
-                "BATS" to "Fledermaus",
-                "WIDEBAND" to "Breitband"
+                "BIRDS" to AppStrings.get(R.string.live_voegel),
+                "BATS" to AppStrings.get(R.string.live_fledermaus),
+                "WIDEBAND" to AppStrings.get(R.string.live_breitband)
             ).forEach { (configName, label) ->
                 FilterChip(
                     selected = selectedSpecConfig == configName,
@@ -249,8 +253,7 @@ fun SettingsScreen(
             else -> SpectrogramConfig.BIRDS
         }
         Text(
-            text = "Tipp: Langdruck auf das Sonogramm im Live- oder Analyse-Tab oeffnet dieselben Regler. " +
-                "Auto-Kontrast nutzt je nach Preset das 2./98. oder 30./99.5. Perzentil.",
+            text = stringResource(R.string.settings_tipp_langdruck_auf_das_sonogramm),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -269,11 +272,11 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Erkennung (T30) ---
-        Text("Erkennung", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_erkennung), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         // TopK-Detection Slider (T71: Multi-Label)
-        Text("Erkennungs-Schwelle (TopK): ${(selectedTopKThreshold * 100).roundToInt()}%")
+        Text(stringResource(R.string.settings_erkennungs_schwelle_topk, (selectedTopKThreshold * 100).roundToInt()))
         Slider(
             value = selectedTopKThreshold,
             onValueChange = {
@@ -287,7 +290,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // TopK-Slider (Anzahl Arten pro Chunk)
-        Text("Max. Arten pro Chunk (TopK): $selectedTopK")
+        Text(stringResource(R.string.settings_max_arten_pro_chunk_topk, selectedTopK))
         Slider(
             value = selectedTopK.toFloat(),
             onValueChange = {
@@ -298,8 +301,8 @@ fun SettingsScreen(
             steps = 3  // 1,2,3,4,5 = 4 Schritte zwischen Endpunkten
         )
         Text(
-            text = if (selectedTopK == 1) "TopK=1: nur Top-Art (Pre-T71-Verhalten)"
-                   else "TopK=$selectedTopK: bis zu $selectedTopK Arten gleichzeitig",
+            text = if (selectedTopK == 1) stringResource(R.string.settings_topk_1_nur_top_art)
+                   else stringResource(R.string.settings_topk_bis_zu_arten_gleichzeitig, selectedTopK, selectedTopK),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -309,7 +312,7 @@ fun SettingsScreen(
         // Region-Chips
         var selectedRegion by remember { mutableStateOf(appPreferences.regionFilter) }
 
-        Text("Regionaler Filter", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.settings_regionaler_filter), style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(4.dp))
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -317,8 +320,8 @@ fun SettingsScreen(
                 "ch_breeding" to "CH",
                 "ch_all" to "CH+",
                 "central_europe" to "EU",
-                "all" to "Alle",
-                null to "Aus"
+                "all" to AppStrings.get(R.string.common_all),
+                null to AppStrings.get(R.string.common_off)
             ).forEach { (regionId, label) ->
                 FilterChip(
                     selected = selectedRegion == regionId,
@@ -338,14 +341,14 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Presets
-        Text("Voreinstellungen", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.settings_voreinstellungen), style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(4.dp))
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
-                InferenceConfig.SENSITIVE to "Sensitiv",
-                InferenceConfig.DEFAULT to "Standard",
-                InferenceConfig.STRICT to "Strikt"
+                InferenceConfig.SENSITIVE to AppStrings.get(R.string.settings_sensitiv),
+                InferenceConfig.DEFAULT to AppStrings.get(R.string.settings_standard),
+                InferenceConfig.STRICT to AppStrings.get(R.string.settings_strikt)
             ).forEach { (preset, label) ->
                 OutlinedButton(onClick = {
                     selectedTopKThreshold = preset.topKThreshold
@@ -369,9 +372,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Hochpassfilter (200 Hz)")
+                Text(stringResource(R.string.settings_hochpassfilter_200_hz))
                 Text(
-                    "Filtert Wind und Trittschall",
+                    AppStrings.get(R.string.settings_filtert_wind_und_trittschall),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -387,7 +390,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Aenderungen wirken nach Neustart der Aufnahme",
+            text = stringResource(R.string.settings_aenderungen_wirken_nach_neustart_der),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -402,9 +405,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Artvorschlaege anzeigen")
+                Text(stringResource(R.string.settings_artvorschlaege_anzeigen))
                 Text(
-                    "Alternativen unter jeder Detektion aufklappbar",
+                    AppStrings.get(R.string.settings_alternativen_unter_jeder_detektion_a),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -423,10 +426,10 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Audio / Preroll-Puffer (T35) ---
-        Text("Audio", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_audio), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "48 kHz, 16-bit Mono",
+            text = stringResource(R.string.settings_48_khz_16_bit_mono),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -442,9 +445,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Preroll-Puffer")
+                Text(stringResource(R.string.settings_preroll_puffer))
                 Text(
-                    "Zeichnet vor dem Aufnahmestart auf",
+                    AppStrings.get(R.string.settings_zeichnet_vor_dem_aufnahmestart_auf),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -460,7 +463,7 @@ fun SettingsScreen(
 
         if (prerollEnabled) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Laenge:", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.settings_laenge), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5 to "5s", 10 to "10s", 30 to "30s").forEach { (sec, label) ->
@@ -478,7 +481,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Aenderungen wirken nach Neustart der Aufnahme",
+            text = stringResource(R.string.settings_aenderungen_wirken_nach_neustart_der),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -493,15 +496,15 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Max. Aufnahmelaenge pro WAV", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_max_aufnahmelaenge_pro_wav), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Laengere Sessions werden automatisch auf mehrere WAV-Dateien aufgeteilt. BirdNET laeuft dabei durchgehend weiter.",
+                    text = stringResource(R.string.settings_laengere_sessions_werden_automatisch),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("$maxRecordingMinutes min", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.settings_min, maxRecordingMinutes), style = MaterialTheme.typography.bodyMedium)
         }
         Slider(
             value = maxRecordingMinutes.toFloat(),
@@ -522,9 +525,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Max. Laenge Detektions-Ausschnitt", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_max_laenge_detektions_ausschnitt), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Wiedergabe, Zoom und Teilen einer Detektion: 3 s davor, 5 s danach, hoechstens diese Laenge.",
+                    text = stringResource(R.string.settings_wiedergabe_zoom_und_teilen_einer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -548,7 +551,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Modell-Management (T37) ---
-        Text("Modell", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_modell), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         // Installierte Modelle auflisten
@@ -578,7 +581,7 @@ fun SettingsScreen(
                 is ModelManager.ImportResult.Success -> {
                     classifier.resetSession()
                     installedModels = modelManager.listInstalledModels()
-                    Toast.makeText(context, "Importiert: ${result.profile.name}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, AppStrings.get(R.string.onboarding_importiert, result.profile.name), Toast.LENGTH_SHORT).show()
                 }
                 is ModelManager.ImportResult.NeedsProfile -> pendingImport = result
                 is ModelManager.ImportResult.Failed -> modelError = result.message
@@ -625,7 +628,7 @@ fun SettingsScreen(
         if (installedModels.isNotEmpty()) {
             // Aktives Modell anzeigen
             Text(
-                text = "${classifier.modelName} — ${classifier.labelCount} Arten",
+                text = stringResource(R.string.settings_arten, classifier.modelName, classifier.labelCount),
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -654,7 +657,7 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(model.name, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            text = "${model.sizeMB} MB — ${model.profile.speciesCount} Klassen — ${model.fileName}",
+                            text = stringResource(R.string.onboarding_mb_klassen, model.sizeMB, model.profile.speciesCount, model.fileName),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -663,7 +666,7 @@ fun SettingsScreen(
             }
         } else {
             Text(
-                text = "Kein Modell installiert",
+                text = stringResource(R.string.settings_kein_modell_installiert),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )
@@ -673,7 +676,7 @@ fun SettingsScreen(
 
         // Download-Sektion
         if (isDownloading || runningDownload != null) {
-            Text("Wird heruntergeladen...", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.onboarding_wird_heruntergeladen), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(
                 progress = { runningDownload ?: downloadProgress },
@@ -687,10 +690,10 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(4.dp))
             // T104: Abbrechen behaelt die Teildatei zum Fortsetzen
             OutlinedButton(onClick = { modelManager.cancelDownload() }) {
-                Text("Abbrechen")
+                Text(stringResource(R.string.common_cancel))
             }
         } else if (isImporting) {
-            Text("Wird importiert...", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.settings_wird_importiert), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(
                 progress = { importProgress },
@@ -698,7 +701,7 @@ fun SettingsScreen(
             )
         } else {
             // Modell-Download Buttons
-            Text("Modell herunterladen:", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.settings_modell_herunterladen), style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(4.dp))
             ModelProfile.CATALOG.filter { it.downloadUrl != null }.forEach { model ->
                 val alreadyInstalled = installedModels.any { it.fileName == model.fileName }
@@ -715,10 +718,10 @@ fun SettingsScreen(
                             if (success) {
                                 classifier.resetSession()
                                 installedModels = modelManager.listInstalledModels()
-                                Toast.makeText(context, "${model.name} heruntergeladen", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, AppStrings.get(R.string.settings_heruntergeladen, model.name), Toast.LENGTH_SHORT).show()
                             } else {
-                                modelError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) "Download abgebrochen — Teil bleibt zum Fortsetzen erhalten"
-                                    else "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121/T104
+                                modelError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) AppStrings.get(R.string.onboarding_download_abgebrochen_teil_bleibt_zum)
+                                    else AppStrings.get(R.string.onboarding_download_fehlgeschlagen) + (modelManager.lastDownloadError ?: AppStrings.get(R.string.onboarding_internetverbindung_pruefen))  // T121/T104
                             }
                         }
                     },
@@ -727,7 +730,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                         if (alreadyInstalled) "${model.name} ✓"
-                        else if (partialBytes > 0L) "${model.name} fortsetzen (${partialBytes / 1_000_000} von ${model.expectedSizeMB} MB)"
+                        else if (partialBytes > 0L) AppStrings.get(R.string.settings_fortsetzen_von_mb, model.name, partialBytes / 1_000_000, model.expectedSizeMB)
                         else "${model.name} (${model.expectedSizeMB} MB)"
                     )
                 }
@@ -736,7 +739,7 @@ fun SettingsScreen(
                         modelManager.discardPartialDownload()
                         partialTick++
                     }) {
-                        Text("Angefangenen Download verwerfen")
+                        Text(stringResource(R.string.settings_angefangenen_download_verwerfen))
                     }
                 }
             }
@@ -749,7 +752,7 @@ fun SettingsScreen(
             }) {
                 Icon(Icons.Filled.FileOpen, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Anderes Modell importieren...")
+                Text(stringResource(R.string.settings_anderes_modell_importieren))
             }
         }
 
@@ -768,20 +771,20 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Energieprofil (T29) ---
-        Text("Energieprofil", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_energieprofil), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Laengere Intervalle sparen Akku, erkennen aber seltener",
+            text = stringResource(R.string.settings_laengere_intervalle_sparen_akku_erke),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
 
         val profiles = listOf(
-            Triple("Genau", 3000L, "Jeder 3s-Chunk wird analysiert"),
-            Triple("Standard", 6000L, "Erkennung alle 6s — guter Kompromiss"),
-            Triple("Sparsam", 15000L, "Erkennung alle 15s — fuer lange Feldtage"),
-            Triple("Ultra-Sparsam", 30000L, "Erkennung alle 30s — maximale Laufzeit")
+            Triple(AppStrings.get(R.string.settings_genau), 3000L, AppStrings.get(R.string.settings_jeder_3s_chunk_wird_analysiert)),
+            Triple(AppStrings.get(R.string.settings_standard), 6000L, AppStrings.get(R.string.settings_erkennung_alle_6s_guter_kompromiss)),
+            Triple(AppStrings.get(R.string.settings_sparsam), 15000L, AppStrings.get(R.string.settings_erkennung_alle_15s_fuer_lange)),
+            Triple(AppStrings.get(R.string.settings_ultra_sparsam), 30000L, AppStrings.get(R.string.settings_erkennung_alle_30s_maximale_laufzeit))
         )
 
         profiles.forEach { (name, interval, description) ->
@@ -816,19 +819,17 @@ fun SettingsScreen(
         // --- Ueberlappung der Analysefenster (T110) ---
         Spacer(modifier = Modifier.height(12.dp))
         var selectedOverlap by remember { mutableIntStateOf(appPreferences.overlapPercent) }
-        Text("Ueberlappung", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.settings_ueberlappung), style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Mehr Ueberlappung erkennt kurze Rufe an Fenstergrenzen besser, braucht aber " +
-                "mehr Rechenzeit. Wirkt voll nur mit Profil \"Genau\". Ist das Geraet zu langsam, " +
-                "wird automatisch reduziert. Gilt ab der naechsten Aufnahme.",
+            text = stringResource(R.string.settings_mehr_ueberlappung_erkennt_kurze_rufe),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         val overlapOptions = listOf(
-            Triple(0, "0 %", "Fenster alle 3 s (Standard)"),
-            Triple(50, "50 %", "Fenster alle 1.5 s"),
-            Triple(67, "67 %", "Fenster jede Sekunde")
+            Triple(0, "0 %", AppStrings.get(R.string.settings_fenster_alle_3_s_standard)),
+            Triple(50, "50 %", AppStrings.get(R.string.settings_fenster_alle_1_5_s)),
+            Triple(67, "67 %", AppStrings.get(R.string.settings_fenster_jede_sekunde))
         )
         overlapOptions.forEach { (percent, label, description) ->
             Row(
@@ -869,10 +870,10 @@ fun SettingsScreen(
 
         // GPS-Intervall
         var selectedGpsInterval by remember { mutableIntStateOf(appPreferences.gpsIntervalSeconds) }
-        Text("GPS-Intervall", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.settings_gps_intervall), style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Kuerzere Intervalle = genauere Position, hoeherer Akkuverbrauch.",
+            text = stringResource(R.string.settings_kuerzere_intervalle_genauere_positio),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -891,7 +892,7 @@ fun SettingsScreen(
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Wirkt ab naechster Aufnahme.",
+            text = stringResource(R.string.settings_wirkt_ab_naechster_aufnahme),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -905,9 +906,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Max. GPS-Ungenauigkeit", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_max_gps_ungenauigkeit), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Fixes ungenauer als dieser Wert werden verworfen.",
+                    text = stringResource(R.string.settings_fixes_ungenauer_als_dieser_wert),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -937,9 +938,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("GPS-Smoothing", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_gps_smoothing), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Median ueber 5 Fixes — reduziert Ausreisser-Spruenge.",
+                    text = stringResource(R.string.settings_median_ueber_5_fixes_reduziert),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -957,12 +958,67 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
+        // --- Sprache der App (T120a) ---
+        Text(stringResource(R.string.settings_sprache_der_app), style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        var appLangExpanded by remember { mutableStateOf(false) }
+        var appLangTag by remember { mutableStateOf(AppLanguage.currentTag()) }
+        val systemLangLabel = stringResource(R.string.settings_systemsprache)
+
+        ExposedDropdownMenuBox(
+            expanded = appLangExpanded,
+            onExpandedChange = { appLangExpanded = it }
+        ) {
+            @Suppress("DEPRECATION")
+            OutlinedTextField(
+                value = AppLanguage.OPTIONS.find { it.first == appLangTag }?.second ?: systemLangLabel,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.settings_sprache)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(appLangExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = appLangExpanded,
+                onDismissRequest = { appLangExpanded = false }
+            ) {
+                (listOf(AppLanguage.SYSTEM_TAG to systemLangLabel) + AppLanguage.OPTIONS).forEach { (tag, name) ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = {
+                            appLangExpanded = false
+                            if (tag != appLangTag) {
+                                appLangTag = tag
+                                // Artnamen folgen der App-Sprache, solange nicht explizit gesetzt
+                                if (!appPreferences.speciesLanguageExplicit) {
+                                    speciesNameResolver.language = AppLanguage.speciesLanguageForTag(
+                                        tag, AppLanguage.systemLanguage()
+                                    )
+                                }
+                                // startet die Activity neu
+                                AppLanguage.apply(tag)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
         // --- Artennamen-Sprache (T26) ---
-        Text("Artennamen", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_artennamen), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         var langExpanded by remember { mutableStateOf(false) }
-        var selectedLang by remember { mutableStateOf(appPreferences.speciesLanguage) }
+        // "" = folgt der App-Sprache (nicht explizit gesetzt)
+        var selectedLang by remember {
+            mutableStateOf(if (appPreferences.speciesLanguageExplicit) appPreferences.speciesLanguage else "")
+        }
+        val followAppLabel = stringResource(R.string.settings_wie_app_sprache)
 
         ExposedDropdownMenuBox(
             expanded = langExpanded,
@@ -971,10 +1027,10 @@ fun SettingsScreen(
             @Suppress("DEPRECATION")
             OutlinedTextField(
                 value = SpeciesNameResolver.AVAILABLE_LANGUAGES
-                    .find { it.first == selectedLang }?.second ?: "Deutsch",
+                    .find { it.first == selectedLang }?.second ?: followAppLabel,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Sprache") },
+                label = { Text(stringResource(R.string.settings_sprache)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(langExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth()
             )
@@ -982,13 +1038,18 @@ fun SettingsScreen(
                 expanded = langExpanded,
                 onDismissRequest = { langExpanded = false }
             ) {
-                SpeciesNameResolver.AVAILABLE_LANGUAGES.forEach { (code, name) ->
+                (listOf("" to followAppLabel) + SpeciesNameResolver.AVAILABLE_LANGUAGES).forEach { (code, name) ->
                     DropdownMenuItem(
                         text = { Text(name) },
                         onClick = {
                             selectedLang = code
-                            appPreferences.speciesLanguage = code
-                            speciesNameResolver.language = code
+                            if (code.isEmpty()) {
+                                appPreferences.speciesLanguageExplicit = false
+                            } else {
+                                appPreferences.speciesLanguage = code
+                                appPreferences.speciesLanguageExplicit = true
+                            }
+                            speciesNameResolver.language = appPreferences.effectiveSpeciesLanguage()
                             langExpanded = false
                         }
                     )
@@ -1001,7 +1062,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Speicherort (T51: SAF + Tages-Unterordner) ---
-        Text("Speicherort", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_speicherort), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(4.dp))
 
         // Anzeige des aktuellen Pfads
@@ -1012,7 +1073,7 @@ fun SettingsScreen(
             "Android/data/ch.etasystems.pirol/files/PIROL/"
         }
         Text(
-            text = "Aktuell: $currentPathDisplay",
+            text = stringResource(R.string.settings_aktuell, currentPathDisplay),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1044,13 +1105,13 @@ fun SettingsScreen(
                 } else {
                     appPreferences.storageBaseUri = uri.toString()
                     currentBaseUri = uri.toString()
-                    Toast.makeText(context, "Speicherort gespeichert", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, AppStrings.get(R.string.settings_speicherort_gespeichert), Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
         OutlinedButton(onClick = { safLauncher.launch(null) }) {
-            Text("Anderen Ordner waehlen")
+            Text(stringResource(R.string.settings_anderen_ordner_waehlen))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1070,9 +1131,9 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column {
-                Text("Tages-Unterordner (YYYY-MM-DD)", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_tages_unterordner_yyyy_mm_dd), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Sessions nach Datum gruppieren",
+                    text = stringResource(R.string.settings_sessions_nach_datum_gruppieren),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1088,7 +1149,7 @@ fun SettingsScreen(
             "$currentPathDisplay/2026-04-20T08-30-00_a1b2c3/"
         }
         Text(
-            text = "Beispiel: $examplePath",
+            text = stringResource(R.string.settings_beispiel, examplePath),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1107,9 +1168,9 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column {
-                Text("Kurze leere Sessions automatisch loeschen", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_kurze_leere_sessions_automatisch_loe), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Sessions kuerzer als Minimum-Dauer ohne Detektionen werden geloescht",
+                    text = stringResource(R.string.settings_sessions_kuerzer_als_minimum_dauer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1119,7 +1180,7 @@ fun SettingsScreen(
             var autoDeleteMinSec by remember { mutableIntStateOf(appPreferences.autoDeleteMinSeconds) }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Minimum-Dauer: ${autoDeleteMinSec}s  (0 = deaktiviert)",
+                text = stringResource(R.string.settings_minimum_dauer_s_0_deaktiviert, autoDeleteMinSec),
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
@@ -1140,15 +1201,15 @@ fun SettingsScreen(
             migrationSessionCount = info.sessionCount
             migrationSizeMB = info.totalSizeBytes / 1_000_000
             if (info.sessionCount > 0) showMigrationDialog = true
-            else Toast.makeText(context, "Keine Sessions vorhanden", Toast.LENGTH_SHORT).show()
+            else Toast.makeText(context, AppStrings.get(R.string.settings_keine_sessions_vorhanden), Toast.LENGTH_SHORT).show()
         }) {
-            Text("Bestehende Sessions verschieben")
+            Text(stringResource(R.string.settings_bestehende_sessions_verschieben))
         }
 
         // Fortschrittsanzeige waehrend Migration
         if (isMigrating) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Sessions werden kopiert...", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.settings_sessions_werden_kopiert), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(progress = { migrationProgress }, modifier = Modifier.fillMaxWidth())
             Text(
@@ -1164,9 +1225,9 @@ fun SettingsScreen(
                     showMigrationDialog = false
                     migrationTargetUri = null
                 },
-                title = { Text("Sessions verschieben") },
+                title = { Text(stringResource(R.string.settings_sessions_verschieben)) },
                 text = {
-                    Text("$migrationSessionCount Sessions ($migrationSizeMB MB) an neuen Speicherort kopieren?")
+                    Text(stringResource(R.string.settings_sessions_mb_an_neuen_speicherort, migrationSessionCount, migrationSizeMB))
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -1183,17 +1244,17 @@ fun SettingsScreen(
                                 if (result.errors.isEmpty()) {
                                     appPreferences.storageBaseUri = targetUri.toString()
                                     currentBaseUri = targetUri.toString()
-                                    Toast.makeText(context, "${result.sessionsCopied} Sessions kopiert", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, AppStrings.get(R.string.settings_sessions_kopiert, result.sessionsCopied), Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Fehler: ${result.errors.joinToString("; ")}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, AppStrings.get(R.string.settings_fehler, result.errors.joinToString("; ")), Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 isMigrating = false
-                                Toast.makeText(context, "Kein Zielordner ausgewählt", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, AppStrings.get(R.string.settings_kein_zielordner_ausgewaehlt), Toast.LENGTH_LONG).show()
                             }
                             migrationTargetUri = null
                         }
-                    }) { Text("Kopieren") }
+                    }) { Text(stringResource(R.string.settings_kopieren)) }
                 },
                 dismissButton = {
                     Row {
@@ -1205,12 +1266,12 @@ fun SettingsScreen(
                                 currentBaseUri = uri.toString()
                             }
                             migrationTargetUri = null
-                        }) { Text("Nur wechseln") }
+                        }) { Text(stringResource(R.string.settings_nur_wechseln)) }
                         Spacer(modifier = Modifier.width(4.dp))
                         TextButton(onClick = {
                             showMigrationDialog = false
                             migrationTargetUri = null
-                        }) { Text("Abbrechen") }
+                        }) { Text(stringResource(R.string.common_cancel)) }
                     }
                 }
             )
@@ -1221,7 +1282,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Export-Sektion ---
-        Text("Export", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_export), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         // WLAN-only Toggle
@@ -1229,7 +1290,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Nur bei WLAN exportieren", modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.settings_nur_bei_wlan_exportieren), modifier = Modifier.weight(1f))
             Switch(
                 checked = wifiOnly,
                 onCheckedChange = {
@@ -1247,7 +1308,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Automatisch nach Aufnahme", modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.settings_automatisch_nach_aufnahme), modifier = Modifier.weight(1f))
             Switch(
                 checked = autoUpload,
                 onCheckedChange = {
@@ -1261,7 +1322,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Automatischer Upload findet nur mit gewaehltem Ziel statt.",
+            text = stringResource(R.string.settings_automatischer_upload_findet_nur_mit),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1283,13 +1344,13 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Raven-Export Felder",
+                text = stringResource(R.string.settings_raven_export_felder),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f)
             )
             Icon(
                 imageVector = if (ravenFieldsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (ravenFieldsExpanded) "Einklappen" else "Aufklappen"
+                contentDescription = if (ravenFieldsExpanded) stringResource(R.string.settings_einklappen) else stringResource(R.string.settings_aufklappen)
             )
         }
 
@@ -1297,7 +1358,7 @@ fun SettingsScreen(
             Column {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Spalten die in recording.selections.txt geschrieben werden",
+                    text = stringResource(R.string.settings_spalten_die_in_recording_selections),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1347,22 +1408,22 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Wirkt beim naechsten Export",
+                    text = stringResource(R.string.settings_wirkt_beim_naechsten_export),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text(
-                    "Simultanbeobachtungen",
+                    AppStrings.get(R.string.settings_simultanbeobachtungen),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, top = 4.dp)
                 )
                 listOf(
-                    Triple("Simultan (//)", ravenSimultan, { v: Boolean -> ravenSimultan = v; appPreferences.ravenFieldSimultan = v }),
-                    Triple("Moeglich (?)",  ravenMoeglich, { v: Boolean -> ravenMoeglich = v; appPreferences.ravenFieldMoeglich = v }),
-                    Triple("Gleich (!)",    ravenGleich,   { v: Boolean -> ravenGleich   = v; appPreferences.ravenFieldGleich   = v })
+                    Triple(AppStrings.get(R.string.settings_simultan), ravenSimultan, { v: Boolean -> ravenSimultan = v; appPreferences.ravenFieldSimultan = v }),
+                    Triple(AppStrings.get(R.string.settings_moeglich),  ravenMoeglich, { v: Boolean -> ravenMoeglich = v; appPreferences.ravenFieldMoeglich = v }),
+                    Triple(AppStrings.get(R.string.settings_gleich),    ravenGleich,   { v: Boolean -> ravenGleich   = v; appPreferences.ravenFieldGleich   = v })
                 ).forEach { (label, checked, onToggle) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1382,7 +1443,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Watchlist-Sektion (T20 + T21 + T58) ---
-        Text("Watchlist", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.ui_watchlist), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         // Alarm-Pause-Slider (T58)
@@ -1391,16 +1452,16 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Alarm-Pause", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_alarm_pause), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Pause zwischen Alarmen derselben Art. 0 = jeder Treffer alarmiert.",
+                    text = stringResource(R.string.settings_pause_zwischen_alarmen_derselben_art),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (cooldownMinutes == 0) "Aus" else "$cooldownMinutes min",
+                text = if (cooldownMinutes == 0) stringResource(R.string.common_off) else stringResource(R.string.settings_min, cooldownMinutes),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -1413,11 +1474,11 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- Alarm-Ausgaenge (T124) ---
-        Text("Alarm-Ausgabe", style = MaterialTheme.typography.bodyMedium)
-        AlarmCheckRow("Vibration", alarmVibration) {
+        Text(stringResource(R.string.settings_alarm_ausgabe), style = MaterialTheme.typography.bodyMedium)
+        AlarmCheckRow(AppStrings.get(R.string.settings_vibration), alarmVibration) {
             alarmVibration = it; appPreferences.alarmVibrationEnabled = it
         }
-        AlarmCheckRow("Benachrichtigung", alarmNotification) {
+        AlarmCheckRow(AppStrings.get(R.string.settings_benachrichtigung), alarmNotification) {
             alarmNotification = it; appPreferences.alarmNotificationEnabled = it
             if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -1426,11 +1487,11 @@ fun SettingsScreen(
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-        AlarmCheckRow("Vollbild-Hinweis in der App", alarmBanner) {
+        AlarmCheckRow(AppStrings.get(R.string.settings_vollbild_hinweis_in_der_app), alarmBanner) {
             alarmBanner = it; appPreferences.alarmBannerEnabled = it
         }
         OutlinedButton(onClick = { alarmService.triggerTestAlarm() }) {
-            Text("Alarm testen")
+            Text(stringResource(R.string.settings_alarm_testen))
         }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1439,7 +1500,7 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Detektions-Cluster", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_detektions_cluster), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         // Toggle
@@ -1449,11 +1510,11 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Detektionen raeumlich/zeitlich zusammenfassen",
+                    AppStrings.get(R.string.settings_detektionen_raeumlich_zeitlich_zusam),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = "Ohne GPS-Fix wird nur Zeit-Dedup angewendet.",
+                    text = stringResource(R.string.settings_ohne_gps_fix_wird_nur),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1471,16 +1532,16 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Cluster-Radius (m)", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_cluster_radius_m), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "0 = kein Radius-Check (nur Zeit-Dedup).",
+                    text = stringResource(R.string.settings_0_kein_radius_check_nur),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (clusterRadiusM == 0) "Aus" else "$clusterRadiusM m",
+                text = if (clusterRadiusM == 0) stringResource(R.string.common_off) else "$clusterRadiusM m",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -1499,16 +1560,16 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Cluster-Zeitfenster (min)", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_cluster_zeitfenster_min), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "0 = kein Zeit-Check.",
+                    text = stringResource(R.string.settings_0_kein_zeit_check),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (clusterTimeWindowMin == 0) "Aus" else "$clusterTimeWindowMin min",
+                text = if (clusterTimeWindowMin == 0) stringResource(R.string.common_off) else stringResource(R.string.settings_min, clusterTimeWindowMin),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -1525,7 +1586,7 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Aehnliche Arten", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.ui_aehnliche_arten), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
@@ -1533,9 +1594,9 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Aehnliche Arten anzeigen", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_aehnliche_arten_anzeigen), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Embedding-Aehnlichkeitssuche aktivieren",
+                    text = stringResource(R.string.settings_embedding_aehnlichkeitssuche_aktivie),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1548,12 +1609,12 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         val linesLabel = when {
-            similarLines == 0f -> "0 (aus)"
-            similarLines == 0.5f -> "0.5 (Laufschrift)"
+            similarLines == 0f -> AppStrings.get(R.string.settings_0_aus)
+            similarLines == 0.5f -> AppStrings.get(R.string.settings_0_5_laufschrift)
             else -> similarLines.toInt().toString()
         }
         Text(
-            text = "Anzahl Zeilen: $linesLabel",
+            text = stringResource(R.string.settings_anzahl_zeilen, linesLabel),
             style = MaterialTheme.typography.bodyMedium
         )
         Slider(
@@ -1564,7 +1625,7 @@ fun SettingsScreen(
             enabled = similarEnabled
         )
         Text(
-            text = "0 = aus  •  0.5 = Laufschrift letzte 5  •  1–10 = Liste",
+            text = stringResource(R.string.settings_0_aus_0_5_laufschrift),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1572,8 +1633,7 @@ fun SettingsScreen(
 
         // T97: Obergrenze der Embedding-DB (1'000–20'000 in 1'000er-Schritten, ~4 KB pro Eintrag)
         Text(
-            text = "Gespeicherte Vergleichsaufnahmen: max. $embeddingDbMaxEntries " +
-                    "(ca. ${embeddingDbMaxEntries * 4 / 1000} MB)",
+            text = stringResource(R.string.settings_gespeicherte_vergleichsaufnahmen_max, embeddingDbMaxEntries, embeddingDbMaxEntries * 4 / 1000),
             style = MaterialTheme.typography.bodyMedium
         )
         Slider(
@@ -1587,14 +1647,14 @@ fun SettingsScreen(
             steps = 18
         )
         Text(
-            text = "Ältere Einträge fallen heraus, sobald die Obergrenze erreicht ist.",
+            text = stringResource(R.string.settings_aeltere_eintraege_fallen_heraus_soba),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         if (entries.isNotEmpty()) {
             Text(
-                text = "${watchlistManager.name} (${entries.size} Arten)",
+                text = stringResource(R.string.settings_arten_2, watchlistManager.name, entries.size),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -1627,7 +1687,7 @@ fun SettingsScreen(
                     }) {
                         Icon(
                             Icons.Filled.Delete,
-                            contentDescription = "Entfernen",
+                            contentDescription = stringResource(R.string.settings_entfernen),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
@@ -1635,7 +1695,7 @@ fun SettingsScreen(
             }
         } else {
             Text(
-                text = "Keine Watchlist geladen",
+                text = stringResource(R.string.settings_keine_watchlist_geladen),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1643,12 +1703,12 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Auto-Import: Downloads/PIROL/watchlist.json",
+            text = stringResource(R.string.settings_auto_import_downloads_pirol_watchlis),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = if (entries.isNotEmpty()) "\u2713 Geladen" else "\u2717 Keine Datei gefunden",
+            text = if (entries.isNotEmpty()) stringResource(R.string.settings_geladen) else stringResource(R.string.settings_keine_datei_gefunden),
             style = MaterialTheme.typography.bodySmall,
             color = if (entries.isNotEmpty())
                 MaterialTheme.colorScheme.primary
@@ -1666,7 +1726,7 @@ fun SettingsScreen(
             }) {
                 Icon(Icons.Filled.FileOpen, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Importieren...")
+                Text(stringResource(R.string.common_import))
             }
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -1675,12 +1735,12 @@ fun SettingsScreen(
             TextButton(onClick = {
                 scope.launch {
                     watchlistManager.load()
-                    Toast.makeText(context, "Watchlist neu geladen", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, AppStrings.get(R.string.settings_watchlist_neu_geladen), Toast.LENGTH_SHORT).show()
                 }
             }) {
                 Icon(Icons.Filled.Refresh, contentDescription = null)
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Neu laden")
+                Text(stringResource(R.string.settings_neu_laden))
             }
         }
 
@@ -1690,14 +1750,14 @@ fun SettingsScreen(
         OutlinedButton(onClick = { showAddDialog = true }) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Art hinzufuegen")
+            Text(stringResource(R.string.settings_art_hinzufuegen))
         }
 
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Saisonalitaet & Seltenheit (T74) ---
-        Text("Saisonalitaet & Seltenheit", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_saisonalitaet_seltenheit), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
@@ -1705,10 +1765,10 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Saison-/Seltenheits-Hervorhebung aktiv", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_saison_seltenheits_hervorhebung_akti), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = if (phenologyEntryCount == 0) "Datei leer — kein Effekt"
-                           else "$phenologyEntryCount Arten geladen",
+                    text = if (phenologyEntryCount == 0) stringResource(R.string.settings_datei_leer_kein_effekt)
+                           else stringResource(R.string.settings_arten_geladen, phenologyEntryCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1728,12 +1788,12 @@ fun SettingsScreen(
             scope.launch {
                 phenologyRepository.reload()
                 phenologyEntryCount = phenologyRepository.entryCount()
-                Toast.makeText(context, "Phenology-JSON neu geladen", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, AppStrings.get(R.string.settings_phenology_json_neu_geladen), Toast.LENGTH_SHORT).show()
             }
         }) {
             Icon(Icons.Filled.Refresh, contentDescription = null)
             Spacer(modifier = Modifier.width(4.dp))
-            Text("Phenology-JSON neu laden")
+            Text(stringResource(R.string.settings_phenology_json_neu_laden))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1741,12 +1801,10 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Diagnose: Inference-Benchmark (T96) ---
-        Text("Diagnose", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.settings_diagnose), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Misst die BirdNET-Inference des aktiven Modells mit 1/2/4 Threads, jeweils " +
-                    "Standard-CPU und XNNPACK. Dauert je nach Geraet 1–3 Minuten. " +
-                    "Nicht waehrend einer Aufnahme starten.",
+            text = stringResource(R.string.settings_misst_die_birdnet_inference_des),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1756,7 +1814,7 @@ fun SettingsScreen(
             onClick = {
                 val modelFile = modelManager.getActiveModelFile()
                 if (modelFile == null) {
-                    benchmarkReport = "Kein Modell installiert."
+                    benchmarkReport = AppStrings.get(R.string.settings_kein_modell_installiert_2)
                 } else {
                     benchmarkRunning = true
                     benchmarkReport = ""
@@ -1764,14 +1822,14 @@ fun SettingsScreen(
                         benchmarkReport = try {
                             OnnxBenchmark.run(modelFile, modelManager.getActiveProfile().windowSamples) { benchmarkProgress = it }
                         } catch (e: Exception) {
-                            "Benchmark fehlgeschlagen: ${e.message}"
+                            AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
                         }
                         benchmarkRunning = false
                     }
                 }
             }
         ) {
-            Text(if (benchmarkRunning) "Laeuft … $benchmarkProgress" else "Inference-Benchmark starten")
+            Text(if (benchmarkRunning) stringResource(R.string.settings_laeuft, benchmarkProgress) else stringResource(R.string.settings_inference_benchmark_starten))
         }
         if (benchmarkReport.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -1792,13 +1850,13 @@ fun SettingsScreen(
                 showAddDialog = false
                 searchQuery = ""
             },
-            title = { Text("Art zur Watchlist hinzufuegen") },
+            title = { Text(stringResource(R.string.settings_art_zur_watchlist_hinzufuegen)) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        label = { Text("Art suchen...") },
+                        label = { Text(stringResource(R.string.settings_art_suchen)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1842,7 +1900,7 @@ fun SettingsScreen(
                 TextButton(onClick = {
                     showAddDialog = false
                     searchQuery = ""
-                }) { Text("Abbrechen") }
+                }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

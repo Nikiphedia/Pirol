@@ -41,6 +41,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
+import ch.etasystems.pirol.ui.AppStrings
 
 /** T125: Upload-Ziel (Aus / Ordner / NAS-SMB) inkl. Verbindungstest und letztem Ergebnis. */
 @Composable
@@ -72,7 +75,7 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
                 appPreferences.uploadFolderUri = folderUri
                 testResult = null
             } catch (e: SecurityException) {
-                testResult = "Ordner konnte nicht dauerhaft freigegeben werden"
+                testResult = AppStrings.get(R.string.settings_ordner_konnte_nicht_dauerhaft_freige)
             }
         }
     }
@@ -83,11 +86,11 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
         testResult = null
     }
 
-    Text("Upload-Ziel", style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(R.string.settings_upload_ziel), style = MaterialTheme.typography.titleSmall)
     listOf(
-        UploadTargetType.OFF to "Aus (nur lokale Kopie bei manuellem Export)",
-        UploadTargetType.FOLDER to "Ordner waehlen (Geraet, Drive, OneDrive ...)",
-        UploadTargetType.SMB to "NAS (SMB / Windows-Freigabe)"
+        UploadTargetType.OFF to AppStrings.get(R.string.settings_aus_nur_lokale_kopie_bei),
+        UploadTargetType.FOLDER to AppStrings.get(R.string.settings_ordner_waehlen_geraet_drive_onedrive),
+        UploadTargetType.SMB to AppStrings.get(R.string.settings_nas_smb_windows_freigabe)
     ).forEach { (t, label) ->
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             RadioButton(selected = type == t, onClick = { setType(t) })
@@ -98,19 +101,19 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
     if (type == UploadTargetType.FOLDER) {
         Spacer(Modifier.height(4.dp))
         Text(
-            text = if (folderUri.isBlank()) "Kein Ordner gewaehlt"
-            else "Ordner: " + (Uri.parse(folderUri).lastPathSegment ?: folderUri),
+            text = if (folderUri.isBlank()) stringResource(R.string.settings_kein_ordner_gewaehlt)
+            else stringResource(R.string.settings_ordner) + (Uri.parse(folderUri).lastPathSegment ?: folderUri),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { folderLauncher.launch(null) }) { Text("Ordner waehlen") }
+            OutlinedButton(onClick = { folderLauncher.launch(null) }) { Text(stringResource(R.string.settings_ordner_waehlen)) }
             Button(
                 enabled = folderUri.isNotBlank() && !testing,
                 onClick = {
-                    testResult = SafFolderTarget(context, Uri.parse(folderUri)).check() ?: "Ordner ist beschreibbar"
+                    testResult = SafFolderTarget(context, Uri.parse(folderUri)).check() ?: AppStrings.get(R.string.settings_ordner_ist_beschreibbar)
                 }
-            ) { Text("Verbindung testen") }
+            ) { Text(stringResource(R.string.settings_verbindung_testen)) }
         }
     }
 
@@ -118,25 +121,25 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
         Spacer(Modifier.height(4.dp))
         OutlinedTextField(
             value = host, onValueChange = { host = it; appPreferences.smbHost = it },
-            label = { Text("Host (Name oder IP)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            label = { Text(stringResource(R.string.settings_host_name_oder_ip)) }, singleLine = true, modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = share, onValueChange = { share = it; appPreferences.smbShare = it },
-            label = { Text("Freigabe (Share)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            label = { Text(stringResource(R.string.settings_freigabe_share)) }, singleLine = true, modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = path, onValueChange = { path = it; appPreferences.smbPath = it },
-            label = { Text("Pfad in der Freigabe") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            label = { Text(stringResource(R.string.settings_pfad_in_der_freigabe)) }, singleLine = true, modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = user, onValueChange = { user = it; appPreferences.smbUser = it },
-            label = { Text("Benutzer (ggf. DOMAENE\\Benutzer)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            label = { Text(stringResource(R.string.settings_benutzer_ggf_domaene_benutzer)) }, singleLine = true, modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = {
-                Text(if (hasPassword) "Passwort (gespeichert, zum Aendern neu eingeben)" else "Passwort")
+                Text(if (hasPassword) stringResource(R.string.settings_passwort_gespeichert_zum_aendern_neu) else stringResource(R.string.settings_passwort))
             },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
@@ -152,7 +155,7 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
                         hasPassword = true
                         password = ""
                     } else {
-                        testResult = "Passwort konnte nicht sicher gespeichert werden"
+                        testResult = AppStrings.get(R.string.settings_passwort_konnte_nicht_sicher_gespeic)
                         return@Button
                     }
                 }
@@ -164,21 +167,21 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
                     return@Button
                 }
                 testing = true
-                testResult = "Teste ..."
+                testResult = AppStrings.get(R.string.settings_teste)
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
                         try {
                             SmbTarget(settings, stored!!).testConnection()
-                            "Verbindung erfolgreich"
+                            AppStrings.get(R.string.settings_verbindung_erfolgreich)
                         } catch (e: Exception) {
-                            "Fehler: " + UploadConfig.describeError(e)
+                            AppStrings.get(R.string.settings_fehler_2) + UploadConfig.describeError(e)
                         }
                     }
                     testResult = result
                     testing = false
                 }
             }
-        ) { Text("Verbindung testen") }
+        ) { Text(stringResource(R.string.settings_verbindung_testen)) }
     }
 
     testResult?.let {
@@ -189,14 +192,14 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
     if (type != UploadTargetType.OFF) {
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Lokale ZIP-Kopie (Downloads/PIROL) nach Upload nicht behalten", modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.settings_lokale_zip_kopie_downloads_pirol), modifier = Modifier.weight(1f))
             Switch(
                 checked = deleteZip,
                 onCheckedChange = { deleteZip = it; appPreferences.deleteLocalZipAfterUpload = it }
             )
         }
         Text(
-            "Der Session-Ordner selbst wird nie geloescht.",
+            AppStrings.get(R.string.settings_der_session_ordner_selbst_wird),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -205,9 +208,12 @@ fun UploadSettingsSection(appPreferences: AppPreferences) {
     Spacer(Modifier.height(8.dp))
     val lastTime = appPreferences.lastUploadTimeMs
     Text(
-        text = if (lastTime == 0L) "Letzter Upload: noch keiner"
-        else "Letzter Upload (" + DateFormat.getDateTimeInstance().format(Date(lastTime)) + "): " +
-            appPreferences.lastUploadResult,
+        text = if (lastTime == 0L) stringResource(R.string.settings_letzter_upload_noch_keiner)
+        else stringResource(
+            R.string.settings_letzter_upload,
+            DateFormat.getDateTimeInstance().format(Date(lastTime)),
+            appPreferences.lastUploadResult
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

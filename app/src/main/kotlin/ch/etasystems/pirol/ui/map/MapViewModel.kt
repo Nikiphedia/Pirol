@@ -23,6 +23,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 enum class FilterMode { ALL, LIVE_ONLY, RECENT_3 }
 
@@ -346,7 +348,7 @@ class MapViewModel(
                                 MapVerification.eventFor(marker.detectionId, status, System.currentTimeMillis()))
                         }.onFailure {
                             detectionListState.updateVerification(marker.detectionId, marker.verificationStatus, prevCorrected)
-                            snackbarChannel.trySend(MapSnackbar("Speichern fehlgeschlagen"))
+                            snackbarChannel.trySend(MapSnackbar(AppStrings.get(R.string.common_save_failed)))
                         }
                     }
                 }
@@ -367,14 +369,14 @@ class MapViewModel(
                     }
                 }
                 if (!ok) {
-                    snackbarChannel.trySend(MapSnackbar("Speichern fehlgeschlagen"))
+                    snackbarChannel.trySend(MapSnackbar(AppStrings.get(R.string.common_save_failed)))
                     return@launch
                 }
             }
             applyMarkerStatus(marker, status)
             val record = MapVerification.UndoRecord(marker, marker.verificationStatus, prevCorrected)
             snackbarChannel.trySend(
-                MapSnackbar(MapVerification.message(status, marker.species), "Rückgängig") {
+                MapSnackbar(MapVerification.message(status, marker.species), AppStrings.get(R.string.common_undo)) {
                     undoVerification(record)
                 }
             )

@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import org.koin.compose.koinInject
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 /**
  * Panel zur Anzeige von Aehnlichkeits-Ergebnissen aus der Embedding-Pipeline.
@@ -64,12 +66,12 @@ fun SimilarityPanel(
         ) {
             Icon(
                 imageVector = Icons.Filled.Fingerprint,
-                contentDescription = "Aehnlichkeitssuche",
+                contentDescription = stringResource(R.string.ui_aehnlichkeitssuche),
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Aehnliche Arten",
+                text = stringResource(R.string.ui_aehnliche_arten),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
@@ -102,7 +104,7 @@ fun SimilarityPanel(
             }
             matches.isEmpty() -> {
                 Text(
-                    text = "Noch keine Referenzen gespeichert",
+                    text = stringResource(R.string.ui_noch_keine_referenzen_gespeichert),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp)

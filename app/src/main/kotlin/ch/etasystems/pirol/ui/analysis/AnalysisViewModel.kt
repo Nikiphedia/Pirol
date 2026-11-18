@@ -42,6 +42,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.InputStream
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * ViewModel fuer den Analyse-Tab.
@@ -126,7 +128,7 @@ class AnalysisViewModel(
         // T69: 60s-Cap-Signal → saveErrorMessage (wird als Snackbar angezeigt)
         viewModelScope.launch {
             voiceMemoRecorder.capReached.collect {
-                _uiState.update { it.copy(saveErrorMessage = "Memo auf 60s gekürzt") }
+                _uiState.update { it.copy(saveErrorMessage = AppStrings.get(R.string.analysis_memo_auf_60s_gekuerzt)) }
             }
         }
     }
@@ -313,7 +315,7 @@ class AnalysisViewModel(
         val file = _uiState.value.recordingFile
         val session = _uiState.value.selectedSession
         if (file == null || session == null) {
-            reportError("Referenz: keine Aufnahme vorhanden")
+            reportError(AppStrings.get(R.string.analysis_referenz_keine_aufnahme_vorhanden))
             return
         }
         val duration = _uiState.value.recordingDurationSec
@@ -322,7 +324,7 @@ class AnalysisViewModel(
             referenceRepository.findByDetection(detection.id)?.let { existing ->
                 val ok = referenceRepository.deleteReference(existing)
                 withContext(Dispatchers.Main) {
-                    reportError(if (ok) "Referenz entfernt: ${existing.commonName}" else "Referenz entfernen fehlgeschlagen")
+                    reportError(if (ok) AppStrings.get(R.string.analysis_referenz_entfernt, existing.commonName) else AppStrings.get(R.string.analysis_referenz_entfernen_fehlgeschlagen))
                 }
                 return@launch
             }
@@ -330,8 +332,8 @@ class AnalysisViewModel(
             val entry = referenceRepository.addFromDetection(detection, file, session.sessionDir.name, range)
             withContext(Dispatchers.Main) {
                 reportError(
-                    if (entry != null) "Als Referenz gespeichert: ${entry.commonName}"
-                    else "Referenz speichern fehlgeschlagen"
+                    if (entry != null) AppStrings.get(R.string.analysis_als_referenz_gespeichert, entry.commonName)
+                    else AppStrings.get(R.string.analysis_referenz_speichern_fehlgeschlagen)
                 )
             }
         }
@@ -526,7 +528,7 @@ class AnalysisViewModel(
                 val header = ByteArray(44)
                 val read = openStream()?.use { it.read(header) } ?: -1
                 if (read < 44) {
-                    error = "Aufnahme nicht lesbar (Header unvollstaendig)"
+                    error = AppStrings.get(R.string.analysis_aufnahme_nicht_lesbar_header_unvolls)
                 } else {
                     val buf        = java.nio.ByteBuffer.wrap(header).order(java.nio.ByteOrder.LITTLE_ENDIAN)
                     val sampleRate = buf.getInt(24)
@@ -536,9 +538,9 @@ class AnalysisViewModel(
                     val fileSamples = ((fileLength - 44L) / 2L).coerceAtLeast(0L)
                     totalSamples = if (headerData in 1..fileSamples) headerData else fileSamples
                     if (sampleRate <= 0) {
-                        error = "Ungueltige Abtastrate im WAV-Header"
+                        error = AppStrings.get(R.string.analysis_ungueltige_abtastrate_im_wav_header)
                     } else if (totalSamples <= 0L) {
-                        error = "Aufnahme enthaelt keine Audio-Daten"
+                        error = AppStrings.get(R.string.analysis_aufnahme_enthaelt_keine_audio_daten)
                     } else {
                         // Aufrunden, damit hoechstens TARGET_FRAMES Frames die GANZE Session abdecken
                         val totalFramesEst = (totalSamples / HOP_SIZE).toInt().coerceAtLeast(1)
@@ -568,21 +570,21 @@ class AnalysisViewModel(
                         } catch (e: Exception) {
                             Log.e("AnalysisVM", "Sonogramm-Streaming-Fehler", e)
                             // Teilweise gesammelte Frames werden weiter verwendet
-                            if (collectedFrames.isEmpty()) error = "Sonogramm-Fehler: ${e.message ?: e.javaClass.simpleName}"
+                            if (collectedFrames.isEmpty()) error = AppStrings.get(R.string.analysis_sonogramm_fehler, e.message ?: e.javaClass.simpleName)
                         }
-                        if (error == null && collectedFrames.isEmpty()) error = "Keine Spektrogramm-Frames berechnet"
+                        if (error == null && collectedFrames.isEmpty()) error = AppStrings.get(R.string.analysis_keine_spektrogramm_frames_berechnet)
                     }
                 }
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "Sonogramm-Header-Fehler", e)
-                error = "Sonogramm-Fehler: ${e.message ?: e.javaClass.simpleName}"
+                error = AppStrings.get(R.string.analysis_sonogramm_fehler, e.message ?: e.javaClass.simpleName)
             }
 
             val limited = collectedFrames.take(TARGET_FRAMES)
             val ms = SystemClock.elapsedRealtime() - t0
             if (limited.isEmpty()) {
                 Log.w("AnalysisVM", "T107 sonogram FAILED ms=$ms samples=$totalSamples error=$error")
-                _uiState.update { it.copy(sonogramLoading = false, sonogramError = error ?: "Kein Sonogramm") }
+                _uiState.update { it.copy(sonogramLoading = false, sonogramError = error ?: AppStrings.get(R.string.analysis_kein_sonogramm)) }
                 return@launch
             }
 
@@ -722,7 +724,7 @@ class AnalysisViewModel(
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(
                             detections = previousDetections,
-                            saveErrorMessage = "Speichern fehlgeschlagen"
+                            saveErrorMessage = AppStrings.get(R.string.common_save_failed)
                         ) }
                     }
                 }
@@ -740,8 +742,8 @@ class AnalysisViewModel(
         val dir = _uiState.value.selectedSession?.sessionDir ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val file = sessionManager.exportRavenSelectionTable(dir, appPreferences)
-            val msg = if (file != null) "Raven-Tabelle gespeichert: ${file.name}"
-                      else "Kein recording.wav — Export nicht moeglich"
+            val msg = if (file != null) AppStrings.get(R.string.analysis_raven_tabelle_gespeichert, file.name)
+                      else AppStrings.get(R.string.analysis_kein_recording_wav_export_nicht)
             _uiState.update { it.copy(ravenExportMessage = msg) }
         }
     }
@@ -752,7 +754,7 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val updated = sessionManager.updateSessionNote(current.sessionDir, text.take(200), appPreferences)
             if (updated == null) {
-                _uiState.update { it.copy(saveErrorMessage = "Bemerkung konnte nicht gespeichert werden") }
+                _uiState.update { it.copy(saveErrorMessage = AppStrings.get(R.string.analysis_bemerkung_konnte_nicht_gespeichert_w)) }
                 return@launch
             }
             _uiState.update { st ->
@@ -838,7 +840,7 @@ class AnalysisViewModel(
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(
                             detections = previousDetections,
-                            saveErrorMessage = "Speichern fehlgeschlagen"
+                            saveErrorMessage = AppStrings.get(R.string.common_save_failed)
                         ) }
                     }
                 }
@@ -912,7 +914,7 @@ class AnalysisViewModel(
                     )) + "\n")
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        _uiState.update { it.copy(saveErrorMessage = "Speichern fehlgeschlagen") }
+                        _uiState.update { it.copy(saveErrorMessage = AppStrings.get(R.string.common_save_failed)) }
                     }
                 }
             }
@@ -957,7 +959,7 @@ class AnalysisViewModel(
                         _uiState.update {
                             it.copy(
                                 detections = previousDetections,
-                                saveErrorMessage = "Speichern fehlgeschlagen"
+                                saveErrorMessage = AppStrings.get(R.string.common_save_failed)
                             )
                         }
                     }
@@ -1012,7 +1014,7 @@ class AnalysisViewModel(
                     )) + "\n")
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        _uiState.update { it.copy(saveErrorMessage = "Speichern fehlgeschlagen") }
+                        _uiState.update { it.copy(saveErrorMessage = AppStrings.get(R.string.common_save_failed)) }
                     }
                 }
             }

@@ -1,7 +1,7 @@
 package ch.etasystems.pirol
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -15,7 +15,7 @@ import ch.etasystems.pirol.ui.components.AlarmOverlay
 import ch.etasystems.pirol.ui.navigation.PirolNavHost
 import ch.etasystems.pirol.ui.theme.PirolTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {

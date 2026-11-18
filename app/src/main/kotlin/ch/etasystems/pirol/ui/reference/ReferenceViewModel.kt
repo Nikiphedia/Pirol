@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.AppStrings
 
 /**
  * ViewModel fuer den ReferenceScreen.
@@ -112,7 +114,7 @@ class ReferenceViewModel(
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
         } catch (_: Exception) { null }
         _uiState.update {
-            it.copy(pendingImportUri = uri, pendingImportName = name ?: "Audiodatei", speciesSearchResults = emptyList())
+            it.copy(pendingImportUri = uri, pendingImportName = name ?: AppStrings.get(R.string.reference_audiodatei), speciesSearchResults = emptyList())
         }
     }
 
@@ -140,8 +142,8 @@ class ReferenceViewModel(
                 it.copy(
                     isImporting = false,
                     pendingImportName = null,
-                    message = if (entry != null) "Referenz importiert: $commonName"
-                    else "Import fehlgeschlagen: Dateiformat nicht lesbar"
+                    message = if (entry != null) AppStrings.get(R.string.reference_referenz_importiert, commonName)
+                    else AppStrings.get(R.string.reference_import_fehlgeschlagen_dateiformat_ni)
                 )
             }
             refreshState()

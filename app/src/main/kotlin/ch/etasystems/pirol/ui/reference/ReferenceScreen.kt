@@ -63,6 +63,8 @@ import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import ch.etasystems.pirol.R
+import androidx.compose.ui.res.stringResource
 
 /**
  * Referenzbibliothek — Zwei-Ebenen Navigation:
@@ -174,7 +176,7 @@ private fun ImportSpeciesDialog(
     var query by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Art der Aufnahme") },
+        title = { Text(stringResource(R.string.reference_art_der_aufnahme)) },
         text = {
             Column {
                 Text(fileName, style = MaterialTheme.typography.bodySmall)
@@ -182,7 +184,7 @@ private fun ImportSpeciesDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it; onQuery(it) },
-                    label = { Text("Art suchen (mind. 2 Zeichen)") },
+                    label = { Text(stringResource(R.string.reference_art_suchen_mind_2_zeichen)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -209,7 +211,7 @@ private fun ImportSpeciesDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -252,13 +254,13 @@ private fun SpeciesListView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Referenzbibliothek",
+                text = stringResource(R.string.reference_referenzbibliothek),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "$totalReferences Ref.",
+                text = stringResource(R.string.reference_ref, totalReferences),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -276,7 +278,7 @@ private fun SpeciesListView(
                 Icon(Icons.Filled.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Audio importieren")
+            Text(stringResource(R.string.reference_audio_importieren))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -299,13 +301,13 @@ private fun SpeciesListView(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Noch keine Referenzen gespeichert",
+                        text = stringResource(R.string.ui_noch_keine_referenzen_gespeichert),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Bestaetigte Detektionen als Referenz speichern\noder oben eine Audiodatei importieren",
+                        text = stringResource(R.string.reference_bestaetigte_detektionen_als_referenz),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -403,21 +405,21 @@ private fun RecordingsListView(
     entryToDelete?.let { entry ->
         AlertDialog(
             onDismissRequest = { entryToDelete = null },
-            title = { Text("Referenz loeschen?") },
+            title = { Text(stringResource(R.string.reference_referenz_loeschen)) },
             text = {
-                Text("Referenz '${entry.wavFileName}' wirklich loeschen?")
+                Text(stringResource(R.string.reference_referenz_wirklich_loeschen, entry.wavFileName))
             },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(entry)
                     entryToDelete = null
                 }) {
-                    Text("Loeschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { entryToDelete = null }) {
-                    Text("Abbrechen")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -432,7 +434,7 @@ private fun RecordingsListView(
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Zurueck"
+                    contentDescription = stringResource(R.string.common_back)
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -538,7 +540,7 @@ private fun RecordingCard(
 
             // Zeile 2: Session-ID
             Text(
-                text = if (entry.source == "IMPORT") "Import: ${entry.originalName ?: "-"}" else "Session: ${entry.sourceSessionId}",
+                text = if (entry.source == "IMPORT") stringResource(R.string.reference_import, entry.originalName ?: "-") else stringResource(R.string.reference_session, entry.sourceSessionId),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -569,13 +571,13 @@ private fun RecordingCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Stop,
-                                contentDescription = "Stopp",
+                                contentDescription = stringResource(R.string.reference_stopp),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Wird abgespielt\u2026",
+                            text = stringResource(R.string.reference_wird_abgespielt),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -586,7 +588,7 @@ private fun RecordingCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "Abspielen",
+                                contentDescription = stringResource(R.string.common_play),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -598,7 +600,7 @@ private fun RecordingCard(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
-                        contentDescription = "Loeschen",
+                        contentDescription = stringResource(R.string.common_delete),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
