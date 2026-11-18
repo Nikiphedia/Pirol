@@ -36,6 +36,11 @@ android {
                 arguments += "-DANDROID_STL=c++_shared"
                 // 16-KB-Page-Size-Kompatibilitaet (Android 15+/16)
                 arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                // T132: lokale Oboe-Kopie statt Git-Clone pro ABI und Arbeitsordner (spart 10-30 min).
+                // Gesetzt ueber Umgebungsvariable PIROL_OBOE_DIR, z.B. D:/S/.oboe-1.9.0 (Tag 1.9.0).
+                System.getenv("PIROL_OBOE_DIR")?.takeIf { file(it).isDirectory }?.let {
+                    arguments += "-DFETCHCONTENT_SOURCE_DIR_OBOE=" + it.replace(File.separatorChar, '/')
+                }
             }
         }
     }
