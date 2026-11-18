@@ -86,6 +86,12 @@ import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.ui.components.SpectrogramOverlay
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
+import ch.etasystems.pirol.data.SpectrogramSettingsRepository
+import ch.etasystems.pirol.ui.components.SpectrogramDisplaySettings
+import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
+import ch.etasystems.pirol.ui.components.forDisplay
+import ch.etasystems.pirol.ui.components.onSpectrogramLongPress
 import kotlin.math.roundToInt
 
 @Composable
@@ -105,13 +111,13 @@ fun LiveScreen(
         }
     }
 
-    // --- T56: Sonogramm-Dynamik-Prefs bei ON_RESUME neu einlesen.
-    // Greift wenn der Nutzer von Settings zurueck zum Live-Tab wechselt — ohne App-Neustart.
+    // --- Prefs (Top-N, Embedding-DB-Limit) bei ON_RESUME neu einlesen.
+    // T107: Sonogramm-Einstellungen kommen live aus dem SpectrogramSettingsRepository.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.reloadSpectrogramPrefs()
+                viewModel.reloadPrefs()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -289,11 +295,10 @@ private fun CompactLiveLayout(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Sonogramm (200dp)
-            SpectrogramBox(
+            SpectrogramWithPanel(
                 uiState = uiState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
+                fixedHeight = 200.dp,
+                modifier = Modifier.fillMaxWidth()
             )
 
             // Preroll-Indikator
@@ -478,8 +483,9 @@ private fun MediumLiveLayout(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            SpectrogramBox(
+            SpectrogramWithPanel(
                 uiState = uiState,
+                fixedHeight = null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -672,8 +678,9 @@ private fun ExpandedLiveLayout(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            SpectrogramBox(
+            SpectrogramWithPanel(
                 uiState = uiState,
+                fixedHeight = null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -854,17 +861,19 @@ private fun LiveHeader(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Palette-Umschaltung
+            val specRepo: SpectrogramSettingsRepository = koinInject()
+            val palette = specRepo.settings.collectAsState().value.palette
             IconButton(onClick = {
-                val next = when (uiState.palette) {
+                val next = when (palette) {
                     SpectrogramPalette.MAGMA -> SpectrogramPalette.VIRIDIS
                     SpectrogramPalette.VIRIDIS -> SpectrogramPalette.GRAYSCALE
                     SpectrogramPalette.GRAYSCALE -> SpectrogramPalette.MAGMA
                 }
-                viewModel.setPalette(next)
+                specRepo.update { it.copy(palette = next) }
             }) {
                 Icon(
                     Icons.Filled.Palette,
-                    contentDescription = "Farbpalette wechseln (${uiState.palette.name})",
+                    contentDescription = "Farbpalette wechseln (${palette.name})",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -965,34 +974,89 @@ private fun ScanStatusRow(
 }
 
 /**
+ * T107: Sonogramm + (nach Langdruck) Einstellungs-Panel DARUNTER. Das Sonogramm bleibt sichtbar,
+ * Aenderungen wirken live. Auto-Kontrast-Parameter werden hier an den Mapper weitergereicht.
+ */
+@Composable
+private fun SpectrogramWithPanel(
+    uiState: LiveUiState,
+    fixedHeight: androidx.compose.ui.unit.Dp?,
+    modifier: Modifier = Modifier
+) {
+    val repo: SpectrogramSettingsRepository = koinInject()
+    val settings by repo.settings.collectAsState()
+    var showPanel by remember { mutableStateOf(false) }
+
+    // Perzentil-Paar/Mindestspanne in den Rolling-Mapper uebernehmen (sofort wirksam)
+    LaunchedEffect(settings.autoLowPct, settings.autoHighPct, settings.autoMinSpanDb) {
+        uiState.spectrogramState.dynamicRangeMapper?.configure(
+            settings.autoLowPct, settings.autoHighPct, settings.autoMinSpanDb
+        )
+    }
+
+    Column(modifier = modifier) {
+        SpectrogramBox(
+            uiState = uiState,
+            settings = settings,
+            onLongPress = { showPanel = true },
+            modifier = if (fixedHeight != null) {
+                Modifier.fillMaxWidth().height(fixedHeight)
+            } else {
+                Modifier.fillMaxWidth().weight(1f)
+            }
+        )
+        if (showPanel) {
+            Spacer(modifier = Modifier.height(4.dp))
+            SpectrogramSettingsPanel(
+                repository = repo,
+                settings = settings,
+                config = uiState.spectrogramConfig,
+                showWindow = true,
+                onClose = { showPanel = false }
+            )
+        }
+    }
+}
+
+/**
  * Sonogramm-Box mit Overlay oder Platzhalter-Text.
  */
 @Composable
 private fun SpectrogramBox(
     uiState: LiveUiState,
+    settings: SpectrogramDisplaySettings,
+    onLongPress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // T107: Frames im Zeitfenster (Frame-Rate = Samplerate / Hop), max. Puffergroesse
+    val sampleRate = if (uiState.actualSampleRate > 0) uiState.actualSampleRate else 48000
+    val windowFrames = (settings.windowSec * sampleRate / uiState.spectrogramConfig.hopSize).toInt()
+        .coerceIn(64, uiState.spectrogramState.maxFrames)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(Color.Black)
+            .onSpectrogramLongPress(onLongPress)
     ) {
         if (uiState.spectrogramState.availableFrames > 0) {
             SpectrogramOverlay(
-                config = uiState.spectrogramConfig,
+                config = uiState.spectrogramConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
                 spectrogramState = uiState.spectrogramState,
-                sampleRate = if (uiState.actualSampleRate > 0)
-                    uiState.actualSampleRate else 48000
+                sampleRate = sampleRate,
+                windowFrames = windowFrames
             ) {
                 SpectrogramCanvas(
                     spectrogramState = uiState.spectrogramState,
                     config = uiState.spectrogramConfig,
-                    palette = uiState.palette,
-                    autoContrast = uiState.spectrogramAutoContrast,
-                    manualMinDb = uiState.spectrogramMinDb,
-                    manualMaxDb = uiState.spectrogramMaxDb,
-                    gamma = uiState.spectrogramGamma,
-                    ceilingDb = uiState.spectrogramCeilingDb,
+                    palette = settings.palette,
+                    autoContrast = settings.autoContrast,
+                    manualMinDb = settings.minDb,
+                    manualMaxDb = settings.maxDb,
+                    gamma = settings.gamma,
+                    ceilingDb = settings.ceilingDb,
+                    freqMinHz = settings.freqMinHz,
+                    freqMaxHz = settings.freqMaxHz,
+                    windowFrames = windowFrames,
                     modifier = Modifier.fillMaxSize()
                 )
             }

@@ -54,6 +54,9 @@ import kotlin.math.pow
  * @param ceilingDb Obergrenze fuer Normalisierung in dBFS (0 = kein Effekt, negativ = clippt Lautes). Default=0.
  * @param fitAllFrames true = alle Frames im State auf die Canvas-Breite skalieren (Uebersicht/Ausschnitt,
  *   T61). false = Rolling-Modus: 1 Frame = 1 Pixel, nur die neuesten Canvas-Breite Frames.
+ * @param freqMinHz T107: untere Anzeige-Frequenz (Zuschnitt der Mel-Bins)
+ * @param freqMaxHz T107: obere Anzeige-Frequenz
+ * @param windowFrames T107: feste Anzahl Frames (Zeitfenster) statt 1 Frame pro Pixel; null = Rolling-Modus
  * @param modifier Standard-Compose-Modifier
  */
 @Composable
@@ -68,9 +71,20 @@ fun SpectrogramCanvas(
     gamma: Float = 1f,
     ceilingDb: Float = 0f,
     fitAllFrames: Boolean = false,
+    freqMinHz: Float = 0f,
+    freqMaxHz: Float = 24000f,
+    windowFrames: Int? = null,
     modifier: Modifier = Modifier
 ) {
-    val numMelBins = config.numMelBins
+    // T107: Frequenz-Zuschnitt — nur die sichtbaren Mel-Bins werden gerendert
+    val binRange = remember(config, freqMinHz, freqMaxHz) {
+        visibleBinRange(
+            config.numMelBins, config.fMin,
+            if (config.fMax <= 0f) 24000f else config.fMax, freqMinHz, freqMaxHz
+        )
+    }
+    val numMelBins = binRange.last - binRange.first + 1
+    val binFirst = binRange.first
     val fallbackMinDb = config.minDb
     val lut = remember(palette) { SpectrogramPalette.lutFor(palette) }
 
@@ -85,7 +99,7 @@ fun SpectrogramCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .onSizeChanged { size ->
-                    if (!fitAllFrames) renderer.onSizeChanged(size, numMelBins)
+                    if (!fitAllFrames && windowFrames == null) renderer.onSizeChanged(size, numMelBins)
                 }
         ) {
             // Sichtbare Frames holen: Einpass-Modus = alle Frames, Bitmap-Breite = Frame-Anzahl
@@ -95,6 +109,10 @@ fun SpectrogramCanvas(
                 if (all.isEmpty()) return@Canvas
                 renderer.onSizeChanged(IntSize(all.size, 1), numMelBins)
                 all
+            } else if (windowFrames != null) {
+                // T107: festes Zeitfenster — 1 Frame = 1 Bitmap-Spalte, auf Canvas-Breite skaliert
+                renderer.onSizeChanged(IntSize(windowFrames, 1), numMelBins)
+                spectrogramState.getVisibleFrames(windowFrames)
             } else {
                 val bitmapWidth = renderer.bitmapWidth
                 if (bitmapWidth <= 0) return@Canvas
@@ -110,10 +128,11 @@ fun SpectrogramCanvas(
             }
 
             // T56b-Ceiling: Obergrenze clippen (0f = kein Effekt; negativ = Lautes abschneiden).
-            val maxDbUsed = if (ceilingDb < maxDbRaw) maxDbRaw.coerceAtMost(ceilingDb) else maxDbRaw
+            // T107: Ceiling darf den Bereich nicht unter die Mindestspanne zusammenschieben.
+            val (minDbFinal, maxDbUsed) = effectiveDbRange(minDbUsed, maxDbRaw, ceilingDb)
 
             // Bitmap aktualisieren (T56b: gamma + gecapptes maxDb durchreichen)
-            renderer.renderFrames(frames, numMelBins, minDbUsed, maxDbUsed, lut, gamma)
+            renderer.renderFrames(frames, binFirst, minDbFinal, maxDbUsed, lut, gamma)
 
             // Bitmap auf Canvas zeichnen (skaliert auf volle Canvas-Groesse)
             renderer.bitmap?.let { bmp ->
@@ -207,7 +226,7 @@ internal class BitmapRenderer {
      */
     fun renderFrames(
         frames: List<FloatArray>,
-        numMelBins: Int,
+        binFirst: Int,
         minDb: Float,
         maxDb: Float,
         lut: IntArray,
@@ -240,12 +259,15 @@ internal class BitmapRenderer {
             val frame = frames[frameIdx]
             val x = emptyColumns + frameIdx
 
-            for (bin in 0 until minOf(h, frame.size)) {
+            for (bin in 0 until h) {
+                // T107: Quell-Bin = sichtbarer Bin + Frequenz-Offset
+                val srcBin = binFirst + bin
+                if (srcBin >= frame.size) break
                 // Y-Achse invertieren: bin 0 (fMin) → unten (y = h-1)
                 val y = h - 1 - bin
 
                 // dB → normalisiert [0, 1] ueber [minDb, maxDb]
-                val dbValue = frame[bin]
+                val dbValue = frame[srcBin]
                 val normalized = ((dbValue - minDb) * invRange).coerceIn(0f, 1f)
 
                 // T56b: Gamma+Farb-LUT-Lookup (kombiniert Gamma-Kompression + Farbpalette)

@@ -3,6 +3,7 @@ package ch.etasystems.pirol.di
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.OboeAudioEngine
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import ch.etasystems.pirol.data.StorageManager
 import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
@@ -79,6 +80,9 @@ val appModule = module {
 
     // AppPreferences — Singleton, SharedPreferences-Wrapper (T22)
     single { AppPreferences(get()) }
+
+    // T107: gemeinsame Sonogramm-Darstellungs-Einstellungen (Live, Analyse, Settings)
+    single { SpectrogramSettingsRepository(get()) }
 
     // SpeciesNameResolver — Singleton, uebersetzt Artnamen in gewaehlte Sprache (T26)
     single { SpeciesNameResolver(get()) }

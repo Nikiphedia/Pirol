@@ -6,7 +6,7 @@ import android.os.SystemClock
  * Perzentil-basierter Auto-Kontrast fuer Sonogramm-Display (T56).
  *
  * Sammelt ueber ein Rolling-Window (~5 s) die eingehenden Mel-dB-Werte und
- * berechnet p2/p98 (T56b: aggressiver als p5/p95, mehr Palette fuer mittlere Signale),
+ * berechnet p2/p98 (Default; T107: konfigurierbar) (T56b: aggressiver als p5/p95, mehr Palette fuer mittlere Signale),
  * die dann als Mapping-Range [minDb, maxDb] dienen.
  * Das ersetzt das fixe [-80, 0] Mapping — leise Vogelrufe werden sichtbar,
  * laute Szenen ueberblenden nicht.
@@ -46,8 +46,11 @@ class DynamicRangeMapper(
 
     // T56b: Aggressivere Perzentil-Grenzen — mehr Palette-Raum fuer mittlere Signale.
     // p2/p98 statt p5/p95: die extremsten 2% oben und unten werden ignoriert.
-    private val lowPercentile  = 0.02f  // war: 0.05f
-    private val highPercentile = 0.98f  // war: 0.95f
+    // T107: zur Laufzeit ueber configure() aenderbar (Presets "Leise Rufe" etc.).
+    @Volatile private var lowPercentile  = DEFAULT_LOW_PERCENTILE
+    @Volatile private var highPercentile = DEFAULT_HIGH_PERCENTILE
+    /** T107: Mindestspanne [dB] zwischen minDb und maxDb — verhindert, dass Rauschen auf die volle Palette gestreckt wird. */
+    @Volatile private var minSpanDb = DEFAULT_MIN_SPAN_DB
 
     /** Letzter geglaetteter Perzentil-Stand. */
     private var smoothedP5: Float = fallbackMinDb
@@ -81,6 +84,19 @@ class DynamicRangeMapper(
     }
 
     /**
+     * T107: Perzentil-Paar und Mindestspanne aendern. Erzwingt eine sofortige Neuberechnung
+     * (naechster update()-Aufruf), die IIR-Glaettung blendet dann weich um.
+     */
+    fun configure(lowPercentile: Float, highPercentile: Float, minSpanDb: Float) {
+        synchronized(lock) {
+            this.lowPercentile = lowPercentile.coerceIn(0f, 0.9f)
+            this.highPercentile = highPercentile.coerceIn(this.lowPercentile + 0.05f, 1f)
+            this.minSpanDb = minSpanDb.coerceAtLeast(1f)
+            lastRecomputeMs = 0L
+        }
+    }
+
+    /**
      * Aktuelle Range [minDb, maxDb] fuer das Mapping.
      * Vor erster valider Berechnung: Fallback [-80, 0].
      * maxDb > minDb ist garantiert (minimal +1 dB Abstand).
@@ -89,7 +105,7 @@ class DynamicRangeMapper(
         synchronized(lock) {
             if (!hasValidRange) return fallbackMinDb to fallbackMaxDb
             val lo = smoothedP5
-            val hi = if (smoothedP95 - lo < 1f) lo + 1f else smoothedP95
+            val hi = if (smoothedP95 - lo < minSpanDb) lo + minSpanDb else smoothedP95
             return lo to hi
         }
     }
@@ -148,8 +164,10 @@ class DynamicRangeMapper(
 
     companion object {
         // T56b: Gleiche Konstanten wie Rolling-Window-Mapper fuer konsistentes Verhalten.
-        private const val STATIC_LOW_PERCENTILE  = 0.02f  // war: 0.05f
-        private const val STATIC_HIGH_PERCENTILE = 0.98f  // war: 0.95f
+        const val DEFAULT_LOW_PERCENTILE  = 0.02f
+        const val DEFAULT_HIGH_PERCENTILE = 0.98f
+        /** T107: Standard-Mindestspanne im Auto-Kontrast (vorher nur 1 dB). */
+        const val DEFAULT_MIN_SPAN_DB = 20f
 
         /**
          * Einmal-Berechnung ueber eine feste Frame-Liste (Analyse-Tab).
@@ -159,7 +177,10 @@ class DynamicRangeMapper(
         fun computeStatic(
             frames: List<FloatArray>,
             fallbackMinDb: Float = -80f,
-            fallbackMaxDb: Float = 0f
+            fallbackMaxDb: Float = 0f,
+            lowPercentile: Float = DEFAULT_LOW_PERCENTILE,
+            highPercentile: Float = DEFAULT_HIGH_PERCENTILE,
+            minSpanDb: Float = DEFAULT_MIN_SPAN_DB
         ): Pair<Float, Float> {
             if (frames.isEmpty()) return fallbackMinDb to fallbackMaxDb
             val binsPerFrame = frames.first().size
@@ -173,9 +194,9 @@ class DynamicRangeMapper(
                 idx += n
             }
             // Quickselect statt Sortierung (gleiche Werte, O(n)). flat ist bereits eine Kopie.
-            val p2  = selectKth(flat, idx, (idx * STATIC_LOW_PERCENTILE ).toInt().coerceAtMost(idx - 1))
-            val p98 = selectKth(flat, idx, (idx * STATIC_HIGH_PERCENTILE).toInt().coerceAtMost(idx - 1))
-            val hi = if (p98 - p2 < 1f) p2 + 1f else p98
+            val p2  = selectKth(flat, idx, (idx * lowPercentile).toInt().coerceAtMost(idx - 1))
+            val p98 = selectKth(flat, idx, (idx * highPercentile).toInt().coerceAtMost(idx - 1))
+            val hi = if (p98 - p2 < minSpanDb) p2 + minSpanDb else p98
             return p2 to hi
         }
 

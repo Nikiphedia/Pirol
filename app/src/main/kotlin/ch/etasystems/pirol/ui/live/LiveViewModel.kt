@@ -41,7 +41,6 @@ import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistManager
 import ch.etasystems.pirol.audio.AlarmService
-import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import ch.etasystems.pirol.ui.components.SpectrogramState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -373,19 +372,6 @@ class LiveViewModel(
             "WIDEBAND" -> SpectrogramConfig.WIDEBAND
             else -> SpectrogramConfig.BIRDS
         }
-        val savedPalette = try {
-            SpectrogramPalette.valueOf(appPreferences.paletteName)
-        } catch (_: IllegalArgumentException) {
-            SpectrogramPalette.MAGMA
-        }
-
-        // T56: Sonogramm-Dynamik (Auto-Kontrast / manuelle Range) aus Prefs.
-        val savedAutoContrast = appPreferences.spectrogramAutoContrast
-        val savedMinDb = appPreferences.spectrogramMinDb
-        val savedMaxDb = appPreferences.spectrogramMaxDb
-        // T56b: Gamma-Kompression + Lautstärke-Deckel aus Prefs.
-        val savedGamma = appPreferences.spectrogramGamma
-        val savedCeilingDb = appPreferences.spectrogramCeilingDb
         // T52: Top-N Kandidaten-Anzeige aus Prefs.
         val savedShowTopN = appPreferences.showTopNCandidates
 
@@ -394,17 +380,11 @@ class LiveViewModel(
             it.copy(
                 spectrogramState = spectrogramState,
                 spectrogramConfig = savedSpecConfig,
-                palette = savedPalette,
                 detectionListState = detectionListState,
                 isModelAvailable = modelAvailable,
                 inferenceConfig = savedConfig,
                 isEmbeddingAvailable = modelAvailable,
                 embeddingDbSize = embeddingDatabase.size,
-                spectrogramAutoContrast = savedAutoContrast,
-                spectrogramMinDb = savedMinDb,
-                spectrogramMaxDb = savedMaxDb,
-                spectrogramGamma = savedGamma,
-                spectrogramCeilingDb = savedCeilingDb,
                 showTopNCandidates = savedShowTopN,
                 similarEnabled = appPreferences.similarEnabled,
                 similarLines = appPreferences.similarLines,
@@ -942,11 +922,6 @@ class LiveViewModel(
         }
     }
 
-    /** Palette zykeln: MAGMA → VIRIDIS → GRAYSCALE → MAGMA */
-    fun setPalette(palette: SpectrogramPalette) {
-        _uiState.update { it.copy(palette = palette) }
-    }
-
     /** SpectrogramConfig wechseln (z.B. BIRDS → BATS). Leert Sonogramm da FFT-Parameter sich aendern. */
     fun setSpectrogramConfig(config: SpectrogramConfig) {
         _uiState.update { it.copy(spectrogramConfig = config) }
@@ -965,30 +940,16 @@ class LiveViewModel(
     }
 
     /**
-     * T56/T56b: Liest die Sonogramm-Dynamik-Einstellungen erneut aus den SharedPreferences
-     * und pusht sie in den UiState. Wird vom LiveScreen bei ON_RESUME aufgerufen, damit
-     * Settings-Aenderungen ohne App-Neustart wirksam werden.
+     * Liest Top-N-Anzeige und Embedding-DB-Limit erneut aus den SharedPreferences.
+     * Wird vom LiveScreen bei ON_RESUME aufgerufen. T107: Sonogramm-Einstellungen sind
+     * nicht mehr hier, sondern live im SpectrogramSettingsRepository.
      */
-    fun reloadSpectrogramPrefs() {
-        val autoContrast = appPreferences.spectrogramAutoContrast
-        val minDb = appPreferences.spectrogramMinDb
-        val maxDb = appPreferences.spectrogramMaxDb
-        val gamma = appPreferences.spectrogramGamma
-        val ceilingDb = appPreferences.spectrogramCeilingDb
+    fun reloadPrefs() {
         val showTopN = appPreferences.showTopNCandidates  // T52: bei Resume neu lesen
         // T97: Obergrenze der Embedding-DB bei Resume neu lesen (Settings-Aenderung wirkt sofort)
         embeddingDatabase.maxEntries = appPreferences.embeddingDbMaxEntries
         _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
-        _uiState.update {
-            it.copy(
-                spectrogramAutoContrast = autoContrast,
-                spectrogramMinDb = minDb,
-                spectrogramMaxDb = maxDb,
-                spectrogramGamma = gamma,
-                spectrogramCeilingDb = ceilingDb,
-                showTopNCandidates = showTopN
-            )
-        }
+        _uiState.update { it.copy(showTopNCandidates = showTopN) }
     }
 
     /** Permission-Status setzen (vom PermissionHandler aufgerufen). */
@@ -1253,10 +1214,31 @@ class LiveViewModel(
 
         collectionJob = viewModelScope.launch(Dispatchers.Default) {
             val mel = melSpectrogram ?: return@launch
+            // T107: Messwerte fuer die Empfindlichkeits-Analyse (alle ~2 s ein Log)
+            var statsSum = 0.0
+            var statsCount = 0L
+            var statsMax = -200f
+            var statsLastMs = android.os.SystemClock.elapsedRealtime()
             svc.audioChunkFlow.collect { chunk ->
                 val frames = mel.process(chunk.samples)
                 if (frames.isNotEmpty()) {
                     spectrogramState.appendFrames(frames)
+                    for (f in frames) for (v in f) {
+                        statsSum += v
+                        if (v > statsMax) statsMax = v
+                    }
+                    statsCount += frames.size.toLong() * frames[0].size
+                }
+                val nowMs = android.os.SystemClock.elapsedRealtime()
+                if (nowMs - statsLastMs >= 2000L && statsCount > 0) {
+                    val range = spectrogramState.dynamicRangeMapper?.currentRange()
+                    Log.i(
+                        "SpectrogramStats",
+                        "T107_STATS mean_db=%.1f max_db=%.1f range_lo=%.1f range_hi=%.1f".format(
+                            statsSum / statsCount, statsMax, range?.first ?: Float.NaN, range?.second ?: Float.NaN
+                        )
+                    )
+                    statsSum = 0.0; statsCount = 0; statsMax = -200f; statsLastMs = nowMs
                 }
             }
         }

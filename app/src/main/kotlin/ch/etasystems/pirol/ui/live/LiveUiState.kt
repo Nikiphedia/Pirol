@@ -6,7 +6,6 @@ import ch.etasystems.pirol.data.sync.UploadStatus
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.InferenceConfig
-import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import ch.etasystems.pirol.ui.components.SpectrogramState
 
 /**
@@ -36,7 +35,6 @@ data class LiveUiState(
     val recordingStartElapsedRealtime: Long = 0L,
     val spectrogramState: SpectrogramState = SpectrogramState(),
     val spectrogramConfig: SpectrogramConfig = SpectrogramConfig.BIRDS,
-    val palette: SpectrogramPalette = SpectrogramPalette.GRAYSCALE,
     val permissionGranted: Boolean = false,
     // ML-Pipeline State (T9/T10)
     val detectionListState: DetectionListState = DetectionListState(),
@@ -72,14 +70,6 @@ data class LiveUiState(
     val locationPermissionGranted: Boolean = false,
     // T52: Top-N Kandidaten anzeigen (Toggle aus Settings)
     val showTopNCandidates: Boolean = true,
-    // Sonogramm-Dynamik (T56)
-    val spectrogramAutoContrast: Boolean = true,
-    val spectrogramMinDb: Float = -80f,
-    val spectrogramMaxDb: Float = 0f,
-    // T56b: Gamma-Kompression (< 1.0 = leise Anteile heller, 1.0 = aus)
-    val spectrogramGamma: Float = 1f,
-    // T56b: Lautstärke-Deckel in dBFS (0 = aus, negativ = clippt Lautes)
-    val spectrogramCeilingDb: Float = 0f,
     // F5: Preroll-Status (User-gesteuert)
     val isPrerollEnabled: Boolean = false,
     val isPrerollRunning: Boolean = false,

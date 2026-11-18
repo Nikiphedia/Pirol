@@ -40,6 +40,27 @@ class AudioPlayer(private val context: Context) {
     private val _playerError = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val playerError: SharedFlow<String> = _playerError.asSharedFlow()
 
+    // T107: Position fuer den Abspiel-Zeiger. Bei AudioTrack-Wiedergabe (playFromOffset) ist die
+    // Kopfposition relativ zum Clip-Start, daher Offset + Samplerate merken.
+    private var trackOffsetSec = 0f
+    private var trackSampleRate = 0
+
+    /**
+     * T107: Aktuelle Abspielposition in Sekunden relativ zum Datei-Anfang, null wenn nichts spielt.
+     * Guenstig genug fuer Polling (~10 Hz).
+     */
+    fun currentPositionSec(): Float? {
+        if (_state.value == PlaybackState.IDLE) return null
+        try {
+            mediaPlayer?.let { return it.currentPosition / 1000f }
+            val t = audioTrack ?: return null
+            if (trackSampleRate <= 0) return null
+            return trackOffsetSec + t.playbackHeadPosition.toFloat() / trackSampleRate
+        } catch (_: Exception) {
+            return null  // Player wurde gerade freigegeben
+        }
+    }
+
     /** WAV-Datei vollstaendig abspielen (File-Pfad). */
     fun play(file: File) {
         stop()
@@ -153,6 +174,7 @@ class AudioPlayer(private val context: Context) {
         val endByte   = 44L + endFrame   * bytesPerFrame
         val dataSize  = (endByte - startByte).coerceAtLeast(0L).toInt()
         if (dataSize <= 0) return
+        val newOffsetSec = if (sampleRate > 0) startFrame.toFloat() / sampleRate else 0f
 
         // Samples aus Stream lesen
         val data = ByteArray(dataSize)
@@ -208,6 +230,8 @@ class AudioPlayer(private val context: Context) {
         })
 
         audioTrack = track
+        trackOffsetSec = newOffsetSec
+        trackSampleRate = sampleRate
         track.play()
         _state.value = PlaybackState.PLAYING
     }

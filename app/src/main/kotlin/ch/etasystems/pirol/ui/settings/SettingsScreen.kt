@@ -63,8 +63,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.sync.UploadManager
@@ -77,7 +77,9 @@ import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistEntry
 import ch.etasystems.pirol.ml.WatchlistManager
 import ch.etasystems.pirol.ml.WatchlistPriority
-import ch.etasystems.pirol.ui.components.SpectrogramPalette
+import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
+import ch.etasystems.pirol.data.SpectrogramSettingsRepository
+import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.font.FontFamily
 import ch.etasystems.pirol.ml.OnnxBenchmark
@@ -213,139 +215,29 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Farbpalette
-        var selectedPalette by remember { mutableStateOf(appPreferences.paletteName) }
-
-        Text("Farbpalette", style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(4.dp))
-
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpectrogramPalette.entries.forEach { palette ->
-                FilterChip(
-                    selected = selectedPalette == palette.name,
-                    onClick = {
-                        selectedPalette = palette.name
-                        appPreferences.paletteName = palette.name
-                    },
-                    label = { Text(palette.name) }
-                )
-            }
+        // T107: Darstellung (Palette, Kontrast, Gamma, Deckel, Frequenz, Zeitfenster) —
+        // dieselben Regler und derselbe Zustand wie im Langdruck-Panel von Live- und Analyse-Tab.
+        val specRepo: SpectrogramSettingsRepository = koinInject()
+        val specSettings by specRepo.settings.collectAsState()
+        val specConfig = when (selectedSpecConfig) {
+            "BATS" -> SpectrogramConfig.BATS
+            "WIDEBAND" -> SpectrogramConfig.WIDEBAND
+            else -> SpectrogramConfig.BIRDS
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // --- Sonogramm-Dynamik (T56): Auto-Kontrast + manueller dB-Range ---
-        var autoContrast by remember { mutableStateOf(appPreferences.spectrogramAutoContrast) }
-        var manualMinDb by remember { mutableFloatStateOf(appPreferences.spectrogramMinDb) }
-        var manualMaxDb by remember { mutableFloatStateOf(appPreferences.spectrogramMaxDb) }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Auto-Kontrast", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = "Passt die Helligkeit laufend an (5./95. Perzentil, 5 s Fenster)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(
-                checked = autoContrast,
-                onCheckedChange = {
-                    autoContrast = it
-                    appPreferences.spectrogramAutoContrast = it
-                }
-            )
-        }
-
-        if (!autoContrast) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "dB-Bereich: ${manualMinDb.roundToInt()} dB bis ${manualMaxDb.roundToInt()} dB",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            RangeSlider(
-                value = manualMinDb..manualMaxDb,
-                onValueChange = { range ->
-                    // Mindestens 1 dB Abstand, sonst teilt der Canvas durch 0
-                    val lo = range.start
-                    val hi = if (range.endInclusive - lo < 1f) lo + 1f else range.endInclusive
-                    manualMinDb = lo
-                    manualMaxDb = hi
-                    appPreferences.spectrogramMinDb = lo
-                    appPreferences.spectrogramMaxDb = hi
-                },
-                valueRange = -100f..10f,
-                steps = 21 // 5 dB Raster
-            )
-        }
-
-        // T56b: Gamma-Kompression — immer aktiv, unabhaengig vom Auto-Kontrast-Toggle
-        Spacer(modifier = Modifier.height(12.dp))
-
-        var gamma by remember { mutableFloatStateOf(appPreferences.spectrogramGamma) }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Kontrast-Kompression (Gamma)", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = "Hebt leise Anteile an. 1.0 = aus, 0.5 = Standard fuer leise Voegel, 0.3 = stark.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "\u03B3 = ${String.format("%.2f", gamma)}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        Slider(
-            value = gamma,
-            onValueChange = { v ->
-                gamma = v
-                appPreferences.spectrogramGamma = v
-            },
-            valueRange = 0.3f..1.0f,
-            steps = 14
+        Text(
+            text = "Tipp: Langdruck auf das Sonogramm im Live- oder Analyse-Tab oeffnet dieselben Regler. " +
+                "Auto-Kontrast nutzt je nach Preset das 2./98. oder 30./99.5. Perzentil.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        // T56b: Lautstärke-Deckel (Ceiling) — immer aktiv
-        Spacer(modifier = Modifier.height(12.dp))
-
-        var ceilingDb by remember { mutableFloatStateOf(appPreferences.spectrogramCeilingDb) }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Lautstärke-Deckel (Ceiling)", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = "Schneidet laute Anteile ab. 0 dB = aus, -10 dB = laute Impulse kappen.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = if (ceilingDb >= 0f) "aus" else "${ceilingDb.roundToInt()} dB",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        Slider(
-            value = ceilingDb,
-            onValueChange = { v ->
-                ceilingDb = v
-                appPreferences.spectrogramCeilingDb = v
-            },
-            valueRange = -50f..0f,
-            steps = 9  // 5 dB Raster: -50, -45, -40, -35, -30, -25, -20, -15, -10, -5, 0
+        Spacer(modifier = Modifier.height(8.dp))
+        SpectrogramSettingsPanel(
+            repository = specRepo,
+            settings = specSettings,
+            config = specConfig,
+            showWindow = true,
+            onClose = null,
+            maxHeight = Dp.Infinity
         )
 
         Spacer(modifier = Modifier.height(16.dp))
