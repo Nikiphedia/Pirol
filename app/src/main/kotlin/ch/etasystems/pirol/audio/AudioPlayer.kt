@@ -143,7 +143,11 @@ class AudioPlayer(private val context: Context) {
      */
     fun play(recording: SegmentedRecording) {
         if (recording.parts.size <= 1) {
-            recording.firstFile?.let { play(it) }
+            // T131: File- oder SAF-Segment
+            val src = recording.firstSource ?: return
+            val f = src.file
+            val u = src.uriString
+            if (f != null) play(f) else if (u != null) play(Uri.parse(u))
             return
         }
         stop()
@@ -164,7 +168,9 @@ class AudioPlayer(private val context: Context) {
         val mp = MediaPlayer()
         mediaPlayer = mp
         try {
-            mp.setDataSource(part.file.absolutePath)
+            val partFile = part.file
+            if (partFile != null) mp.setDataSource(partFile.absolutePath)
+            else mp.setDataSource(context, Uri.parse(part.source.uriString ?: error("Segment ohne Quelle")))
             mp.setOnErrorListener { _, what, extra ->
                 _state.value = PlaybackState.IDLE
                 _playerError.tryEmit("Wiedergabe-Fehler (Code $what/$extra)")
@@ -179,7 +185,7 @@ class AudioPlayer(private val context: Context) {
             mp.release()
             mediaPlayer = null
             _state.value = PlaybackState.IDLE
-            _playerError.tryEmit("Wiedergabe-Fehler (${part.file.name})")
+            _playerError.tryEmit("Wiedergabe-Fehler (${part.source.name})")
             return
         }
         _state.value = PlaybackState.PLAYING

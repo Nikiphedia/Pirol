@@ -367,7 +367,7 @@ private fun SessionDetailContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Banner: alte Session ohne recording.wav (chunk_*.wav Format vor T46)
-        if (state.recordingFile == null) {
+        if (!state.hasRecording) {
             val audioDir = java.io.File(session.sessionDir, "audio")
             val hasOldChunks = audioDir.exists() &&
                 audioDir.listFiles()?.any { it.name.startsWith("chunk_") } == true
@@ -388,7 +388,7 @@ private fun SessionDetailContent(
         }
 
         // Sonogramm + Aufnahme-Wiedergabe
-        if (state.recordingFile != null) {
+        if (state.hasRecording) {
             // Play/Stop fuer gesamte Aufnahme (Chunk-Navigation entfernt in T46, kommt in T48)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -605,7 +605,7 @@ private fun SessionDetailContent(
                         },
                         onCompare = { viewModel.openCompare(detection) },
                         onPlay = { viewModel.playDetection(detection) },
-                        isPlayEnabled = state.recordingFile != null,
+                        isPlayEnabled = state.hasRecording,
                         playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),
                         onEditDetection = { count, atlasCode, note, memoFile ->
                             viewModel.editDetection(detection.id, count, atlasCode, note, memoFile)
@@ -623,9 +623,9 @@ private fun SessionDetailContent(
                         onToggleLock = { viewModel.toggleLock(detection.id) },
                         // T116: Teilen (Formatwahl-Dialog)
                         // T123: Als Referenz speichern (Button erscheint bei CONFIRMED/CORRECTED)
-                        onSaveAsReference = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.saveAsReference(detection) } } else null,
+                        onSaveAsReference = if (!detection.manualEntry && state.hasRecording) { { viewModel.saveAsReference(detection) } } else null,
                         isReference = detection.id in referencedIds,  // T127
-                        onShare = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.requestShare(detection) } } else null,
+                        onShare = if (!detection.manualEntry && state.hasRecording) { { viewModel.requestShare(detection) } } else null,
                     )
                     }
                 }

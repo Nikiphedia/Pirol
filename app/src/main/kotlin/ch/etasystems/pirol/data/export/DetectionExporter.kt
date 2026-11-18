@@ -33,7 +33,7 @@ import kotlin.math.pow
 /** Quelle fuer einen Detektions-Export: Detektion + zugehoerige Aufnahme. */
 data class DetectionShareRequest(
     val detection: DetectionResult,
-    val recordingFile: File,
+    val recordingFile: File?,
     val sessionNote: String?,
     /** T130: alle Segmente der Session; null = aus [recordingFile] und Nachbar-Segmenten ableiten */
     val recording: SegmentedRecording? = null
@@ -79,7 +79,10 @@ class DetectionExporter(
     ): File = withContext(Dispatchers.IO) {
         val det = request.detection
         // T130: Session-Zeitachse ueber alle WAV-Segmente (Ausschnitt darf eine Segmentgrenze queren)
-        val recording = request.recording ?: SegmentedRecording.forRecordingFile(request.recordingFile)
+        val recording = request.recording
+            ?: SegmentedRecording.forRecordingFile(
+                request.recordingFile ?: throw IllegalStateException("Aufnahme nicht verfuegbar")
+            )
         val range = recording.excerptRange(det, prefs.excerptMaxSec.toFloat())
         val pcm = recording.readRange(range.startSec, range.endSec)
             ?: throw IllegalStateException("Ausschnitt nicht lesbar (Aufnahme leer oder ausserhalb)")

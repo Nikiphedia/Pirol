@@ -62,7 +62,7 @@ class SegmentedRecordingTest {
         rec.locate(0.5f)!!.let { assertEquals(0, it.partIndex); assertEquals(0.5f, it.offsetSec, 1e-4f) }
         rec.locate(2.0f)!!.let { assertEquals(1, it.partIndex); assertEquals(0f, it.offsetSec, 1e-4f) }
         rec.locate(3.6f)!!.let {
-            assertEquals(2, it.partIndex); assertEquals("recording-003.wav", it.file.name)
+            assertEquals(2, it.partIndex); assertEquals("recording-003.wav", it.source.name)
             assertEquals(0.1f, it.offsetSec, 1e-4f)
         }
         // Ausserhalb → Rand

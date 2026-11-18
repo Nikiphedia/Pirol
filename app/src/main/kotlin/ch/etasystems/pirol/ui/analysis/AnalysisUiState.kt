@@ -34,6 +34,8 @@ data class AnalysisUiState(
     val selectedSession: SessionSummary? = null,
     val detections: List<DetectionResult> = emptyList(),
     val recordingFile: File? = null,
+    /** T131: true = Aufnahme vorhanden (File ODER SAF-URI) */
+    val hasRecording: Boolean = false,
     // T62: SAF-URI-Fallback (z.B. content:// auf SD-Karte). Wird bevorzugt wenn nicht null.
     val recordingUri: Uri? = null,
     val recordingDurationSec: Float = 0f,
