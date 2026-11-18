@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -346,7 +347,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     // Letzter Overlay-Stand: Neuaufbau nur bei echter Aenderung
     val lastOverlayKey = remember { arrayOfNulls<Any>(1) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // T122: clipToBounds — die MapView zeichnete nach kurzer Zeit ueber NavigationRail und Statusleiste
+    Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
 
         val inMoveMode = state.positionMoveTarget != null
 
@@ -534,7 +536,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 )
             },
             onRelease = { it.onPause() },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().clipToBounds()
         )
 
         // T113: Snackbar mit Undo (Long = 10 s, also >= 5 s)

@@ -15,8 +15,8 @@ class PlaybackGainTest {
     fun `leise Spitze wird auf -10 dBFS angehoben`() {
         val b = pcm(1000, -500, 0)
         PlaybackGain.normalizeInPlace(b, -10f, 30f)
-        assertEquals(10362, sample(b, 0), 2)
-        assertEquals(-5181, sample(b, 1), 2)
+        assertEquals(10362.0, sample(b, 0).toDouble(), 2.0)
+        assertEquals(-5181.0, sample(b, 1).toDouble(), 2.0)
     }
 
     @Test
