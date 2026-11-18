@@ -31,6 +31,7 @@ import android.util.Log
 import kotlinx.coroutines.launch
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.ui.AppStrings
+import org.koin.android.ext.android.inject
 
 /**
  * Aufnahme-Phase fuer FAB-3-State (T52).
@@ -64,6 +65,9 @@ class RecordingService : Service() {
     }
 
     private val binder = RecordingBinder()
+
+    // T94: Session-Pipeline (Persistenz + Analyse + Detektionen) haengt am Dienst, nicht am ViewModel
+    private val pipeline: RecordingPipeline by inject()
 
     // --- Audio Engine ---
     private val engine = OboeAudioEngine()
@@ -137,6 +141,8 @@ class RecordingService : Service() {
         prerollPhaseJob = null
         _recordingPhase.value = RecordingPhase.IDLE
         stopChunkEmitter()
+        // T94: laufende Aufnahme sauber abschliessen (Audio-Rest + endSession), no-op wenn nichts laeuft
+        pipeline.onRecordingStopped()
         if (engine.isRecording) {
             engine.stop()
         }
@@ -235,8 +241,7 @@ class RecordingService : Service() {
         if (_isRecording.value) return
 
         // T118: Preroll nur, wenn die Engine bereits lief (Ring-Buffer enthaelt echtes Audio vor dem Start).
-        // Wird VOR _isRecording = true erfasst, weil der Recording-Observer im LiveViewModel
-        // synchron beim Setzen von _isRecording feuern kann und den Preroll dort abholt.
+        // Wird VOR _isRecording = true erfasst; T94: die RecordingPipeline holt ihn per takePrerollCapture() ab.
         Log.i("RecordingService", "T122 startRecording: engineRunning=${engine.isRecording} prerollMs=$prerollMs prerollActive=$prerollActive")
         cursorPrepared = false
         pendingPreroll = null
@@ -283,6 +288,9 @@ class RecordingService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
+        // T94: Pipeline meldet sich synchron am Chunk-Flow an, BEVOR der Emitter liefert (kein Chunk-Verlust)
+        pipeline.onRecordingStarted(audioChunkFlow, engine.actualSampleRate.takeIf { it > 0 } ?: sampleRate, takePrerollCapture())
+
         // Chunk-Emitter starten
         startChunkEmitter()
     }
@@ -297,6 +305,8 @@ class RecordingService : Service() {
         _recordingPhase.value = RecordingPhase.IDLE
 
         stopChunkEmitter()
+        // T94: Audio-Rest schreiben + Session beenden (unabhaengig davon, ob ein UI gebunden ist)
+        pipeline.onRecordingStopped()
         if (!prerollActive) {
             engine.stop()
         }

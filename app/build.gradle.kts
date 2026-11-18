@@ -90,6 +90,11 @@ android {
         compose = true
         prefab = true
     }
+
+    // T94: android.util.Log in Pipeline/InferenceWorker liefert im JVM-Unit-Test Defaults statt Exception
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

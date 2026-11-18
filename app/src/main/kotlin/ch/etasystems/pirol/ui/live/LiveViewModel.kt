@@ -9,7 +9,6 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import ch.etasystems.pirol.audio.AudioChunk
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.RecordingService
@@ -28,37 +27,29 @@ import ch.etasystems.pirol.data.sync.UploadTargetFactory
 import kotlinx.serialization.json.Json as KJson
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.AudioClassifier
-import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
-import ch.etasystems.pirol.ml.ClusterResult
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.EmbeddingDatabase
-import ch.etasystems.pirol.ml.EmbeddingExtractor
 import ch.etasystems.pirol.ml.InferenceConfig
-import ch.etasystems.pirol.ml.ModelProfile
-import ch.etasystems.pirol.ml.InferenceWorker
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistManager
 import ch.etasystems.pirol.audio.AlarmService
+import ch.etasystems.pirol.audio.EmbeddingDbStore
+import ch.etasystems.pirol.audio.RecordingPipeline
 import ch.etasystems.pirol.ui.components.SpectrogramState
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -72,21 +63,18 @@ import ch.etasystems.pirol.ui.AppStrings
  *
  * Verwaltet die gesamte Audio→DSP→Sonogramm-Pipeline UND die ML-Inference-Pipeline:
  *
- * Pipeline-Architektur (Dual-Arm):
+ * T94: Persistenz, Inference, Detektions-Verarbeitung, Alarm und GPS-Tagging laufen in der
+ * [RecordingPipeline], die der RecordingService steuert (laeuft weiter ohne UI). Das ViewModel
+ * beobachtet nur (Detektionen, Status, Embedding-Ereignisse) und sendet Befehle
+ * (Start/Stopp, Preroll, Verifikation). Das Sonogramm (DSP-Arm) bleibt hier:
  *
- *   RecordingService.audioChunkFlow
- *         │
- *         ├──→ [DSP-Arm] MelSpectrogram → SpectrogramState (Canvas)
- *         │
- *         └──→ [ML-Arm]  InferenceWorker → DetectionListState (LazyColumn)
- *                                        → EmbeddingExtractor → EmbeddingDatabase
+ *   RecordingService.audioChunkFlow ──→ [DSP-Arm] MelSpectrogram → SpectrogramState (Canvas)
  *
- * Beide Arms laufen parallel auf Dispatchers.Default.
  *
  * @param classifier Audio-Klassifizierer (via Koin)
  * @param regionalFilter Regionaler Artenfilter (via Koin)
  * @param detectionListState Thread-safe Detektions-Speicher (via Koin Singleton)
- * @param embeddingExtractor Embedding-Extraktion via BirdNET + MFCC-Fallback (via Koin)
+ * @param pipeline T94: Session-Pipeline im RecordingService (Persistenz, Inference, Detektionen)
  * @param embeddingDatabase Lokale Embedding-Datenbank (via Koin Singleton)
  * @param locationProvider GPS-Location-Provider (via Koin Singleton)
  * @param sessionManager Session-Manager fuer Aufnahme-Persistierung (via Koin Singleton)
@@ -97,7 +85,7 @@ class LiveViewModel(
     private val classifier: AudioClassifier,
     private val regionalFilter: RegionalSpeciesFilter,
     private val detectionListState: DetectionListState,
-    private val embeddingExtractor: EmbeddingExtractor,
+    private val pipeline: RecordingPipeline,
     private val embeddingDatabase: EmbeddingDatabase,
     private val locationProvider: LocationProvider,
     private val sessionManager: SessionManager,
@@ -108,18 +96,12 @@ class LiveViewModel(
     private val appPreferences: AppPreferences,
     private val speciesNameResolver: SpeciesNameResolver,
     private val atlasCodeRepository: AtlasCodeRepository,
+    private val embeddingDbStore: EmbeddingDbStore,  // T94
     private val context: android.content.Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "LiveViewModel"
-
-        /**
-         * Aktuelle Embedding-Basis (T61): Embeddings stammen aus dem Klassifikations-Durchlauf
-         * (vorverarbeitetes 32-kHz-Audio) statt aus einer separaten Inference auf Roh-Audio.
-         * Aeltere DBs werden einmalig geleert, damit die Aehnlichkeitssuche konsistent bleibt.
-         */
-        private const val EMBEDDING_DB_VERSION = 2
     }
 
     // --- Snackbar-Infrastruktur (T52) ---
@@ -192,31 +174,16 @@ class LiveViewModel(
     private var service: RecordingService? = null
     private var applicationContext: Context? = null
     private var collectionJob: Job? = null
-    private var inferenceJob: Job? = null
     private var recordingObserverJob: Job? = null
     private var locationObserverJob: Job? = null
-    private var embeddingDbLoaded = false
 
     // DSP-Pipeline (zustandsbehaftet, nicht in UiState)
     private var melSpectrogram: MelSpectrogram? = null
     private var currentSampleRate: Int = 0
 
-    // Session-ID der aktuellen/letzten Aufnahme (T15)
-    private var currentSessionId: String? = null
-
-    // T118: Preroll laeuft durch denselben Pfad wie Live-Audio (InferenceWorker -> onAudioPersist).
-    // Zaehler fuer T118_STATS (Collector-Coroutine schreibt, Stop-Pfad liest)
-    private val prerollSamplesFed = java.util.concurrent.atomic.AtomicLong(0L)
-    private val liveSamplesFed = java.util.concurrent.atomic.AtomicLong(0L)
-
     // F5: User hat Preroll explizit gestartet
     private var prerollRunning = false
     private var prerollRequested = false  // T122
-
-    // T54-Fix: Sequentieller Dispatcher fuer Session-Lifecycle-Operationen.
-    // startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf demselben Single-Thread-Kontext,
-    // damit endSession() niemals vor einem Append ausgefuehrt wird (Race-Condition fix).
-    private val sessionDispatcher = Dispatchers.IO.limitedParallelism(1)
 
     // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt.
     // T56: DynamicRangeMapper haengt an den State, wird ueber appendFrames() gefuettert.
@@ -224,156 +191,6 @@ class LiveViewModel(
         dynamicRangeMapper = DynamicRangeMapper()
     }
 
-    // ML-Pipeline: InferenceWorker mit Callback → DetectionListState + Embedding-Arm
-    // T51: Callback wird bei jedem vollstaendigen 3s-Block aufgerufen (Daueraufnahme).
-    // detections == null → Interval-Skip oder keine Treffer; Audio wird trotzdem geschrieben.
-    // T110: Audio-Persistenz (jeder Hop genau einmal) getrennt von der Fenster-Analyse.
-    private val inferenceWorker = InferenceWorker(
-        classifier = classifier,
-        regionalFilter = regionalFilter,
-        onAudioPersist = { pcm ->
-            // --- Audio immer speichern (T51: Daueraufnahme) ---
-            // Offset VOR dem Append erfassen → Basis fuer Detection-Zeitstempel im WAV.
-            if (sessionManager.isActive) {
-                val startSec = sessionManager.getCurrentRecordingOffsetSec()
-                // F3: sessionDispatcher (Single-Thread) serialisiert Preroll + Live-Chunks (T63)
-                // Verhindert concurrent append() auf StreamingWavWriter (nicht thread-safe)
-                viewModelScope.launch(sessionDispatcher) {
-                    sessionManager.appendAudioSamples(pcm)
-                }
-                startSec
-            } else {
-                null
-            }
-        },
-        onOverlapReduced = { percent ->
-            _snackbarChannel.trySend(
-                SnackbarEvent(AppStrings.get(R.string.live_analyse_zu_langsam_ueberlappung_auf, percent))
-            )
-        }
-    ) { audioBlock, detections ->
-
-        // --- Detektionsverarbeitung (Callback nur bei Treffern) ---
-        run {
-            // GPS-Position an Detektionen anhaengen
-            val loc = locationProvider.location.value
-            val locDetections = if (loc != null) {
-                detections.map { it.copy(latitude = loc.latitude, longitude = loc.longitude) }
-            } else {
-                detections
-            }
-            // Top-Ergebnis mit Kandidaten bestücken (T27)
-            // InferenceWorker liefert Top-K als separate DetectionResults.
-            // Nur das Top-Ergebnis behalten, Rest wird zu Kandidaten.
-            val topWithCandidates = if (locDetections.size > 1) {
-                val top = locDetections.first()
-                val candidates = locDetections.drop(1).map { alt ->
-                    DetectionCandidate(
-                        scientificName = alt.scientificName,
-                        commonName = alt.commonName,
-                        confidence = alt.confidence
-                    )
-                }
-                listOf(top.copy(candidates = candidates))
-            } else {
-                locDetections
-            }
-            // Artnamen in gewaehlter Sprache uebersetzen (T26) + Kandidaten-Namen (T27)
-            val geoDetections = topWithCandidates.map { det ->
-                det.copy(
-                    commonName = speciesNameResolver.resolve(det.scientificName),
-                    candidates = det.candidates.map { cand ->
-                        cand.copy(commonName = speciesNameResolver.resolve(cand.scientificName))
-                    }
-                )
-            }
-            // Session-relative Zeitstempel (T49): ab T110 setzt der InferenceWorker
-            // chunkStartSec/chunkEndSec auf den tatsaechlichen Fensterstart im WAV.
-            val sessionRelativeDetections = geoDetections
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
-            }
-            // T70: Cluster-Algorithmus — addOrCluster statt addDetections
-            val newDetections = mutableListOf<DetectionResult>()
-            val mergedAnchors = mutableListOf<DetectionResult>()  // T124: auch Merges koennen alarmieren
-            for (det in sessionRelativeDetections) {
-                // T73: gesperrte Art → Detection verwerfen (AC3)
-                val speciesKey = det.scientificName.replace(' ', '_')
-                if (detectionListState.isLocked(speciesKey)) continue
-
-                val result = detectionListState.addOrCluster(
-                    det,
-                    appPreferences.clusterEnabled,
-                    appPreferences.clusterRadiusM,
-                    appPreferences.clusterTimeWindowMin
-                )
-                when (result) {
-                    is ClusterResult.New -> newDetections.add(result.detection)
-                    is ClusterResult.Merged -> {
-                        mergedAnchors.add(result.anchor)
-                        if (sessionManager.isActive) {
-                            val anchor = result.anchor
-                            val absorbedId = result.absorbedId
-                            viewModelScope.launch(Dispatchers.IO) {
-                                sessionManager.replaceDetection(anchor)
-                                sessionManager.appendVerification(
-                                    VerificationEvent(
-                                        detectionId = anchor.id,
-                                        status = anchor.verificationStatus,
-                                        correctedSpecies = "merged:${absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}",
-                                        verifiedAtMs = System.currentTimeMillis(),
-                                        actionType = VerificationEvent.ACTION_CLUSTER_MERGED
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Watchlist-Check: Alarm ausloesen fuer neue Detektionen (T20)
-            // T124: Cluster-Merges werden ebenfalls geprueft; die Alarm-Pause (alarmCooldownMinutes)
-            // verhindert Dauerfeuer, laesst aber einen erneuten Alarm nach Ablauf zu.
-            for (detection in newDetections + mergedAnchors) {
-                val priority = watchlistManager.getPriority(detection.scientificName)
-                if (priority != null) {
-                    Log.i(TAG, "WATCHLIST-MATCH: ${detection.commonName} ($priority)")
-                    alarmService.triggerAlarm(detection, priority)
-                }
-            }
-
-            // Neue Detektionen in JSONL schreiben (Cluster-Merges werden via replaceDetection persistiert)
-            if (sessionManager.isActive && newDetections.isNotEmpty()) {
-                viewModelScope.launch(Dispatchers.IO) {
-                    sessionManager.appendDetections(newDetections)
-                }
-            }
-
-            // Embedding-Arm: Bei erfolgreicher Detektion Embedding extrahieren
-            viewModelScope.launch(Dispatchers.Default) {
-                // T61: Embedding aus der Klassifikations-Inference wiederverwenden (keine zweite Inference)
-                val embedding = embeddingExtractor.extract(
-                    audioBlock.samples, audioBlock.sampleRate, precomputed = audioBlock.embedding
-                )
-                val topDetection = sessionRelativeDetections.maxByOrNull { it.confidence }!!
-                embeddingDatabase.add(
-                    recordingId = topDetection.id,
-                    species = topDetection.scientificName,
-                    embedding = embedding
-                )
-                // UiState aktualisieren
-                _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
-                // Aehnlichkeitssuche ausloesen (filtert auf gleiche Art)
-                findSimilar(embedding, topDetection.scientificName)
-                // recentSpecies fuer Marquee-Mode aktualisieren
-                val recent = detectionListState.getDetections()
-                    .take(5)
-                    .map { speciesNameResolver.resolve(it.scientificName) }
-                _uiState.update { it.copy(recentSpecies = recent) }
-                // T97: kein Vollschreiben mehr alle 10 Eintraege — gespeichert wird beim Session-Ende
-            }
-        }
-    }
 
     init {
         // Modell-Verfuegbarkeit pruefen
@@ -385,7 +202,7 @@ class LiveViewModel(
         // InferenceConfig aus SharedPreferences laden (statt Default)
         val savedConfig = appPreferences.loadInferenceConfig()
         // T110: Ueberlappung separat aus den Prefs (wird zudem bei jedem Pipeline-Start neu gelesen)
-        inferenceWorker.config = savedConfig.copy(overlapPercent = appPreferences.overlapPercent)
+        pipeline.setInferenceConfig(savedConfig)
 
         // Region laden (aus gespeicherter Config)
         val region = savedConfig.regionFilter ?: "ch_breeding"
@@ -452,6 +269,9 @@ class LiveViewModel(
         // Upload-Status beobachten → UiState aktualisieren
         startUploadStatusObserver()
 
+        // T94: Signale der Session-Pipeline (Dienst) ins UI spiegeln
+        observePipeline()
+
         // T69: 60s-Cap-Signal → Snackbar
         viewModelScope.launch {
             voiceMemoRecorder.capReached.collect {
@@ -475,7 +295,6 @@ class LiveViewModel(
         override fun onServiceDisconnected(name: ComponentName?) {
             service = null
             stopCollectionJob()
-            stopInferenceJob()
             recordingObserverJob?.cancel()
             recordingObserverJob = null
             _uiState.update { it.copy(isServiceBound = false, isRecording = false) }
@@ -1041,7 +860,7 @@ class LiveViewModel(
         if (config.regionFilter != null && config.regionFilter != _uiState.value.inferenceConfig.regionFilter) {
             regionalFilter.loadRegion(config.regionFilter)
         }
-        inferenceWorker.config = config.copy(overlapPercent = appPreferences.overlapPercent)  // T110
+        pipeline.setInferenceConfig(config)  // T94: Worker lebt in der Pipeline (T110: Overlap aus Prefs)
         _uiState.update { it.copy(inferenceConfig = config) }
         // In SharedPreferences persistieren
         appPreferences.saveInferenceConfig(config)
@@ -1061,10 +880,8 @@ class LiveViewModel(
         appCtx.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
 
         // Embedding-DB einmalig laden (applicationContext ist jetzt gesetzt)
-        if (!embeddingDbLoaded) {
-            embeddingDbLoaded = true
-            loadEmbeddingDatabase()
-        }
+        embeddingDbStore.loadOnce()  // T94: idempotent, Datei-Logik im EmbeddingDbStore
+        _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
     }
 
     /**
@@ -1107,90 +924,6 @@ class LiveViewModel(
         _uiState.update { it.copy(similarMatches = deduped) }
     }
 
-    // --- Embedding-DB Persistenz ---
-
-    private fun loadEmbeddingDatabase() {
-        val file = getEmbeddingDbFile() ?: return
-        // T61: Einmalig alte Embedding-Basis verwerfen (Backup bleibt als .v1.bak liegen)
-        if (appPreferences.embeddingDbVersion < EMBEDDING_DB_VERSION) {
-            if (file.exists()) {
-                val backup = File(file.parentFile, file.name + ".v1.bak")
-                val moved = file.renameTo(backup)
-                if (!moved) file.delete()  // Backup existiert schon o.ae. → alte DB trotzdem verwerfen
-                Log.i(TAG, "Embedding-DB auf neue Basis umgestellt — alte DB gesichert: $moved")
-            }
-            embeddingDatabase.clear()
-            appPreferences.embeddingDbVersion = EMBEDDING_DB_VERSION
-            _uiState.update { it.copy(embeddingDbSize = 0) }
-        }
-        embeddingDatabase.maxEntries = appPreferences.embeddingDbMaxEntries  // T97
-        if (file.exists()) {
-            try {
-                embeddingDatabase.load(file)
-                _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
-                Log.i(TAG, "Embedding-DB geladen: ${embeddingDatabase.size} Eintraege")
-            } catch (e: Exception) {
-                Log.e(TAG, "Embedding-DB laden fehlgeschlagen", e)
-            }
-        }
-    }
-
-    private fun saveEmbeddingDatabase() {
-        // T103a: Datei vor dem Start festhalten (Modellwechsel darf nicht in die Datei des neuen Modells schreiben)
-        val file = getEmbeddingDbFile() ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            file.parentFile?.mkdirs()
-            try {
-                embeddingDatabase.save(file)
-                Log.d(TAG, "Embedding-DB gespeichert: ${embeddingDatabase.size} Eintraege")
-            } catch (e: Exception) {
-                Log.e(TAG, "Embedding-DB speichern fehlgeschlagen", e)
-            }
-        }
-    }
-
-    // T103a: Embedding-DB pro Modell (Vektoren verschiedener Modelle nie mischen)
-    @Volatile private var embeddingDbFileName: String? = null
-
-    private fun activeEmbeddingDbFileName(): String =
-        (ModelProfile.byId(classifier.modelId) ?: ModelProfile.LEGACY_DEFAULT).embeddingDbFileName
-
-    private fun getEmbeddingDbFile(): File? {
-        val ctx = applicationContext ?: return null
-        val name = embeddingDbFileName ?: activeEmbeddingDbFileName().also { embeddingDbFileName = it }
-        return File(ctx.filesDir, "embeddings/$name")
-    }
-
-    /**
-     * T103a: Nach einem Modellwechsel (ohne Neustart) die DB des bisherigen Modells sichern
-     * und die des aktiven Modells laden. Laeuft auf dem Session-Dispatcher vor dem Session-Start.
-     */
-    private fun switchEmbeddingDbIfModelChanged() {
-        val ctx = applicationContext ?: return
-        val current = embeddingDbFileName ?: return
-        val wanted = activeEmbeddingDbFileName()
-        if (wanted == current) return
-        try {
-            val oldFile = File(ctx.filesDir, "embeddings/$current")
-            oldFile.parentFile?.mkdirs()
-            embeddingDatabase.save(oldFile)
-        } catch (e: Exception) {
-            Log.e(TAG, "Embedding-DB ($current) speichern fehlgeschlagen", e)
-        }
-        embeddingDatabase.clear()
-        embeddingDbFileName = wanted
-        val newFile = File(ctx.filesDir, "embeddings/$wanted")
-        if (newFile.exists()) {
-            try {
-                embeddingDatabase.load(newFile)
-            } catch (e: Exception) {
-                Log.e(TAG, "Embedding-DB ($wanted) laden fehlgeschlagen", e)
-            }
-        }
-        _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
-        Log.i(TAG, "Embedding-DB gewechselt: $current -> $wanted (${embeddingDatabase.size} Eintraege)")
-    }
-
     // --- Interne Pipeline ---
 
     /**
@@ -1217,88 +950,20 @@ class LiveViewModel(
                 _uiState.update {
                     it.copy(
                         isRecording = recording,
-                        actualSampleRate = service?.actualSampleRate ?: 0
+                        actualSampleRate = service?.actualSampleRate ?: 0,
+                        // T94: nach Rueckkehr in die App Timer aus dem Dienst uebernehmen
+                        recordingStartElapsedRealtime = if (recording) {
+                            service?.recordingStartElapsedRealtime?.takeIf { t -> t > 0L } ?: it.recordingStartElapsedRealtime
+                        } else it.recordingStartElapsedRealtime
                     )
                 }
+                // T94: Session, Persistenz und Analyse steuert der RecordingService (RecordingPipeline).
+                // Hier nur noch die Sonogramm-Darstellung (UI).
                 if (recording) {
-                    locationProvider.start()
                     startCollectionPipeline()
-                    // T118: Session nur starten wenn keine aktive Session (verhindert Doppel-Session
-                    // bei Tab-Wechsel, F1+F2). Der InferenceWorker persistiert erst, wenn die Session
-                    // steht (sessionReady) - sonst wuerde der Preroll-Hop sofort und ohne Session verworfen.
-                    val sessionReady = CompletableDeferred<Unit>()
-                    if (!sessionManager.isActive) {
-                        val preroll = service?.takePrerollCapture()
-                        prerollSamplesFed.set(0L)
-                        liveSamplesFed.set(0L)
-                        startInferencePipeline(preroll, sessionReady)
-                        viewModelScope.launch(sessionDispatcher) {
-                            try {
-                                switchEmbeddingDbIfModelChanged()  // T103a
-                                val loc = locationProvider.location.value
-                                val config = _uiState.value.inferenceConfig
-                                val sessionId = sessionManager.startSession(
-                                    sampleRate = service?.actualSampleRate ?: 48000,
-                                    latitude = loc?.latitude,
-                                    longitude = loc?.longitude,
-                                    regionFilter = config.regionFilter,
-                                    confidenceThreshold = config.confidenceThreshold,
-                                    note = _sessionNote.value,  // T109
-                                    modelId = classifier.modelId  // T103a
-                                )
-                                currentSessionId = sessionId
-                                // Fallback-Banner aktualisieren (T51)
-                                _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
-                            } finally {
-                                // Appends aus onAudioPersist laufen ebenfalls auf sessionDispatcher -> nach startSession
-                                sessionReady.complete(Unit)
-                            }
-                        }
-                    } else {
-                        sessionReady.complete(Unit)
-                        startInferencePipeline(null, sessionReady)
-                    }
                 } else {
-                    // T53: GpsStats VOR stop() erfassen — Zaehler bleiben bis naechsten start() erhalten
-                    val gpsStats = locationProvider.buildGpsStats(
-                        appPreferences.gpsIntervalSeconds * 1000L
-                    )
-                    locationProvider.stop()
                     stopCollectionJob()
-                    stopInferenceJob()
                     resetMelSpectrogram()
-                    // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
-                    // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
-                    inferenceWorker.flushPendingAudio()
-                    val statsPreroll = prerollSamplesFed.get()
-                    val statsLive = liveSamplesFed.get()
-                    // InferenceWorker Accumulator leeren
-                    inferenceWorker.reset()
-                    // Detektionsliste leeren — jede Aufnahme startet frisch (T33-AP5)
-                    detectionListState.clear()
-                    // Fallback-Banner zuruecksetzen (T51)
-                    _uiState.update { it.copy(storageUnavailableFallback = false) }
-                    // Session beenden + lastSessionId setzen (T15)
-                    // sessionDispatcher: wartet auf startSession + alle Appends, bevor endSession laeuft (T54)
-                    val finishedSessionId = currentSessionId
-                    viewModelScope.launch(sessionDispatcher) {
-                        // T118: alle Appends (inkl. Preroll + Rest) liegen vor diesem Block auf sessionDispatcher
-                        Log.i(TAG, "T118_STATS preroll_samples=$statsPreroll live_samples=$statsLive wav_samples=${sessionManager.recordedSampleCount}")
-                        sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
-                        saveEmbeddingDatabase()  // T97: einmal pro Session statt alle 10 Eintraege
-                        alarmService.clearCooldowns()  // AC6: Cooldown-Map pro Session leeren
-                        if (finishedSessionId != null) {
-                            _uiState.update { it.copy(lastSessionId = finishedSessionId) }
-                        }
-                        // Auto-Upload pruefen (T17)
-                        // T125: nur mit konfiguriertem Ziel (Default OFF = nie automatisch)
-                        if (uploadManager.autoUpload && UploadTargetFactory.isConfigured(appPreferences)) {
-                            val sessions = sessionManager.listSessions()
-                            if (sessions.isNotEmpty()) {
-                                uploadManager.enqueue(sessions.first())
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -1357,73 +1022,46 @@ class LiveViewModel(
         }
     }
 
-    /**
-     * Startet die AudioChunk → InferenceWorker → DetectionListState Pipeline (ML-Arm).
-     * Laeuft auf Dispatchers.Default — blockiert nicht den UI-Thread.
-     *
-     * Graceful Degradation: Wenn BirdNET-Modell nicht verfuegbar, wird der Job nicht gestartet.
-     */
-    private fun startInferencePipeline(
-        preroll: ch.etasystems.pirol.audio.PrerollCapture?,
-        sessionReady: CompletableDeferred<Unit>
-    ) {
-        stopInferenceJob()
-
-        if (!_uiState.value.isModelAvailable) {
-            Log.d(TAG, "ML-Pipeline nicht gestartet — Modell nicht verfuegbar")
-            return
-        }
-
-        val svc = service ?: return
-
-        // T110: Ueberlappung aus Settings uebernehmen (Settings schreibt direkt in AppPreferences)
-        inferenceWorker.config = inferenceWorker.config.copy(overlapPercent = appPreferences.overlapPercent)
-
-        inferenceJob = viewModelScope.launch(Dispatchers.Default) {
-            Log.d(TAG, "ML-Pipeline gestartet (Overlap ${inferenceWorker.config.overlapPercent} %)")
-            // T110: Analyse laeuft parallel; der Collector persistiert Audio ohne auf Inference zu warten
-            launch { inferenceWorker.runAnalysisLoop() }
-            svc.audioChunkFlow
-                .onSubscription {
-                    // T118: Laeuft NACH der Anmeldung am SharedFlow - Live-Chunks stauen sich solange im
-                    // Puffer (kein Verlust). Erst Session abwarten, dann Preroll als ersten Block einspeisen:
-                    // derselbe Pfad wie Live -> genau einmal in recording.wav (Offset 0) + BirdNET-Analyse.
-                    sessionReady.await()
-                    if (preroll != null && preroll.samples.isNotEmpty()) {
-                        speciesNameResolver.load()
-                        inferenceWorker.processChunk(
-                            AudioChunk(preroll.samples, preroll.sampleRate, SystemClock.elapsedRealtime()),
-                            nowEpochMs = preroll.captureEpochMs,
-                            backlog = true
-                        )
-                        prerollSamplesFed.addAndGet(preroll.samples.size.toLong())
-                    }
-                }
-                .collect { chunk ->
-                    // T95: kehrt sofort zurueck, sobald geladen. Waehrend des Ladens stauen sich die
-                    // Chunks im SharedFlow-Puffer bzw. Ring-Buffer (T92) - es geht kein Audio verloren.
-                    speciesNameResolver.load()
-                    inferenceWorker.processChunk(chunk)
-                    liveSamplesFed.addAndGet(chunk.samples.size.toLong())
-                }
-        }
-    }
-
     /** Collection-Job stoppen (DSP-Arm). */
     private fun stopCollectionJob() {
         collectionJob?.cancel()
         collectionJob = null
     }
 
-    /** Inference-Job stoppen (ML-Arm). */
-    private fun stopInferenceJob() {
-        inferenceJob?.cancel()
-        inferenceJob = null
-    }
-
     /** MelSpectrogram-Buffer zuruecksetzen. */
     private fun resetMelSpectrogram() {
         melSpectrogram?.reset()
+    }
+
+    // --- T94: Pipeline-Observer ---
+
+    private fun observePipeline() {
+        viewModelScope.launch {
+            pipeline.overlapReduced.collect { percent ->
+                _snackbarChannel.trySend(
+                    SnackbarEvent(AppStrings.get(R.string.live_analyse_zu_langsam_ueberlappung_auf, percent))
+                )
+            }
+        }
+        viewModelScope.launch {
+            pipeline.storageFallback.collect { fb -> _uiState.update { it.copy(storageUnavailableFallback = fb) } }
+        }
+        viewModelScope.launch {
+            pipeline.lastSessionId.collect { id ->
+                if (id != null) _uiState.update { it.copy(lastSessionId = id) }
+            }
+        }
+        // Embedding-Arm (UI-Teil): Aehnlichkeitssuche + Marquee; Extraktion/DB-Eintrag macht die Pipeline
+        viewModelScope.launch(Dispatchers.Default) {
+            pipeline.embeddingAdded.collect { e ->
+                _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
+                findSimilar(e.embedding, e.species)
+                val recent = detectionListState.getDetections()
+                    .take(5)
+                    .map { speciesNameResolver.resolve(it.scientificName) }
+                _uiState.update { it.copy(recentSpecies = recent) }
+            }
+        }
     }
 
     // --- Location-Observer ---
@@ -1474,31 +1112,11 @@ class LiveViewModel(
     // --- Lifecycle ---
 
     override fun onCleared() {
+        // T94: Session, Persistenz, GPS und Analyse gehoeren der RecordingPipeline im Dienst und laufen
+        // weiter, wenn das UI verschwindet. Hier nur UI-Ressourcen freigeben.
         stopCollectionJob()
-        stopInferenceJob()
         recordingObserverJob?.cancel()
         locationObserverJob?.cancel()
-        locationProvider.stop()
-        inferenceWorker.reset()
-        // Cleanup-Scope BEVOR super.onCleared() den viewModelScope cancelt
-        val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        cleanupScope.launch {
-            try {
-                sessionManager.endSession()
-                alarmService.clearCooldowns()
-                // Finale Embedding-DB Sicherung
-                val file = getEmbeddingDbFile() ?: return@launch
-                file.parentFile?.mkdirs()
-                try {
-                    embeddingDatabase.save(file)
-                    Log.d(TAG, "Embedding-DB gespeichert: ${embeddingDatabase.size} Eintraege")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Embedding-DB speichern fehlgeschlagen", e)
-                }
-            } finally {
-                cleanupScope.cancel()
-            }
-        }
         super.onCleared()
         // Service-Unbinding muss vom Screen gemacht werden (braucht Context)
         // T69: Voice-Memo Cleanup
