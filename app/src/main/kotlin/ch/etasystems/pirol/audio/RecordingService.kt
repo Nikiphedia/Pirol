@@ -130,6 +130,7 @@ class RecordingService : Service() {
     }
 
     override fun onDestroy() {
+        Log.i("RecordingService", "T122 onDestroy: engineRunning=${engine.isRecording} prerollActive=$prerollActive")
         prerollPhaseJob?.cancel()
         prerollPhaseJob = null
         _recordingPhase.value = RecordingPhase.IDLE
@@ -160,6 +161,7 @@ class RecordingService : Service() {
         engine.setPrerollDuration(prerollDurationSec)
         val started = engine.start(sampleRate)
         prerollActive = started
+        Log.i("RecordingService", "T122 initPreroll: started=$started sec=$prerollDurationSec")
     }
 
     /**
@@ -183,7 +185,10 @@ class RecordingService : Service() {
         // Marge 100 ms: aelteste Samples koennten waehrend des Kopierens ueberschrieben werden
         val back = engine.rewindReadCursor(wanted, rate / 10)
         cursorPrepared = true
-        if (back <= 0) return null
+        if (back <= 0) {
+            Log.w("RecordingService", "T122 Preroll leer: rewind=$back angefordert=$wanted")
+            return null
+        }
         val out = ShortArray(back + rate) // Reserve fuer waehrend des Lesens nachgeschriebene Samples
         var n = 0
         while (n < out.size) {
@@ -230,6 +235,7 @@ class RecordingService : Service() {
         // T118: Preroll nur, wenn die Engine bereits lief (Ring-Buffer enthaelt echtes Audio vor dem Start).
         // Wird VOR _isRecording = true erfasst, weil der Recording-Observer im LiveViewModel
         // synchron beim Setzen von _isRecording feuern kann und den Preroll dort abholt.
+        Log.i("RecordingService", "T122 startRecording: engineRunning=${engine.isRecording} prerollMs=$prerollMs prerollActive=$prerollActive")
         cursorPrepared = false
         pendingPreroll = null
         lastPreroll = null
