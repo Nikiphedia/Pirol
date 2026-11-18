@@ -11,6 +11,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -105,7 +107,7 @@ import java.util.Locale
  * @param onCorrect Callback mit korrigiertem Artnamen
  * @param modifier Modifier
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun SpeciesCard(
     detection: DetectionResult,
@@ -401,187 +403,112 @@ fun SpeciesCard(
             // Zeile 4: Verifikations-Buttons + Play (nur wenn Callbacks vorhanden)
             if (onConfirm != null || onMarkUncertain != null || onReject != null || onCorrect != null || onPlay != null) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Row(
+                // T112: einheitliche Aktionsleiste (alle 56 dp, gleicher Icon-Stil), umbricht auf schmalen Geraeten
+                val neutralContainer = MaterialTheme.colorScheme.secondaryContainer
+                val neutralContent = MaterialTheme.colorScheme.onSecondaryContainer
+                val status = detection.verificationStatus
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Bestaetigen (T52: FilledIconButton 56dp; T78: bei CONFIRMED zu Undo wechseln)
+                    // Bestaetigen (T78: bei CONFIRMED zu Undo wechseln)
                     if (onConfirm != null) {
-                        val isConfirmed = detection.verificationStatus == VerificationStatus.CONFIRMED
-                        FilledIconButton(
+                        val isConfirmed = status == VerificationStatus.CONFIRMED
+                        CardActionButton(
                             onClick = if (isConfirmed) (onMarkUncertain ?: onConfirm) else onConfirm,
-                            modifier = Modifier.size(56.dp),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = if (isConfirmed)
-                                    Color(0xFF4CAF50) else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (isConfirmed)
-                                    Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (isConfirmed) Icons.AutoMirrored.Filled.Undo else Icons.Filled.Check,
-                                contentDescription = if (isConfirmed) "Bestaetigung rueckgaengig" else "Bestaetigen",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                            icon = if (isConfirmed) Icons.AutoMirrored.Filled.Undo else Icons.Filled.Check,
+                            description = if (isConfirmed) "Bestaetigung rueckgaengig" else "Bestaetigen",
+                            containerColor = if (isConfirmed) Color(0xFF4CAF50) else neutralContainer,
+                            contentColor = if (isConfirmed) Color.White else neutralContent
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // Unsicher markieren (T44, T52: FilledTonalIconButton 56dp)
+                    // Unsicher markieren (T44)
                     if (onMarkUncertain != null) {
-                        FilledTonalIconButton(
+                        val active = status == VerificationStatus.UNCERTAIN
+                        CardActionButton(
                             onClick = onMarkUncertain,
-                            modifier = Modifier.size(56.dp),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
-                                    Color(0xFFFF9800) else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (detection.verificationStatus == VerificationStatus.UNCERTAIN)
-                                    Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Help,
-                                contentDescription = "Unsicher",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                            icon = Icons.AutoMirrored.Filled.Help,
+                            description = "Unsicher",
+                            containerColor = if (active) Color(0xFFFF9800) else neutralContainer,
+                            contentColor = if (active) Color.White else neutralContent
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // Ablehnen (T52: FilledTonalIconButton 56dp)
+                    // Ablehnen
                     if (onReject != null) {
-                        FilledTonalIconButton(
+                        val active = status == VerificationStatus.REJECTED
+                        CardActionButton(
                             onClick = onReject,
-                            modifier = Modifier.size(56.dp),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = if (detection.verificationStatus == VerificationStatus.REJECTED)
-                                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (detection.verificationStatus == VerificationStatus.REJECTED)
-                                    MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = "Ablehnen",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                            icon = Icons.Filled.Close,
+                            description = "Ablehnen",
+                            containerColor = if (active) MaterialTheme.colorScheme.error else neutralContainer,
+                            contentColor = if (active) MaterialTheme.colorScheme.onError else neutralContent
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // Korrigieren (T52: FilledTonalIconButton 56dp + Haptik)
+                    // Korrigieren (inkl. Haptik)
                     if (onCorrect != null) {
-                        FilledTonalIconButton(
+                        val active = status == VerificationStatus.CORRECTED
+                        CardActionButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 showCorrectionDialog = true
                             },
-                            modifier = Modifier.size(56.dp),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = if (detection.verificationStatus == VerificationStatus.CORRECTED)
-                                    Color(0xFF2196F3) else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (detection.verificationStatus == VerificationStatus.CORRECTED)
-                                    Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Edit,
-                                contentDescription = "Korrigieren",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                            icon = Icons.Filled.Edit,
+                            description = "Korrigieren",
+                            containerColor = if (active) Color(0xFF2196F3) else neutralContainer,
+                            contentColor = if (active) Color.White else neutralContent
+                        )
                     }
 
-                    // Detail-Eingaben (T68): Stückzahl, Atlascode, Bemerkung
+                    // Detail-Eingaben (T68): Stueckzahl, Atlascode, Bemerkung
                     if (onEditDetection != null) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
+                        CardActionButton(
                             onClick = { showEditDialog = true },
-                            modifier = Modifier.size(56.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.List,
-                                contentDescription = "Detail-Eingaben",
-                                tint = if (hasCustomData) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                            icon = Icons.AutoMirrored.Filled.List,
+                            description = "Detail-Eingaben",
+                            containerColor = if (hasCustomData) MaterialTheme.colorScheme.primaryContainer else neutralContainer,
+                            contentColor = if (hasCustomData) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent
+                        )
                     }
 
                     // "Als Referenz speichern" fuer bestaetigte Detektionen
                     if (onSaveAsReference != null &&
-                        (detection.verificationStatus == VerificationStatus.CONFIRMED ||
-                         detection.verificationStatus == VerificationStatus.CORRECTED)) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
+                        (status == VerificationStatus.CONFIRMED || status == VerificationStatus.CORRECTED)) {
+                        CardActionButton(
                             onClick = onSaveAsReference,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.BookmarkAdd,
-                                contentDescription = "Als Referenz speichern",
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            icon = Icons.Filled.BookmarkAdd,
+                            description = "Als Referenz speichern",
+                            containerColor = neutralContainer,
+                            contentColor = neutralContent
+                        )
                     }
 
                     // Vergleichen (T24)
                     if (onCompare != null) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
+                        CardActionButton(
                             onClick = onCompare,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.CompareArrows,
-                                contentDescription = "Vergleichen",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            icon = Icons.AutoMirrored.Filled.CompareArrows,
+                            description = "Vergleichen",
+                            containerColor = neutralContainer,
+                            contentColor = neutralContent
+                        )
                     }
 
                     // Play-Button (T48): ab chunkStartSec abspielen
                     if (onPlay != null) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
+                        CardActionButton(
                             onClick = onPlay,
-                            enabled = isPlayEnabled,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "Abspielen",
-                                tint = if (isPlayEnabled) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // Status-Text neben Buttons (kompakt)
-                    if (detection.verificationStatus != VerificationStatus.UNVERIFIED) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val statusText = when (detection.verificationStatus) {
-                            VerificationStatus.CONFIRMED -> "\u2713"
-                            VerificationStatus.REJECTED -> "\u2717"
-                            VerificationStatus.CORRECTED -> "\u270E"
-                            VerificationStatus.UNCERTAIN -> "?"
-                            VerificationStatus.REPLACED -> "\u2717"
-                            else -> ""
-                        }
-                        Text(
-                            text = statusText,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            icon = Icons.Filled.PlayArrow,
+                            description = "Abspielen",
+                            containerColor = neutralContainer,
+                            contentColor = neutralContent,
+                            enabled = isPlayEnabled
                         )
                     }
+                    // Kein separates Status-Symbol mehr: der Status steht als Text in Zeile 3
                 }
             }
 
@@ -715,3 +642,26 @@ fun SpeciesCard(
 
 /** HH:mm:ss Formatter — Thread-safe da nur in Compose-Scope genutzt */
 private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
+/** Einheitlicher Aktions-Button der Karte: 56 dp, tonaler Kreis, 24-dp-Icon (T112). */
+@Composable
+private fun CardActionButton(
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    containerColor: Color,
+    contentColor: Color,
+    enabled: Boolean = true
+) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(56.dp),
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
+    ) {
+        Icon(imageVector = icon, contentDescription = description, modifier = Modifier.size(24.dp))
+    }
+}

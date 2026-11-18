@@ -78,6 +78,10 @@ import androidx.compose.ui.platform.LocalDensity
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -227,6 +231,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val nameResolver: SpeciesNameResolver = koinInject()
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+    val startCenter = remember { mutableStateOf<GeoPoint?>(null) }  // T112: Kartenmitte beim Start
 
     // T108: Kartenquelle + Offline-Download
     val prefs: AppPreferences = koinInject()
@@ -244,6 +249,24 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
         cacheBytes = withContext(Dispatchers.IO) { runCatching { tileCacheBytes() }.getOrDefault(0L) }
     }
     val locationState by viewModel.currentLocation.collectAsState()
+
+    // T112: Beim Oeffnen auf den Standort zoomen (swisstopo-Standard). Kein erneuter Sprung,
+    // sobald der Nutzer die Karte bewegt hat (Kartenmitte != Startmitte) oder nach 4 s ohne Fix.
+    LaunchedEffect(Unit) {
+        viewModel.requestLastKnownLocation()
+        val loc = withTimeoutOrNull(4000L) {
+            snapshotFlow { locationState }.filterNotNull().first()
+        } ?: return@LaunchedEffect
+        val mv = mapViewRef.value ?: return@LaunchedEffect
+        val start = startCenter.value ?: return@LaunchedEffect
+        val untouched = abs(mv.mapCenter.latitude - start.latitude) < 1e-4 &&
+            abs(mv.mapCenter.longitude - start.longitude) < 1e-4 &&
+            mv.zoomLevelDouble == 14.0
+        if (untouched && state.positionMoveTarget == null) {
+            mv.controller.setZoom(15.0)
+            mv.controller.setCenter(GeoPoint(loc.latitude, loc.longitude))
+        }
+    }
 
     // Marker-Referenz fuer GestureDetector (aktuell, thread-safe via MutableState)
     val positionMoveRef = remember { mutableStateOf<MapViewModel.MapMarker?>(null) }
@@ -283,6 +306,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     controller.setZoom(14.0)
                     rawZoom.doubleValue = 14.0
                     controller.setCenter(GeoPoint(state.centerLat, state.centerLon))
+                    startCenter.value = GeoPoint(state.centerLat, state.centerLon)
                     setTileSource(tileSourceFor(sourceModeRef.value, 14))
                     addMapListener(object : org.osmdroid.events.MapListener {
                         override fun onZoom(event: org.osmdroid.events.ZoomEvent): Boolean {

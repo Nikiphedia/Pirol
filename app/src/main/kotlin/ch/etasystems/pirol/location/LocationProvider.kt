@@ -152,25 +152,37 @@ class LocationProvider(
                 "max. Genauigkeit: ${appPreferences.gpsMaxAccuracyMeters}m, " +
                 "Smoothing: ${appPreferences.gpsSmoothingEnabled})")
 
-        // LastKnown-Fallback: sofort pubizieren wenn kein Fix vorhanden, jung genug und genau genug.
-        // Verhindert null-Koordinaten auf ersten Detektionen (AC1).
-        fusedClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc == null) return@addOnSuccessListener
-            if (_location.value != null) return@addOnSuccessListener  // bereits ein Fix da
-            val ageMs = System.currentTimeMillis() - loc.time
-            val accuracy = if (loc.hasAccuracy()) loc.accuracy else Float.MAX_VALUE
-            if (ageMs <= LASTKNOWN_MAX_AGE_MS && accuracy <= appPreferences.gpsMaxAccuracyMeters) {
-                _location.value = LocationData(
-                    latitude = loc.latitude,
-                    longitude = loc.longitude,
-                    altitudeM = if (loc.hasAltitude()) loc.altitude else null,
-                    accuracyM = accuracy,
-                    timestampMs = loc.time
-                )
-                Log.i(TAG, "LastKnown-Fallback publiziert: ±${accuracy}m, Alter ${ageMs / 1000}s")
-            } else {
-                Log.d(TAG, "LastKnown verworfen: Alter ${ageMs / 1000}s, Genauigkeit ±${accuracy}m")
+        // LastKnown-Fallback: sofort publizieren (verhindert null-Koordinaten auf ersten Detektionen, AC1)
+        publishLastKnown()
+    }
+
+    /**
+     * Letzte bekannte Position publizieren, falls noch kein Fix vorhanden (jung und genau genug).
+     * Startet kein Tracking; ohne Permission passiert nichts (T112: Karte zoomt auf Standort).
+     */
+    @SuppressLint("MissingPermission")
+    fun publishLastKnown() {
+        try {
+            fusedClient.lastLocation.addOnSuccessListener { loc ->
+                if (loc == null) return@addOnSuccessListener
+                if (_location.value != null) return@addOnSuccessListener  // bereits ein Fix da
+                val ageMs = System.currentTimeMillis() - loc.time
+                val accuracy = if (loc.hasAccuracy()) loc.accuracy else Float.MAX_VALUE
+                if (ageMs <= LASTKNOWN_MAX_AGE_MS && accuracy <= appPreferences.gpsMaxAccuracyMeters) {
+                    _location.value = LocationData(
+                        latitude = loc.latitude,
+                        longitude = loc.longitude,
+                        altitudeM = if (loc.hasAltitude()) loc.altitude else null,
+                        accuracyM = accuracy,
+                        timestampMs = loc.time
+                    )
+                    Log.i(TAG, "LastKnown-Fallback publiziert: ±${accuracy}m, Alter ${ageMs / 1000}s")
+                } else {
+                    Log.d(TAG, "LastKnown verworfen: Alter ${ageMs / 1000}s, Genauigkeit ±${accuracy}m")
+                }
             }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "LastKnown ohne Permission nicht verfuegbar")
         }
     }
 

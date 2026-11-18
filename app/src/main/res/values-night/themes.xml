@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dunkles Fenster-Hintergrund, damit kein heller Flash / weisser Untergrund entsteht -->
+    <style name="Theme.Pirol" parent="android:Theme.Material.NoActionBar" />
+</resources>
