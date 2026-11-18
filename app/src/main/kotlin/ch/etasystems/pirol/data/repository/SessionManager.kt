@@ -78,6 +78,29 @@ class SessionManager(
         private const val LEGACY_SESSIONS_DIR = "sessions"
 
         /** Pure-Logic-Funktion fuer Unit-Tests (T60). */
+        /** T117: Aktionstypen, die einen Verifikationsstatus setzen (Undo-faehig). null = Legacy. */
+        private val STATUS_ACTIONS = setOf(
+            null,
+            VerificationEvent.ACTION_CONFIRMED, VerificationEvent.ACTION_REJECTED,
+            VerificationEvent.ACTION_UNCERTAIN, VerificationEvent.ACTION_CORRECTED,
+            VerificationEvent.ACTION_REPLACED, VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED
+        )
+
+        /**
+         * T117: Index des letzten Status-Ereignisses fuer [detectionId], -1 wenn keines.
+         * Zeilen, die sich nicht dekodieren lassen, werden uebersprungen.
+         */
+        internal fun indexOfLastStatusEvent(
+            lines: List<String>,
+            detectionId: String,
+            decode: (String) -> VerificationEvent
+        ): Int = lines.indexOfLast { line ->
+            line.isNotBlank() && try {
+                val ev = decode(line)
+                ev.detectionId == detectionId && ev.actionType in STATUS_ACTIONS
+            } catch (_: Exception) { false }
+        }
+
         fun shouldAutoDelete(
             durationSec: Double,
             detections: Int,
@@ -439,6 +462,8 @@ class SessionManager(
 
     /**
      * Entfernt den letzten Verifikations-Eintrag fuer eine Detection-ID aus verifications.jsonl.
+     * T117: nur Status-Ereignisse (Bestaetigen/Ablehnen/...), nie CLUSTER_MERGED, Bemerkung usw. —
+     * sonst loeschte ein Undo eine zwischenzeitlich angehaengte Cluster-Zusammenfuehrung.
      * Idempotent: kein Fehler falls kein Eintrag fuer die ID vorhanden.
      * Wird fuer Undo im Live-Tab verwendet (T52).
      */
@@ -453,10 +478,8 @@ class SessionManager(
                         it.bufferedReader().readLines()
                     } ?: return@withLock
                 } catch (_: Exception) { return@withLock }
-                val lastMatchIdx = lines.indexOfLast { line ->
-                    line.isNotBlank() && try {
-                        jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
-                    } catch (_: Exception) { false }
+                val lastMatchIdx = indexOfLastStatusEvent(lines, detectionId) { line ->
+                    jsonLenient.decodeFromString<VerificationEvent>(line)
                 }
                 if (lastMatchIdx < 0) return@withLock
                 val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
@@ -474,10 +497,8 @@ class SessionManager(
                 val file = File(sessionDir, "verifications.jsonl")
                 if (!file.exists()) return@withLock
                 val lines = try { file.readLines() } catch (_: Exception) { return@withLock }
-                val lastMatchIdx = lines.indexOfLast { line ->
-                    line.isNotBlank() && try {
-                        jsonLenient.decodeFromString<VerificationEvent>(line).detectionId == detectionId
-                    } catch (_: Exception) { false }
+                val lastMatchIdx = indexOfLastStatusEvent(lines, detectionId) { line ->
+                    jsonLenient.decodeFromString<VerificationEvent>(line)
                 }
                 if (lastMatchIdx < 0) return@withLock
                 val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
