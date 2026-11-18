@@ -195,6 +195,8 @@ class InferenceWorker(
 
     // T103a: Schluessel (Modell|Region) der letzten Zaehlung nicht zugeordneter Regionsarten
     private var unmappedStatsKey: String? = null
+    /** T133: Resampler-Log nur einmal pro Session */
+    @Volatile private var resamplerLogged = false
 
     /**
      * T103a: Zaehlt einmal pro Modell/Region die Arten des Regionssets, die das aktive Modell
@@ -226,7 +228,14 @@ class InferenceWorker(
         try {
             // 1. Resampling: ShortArray → FloatArray @Modell-Rate (T103a: aus dem Profil, BirdNET 3: 32 kHz)
             val targetRate = classifier.inputSampleRate
-            val resampled = AudioResampler.resample(window.pcm, window.sampleRate, targetRate)
+            // T133: Modus aus Settings (AudioResampler.defaultMode); bei gleicher Rate Durchreichen
+            val mode = AudioResampler.defaultMode
+            if (!resamplerLogged) {
+                resamplerLogged = true
+                val taps = if (mode == AudioResampler.Mode.POLYPHASE) AudioResampler.tapsFor(window.sampleRate, targetRate) else 0
+                Log.i(TAG, "T133 resampler=$mode in=${window.sampleRate} out=$targetRate taps=$taps")
+            }
+            val resampled = AudioResampler.resample(window.pcm, window.sampleRate, targetRate, mode)
 
             // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34)
             if (config.highpassEnabled) {
@@ -365,6 +374,7 @@ class InferenceWorker(
         overlapCap = 100
         reductionNotified = false
         analyzedWindows = 0
+        resamplerLogged = false
         Log.d(TAG, "Pipeline zurueckgesetzt")
     }
 }

@@ -435,4 +435,13 @@ class AppPreferences(context: Context) {
     var lastUploadResult: String
         get() = prefs.getString("pirol_last_upload_result", "") ?: ""
         set(value) = prefs.edit().putString("pirol_last_upload_result", value).apply()
+
+    /** T133: Resampler-Verfahren "POLYPHASE" (Default, Anti-Alias) | "LINEAR" (alt). Setzt auch AudioResampler.defaultMode. */
+    var resamplerMode: String
+        get() = prefs.getString("pirol_resampler_mode", "POLYPHASE") ?: "POLYPHASE"
+        set(value) {
+            prefs.edit().putString("pirol_resampler_mode", value).apply()
+            ch.etasystems.pirol.audio.dsp.AudioResampler.defaultMode =
+                ch.etasystems.pirol.audio.dsp.AudioResampler.Mode.parse(value)
+        }
 }
