@@ -336,4 +336,9 @@ class AppPreferences(context: Context) {
         inferenceIntervalMs = config.inferenceIntervalMs
         highpassEnabled = config.highpassEnabled
     }
+
+    /** T108: gewaehlte Kartenquelle (MapSourceMode.name), Default AUTO */
+    var mapSourceMode: String
+        get() = prefs.getString("pirol_map_source_mode", "AUTO") ?: "AUTO"
+        set(value) = prefs.edit().putString("pirol_map_source_mode", value).apply()
 }

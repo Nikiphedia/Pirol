@@ -59,6 +59,24 @@ import ch.etasystems.pirol.ui.components.EditDetectionDialog
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.tileprovider.cachemanager.CacheManager
+import org.osmdroid.tileprovider.modules.SqlTileWriter
+import ch.etasystems.pirol.data.AppPreferences
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import android.view.GestureDetector
@@ -132,9 +150,22 @@ private fun createCircleMarkerIcon(
     return BitmapDrawable(resources, bitmap)
 }
 
-private fun tileSourceForZoom(zoom: Int): org.osmdroid.tileprovider.tilesource.ITileSource {
-    return if (zoom >= 13) SwisstopoFarbeTileSource
-    else org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK
+/** Belegter Kartenspeicher (osmdroid-SQLite-Cache) in Bytes */
+private fun tileCacheBytes(): Long {
+    val writer = SqlTileWriter()
+    return try { writer.size } finally { writer.onDetach() }
+}
+
+private fun purgeTileCache() {
+    val writer = SqlTileWriter()
+    try { writer.purgeCache() } finally { writer.onDetach() }
+}
+
+/** Dialoge rund um Kartenquelle und Offline-Download (T108) */
+private sealed interface OfflineDialog {
+    data class Confirm(val box: BoundingBox, val zoomMin: Int, val zoomMax: Int, val tiles: Int) : OfflineDialog
+    data class Info(val text: String) : OfflineDialog
+    data object ConfirmDelete : OfflineDialog
 }
 
 // ── Haupt-Composable ──────────────────────────────────────────────────────────
@@ -146,6 +177,22 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val atlasCodeRepo: AtlasCodeRepository = koinInject()
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+
+    // T108: Kartenquelle + Offline-Download
+    val prefs: AppPreferences = koinInject()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var sourceMode by remember { mutableStateOf(MapSourceMode.fromName(prefs.mapSourceMode)) }
+    val sourceModeRef = rememberUpdatedState(sourceMode)
+    var sourceMenuOpen by remember { mutableStateOf(false) }
+    var offlineDialog by remember { mutableStateOf<OfflineDialog?>(null) }
+    var downloadTask by remember { mutableStateOf<CacheManager.CacheManagerTask?>(null) }
+    var downloadDone by remember { mutableIntStateOf(0) }
+    var downloadTotal by remember { mutableIntStateOf(0) }
+    var cacheBytes by remember { mutableStateOf(0L) }
+    LaunchedEffect(sourceMenuOpen, downloadTask, offlineDialog) {
+        cacheBytes = withContext(Dispatchers.IO) { runCatching { tileCacheBytes() }.getOrDefault(0L) }
+    }
     val locationState by viewModel.currentLocation.collectAsState()
 
     // Marker-Referenz fuer GestureDetector (aktuell, thread-safe via MutableState)
@@ -168,11 +215,11 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     setMultiTouchControls(true)
                     controller.setZoom(14.0)
                     controller.setCenter(GeoPoint(state.centerLat, state.centerLon))
-                    setTileSource(tileSourceForZoom(14))
+                    setTileSource(tileSourceFor(sourceModeRef.value, 14))
                     addMapListener(object : org.osmdroid.events.MapListener {
                         override fun onZoom(event: org.osmdroid.events.ZoomEvent): Boolean {
                             // T106: nur bei Wechsel der Quelle setzen (setTileSource leert den Kachel-Cache)
-                            val source = tileSourceForZoom(event.zoomLevel.toInt())
+                            val source = tileSourceFor(sourceModeRef.value, event.zoomLevel.toInt())
                             if (tileProvider.tileSource != source) setTileSource(source)
                             return false
                         }
@@ -227,6 +274,10 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 if (prevMoveTarget == null && moveTarget != null) {
                     mapView.controller.animateTo(GeoPoint(moveTarget.latitude, moveTarget.longitude))
                 }
+
+                // T108: Quelle wechseln (nur bei Aenderung, setTileSource leert den Kachel-Cache)
+                val wanted = tileSourceFor(sourceMode, mapView.zoomLevelDouble.toInt())
+                if (mapView.tileProvider.tileSource != wanted) mapView.setTileSource(wanted)
 
                 // Einfaches clear — GestureDetector läuft unabhängig von Overlays
                 mapView.overlays.clear()
@@ -490,8 +541,152 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 Icon(Icons.Filled.MyLocation, contentDescription = "Mein Standort")
             }
 
+            // T108: Kartenquelle + Offline-Karten (oben rechts)
+            Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                IconButton(onClick = { sourceMenuOpen = true }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Filled.Layers, contentDescription = "Kartenquelle")
+                }
+                DropdownMenu(expanded = sourceMenuOpen, onDismissRequest = { sourceMenuOpen = false }) {
+                    for (mode in MapSourceMode.entries) {
+                        DropdownMenuItem(
+                            text = { Text(if (mode == sourceMode) "\u2713 ${mode.label}" else mode.label) },
+                            onClick = {
+                                sourceMode = mode
+                                prefs.mapSourceMode = mode.name
+                                sourceMenuOpen = false
+                            }
+                        )
+                    }
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Ausschnitt herunterladen") },
+                        enabled = downloadTask == null,
+                        onClick = {
+                            sourceMenuOpen = false
+                            val mv = mapViewRef.value ?: return@DropdownMenuItem
+                            val source = mv.tileProvider.tileSource as? SwisstopoWmtsTileSource
+                            if (source == null) {
+                                offlineDialog = OfflineDialog.Info(
+                                    "Offline-Download gibt es nur fuer swisstopo-Karten. " +
+                                        "Waehle eine swisstopo-Quelle (bei Automatisch: ab Zoom $AUTO_SWISSTOPO_MIN_ZOOM)."
+                                )
+                                return@DropdownMenuItem
+                            }
+                            val zooms = OfflineTilePlan.zoomRange(mv.zoomLevelDouble.toInt(), source)
+                            val box = mv.boundingBox
+                            val tiles = try {
+                                CacheManager(mv).possibleTilesInArea(box, zooms.first, zooms.last)
+                            } catch (e: Exception) { 0 }
+                            offlineDialog = if (OfflineTilePlan.isAllowed(tiles)) {
+                                OfflineDialog.Confirm(box, zooms.first, zooms.last, tiles)
+                            } else {
+                                OfflineDialog.Info(
+                                    "Dieser Ausschnitt braucht $tiles Kacheln (Zoom ${zooms.first}-${zooms.last}). " +
+                                        "Erlaubt sind maximal ${OfflineTilePlan.MAX_TILES}. Bitte weiter hineinzoomen."
+                                )
+                            }
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Offline-Karten: ${cacheBytes / 1_000_000} MB \u2014 loeschen") },
+                        onClick = {
+                            sourceMenuOpen = false
+                            offlineDialog = OfflineDialog.ConfirmDelete
+                        }
+                    )
+                }
+            }
+
+            // T108: Download-Fortschritt mit Abbrechen
+            if (downloadTask != null) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(start = 16.dp, end = 88.dp, bottom = 16.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), MaterialTheme.shapes.medium)
+                        .padding(12.dp)
+                ) {
+                    Text("Karte laden: $downloadDone / $downloadTotal Kacheln", style = MaterialTheme.typography.bodyMedium)
+                    LinearProgressIndicator(
+                        progress = { if (downloadTotal > 0) downloadDone.toFloat() / downloadTotal else 0f },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    )
+                    TextButton(onClick = {
+                        downloadTask?.cancel(true)
+                        downloadTask = null
+                        offlineDialog = OfflineDialog.Info("Download abgebrochen. Bereits geladene Kacheln bleiben gespeichert.")
+                    }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Abbrechen") }
+                }
+            }
+
+            when (val d = offlineDialog) {
+                is OfflineDialog.Confirm -> AlertDialog(
+                    onDismissRequest = { offlineDialog = null },
+                    title = { Text("Ausschnitt herunterladen?") },
+                    text = {
+                        Text("${d.tiles} Kacheln (Zoom ${d.zoomMin}-${d.zoomMax}), ca. ${OfflineTilePlan.estimatedMegabytes(d.tiles)} MB.")
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            offlineDialog = null
+                            val mv = mapViewRef.value ?: return@TextButton
+                            downloadDone = 0
+                            downloadTotal = d.tiles
+                            downloadTask = try {
+                                CacheManager(mv).downloadAreaAsyncNoUI(
+                                    context, d.box, d.zoomMin, d.zoomMax,
+                                    object : CacheManager.CacheManagerCallback {
+                                        override fun onTaskComplete() {
+                                            downloadTask = null
+                                            offlineDialog = OfflineDialog.Info("Download abgeschlossen (${d.tiles} Kacheln).")
+                                        }
+                                        override fun onTaskFailed(errors: Int) {
+                                            downloadTask = null
+                                            offlineDialog = OfflineDialog.Info(
+                                                "Download beendet, $errors Kacheln fehlgeschlagen (Netz?). Erneut starten laedt nur Fehlendes."
+                                            )
+                                        }
+                                        override fun updateProgress(progress: Int, currentZoomLevel: Int, zoomMin: Int, zoomMax: Int) {
+                                            downloadDone = progress
+                                        }
+                                        override fun downloadStarted() {}
+                                        override fun setPossibleTilesInArea(total: Int) { downloadTotal = total }
+                                    }
+                                )
+                            } catch (e: Exception) {
+                                offlineDialog = OfflineDialog.Info("Download nicht moeglich: ${e.message}")
+                                null
+                            }
+                        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Herunterladen") }
+                    },
+                    dismissButton = { TextButton(onClick = { offlineDialog = null }) { Text("Abbrechen") } }
+                )
+                is OfflineDialog.Info -> AlertDialog(
+                    onDismissRequest = { offlineDialog = null },
+                    text = { Text(d.text) },
+                    confirmButton = { TextButton(onClick = { offlineDialog = null }) { Text("OK") } }
+                )
+                OfflineDialog.ConfirmDelete -> AlertDialog(
+                    onDismissRequest = { offlineDialog = null },
+                    title = { Text("Offline-Karten loeschen?") },
+                    text = { Text("Alle gespeicherten Kacheln (${cacheBytes / 1_000_000} MB) werden entfernt. Das kann nicht rueckgaengig gemacht werden.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            offlineDialog = null
+                            scope.launch {
+                                withContext(Dispatchers.IO) { runCatching { purgeTileCache() } }
+                                mapViewRef.value?.let { it.tileProvider.clearTileCache(); it.invalidate() }
+                                cacheBytes = withContext(Dispatchers.IO) { runCatching { tileCacheBytes() }.getOrDefault(0L) }
+                            }
+                        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Loeschen") }
+                    },
+                    dismissButton = { TextButton(onClick = { offlineDialog = null }) { Text("Abbrechen") } }
+                )
+                null -> {}
+            }
+
             // Filter-Chips oben
-            Column(modifier = Modifier.align(Alignment.TopStart)) {
+            Column(modifier = Modifier.align(Alignment.TopStart).padding(end = 56.dp)) {
                 Row(
                     modifier = Modifier
                         .padding(horizontal = 8.dp, vertical = 6.dp)

@@ -16,7 +16,15 @@ class PirolApp : Application() {
         Configuration.getInstance().apply {
             load(this@PirolApp, getSharedPreferences("osmdroid", 0))
             userAgentValue = packageName
-            osmdroidTileCache = java.io.File(cacheDir, "osmdroid_tiles")
+            // T108: persistenter Speicher (filesDir), damit heruntergeladene swisstopo-Kacheln bleiben.
+            // Basispfad explizit setzen: alte Prefs zeigen teils auf die SD-Karte.
+            val osmBase = java.io.File(filesDir, "osmdroid")
+            osmdroidBasePath = osmBase
+            osmdroidTileCache = java.io.File(osmBase, "tiles").also { it.mkdirs() }
+            tileFileSystemCacheMaxBytes = 600L * 1024 * 1024
+            tileFileSystemCacheTrimBytes = 500L * 1024 * 1024
+            // Kacheln gelten ein Jahr als frisch, damit sie offline nicht verfallen
+            expirationOverrideDuration = 365L * 24 * 3600 * 1000
             tileDownloadThreads = 4.toShort()
             tileDownloadMaxQueueSize = 40.toShort()
         }
