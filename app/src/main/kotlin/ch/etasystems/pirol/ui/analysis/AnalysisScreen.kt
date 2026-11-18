@@ -263,6 +263,7 @@ private fun SessionDetailContent(
     state: AnalysisUiState,
     viewModel: AnalysisViewModel
 ) {
+    val referencedIds by viewModel.referencedDetectionIds.collectAsState()  // T127
     val session = state.selectedSession ?: return
     val context = LocalContext.current
     var showAddManualDialog by remember { mutableStateOf(false) }
@@ -622,6 +623,7 @@ private fun SessionDetailContent(
                         // T116: Teilen (Formatwahl-Dialog)
                         // T123: Als Referenz speichern (Button erscheint bei CONFIRMED/CORRECTED)
                         onSaveAsReference = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.saveAsReference(detection) } } else null,
+                        isReference = detection.id in referencedIds,  // T127
                         onShare = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.requestShare(detection) } } else null,
                     )
                     }

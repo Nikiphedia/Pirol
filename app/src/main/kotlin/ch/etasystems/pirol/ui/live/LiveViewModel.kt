@@ -944,10 +944,19 @@ class LiveViewModel(
      * Speichert eine verifizierte Detektion als Referenz-Aufnahme (T123).
      * Schneidet den Ausschnitt (T116: 3 s davor, 5 s danach) aus recording.wav der Session.
      */
+    /** T127: bereits als Referenz gespeicherte Detektionen */
+    val referencedDetectionIds = referenceRepository.referencedDetectionIds
+
     fun saveAsReference(detectionId: String) {
         val detection = detectionListState.getDetections().find { it.id == detectionId } ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
+            // T127: Umschalten — vorhandene Referenz entfernen statt doppelt zu speichern
+            referenceRepository.findByDetection(detectionId)?.let { existing ->
+                referenceRepository.deleteReference(existing)
+                Log.i(TAG, "Referenz entfernt: ${existing.commonName}")
+                return@launch
+            }
             val sessionDir = sessionManager.currentSessionDir ?: sessionManager.listSessions().firstOrNull()
             val recording = sessionDir?.let { sessionManager.getRecordingFile(it) }
             if (sessionDir == null || recording == null) {

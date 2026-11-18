@@ -327,6 +327,7 @@ private fun CompactLiveLayout(
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
                 onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
@@ -524,6 +525,7 @@ private fun MediumLiveLayout(
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
                 onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
@@ -721,6 +723,7 @@ private fun ExpandedLiveLayout(
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
                 onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },

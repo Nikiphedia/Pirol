@@ -306,6 +306,9 @@ class AnalysisViewModel(
      * T123: Bestaetigte/korrigierte Detektion als Referenz speichern (Ausschnitt gemaess T116).
      * Rueckmeldung ueber den Snackbar-Kanal.
      */
+    /** T127: bereits als Referenz gespeicherte Detektionen */
+    val referencedDetectionIds = referenceRepository.referencedDetectionIds
+
     fun saveAsReference(detection: DetectionResult) {
         val file = _uiState.value.recordingFile
         val session = _uiState.value.selectedSession
@@ -315,6 +318,14 @@ class AnalysisViewModel(
         }
         val duration = _uiState.value.recordingDurationSec
         viewModelScope.launch(Dispatchers.IO) {
+            // T127: Umschalten — vorhandene Referenz entfernen statt doppelt zu speichern
+            referenceRepository.findByDetection(detection.id)?.let { existing ->
+                val ok = referenceRepository.deleteReference(existing)
+                withContext(Dispatchers.Main) {
+                    reportError(if (ok) "Referenz entfernt: ${existing.commonName}" else "Referenz entfernen fehlgeschlagen")
+                }
+                return@launch
+            }
             val range = DetectionExcerpt.compute(detection, duration, appPreferences.excerptMaxSec.toFloat())
             val entry = referenceRepository.addFromDetection(detection, file, session.sessionDir.name, range)
             withContext(Dispatchers.Main) {

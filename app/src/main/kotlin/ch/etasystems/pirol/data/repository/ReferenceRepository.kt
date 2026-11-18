@@ -29,6 +29,20 @@ class ReferenceRepository(private val context: Context) {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
     private val entries = mutableListOf<ReferenceEntry>()
 
+    // T127: IDs der Detektionen, die schon als Referenz gespeichert sind (Markierung + Umschalten)
+    private val _referencedDetectionIds = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+    val referencedDetectionIds: kotlinx.coroutines.flow.StateFlow<Set<String>> = _referencedDetectionIds
+
+    private fun publishReferencedIds() {
+        _referencedDetectionIds.value = synchronized(entries) {
+            entries.filter { it.source == "DETECTION" }.map { it.sourceDetectionId }.toSet()
+        }
+    }
+
+    /** T127: vorhandene Referenz einer Detektion (null = noch keine) */
+    fun findByDetection(detectionId: String): ReferenceEntry? =
+        synchronized(entries) { entries.firstOrNull { it.source == "DETECTION" && it.sourceDetectionId == detectionId } }
+
     /** Alle Referenzen (in-memory Cache) */
     val allEntries: List<ReferenceEntry> get() = entries.toList()
 
@@ -186,6 +200,7 @@ class ReferenceRepository(private val context: Context) {
             val index = json.decodeFromString<ReferenceIndex>(indexFile.readText())
             entries.clear()
             entries.addAll(index.entries)
+            publishReferencedIds()  // T127
             Log.i(TAG, "Index geladen: ${entries.size} Referenzen, " +
                     "${getSpecies().size} Arten")
         } catch (e: Exception) {
@@ -195,6 +210,7 @@ class ReferenceRepository(private val context: Context) {
 
     /** Index speichern */
     private suspend fun saveIndex() = withContext(Dispatchers.IO) {
+        publishReferencedIds()  // T127
         val refsRoot = File(context.filesDir, REFERENCES_DIR)
         refsRoot.mkdirs()
         val indexFile = File(refsRoot, INDEX_FILE)

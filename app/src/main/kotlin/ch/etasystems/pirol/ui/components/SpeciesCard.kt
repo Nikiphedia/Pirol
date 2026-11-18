@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.List
@@ -117,6 +118,7 @@ fun SpeciesCard(
     onCorrect: ((String) -> Unit)? = null,
     onMarkUncertain: (() -> Unit)? = null,
     onSaveAsReference: (() -> Unit)? = null,
+    isReference: Boolean = false,  // T127: schon als Referenz gespeichert → markiert, Klick entfernt
     onCompare: (() -> Unit)? = null,
     onJumpToChunk: (() -> Unit)? = null,
     onPlay: (() -> Unit)? = null,
@@ -481,10 +483,10 @@ fun SpeciesCard(
                         (status == VerificationStatus.CONFIRMED || status == VerificationStatus.CORRECTED)) {
                         CardActionButton(
                             onClick = onSaveAsReference,
-                            icon = Icons.Filled.BookmarkAdd,
-                            description = "Als Referenz speichern",
-                            containerColor = neutralContainer,
-                            contentColor = neutralContent
+                            icon = if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd,
+                            description = if (isReference) "Referenz entfernen" else "Als Referenz speichern",
+                            containerColor = if (isReference) MaterialTheme.colorScheme.primary else neutralContainer,
+                            contentColor = if (isReference) MaterialTheme.colorScheme.onPrimary else neutralContent
                         )
                     }
 
