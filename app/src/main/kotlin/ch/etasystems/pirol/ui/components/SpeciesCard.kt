@@ -143,8 +143,9 @@ fun SpeciesCard(
         detection.confidence >= 0.5f -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.error
     }
-    val timestamp = remember(detection.timestampMs) {
-        timeFormat.format(Date(detection.timestampMs))
+    // T106: Zeit der letzten Erfassung zeigen (bei Cluster-Merge aktualisiert), nicht die erste
+    val timestamp = remember(detection.lastSeenAtMs) {
+        timeFormat.format(Date(detection.lastSeenAtMs))
     }
 
     // Verifikations-Status: Rand + Badge

@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -78,11 +79,10 @@ fun DetectionList(
     onToggleLock: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    // version lesen => Recomposition bei Aenderung
-    @Suppress("UNUSED_VARIABLE")
-    val version by detectionState.version
-
-    val detections = detectionState.getDetections()
+    // T106: version muss tatsaechlich gelesen werden, sonst beobachtet Compose den Zaehler nicht.
+    // Ein unbenutztes "val version by ..." liest den State nie → Liste aktualisierte erst beim Tab-Wechsel.
+    val version = detectionState.version.value
+    val detections = remember(version) { detectionState.getDetections() }
 
     if (detections.isEmpty()) {
         // Leerzustand
