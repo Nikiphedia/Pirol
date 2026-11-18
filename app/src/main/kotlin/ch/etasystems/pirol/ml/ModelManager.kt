@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 /**
  * Verwaltet mehrere BirdNET-ONNX-Modelle: Import, Download, Umschaltung.
@@ -38,28 +39,11 @@ class ModelManager(
     companion object {
         private const val TAG = "ModelManager"
         private const val MODEL_DIR = "models"
-        private const val MIN_MODEL_SIZE_BYTES = 100_000_000L // 100 MB Minimum
         private const val LEGACY_MODEL_FILE = "birdnet_v3.onnx"
 
-        /** Verfuegbare Modelle zum Download von Zenodo (T102: Preview 3.1, Labels identisch mit Preview 3) */
-        val AVAILABLE_MODELS = listOf(
-            ModelInfo(
-                id = "v3_fp16",
-                name = "BirdNET V3.0 FP16 (empfohlen)",
-                url = "https://zenodo.org/records/20703646/files/BirdNET%2B_V3.0-preview3.1_Global_11K_FP16.onnx",
-                fileName = "birdnet_v3_fp16.onnx",
-                expectedSizeMB = 259,
-                speciesCount = 11560
-            ),
-            ModelInfo(
-                id = "v3_fp32",
-                name = "BirdNET V3.0 FP32 (volle Praezision)",
-                url = "https://zenodo.org/records/20703646/files/BirdNET%2B_V3.0-preview3.1_Global_11K_FP32.onnx",
-                fileName = "birdnet_v3_fp32.onnx",
-                expectedSizeMB = 516,
-                speciesCount = 11560
-            )
-        )
+        /** T103a: Mindestgroesse einer Modelldatei (3.0 final pruned = 72 MB) */
+        private const val MIN_MODEL_SIZE_BYTES = 50_000_000L
+        private const val IMPORT_TEMP_PREFIX = "import_pending_"
     }
 
     // T102: eigener Scope, damit ein Download das Verlassen des Screens ueberlebt
@@ -76,23 +60,33 @@ class ModelManager(
     var lastDownloadError: String? = null
         private set
 
-    /** Modell-Metadaten fuer Download-Auswahl */
-    data class ModelInfo(
-        val id: String,
-        val name: String,
-        val url: String,
-        val fileName: String,
-        val expectedSizeMB: Int,
-        val speciesCount: Int
-    )
+    init {
+        // T103a: vor T103a importiertes 3.0-final-Modell hat keine Label-Datei → einmal beim Start nachladen
+        downloadScope.launch {
+            val profile = getActiveProfile()
+            if (profile.labelUrl != null && getLabelFile(profile) == null) {
+                Log.i(TAG, "Label-Datei fuer ${profile.id} fehlt — wird nachgeladen")
+                ensureLabels(profile)
+            }
+        }
+    }
 
-    /** Installiertes Modell fuer UI-Anzeige */
+    /** Installiertes Modell fuer UI-Anzeige (T103a: mit zugeordnetem Profil) */
     data class InstalledModel(
         val fileName: String,
         val name: String,
         val sizeMB: Int,
-        val isActive: Boolean
+        val isActive: Boolean,
+        val profile: ModelProfile
     )
+
+    /** T103a: Ergebnis eines Datei-Imports */
+    sealed class ImportResult {
+        data class Success(val profile: ModelProfile) : ImportResult()
+        /** Profil nicht erkennbar (unbekannte Groesse) — UI fragt nach, dann [assignImportedModel] */
+        data class NeedsProfile(val pendingFileName: String, val sizeMB: Int) : ImportResult()
+        data class Failed(val message: String) : ImportResult()
+    }
 
     /** Ob mindestens ein Modell in filesDir verfuegbar ist */
     fun isModelInstalled(): Boolean {
@@ -138,6 +132,22 @@ class ModelManager(
         return null
     }
 
+    /** T103a: Profil des aktiven Modells (ohne Modelldatei: Preview-Profil fuer das Asset-Modell) */
+    fun getActiveProfile(): ModelProfile {
+        val file = getActiveModelFile() ?: return ModelProfile.LEGACY_DEFAULT
+        return ModelProfile.resolve(file.name, file.length())
+    }
+
+    /**
+     * T103a: Label-Datei eines Profils in filesDir/models/ (null = Profil nutzt Asset-Labels
+     * oder Datei fehlt).
+     */
+    fun getLabelFile(profile: ModelProfile): File? {
+        val name = profile.labelFileName ?: return null
+        val file = File(File(context.filesDir, MODEL_DIR), name)
+        return file.takeIf { it.exists() && it.length() > 0 }
+    }
+
     /** Alle installierten Modelle auflisten */
     fun listInstalledModels(): List<InstalledModel> {
         val modelsDir = File(context.filesDir, MODEL_DIR)
@@ -148,12 +158,13 @@ class ModelManager(
         return modelsDir.listFiles()
             ?.filter { it.extension == "onnx" && it.length() >= MIN_MODEL_SIZE_BYTES }
             ?.map { file ->
-                val knownModel = AVAILABLE_MODELS.find { it.fileName == file.name }
+                val profile = ModelProfile.resolve(file.name, file.length())
                 InstalledModel(
                     fileName = file.name,
-                    name = knownModel?.name ?: file.nameWithoutExtension,
+                    name = profile.name,
                     sizeMB = (file.length() / 1_000_000).toInt(),
-                    isActive = file.name == activeFileName
+                    isActive = file.name == activeFileName,
+                    profile = profile
                 )
             }
             ?.sortedByDescending { it.isActive }
@@ -172,77 +183,138 @@ class ModelManager(
     }
 
     /**
-     * Importiert Modell-Datei via SAF URI.
-     * Liest Dateigrösse ueber ContentResolver (nicht available()).
+     * Importiert eine Modell- oder Label-Datei via SAF URI (T103a).
      *
-     * @param uri SAF URI zur ONNX-Datei
-     * @param onProgress Fortschritt 0.0-1.0
-     * @return true bei Erfolg
+     * - `.csv` mit Kopfzeile von 3.0 final: wird als Label-Datei fuer 3.0 final abgelegt.
+     * - Modelldatei: Profil wird ueber die exakte Groesse erkannt und die Datei unter dem
+     *   Katalog-Dateinamen abgelegt. Unbekannte Groesse → [ImportResult.NeedsProfile].
+     * - Benoetigt das Profil eine Label-Datei, die fehlt, wird sie heruntergeladen.
      */
-    suspend fun importFromUri(uri: Uri, onProgress: (Float) -> Unit = {}): Boolean =
+    suspend fun importFromUri(uri: Uri, onProgress: (Float) -> Unit = {}): ImportResult =
         withContext(Dispatchers.IO) {
             val targetDir = File(context.filesDir, MODEL_DIR)
             targetDir.mkdirs()
 
-            // Dateiname und Groesse aus ContentResolver lesen
             val displayName = queryDisplayName(uri) ?: "imported_model.onnx"
             val totalSize = queryFileSize(uri)
-
-            // Ziel-Dateiname: Original-Name behalten wenn .onnx, sonst generieren
-            val targetFileName = if (displayName.endsWith(".onnx")) {
-                displayName
-            } else {
-                "imported_${System.currentTimeMillis()}.onnx"
-            }
-            val targetFile = File(targetDir, targetFileName)
+            val isCsv = displayName.endsWith(".csv", ignoreCase = true)
+            val tempFile = File(targetDir, "$IMPORT_TEMP_PREFIX${System.currentTimeMillis()}.pending")
 
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
-                    ?: return@withContext false
+                    ?: return@withContext ImportResult.Failed("Datei nicht lesbar")
 
-                FileOutputStream(targetFile).use { fos ->
-                    val buffer = ByteArray(65536) // 64 KB Buffer fuer bessere Performance
-                    var bytesWritten = 0L
-                    var bytesRead: Int
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        fos.write(buffer, 0, bytesRead)
-                        bytesWritten += bytesRead
-                        if (totalSize > 0) {
-                            onProgress((bytesWritten.toFloat() / totalSize).coerceAtMost(1f))
+                inputStream.use { input ->
+                    FileOutputStream(tempFile).use { fos ->
+                        val buffer = ByteArray(65536) // 64 KB Buffer fuer bessere Performance
+                        var bytesWritten = 0L
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            fos.write(buffer, 0, bytesRead)
+                            bytesWritten += bytesRead
+                            if (totalSize > 0) {
+                                onProgress((bytesWritten.toFloat() / totalSize).coerceAtMost(1f))
+                            }
                         }
                     }
                 }
-                inputStream.close()
+
+                if (isCsv) return@withContext importLabelFile(tempFile)
 
                 // Groesse verifizieren
-                if (targetFile.length() < MIN_MODEL_SIZE_BYTES) {
-                    Log.e(TAG, "Importierte Datei zu klein: ${targetFile.length()} Bytes")
-                    targetFile.delete()
-                    return@withContext false
+                if (tempFile.length() < MIN_MODEL_SIZE_BYTES) {
+                    Log.e(TAG, "Importierte Datei zu klein: ${tempFile.length()} Bytes")
+                    tempFile.delete()
+                    return@withContext ImportResult.Failed("Datei zu klein oder ungueltig")
                 }
 
-                // Als aktives Modell setzen
-                appPreferences.activeModelFileName = targetFileName
-                Log.i(TAG, "Modell importiert: $targetFileName (${targetFile.length() / 1_000_000} MB)")
+                val profile = ModelProfile.bySize(tempFile.length())
+                if (profile == null) {
+                    Log.i(TAG, "Import: Profil fuer $displayName (${tempFile.length()} Bytes) unbekannt — Rueckfrage")
+                    return@withContext ImportResult.NeedsProfile(tempFile.name, (tempFile.length() / 1_000_000).toInt())
+                }
                 onProgress(1f)
-                true
+                finishImport(tempFile, profile)
             } catch (e: Exception) {
                 Log.e(TAG, "Modell-Import fehlgeschlagen", e)
-                targetFile.delete()
-                false
+                tempFile.delete()
+                ImportResult.Failed("Import fehlgeschlagen: ${e.javaClass.simpleName}")
             }
         }
 
+    /** T103a: Vom User gewaehltes Profil einer importierten Datei zuweisen (nach [ImportResult.NeedsProfile]) */
+    suspend fun assignImportedModel(pendingFileName: String, profile: ModelProfile): ImportResult =
+        withContext(Dispatchers.IO) {
+            val pending = File(File(context.filesDir, MODEL_DIR), pendingFileName)
+            if (!pending.exists()) return@withContext ImportResult.Failed("Importierte Datei nicht mehr vorhanden")
+            finishImport(pending, profile)
+        }
+
+    /** T103a: Abgebrochenen Import verwerfen */
+    fun discardPendingImport(pendingFileName: String) {
+        File(File(context.filesDir, MODEL_DIR), pendingFileName).delete()
+    }
+
+    private suspend fun finishImport(tempFile: File, profile: ModelProfile): ImportResult {
+        val targetFile = File(tempFile.parentFile, profile.fileName)
+        if (targetFile.exists()) targetFile.delete()
+        if (!tempFile.renameTo(targetFile)) {
+            tempFile.delete()
+            return ImportResult.Failed("Datei konnte nicht abgelegt werden")
+        }
+        if (!ensureLabels(profile)) {
+            // Modell bleibt liegen, wird aber erst aktiv, wenn die Labels da sind
+            return ImportResult.Failed(
+                "Labels fuer ${profile.name} fehlen — Internet pruefen oder Label-CSV ebenfalls importieren"
+            )
+        }
+        appPreferences.activeModelFileName = profile.fileName
+        Log.i(TAG, "Modell importiert: ${profile.fileName} als ${profile.id} (${targetFile.length() / 1_000_000} MB)")
+        return ImportResult.Success(profile)
+    }
+
+    /** Importierte CSV als Label-Datei von 3.0 final ablegen (Kopfzeile pruefen) */
+    private fun importLabelFile(tempFile: File): ImportResult {
+        val header = tempFile.bufferedReader().use { it.readLine() }?.trimStart('﻿') ?: ""
+        val profile = ModelProfile.CATALOG.firstOrNull {
+            it.labelFormat == ModelProfile.LabelFormat.FINAL_CSV && it.labelFileName != null
+        }
+        if (profile == null || !header.startsWith("ix,") || !header.contains("scientific_name")) {
+            tempFile.delete()
+            return ImportResult.Failed("CSV ist keine Label-Datei von BirdNET 3.0")
+        }
+        val target = File(tempFile.parentFile, profile.labelFileName!!)
+        if (target.exists()) target.delete()
+        tempFile.renameTo(target)
+        Log.i(TAG, "Label-Datei importiert: ${target.name}")
+        // Liegt ein passendes Modell schon bereit, wird es aktiv
+        listInstalledModels().firstOrNull { it.profile.labelFileName == profile.labelFileName }
+            ?.let { appPreferences.activeModelFileName = it.fileName }
+        return ImportResult.Success(profile)
+    }
+
     /**
-     * Modell von URL herunterladen nach filesDir/models/.
+     * T103a: Stellt sicher, dass die Label-Datei eines Profils vorhanden ist (laedt sie bei Bedarf).
+     * @return true wenn Labels verfuegbar (Asset oder Datei)
+     */
+    suspend fun ensureLabels(profile: ModelProfile): Boolean {
+        if (profile.labelAssetPath != null) return true
+        if (getLabelFile(profile) != null) return true
+        val url = profile.labelUrl ?: return false
+        val target = File(File(context.filesDir, MODEL_DIR), profile.labelFileName ?: return false)
+        return downloadFile(url, target, profile.labelChecksum, profile.labelSizeBytes, minBytes = 1_000L) {}
+    }
+
+    /**
+     * Modell von URL herunterladen nach filesDir/models/ (T103a: inkl. Label-Datei, Pruefsumme).
      * Nutzt Ktor HttpClient mit OkHttp-Engine (Follow-Redirects explizit aktiviert).
      *
-     * @param model ModelInfo mit Download-URL
+     * @param model Profil mit Download-URL
      * @param onProgress Fortschritt 0.0-1.0
      * @return true bei Erfolg
      */
     suspend fun downloadModel(
-        model: ModelInfo,
+        model: ModelProfile,
         onProgress: (Float) -> Unit = {}
     ): Boolean {
         // T102: Der Download laeuft im Scope des ModelManager (App-Lebensdauer), nicht im Scope des
@@ -269,23 +341,60 @@ class ModelManager(
     }
 
     private suspend fun runDownload(
-        model: ModelInfo,
+        model: ModelProfile,
         onProgress: (Float) -> Unit
     ): Boolean = withContext(Dispatchers.IO) {
+        lastDownloadError = null
+        val url = model.downloadUrl
+        if (url == null) {
+            lastDownloadError = "Kein Download fuer ${model.name} hinterlegt"
+            return@withContext false
+        }
         val targetDir = File(context.filesDir, MODEL_DIR)
         targetDir.mkdirs()
-        val targetFile = File(targetDir, model.fileName)
-        val tempFile = File(targetDir, "${model.fileName}.tmp")
-        lastDownloadError = null
 
         // T121: Speicher vorab pruefen (sonst bricht der Download bei 0 % mit irrefuehrender Meldung ab)
-        val neededBytes = model.expectedSizeMB * 1_048_576L + 50L * 1_048_576L
+        val neededBytes = (model.sizeBytes ?: 0L) + (model.labelSizeBytes ?: 0L) + 50L * 1_048_576L
         if (targetDir.usableSpace < neededBytes) {
             lastDownloadError = "Zu wenig Speicher: ${targetDir.usableSpace / 1_048_576} MB frei, " +
                 "${neededBytes / 1_048_576} MB noetig"
             Log.e(TAG, lastDownloadError!!)
             return@withContext false
         }
+
+        // T103a: zuerst die (kleine) Label-Datei, damit das Modell nie ohne passende Labels aktiv wird
+        if (!ensureLabels(model)) {
+            if (lastDownloadError == null) lastDownloadError = "Label-Datei nicht verfuegbar"
+            return@withContext false
+        }
+
+        val ok = downloadFile(url, File(targetDir, model.fileName), model.checksum, model.sizeBytes,
+            MIN_MODEL_SIZE_BYTES, onProgress)
+        if (ok) {
+            // Als aktives Modell setzen
+            appPreferences.activeModelFileName = model.fileName
+            Log.i(TAG, "Modell heruntergeladen: ${model.name}")
+            onProgress(1.0f)
+        }
+        ok
+    }
+
+    /**
+     * Laedt eine Datei per Streaming in [target] (ueber .tmp), prueft Mindestgroesse und Pruefsumme.
+     * Setzt [lastDownloadError] bei Fehlern.
+     */
+    private suspend fun downloadFile(
+        url: String,
+        target: File,
+        checksum: String?,
+        expectedBytes: Long?,
+        minBytes: Long,
+        onProgress: (Float) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
+        target.parentFile?.mkdirs()
+        val tempFile = File(target.parentFile, "${target.name}.tmp")
+        val (algo, expectedHex) = parseChecksum(checksum)
+        val digest = algo?.let { MessageDigest.getInstance(it) }
 
         val client = HttpClient(OkHttp) {
             engine {
@@ -296,20 +405,20 @@ class ModelManager(
             }
         }
         try {
-            Log.i(TAG, "Starte Download: ${model.name} von ${model.url}")
+            Log.i(TAG, "Starte Download: $url")
             // T102: prepareGet + execute streamt den Body. client.get() laedt die ganze Datei
-            // (270-540 MB) zuerst in den Speicher — kein Fortschritt, hoher Heap-Verbrauch.
-            val statusOk = client.prepareGet(model.url) {
+            // zuerst in den Speicher — kein Fortschritt, hoher Heap-Verbrauch.
+            val statusOk = client.prepareGet(url) {
                 // T121: eindeutige Kennung; Zenodo lehnt Anfragen ohne User-Agent mit HTTP 403 ab
                 headers.append(HttpHeaders.UserAgent, "PIROL-Android (+https://github.com/Nikiphedia/Pirol)")
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     lastDownloadError = "Server antwortet HTTP ${response.status.value}" +
                         if (response.status.value == 429) " (zu viele Anfragen, spaeter erneut versuchen)" else ""
-                    Log.e(TAG, "Download abgelehnt: HTTP ${response.status.value} fuer ${model.url}")
+                    Log.e(TAG, "Download abgelehnt: HTTP ${response.status.value} fuer $url")
                     return@execute false
                 }
-                val contentLength = response.contentLength() ?: (model.expectedSizeMB * 1_000_000L)
+                val contentLength = response.contentLength() ?: expectedBytes ?: 1L
                 val channel = response.bodyAsChannel()
 
                 FileOutputStream(tempFile).use { fos ->
@@ -319,6 +428,7 @@ class ModelManager(
                         val read = channel.readAvailable(buffer)
                         if (read <= 0) break
                         fos.write(buffer, 0, read)
+                        digest?.update(buffer, 0, read)
                         totalRead += read
                         onProgress((totalRead.toFloat() / contentLength).coerceAtMost(0.99f))
                     }
@@ -331,32 +441,49 @@ class ModelManager(
             }
 
             // Groesse verifizieren
-            if (tempFile.length() < MIN_MODEL_SIZE_BYTES) {
+            if (tempFile.length() < minBytes) {
                 lastDownloadError = "Download unvollstaendig (${tempFile.length() / 1_048_576} MB)"
                 Log.e(TAG, "Heruntergeladene Datei zu klein: ${tempFile.length()} Bytes")
                 tempFile.delete()
                 return@withContext false
             }
 
-            // Bestehende Datei mit gleichem Namen ersetzen
-            if (targetFile.exists()) {
-                targetFile.delete()
+            // T103a: Pruefsumme verifizieren
+            if (digest != null && expectedHex != null) {
+                val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                if (!actual.equals(expectedHex, ignoreCase = true)) {
+                    lastDownloadError = "Datei beschaedigt (Pruefsumme stimmt nicht)"
+                    Log.e(TAG, "Pruefsumme falsch fuer ${target.name}: $actual, erwartet $expectedHex")
+                    tempFile.delete()
+                    return@withContext false
+                }
             }
-            tempFile.renameTo(targetFile)
 
-            // Als aktives Modell setzen
-            appPreferences.activeModelFileName = model.fileName
-            Log.i(TAG, "Modell heruntergeladen: ${model.name} (${targetFile.length() / 1_000_000} MB)")
-            onProgress(1.0f)
+            // Bestehende Datei mit gleichem Namen ersetzen
+            if (target.exists()) target.delete()
+            tempFile.renameTo(target)
+            Log.i(TAG, "Download fertig: ${target.name} (${target.length() / 1_000_000} MB)")
             true
         } catch (e: Exception) {
             lastDownloadError = "${e.javaClass.simpleName}: ${e.message?.take(120) ?: "ohne Meldung"}"
-            Log.e(TAG, "Download fehlgeschlagen: ${model.name}", e)
+            Log.e(TAG, "Download fehlgeschlagen: $url", e)
             tempFile.delete()
             false
         } finally {
             client.close()
         }
+    }
+
+    /** "sha256:<hex>" / "md5:<hex>" → (Algorithmus fuer MessageDigest, Hex) */
+    private fun parseChecksum(checksum: String?): Pair<String?, String?> {
+        val parts = checksum?.split(":", limit = 2) ?: return null to null
+        if (parts.size != 2) return null to null
+        val algo = when (parts[0].lowercase()) {
+            "sha256" -> "SHA-256"
+            "md5" -> "MD5"
+            else -> return null to null
+        }
+        return algo to parts[1]
     }
 
     /** Installiertes Modell loeschen */

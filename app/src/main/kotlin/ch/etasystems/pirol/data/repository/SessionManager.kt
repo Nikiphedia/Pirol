@@ -294,7 +294,8 @@ class SessionManager(
         longitude: Double? = null,
         regionFilter: String? = null,
         confidenceThreshold: Float = 0.5f,
-        note: String? = null
+        note: String? = null,
+        modelId: String? = null  // T103a
     ): String = withContext(Dispatchers.IO) {
         // Alte Session sicherheitshalber schliessen
         if (isActive) endSession()
@@ -316,7 +317,8 @@ class SessionManager(
             longitude = longitude,
             regionFilter = regionFilter,
             confidenceThreshold = confidenceThreshold,
-            note = note?.trim()?.ifEmpty { null }  // T109
+            note = note?.trim()?.ifEmpty { null },  // T109
+            modelId = modelId  // T103a
         )
 
         val safUri = appPreferences.storageBaseUri

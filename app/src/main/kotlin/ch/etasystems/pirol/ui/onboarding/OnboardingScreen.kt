@@ -50,6 +50,8 @@ import androidx.core.content.ContextCompat
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.ModelProfile
+import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -79,7 +81,23 @@ fun OnboardingScreen(
     var importProgress by remember { mutableFloatStateOf(0f) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
     var importError by remember { mutableStateOf<String?>(null) }
-    var selectedModel by remember { mutableStateOf(ModelManager.AVAILABLE_MODELS.first()) }
+    // T103a: Standard = BirdNET 3.0 final FP16 (E1), erster Katalog-Eintrag
+    var selectedModel by remember { mutableStateOf(ModelProfile.CATALOG.first()) }
+    var pendingImport by remember { mutableStateOf<ModelManager.ImportResult.NeedsProfile?>(null) }
+
+    // T103a: Ergebnis eines Imports auswerten (Erfolg, Rueckfrage zum Profil, Fehler)
+    fun handleImportResult(result: ModelManager.ImportResult) {
+        when (result) {
+            is ModelManager.ImportResult.Success -> {
+                isModelInstalled = modelManager.isModelInstalled()
+                // Classifier-Session zuruecksetzen damit das neue Modell geladen wird
+                classifier.resetSession()
+                Toast.makeText(context, "Importiert: ${result.profile.name}", Toast.LENGTH_SHORT).show()
+            }
+            is ModelManager.ImportResult.NeedsProfile -> pendingImport = result
+            is ModelManager.ImportResult.Failed -> importError = result.message
+        }
+    }
 
     // T102: laufender Download des ModelManager (ueberlebt das Verlassen des Screens)
     val runningDownload by modelManager.downloadProgress.collectAsState()
@@ -101,20 +119,33 @@ fun OnboardingScreen(
             isImporting = true
             importError = null
             scope.launch {
-                val success = modelManager.importFromUri(uri) { progress ->
+                val result = modelManager.importFromUri(uri) { progress ->
                     importProgress = progress
                 }
                 isImporting = false
-                if (success) {
-                    isModelInstalled = true
-                    // Classifier-Session zuruecksetzen damit das neue Modell geladen wird
-                    classifier.resetSession()
-                    Toast.makeText(context, "Modell importiert", Toast.LENGTH_SHORT).show()
-                } else {
-                    importError = "Import fehlgeschlagen — Datei zu klein oder ungueltig"
-                }
+                handleImportResult(result)
             }
         }
+    }
+
+    // T103a: Rueckfrage, wenn das Profil der importierten Datei nicht erkennbar ist
+    pendingImport?.let { pending ->
+        ModelProfileDialog(
+            fileSizeMB = pending.sizeMB,
+            onConfirm = { profile ->
+                pendingImport = null
+                isImporting = true
+                scope.launch {
+                    val result = modelManager.assignImportedModel(pending.pendingFileName, profile)
+                    isImporting = false
+                    handleImportResult(result)
+                }
+            },
+            onDismiss = {
+                modelManager.discardPendingImport(pending.pendingFileName)
+                pendingImport = null
+            }
+        )
     }
 
     // --- Schritt 3: Berechtigungen ---
@@ -271,7 +302,7 @@ fun OnboardingScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Column(modifier = Modifier.selectableGroup()) {
-                        ModelManager.AVAILABLE_MODELS.forEach { model ->
+                        ModelProfile.CATALOG.filter { it.downloadUrl != null }.forEach { model ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -294,7 +325,7 @@ fun OnboardingScreen(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = "${model.expectedSizeMB} MB — ${model.speciesCount} Arten",
+                                        text = "${model.expectedSizeMB} MB — ${model.speciesCount} Klassen — ${model.licenseNote}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

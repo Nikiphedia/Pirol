@@ -36,7 +36,7 @@ val appModule = module {
     single { OboeAudioEngine() }
 
     // BirdNET V3.0 Classifier — Singleton, lazy ONNX Session (T28: als AudioClassifier registriert)
-    single<AudioClassifier> { BirdNetV3Classifier(get(), get()) }
+    single<AudioClassifier> { BirdNetV3Classifier(get(), get(), get()) }  // T103a: + SpeciesNameResolver
 
     // Regionaler Artenfilter — Singleton, laedt DACH-Artenliste aus assets/regions/
     single { RegionalSpeciesFilter(get()) }

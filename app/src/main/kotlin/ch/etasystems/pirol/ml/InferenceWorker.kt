@@ -43,7 +43,6 @@ class InferenceWorker(
 ) {
     companion object {
         private const val TAG = "InferenceWorker"
-        private const val TARGET_RATE = 32000
         private const val STATS_EVERY_WINDOWS = 20
         private const val MAX_ANCHORS = 16
     }
@@ -194,18 +193,38 @@ class InferenceWorker(
         }
     }
 
+    // T103a: Schluessel (Modell|Region) der letzten Zaehlung nicht zugeordneter Regionsarten
+    private var unmappedStatsKey: String? = null
+
+    /**
+     * T103a: Zaehlt einmal pro Modell/Region die Arten des Regionssets, die das aktive Modell
+     * nicht kennt (andere Taxonomie, z.B. 3.0 final). Loesung ueber Aliase folgt in T105.
+     */
+    private fun logUnmappedRegionSpecies() {
+        val labelNames = classifier.labelScientificNames
+        if (labelNames.isEmpty()) return
+        val key = "${classifier.modelId}|${regionalFilter.getCurrentRegionId()}"
+        if (key == unmappedStatsKey) return
+        unmappedStatsKey = key
+        val region = regionalFilter.getSpeciesList()
+        val unmapped = region.filter { it !in labelNames }
+        Log.i(TAG, "T103_STATS model=${classifier.modelId} region=${regionalFilter.getCurrentRegionId()} " +
+            "unmapped=${unmapped.size}/${region.size} examples=${unmapped.take(5)}")
+    }
+
     private fun analyze(job: WindowJob) {
         val window = job.window
         val t0 = System.nanoTime()
         var detections: List<DetectionResult>? = null
         var embedding: FloatArray? = null
         try {
-            // 1. Resampling: ShortArray → FloatArray @32kHz
-            val resampled = AudioResampler.resample(window.pcm, window.sampleRate, TARGET_RATE)
+            // 1. Resampling: ShortArray → FloatArray @Modell-Rate (T103a: aus dem Profil, BirdNET 3: 32 kHz)
+            val targetRate = classifier.inputSampleRate
+            val resampled = AudioResampler.resample(window.pcm, window.sampleRate, targetRate)
 
             // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34)
             if (config.highpassEnabled) {
-                AudioDspUtils.highpassFilter(resampled, TARGET_RATE, 200f)
+                AudioDspUtils.highpassFilter(resampled, targetRate, 200f)
             }
             AudioDspUtils.peakNormalize(resampled, 0.95f)
             AudioDspUtils.brickwallLimit(resampled, 1.0f)
@@ -213,11 +232,12 @@ class InferenceWorker(
             // 2. Klassifizierung (T71: topKThreshold, T61: Embedding aus demselben Durchlauf)
             val output = classifier.classifyWithEmbedding(
                 samples = resampled,
-                sampleRate = TARGET_RATE,
+                sampleRate = targetRate,
                 topK = config.topK,
                 threshold = config.topKThreshold
             )
             embedding = output.embedding
+            logUnmappedRegionSpecies()
             detections = mapResults(filterRegional(output.results), job)
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)

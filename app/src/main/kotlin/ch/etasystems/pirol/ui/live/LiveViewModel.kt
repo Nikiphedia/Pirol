@@ -35,6 +35,7 @@ import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.EmbeddingDatabase
 import ch.etasystems.pirol.ml.EmbeddingExtractor
 import ch.etasystems.pirol.ml.InferenceConfig
+import ch.etasystems.pirol.ml.ModelProfile
 import ch.etasystems.pirol.ml.InferenceWorker
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
@@ -1114,8 +1115,9 @@ class LiveViewModel(
     }
 
     private fun saveEmbeddingDatabase() {
+        // T103a: Datei vor dem Start festhalten (Modellwechsel darf nicht in die Datei des neuen Modells schreiben)
+        val file = getEmbeddingDbFile() ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val file = getEmbeddingDbFile() ?: return@launch
             file.parentFile?.mkdirs()
             try {
                 embeddingDatabase.save(file)
@@ -1126,9 +1128,46 @@ class LiveViewModel(
         }
     }
 
+    // T103a: Embedding-DB pro Modell (Vektoren verschiedener Modelle nie mischen)
+    @Volatile private var embeddingDbFileName: String? = null
+
+    private fun activeEmbeddingDbFileName(): String =
+        (ModelProfile.byId(classifier.modelId) ?: ModelProfile.LEGACY_DEFAULT).embeddingDbFileName
+
     private fun getEmbeddingDbFile(): File? {
         val ctx = applicationContext ?: return null
-        return File(ctx.filesDir, "embeddings/embeddings.bsed")
+        val name = embeddingDbFileName ?: activeEmbeddingDbFileName().also { embeddingDbFileName = it }
+        return File(ctx.filesDir, "embeddings/$name")
+    }
+
+    /**
+     * T103a: Nach einem Modellwechsel (ohne Neustart) die DB des bisherigen Modells sichern
+     * und die des aktiven Modells laden. Laeuft auf dem Session-Dispatcher vor dem Session-Start.
+     */
+    private fun switchEmbeddingDbIfModelChanged() {
+        val ctx = applicationContext ?: return
+        val current = embeddingDbFileName ?: return
+        val wanted = activeEmbeddingDbFileName()
+        if (wanted == current) return
+        try {
+            val oldFile = File(ctx.filesDir, "embeddings/$current")
+            oldFile.parentFile?.mkdirs()
+            embeddingDatabase.save(oldFile)
+        } catch (e: Exception) {
+            Log.e(TAG, "Embedding-DB ($current) speichern fehlgeschlagen", e)
+        }
+        embeddingDatabase.clear()
+        embeddingDbFileName = wanted
+        val newFile = File(ctx.filesDir, "embeddings/$wanted")
+        if (newFile.exists()) {
+            try {
+                embeddingDatabase.load(newFile)
+            } catch (e: Exception) {
+                Log.e(TAG, "Embedding-DB ($wanted) laden fehlgeschlagen", e)
+            }
+        }
+        _uiState.update { it.copy(embeddingDbSize = embeddingDatabase.size) }
+        Log.i(TAG, "Embedding-DB gewechselt: $current -> $wanted (${embeddingDatabase.size} Eintraege)")
     }
 
     // --- Interne Pipeline ---
@@ -1174,6 +1213,7 @@ class LiveViewModel(
                         startInferencePipeline(preroll, sessionReady)
                         viewModelScope.launch(sessionDispatcher) {
                             try {
+                                switchEmbeddingDbIfModelChanged()  // T103a
                                 val loc = locationProvider.location.value
                                 val config = _uiState.value.inferenceConfig
                                 val sessionId = sessionManager.startSession(
@@ -1182,7 +1222,8 @@ class LiveViewModel(
                                     longitude = loc?.longitude,
                                     regionFilter = config.regionFilter,
                                     confidenceThreshold = config.confidenceThreshold,
-                                    note = _sessionNote.value  // T109
+                                    note = _sessionNote.value,  // T109
+                                    modelId = classifier.modelId  // T103a
                                 )
                                 currentSessionId = sessionId
                                 // Fallback-Banner aktualisieren (T51)

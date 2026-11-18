@@ -97,10 +97,29 @@ class SpeciesNameResolver(private val context: Context) {
      */
     fun resolve(scientificName: String): String {
         val key = scientificName.replace(' ', '_')
-        val names = namesMap[key] ?: return scientificName.replace('_', ' ')
-        return names[language]
-            ?: names["en"]
+        val names = namesMap[key]
+        // T103a: Rueckfall auf die Sprachspalten des aktiven Modells (3.0 final), z.B. fuer neue Taxonomie
+        val modelNames = modelNamesMap[key]
+        return names?.get(language)
+            ?: modelNames?.get(language)
+            ?: names?.get("en")
+            ?: modelNames?.get("en")
             ?: scientificName.replace('_', ' ')
+    }
+
+    // T103a: Namen aus der Label-Datei des aktiven Modells (Unterstrich-Schluessel → Sprache → Name)
+    @Volatile private var modelNamesMap: Map<String, Map<String, String>> = emptyMap()
+
+    /** T103a: Namen des aktiven Modells setzen (leer = kein Rueckfall) */
+    fun setModelNames(names: Map<String, Map<String, String>>) {
+        // Speicher sparen: nur Namen behalten, die species_master nicht schon liefert
+        val master = namesMap
+        modelNamesMap = if (master.isEmpty()) names else names.mapNotNull { (key, langs) ->
+            val known = master[key]
+            val missing = if (known == null) langs else langs.filterKeys { it !in known }
+            if (missing.isEmpty()) null else key to missing
+        }.toMap()
+        Log.i(TAG, "T103_STATS model_names=${modelNamesMap.size} species")
     }
 
     /** Alle verfuegbaren Namen fuer eine Art */

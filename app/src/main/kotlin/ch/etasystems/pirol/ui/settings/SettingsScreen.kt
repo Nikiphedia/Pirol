@@ -71,6 +71,8 @@ import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.ModelProfile
+import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SpeciesNameResolver
@@ -545,6 +547,20 @@ fun SettingsScreen(
         var isImporting by remember { mutableStateOf(false) }
         var importProgress by remember { mutableFloatStateOf(0f) }
         var modelError by remember { mutableStateOf<String?>(null) }
+        var pendingImport by remember { mutableStateOf<ModelManager.ImportResult.NeedsProfile?>(null) }
+
+        // T103a: Ergebnis eines Imports auswerten (Erfolg, Rueckfrage zum Profil, Fehler)
+        fun handleImportResult(result: ModelManager.ImportResult) {
+            when (result) {
+                is ModelManager.ImportResult.Success -> {
+                    classifier.resetSession()
+                    installedModels = modelManager.listInstalledModels()
+                    Toast.makeText(context, "Importiert: ${result.profile.name}", Toast.LENGTH_SHORT).show()
+                }
+                is ModelManager.ImportResult.NeedsProfile -> pendingImport = result
+                is ModelManager.ImportResult.Failed -> modelError = result.message
+            }
+        }
 
         // SAF-Import fuer Modell (T37)
         val modelImportLauncher = rememberLauncherForActivityResult(
@@ -554,19 +570,33 @@ fun SettingsScreen(
                 isImporting = true
                 modelError = null
                 scope.launch {
-                    val success = modelManager.importFromUri(uri) { progress ->
+                    val result = modelManager.importFromUri(uri) { progress ->
                         importProgress = progress
                     }
                     isImporting = false
-                    if (success) {
-                        classifier.resetSession()
-                        installedModels = modelManager.listInstalledModels()
-                        Toast.makeText(context, "Modell importiert", Toast.LENGTH_SHORT).show()
-                    } else {
-                        modelError = "Import fehlgeschlagen — Datei zu klein oder ungueltig"
-                    }
+                    handleImportResult(result)
                 }
             }
+        }
+
+        // T103a: Rueckfrage, wenn das Profil der importierten Datei nicht erkennbar ist
+        pendingImport?.let { pending ->
+            ModelProfileDialog(
+                fileSizeMB = pending.sizeMB,
+                onConfirm = { profile ->
+                    pendingImport = null
+                    isImporting = true
+                    scope.launch {
+                        val result = modelManager.assignImportedModel(pending.pendingFileName, profile)
+                        isImporting = false
+                        handleImportResult(result)
+                    }
+                },
+                onDismiss = {
+                    modelManager.discardPendingImport(pending.pendingFileName)
+                    pendingImport = null
+                }
+            )
         }
 
         if (installedModels.isNotEmpty()) {
@@ -601,7 +631,7 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(model.name, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            text = "${model.sizeMB} MB — ${model.fileName}",
+                            text = "${model.sizeMB} MB — ${model.profile.speciesCount} Klassen — ${model.fileName}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -642,7 +672,7 @@ fun SettingsScreen(
             // Modell-Download Buttons
             Text("Modell herunterladen:", style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(4.dp))
-            ModelManager.AVAILABLE_MODELS.forEach { model ->
+            ModelProfile.CATALOG.filter { it.downloadUrl != null }.forEach { model ->
                 val alreadyInstalled = installedModels.any { it.fileName == model.fileName }
                 OutlinedButton(
                     onClick = {
@@ -1669,7 +1699,7 @@ fun SettingsScreen(
                     benchmarkReport = ""
                     scope.launch {
                         benchmarkReport = try {
-                            OnnxBenchmark.run(modelFile) { benchmarkProgress = it }
+                            OnnxBenchmark.run(modelFile, modelManager.getActiveProfile().windowSamples) { benchmarkProgress = it }
                         } catch (e: Exception) {
                             "Benchmark fehlgeschlagen: ${e.message}"
                         }

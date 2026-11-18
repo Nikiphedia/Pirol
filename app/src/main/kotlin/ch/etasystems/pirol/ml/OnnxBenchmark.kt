@@ -27,7 +27,7 @@ import kotlin.random.Random
 object OnnxBenchmark {
 
     private const val TAG = "OnnxBenchmark"
-    private const val INPUT_SAMPLES = 96000   // 3 s @ 32 kHz, wie im Live-Betrieb
+    private const val INPUT_SAMPLES = 96000   // 3 s @ 32 kHz, wie im Live-Betrieb (Default; T103a: aus dem Profil)
     private const val WARMUP_RUNS = 2
     private const val MEASURED_RUNS = 10
     private val THREAD_COUNTS = intArrayOf(1, 2, 4)
@@ -38,7 +38,11 @@ object OnnxBenchmark {
      * @param modelFile aktives Modell (Pfad in filesDir/models)
      * @param onProgress Zwischenstand fuer die UI, z.B. "3/6: 2 Threads, XNNPACK"
      */
-    suspend fun run(modelFile: File, onProgress: (String) -> Unit): String = withContext(Dispatchers.Default) {
+    suspend fun run(
+        modelFile: File,
+        inputSamples: Int = INPUT_SAMPLES,  // T103a: Fensterlaenge des Modellprofils
+        onProgress: (String) -> Unit
+    ): String = withContext(Dispatchers.Default) {
         val report = StringBuilder()
         fun line(s: String) {
             report.append(s).append('\n')
@@ -54,7 +58,7 @@ object OnnxBenchmark {
 
         // Fester Zufalls-Input: reproduzierbar und ohne Sonderfall "Stille"
         val rnd = Random(42)
-        val input = FloatArray(INPUT_SAMPLES) { rnd.nextFloat() * 0.2f - 0.1f }
+        val input = FloatArray(inputSamples) { rnd.nextFloat() * 0.2f - 0.1f }
 
         val env = OrtEnvironment.getEnvironment()
         val total = THREAD_COUNTS.size * 2

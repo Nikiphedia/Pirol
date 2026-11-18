@@ -23,17 +23,16 @@ import java.nio.FloatBuffer
  */
 class BirdNetV3Classifier(
     private val context: Context,
-    private val modelManager: ModelManager
+    private val modelManager: ModelManager,
+    // T103a: erhaelt die Sprachspalten der 3.0-final-Labels als Rueckfall fuer Artnamen
+    private val speciesNameResolver: SpeciesNameResolver? = null
 ) : AudioClassifier {
 
     companion object {
         private const val TAG = "BirdNetV3"
-        private const val LABELS_PATH = "models/birdnet_v3_labels.csv"
         private const val ASSETS_MODEL_PATH = "models/birdnet_v3.onnx"
         private const val INFERENCE_THREADS = 2
-        private const val TARGET_SAMPLE_RATE = 32000
-        private const val CHUNK_DURATION_SEC = 3.0f
-        private const val CHUNK_SAMPLES = (TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC).toInt() // 96000
+        // T103a: Abtastrate, Fensterlaenge und Label-Datei kommen aus dem aktiven ModelProfile
 
         /**
          * Filtert und sortiert rohe ONNX-Scores zu ClassifierResults.
@@ -51,7 +50,8 @@ class BirdNetV3Classifier(
             scores: FloatArray,
             labels: List<Pair<String, String>>,
             topK: Int,
-            threshold: Float
+            threshold: Float,
+            windowSec: Float = 3.0f
         ): List<AudioClassifier.ClassifierResult> {
             val results = mutableListOf<AudioClassifier.ClassifierResult>()
             for (i in scores.indices) {
@@ -63,12 +63,44 @@ class BirdNetV3Classifier(
                             commonName = comName,
                             confidence = scores[i],
                             timeStartSec = 0f,
-                            timeEndSec = CHUNK_DURATION_SEC
+                            timeEndSec = windowSec
                         )
                     )
                 }
             }
             return results.sortedByDescending { it.confidence }.take(topK)
+        }
+
+        /**
+         * T103a: Waehlt den Ausgang laut Profil — zuerst ueber den Namen, sonst ueber den Index.
+         * Keine Groessen-Heuristik (die hat beim 12K-Modell das Embedding als Scores gelesen).
+         */
+        internal fun selectOutputIndex(outputNames: List<String>, name: String?, fallbackIndex: Int): Int {
+            if (name != null) {
+                val byName = outputNames.indexOf(name)
+                if (byName >= 0) return byName
+            }
+            return fallbackIndex.coerceIn(0, (outputNames.size - 1).coerceAtLeast(0))
+        }
+
+        /** T103a: Score-Umrechnung laut Profil (in-place) */
+        internal fun applyTransform(scores: FloatArray, transform: ModelProfile.ScoreTransform): FloatArray {
+            when (transform) {
+                ModelProfile.ScoreTransform.NONE -> {}
+                ModelProfile.ScoreTransform.SIGMOID ->
+                    for (i in scores.indices) scores[i] = (1.0 / (1.0 + kotlin.math.exp(-scores[i].toDouble()))).toFloat()
+                ModelProfile.ScoreTransform.SOFTMAX -> {
+                    val max = scores.maxOrNull() ?: return scores
+                    var sum = 0.0
+                    for (i in scores.indices) {
+                        val e = kotlin.math.exp((scores[i] - max).toDouble())
+                        scores[i] = e.toFloat()
+                        sum += e
+                    }
+                    if (sum > 0) for (i in scores.indices) scores[i] = (scores[i] / sum).toFloat()
+                }
+            }
+            return scores
         }
     }
 
@@ -76,12 +108,24 @@ class BirdNetV3Classifier(
     private var ortSession: OrtSession? = null
     private var sessionFailed = false
     private var labels: List<Pair<String, String>> = emptyList() // (scientific, common)
+    @Volatile private var labelNameSet: Set<String> = emptySet()
+
+    // T103a: Profil, mit dem Session und Labels geladen wurden (wechselt nur ueber resetSession)
+    @Volatile private var profile: ModelProfile = modelManager.getActiveProfile()
+    private var labelsProfileId: String? = null
+    @Volatile private var labelsMissing = false
 
     /** Anzahl geladener Labels */
     override val labelCount: Int get() = labels.size
 
     /** Modell-Name fuer UI */
-    override val modelName: String = "BirdNET V3.0"
+    override val modelName: String get() = profile.name
+
+    override val modelId: String get() = profile.id
+
+    override val inputSampleRate: Int get() = profile.sampleRate
+
+    override val labelScientificNames: Set<String> get() = labelNameSet
 
     /**
      * Prueft ob das ONNX-Modell verfuegbar ist.
@@ -136,8 +180,9 @@ class BirdNetV3Classifier(
 
         return try {
             // 1. Resample auf 32 kHz falls noetig
-            val resampled = if (sampleRate != TARGET_SAMPLE_RATE) {
-                AudioResampler.resample(samples, sampleRate, TARGET_SAMPLE_RATE)
+            val p = profile
+            val resampled = if (sampleRate != p.sampleRate) {
+                AudioResampler.resample(samples, sampleRate, p.sampleRate)
             } else {
                 samples
             }
@@ -148,13 +193,13 @@ class BirdNetV3Classifier(
             // 3. ONNX Inference — Result wird geschlossen (sonst nativer Speicherleck pro Inference)
             val result = runInferenceRaw(session, chunk) ?: return empty
             val (scores, embedding) = result.use { res ->
-                // V3.0 hat 2 Outputs: (embeddings, predictions)
+                // T103a: Ausgaenge laut Profil (Preview: embeddings/predictions, 3.0 final: predictions/embeddings_out)
                 extractPredictions(res, session) to extractEmbeddingFromResult(res, session)
             }
 
             // 4. Top-K filtern und sortieren (via extrahierte Companion-Funktion, T71)
             AudioClassifier.ClassificationOutput(
-                filterAndRank(scores, labels, topK, threshold),
+                filterAndRank(scores, labels, topK, threshold, p.windowSec),
                 embedding
             )
         } catch (e: Exception) {
@@ -182,8 +227,9 @@ class BirdNetV3Classifier(
 
         return try {
             // 1. Resample auf 32 kHz falls noetig
-            val resampled = if (sampleRate != TARGET_SAMPLE_RATE) {
-                AudioResampler.resample(samples, sampleRate, TARGET_SAMPLE_RATE)
+            val p = profile
+            val resampled = if (sampleRate != p.sampleRate) {
+                AudioResampler.resample(samples, sampleRate, p.sampleRate)
             } else {
                 samples
             }
@@ -229,7 +275,9 @@ class BirdNetV3Classifier(
         ortSession?.close()
         ortSession = null
         sessionFailed = false
-        Log.i(TAG, "Session zurueckgesetzt — Modell wird beim naechsten Aufruf neu geladen")
+        // T103a: neues Profil sofort uebernehmen (modelId/Embedding-DB), Labels beim naechsten Aufruf
+        profile = modelManager.getActiveProfile()
+        Log.i(TAG, "Session zurueckgesetzt — Modell ${profile.id} wird beim naechsten Aufruf neu geladen")
     }
 
     // --- Private Hilfsfunktionen ---
@@ -242,11 +290,24 @@ class BirdNetV3Classifier(
     @Synchronized
     private fun ensureSession(): OrtSession? {
         if (ortSession != null) return ortSession
+        // T103a: fehlten nur die Labels und sind sie inzwischen da (Nachladen beim Start), neu versuchen
+        if (sessionFailed && labelsMissing && modelManager.getLabelFile(profile) != null) {
+            sessionFailed = false
+            labelsMissing = false
+        }
         if (sessionFailed) return null
 
         return try {
+            // T103a: Profil des aktiven Modells uebernehmen (nach resetSession ggf. ein anderes)
+            profile = modelManager.getActiveProfile()
             // Labels immer laden (auch wenn Modell fehlt — fuer getLabels())
             loadLabels()
+            if (labels.isEmpty()) {
+                Log.e(TAG, "Keine Labels fuer ${profile.id} — Modell wird nicht geladen")
+                labelsMissing = true
+                sessionFailed = true
+                return null
+            }
 
             val env = OrtEnvironment.getEnvironment()
             val opts = OrtSession.SessionOptions()
@@ -297,39 +358,49 @@ class BirdNetV3Classifier(
 
     /** Session-Info loggen */
     private fun logSessionInfo(session: OrtSession) {
-        Log.i(TAG, "BirdNET V3.0 geladen")
+        Log.i(TAG, "${profile.name} geladen (Profil ${profile.id}, ${profile.sampleRate} Hz, ${profile.windowSamples} Samples)")
         Log.i(TAG, "  Input: ${session.inputNames}")
         Log.i(TAG, "  Output: ${session.outputNames}")
         Log.i(TAG, "  Labels: ${labels.size} Arten")
     }
 
     /**
-     * Labels aus assets/models/birdnet_v3_labels.csv laden.
-     * Format: Semikolon-CSV mit Header (idx;id;sci_name;com_name;class;order)
-     * BOM wird entfernt falls vorhanden.
+     * T103a: Labels des aktiven Profils laden — Preview aus assets (Semikolon-CSV),
+     * 3.0 final aus filesDir/models/ (Komma-CSV mit Sprachspalten).
      */
     private fun loadLabels() {
-        if (labels.isNotEmpty()) return
+        if (labels.isNotEmpty() && labelsProfileId == profile.id) return
+        labels = emptyList()
+        labelNameSet = emptySet()
 
         try {
-            val lines = context.assets.open(LABELS_PATH).bufferedReader().use { reader ->
-                reader.readLines()
-            }
-
-            // Erste Zeile = Header, ueberspringen. BOM entfernen falls vorhanden.
-            labels = lines
-                .drop(1) // Header ueberspringen
-                .filter { it.isNotBlank() }
-                .map { line ->
-                    val cleaned = line.trimStart('\uFEFF').trim()
-                    val parts = cleaned.split(";")
-                    val sciName = parts.getOrElse(2) { "" }.trim()   // sci_name
-                    val comName = parts.getOrElse(3) { "" }.trim()   // com_name
-                    sciName to comName
+            val p = profile
+            val assetPath = p.labelAssetPath
+            val text = if (assetPath != null) {
+                context.assets.open(assetPath).bufferedReader().use { it.readText() }
+            } else {
+                val file = modelManager.getLabelFile(p)
+                if (file == null) {
+                    Log.e(TAG, "Label-Datei fuer ${p.id} fehlt (${p.labelFileName})")
+                    return
                 }
-                .filter { it.first.isNotEmpty() }
+                file.readText()
+            }
+            val languages = SpeciesNameResolver.AVAILABLE_LANGUAGES.mapTo(HashSet()) { it.first }
+            val parsed = ModelLabelParser.parse(text, p.labelFormat, languages)
+            labels = parsed.map { it.scientificName to it.commonName }
+            labelNameSet = parsed.mapTo(HashSet(parsed.size * 2)) { it.scientificName.replace(' ', '_') }
+            labelsProfileId = p.id
+            if (labels.size != p.speciesCount) {
+                Log.w(TAG, "Label-Anzahl ${labels.size} weicht vom Profil ab (${p.speciesCount})")
+            }
+            // Sprachspalten als Rueckfall fuer SpeciesNameResolver (Arten ohne Eintrag in species_master)
+            speciesNameResolver?.setModelNames(
+                parsed.filter { it.namesByLanguage.isNotEmpty() }
+                    .associate { it.scientificName.replace(' ', '_') to it.namesByLanguage }
+            )
 
-            Log.i(TAG, "Labels geladen: ${labels.size} Arten (CSV)")
+            Log.i(TAG, "Labels geladen: ${labels.size} Arten (${p.labelFormat})")
         } catch (e: Exception) {
             Log.e(TAG, "Labels konnten nicht geladen werden", e)
             labels = emptyList()
@@ -342,12 +413,13 @@ class BirdNetV3Classifier(
      * - Laenger: Truncate auf 3 Sekunden
      */
     private fun prepareChunk(input: FloatArray): FloatArray {
+        val n = profile.windowSamples
         return when {
-            input.size == CHUNK_SAMPLES -> input
-            input.size > CHUNK_SAMPLES -> input.copyOfRange(0, CHUNK_SAMPLES)
+            input.size == n -> input
+            input.size > n -> input.copyOfRange(0, n)
             else -> {
                 // Zero-Padding
-                val padded = FloatArray(CHUNK_SAMPLES)
+                val padded = FloatArray(n)
                 input.copyInto(padded)
                 padded
             }
@@ -355,25 +427,18 @@ class BirdNetV3Classifier(
     }
 
     /**
-     * Extrahiert die Prediction-Scores aus dem ONNX-Output.
-     * BirdNET V3.0: 2 Outputs (embeddings [1,1024], predictions [1,N])
+     * Extrahiert die Prediction-Scores aus dem ONNX-Output (T103a: Ausgang laut Profil).
+     * Passt die Laenge nicht zu den Labels, wird nichts gemeldet (sonst falsche Arten).
      */
     private fun extractPredictions(result: OrtSession.Result, session: OrtSession): FloatArray {
-        val outputNames = session.outputNames.toList()
-
-        // Versuche den Output zu finden, der zur Label-Anzahl passt
-        for (i in outputNames.indices) {
-            val output = result[i].value
-            val scores = flattenOutput(output)
-            if (scores != null && (labels.isEmpty() || scores.size == labels.size)) {
-                return scores
-            }
+        val p = profile
+        val idx = selectOutputIndex(session.outputNames.toList(), p.scoreOutputName, p.scoreOutputIndex)
+        val scores = flattenOutput(result[idx].value) ?: return FloatArray(0)
+        if (scores.size != labels.size) {
+            Log.e(TAG, "Score-Ausgang[$idx] hat ${scores.size} Werte, Labels ${labels.size} — Profil ${p.id} passt nicht zum Modell")
+            return FloatArray(0)
         }
-
-        // Fallback: letzten Output nehmen (predictions ist typischerweise Index 1)
-        val predIndex = if (outputNames.size >= 2) 1 else 0
-        val output = result[predIndex].value
-        return flattenOutput(output) ?: FloatArray(0)
+        return applyTransform(scores, p.scoreTransform)
     }
 
     /**
@@ -416,35 +481,23 @@ class BirdNetV3Classifier(
     }
 
     /**
-     * Extrahiert den Embedding-Vektor aus dem ONNX-Result.
-     * BirdNET V3.0: Output Index 0 ist typischerweise embeddings [1,1024].
-     * Erkennung: Der Output, der NICHT zur Label-Anzahl passt, ist das Embedding.
+     * Extrahiert den Embedding-Vektor aus dem ONNX-Result (T103a: Ausgang laut Profil).
+     * Preview: Index 0 (1024-dim), 3.0 final: `embeddings_out` (1280-dim).
+     * Vektoren mit NaN (3.0 final liefert bei reiner Stille NaN) werden verworfen.
      */
     private fun extractEmbeddingFromResult(result: OrtSession.Result, session: OrtSession): FloatArray? {
+        val p = profile
         val outputNames = session.outputNames.toList()
-
-        // Strategie: Finde den Output der NICHT zur Label-Anzahl passt (= Embedding)
-        for (i in outputNames.indices) {
-            val output = result[i].value
-            val flat = flattenOutput(output) ?: continue
-            // Embedding ist typischerweise 1024-dim, Predictions passt zur Label-Anzahl
-            if (labels.isNotEmpty() && flat.size != labels.size) {
-                Log.d(TAG, "Embedding gefunden: Output[$i] '${outputNames[i]}', dim=${flat.size}")
-                return flat
-            }
+        if (outputNames.isEmpty()) return null
+        val idx = selectOutputIndex(outputNames, p.embeddingOutputName, p.embeddingOutputIndex)
+        val flat = flattenOutput(result[idx].value) ?: run {
+            Log.w(TAG, "Kein Embedding-Output gefunden")
+            return null
         }
-
-        // Fallback: ersten Output nehmen (typischerweise Index 0 = Embedding)
-        if (outputNames.isNotEmpty()) {
-            val output = result[0].value
-            val flat = flattenOutput(output)
-            if (flat != null) {
-                Log.d(TAG, "Embedding Fallback: Output[0], dim=${flat.size}")
-                return flat
-            }
+        if (flat.any { it.isNaN() }) {
+            Log.w(TAG, "Embedding enthaelt NaN — verworfen")
+            return null
         }
-
-        Log.w(TAG, "Kein Embedding-Output gefunden")
-        return null
+        return flat
     }
 }

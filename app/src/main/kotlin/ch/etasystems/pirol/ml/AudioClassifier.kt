@@ -40,6 +40,15 @@ interface AudioClassifier {
     /** Modell-Name fuer UI */
     val modelName: String
 
+    /** T103a: Profil-ID des aktiven Modells (null = unbekannt/Test) */
+    val modelId: String? get() = null
+
+    /** T103a: Abtastrate, die das aktive Modell erwartet */
+    val inputSampleRate: Int get() = 32000
+
+    /** T103a: wissenschaftliche Namen aller Labels (Unterstrich-Format), leer wenn nicht geladen */
+    val labelScientificNames: Set<String> get() = emptySet()
+
     /** Ergebnis von [classifyWithEmbedding]: Treffer + optionales Embedding (roh, nicht normalisiert) */
     class ClassificationOutput(
         val results: List<ClassifierResult>,
