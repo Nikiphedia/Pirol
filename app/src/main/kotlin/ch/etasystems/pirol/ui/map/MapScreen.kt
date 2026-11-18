@@ -74,6 +74,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -109,15 +110,31 @@ private fun speciesLabel(species: String): String {
     }
 }
 
+/** T115: Icons gecacht (Main-Thread), damit ein Overlay-Neuaufbau keine Bitmaps neu zeichnet. */
+private val markerIconCache = LruCacheMap<MarkerIconKey, Drawable>(300)
+
 private fun createCircleMarkerIcon(
     resources: android.content.res.Resources,
     color: Int,
     label: String = "",
     locked: Boolean = false,
     size: Int = 64,
-    atlasCode: String? = null,   // T111: kleines Etikett unten
-    count: Int = 1,              // T111: Badge oben rechts ab 2
-    ringColor: Int? = null       // T111: farbiger Ring (Cluster mit Live-Detektionen)
+    atlasCode: String? = null,
+    count: Int = 1,
+    ringColor: Int? = null
+): Drawable = markerIconCache.getOrPut(MarkerIconKey(color, label, locked, size, atlasCode, count, ringColor)) {
+    drawCircleMarkerIcon(resources, color, label, locked, size, atlasCode, count, ringColor)
+}
+
+private fun drawCircleMarkerIcon(
+    resources: android.content.res.Resources,
+    color: Int,
+    label: String,
+    locked: Boolean,
+    size: Int,
+    atlasCode: String?,   // T111: kleines Etikett unten
+    count: Int,           // T111: Badge oben rechts ab 2
+    ringColor: Int?       // T111: farbiger Ring (Cluster mit Live-Detektionen)
 ): Drawable {
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
@@ -283,15 +300,33 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
         snapshotFlow { rawZoom.doubleValue }.debounce(150L).collect { clusterZoom = it }
     }
     val thresholdPx = 48f * LocalDensity.current.density  // ~1 Icon-Durchmesser (48 dp)
-    val clusters = remember(state.markers, state.liveMarkers, state.filterMode, state.focusMode, state.focusSpecies, clusterZoom, thresholdPx) {
+    // T115: Clustering auf Dispatchers.Default (nicht im Main-Thread); veraltete Berechnung wird abgebrochen
+    var clusters by remember { mutableStateOf<List<MapViewModel.MarkerCluster>>(emptyList()) }
+    LaunchedEffect(state.markers, state.liveMarkers, state.filterMode, state.focusMode, state.focusSpecies, clusterZoom, thresholdPx) {
         val input = when {
             state.filterMode == FilterMode.LIVE_ONLY -> state.liveMarkers
             // Fokus-Modus: nur historische Marker der Fokus-Art (Live hat keine Session fuer Verknuepfungen)
             state.focusMode -> state.markers.filter { it.species == state.focusSpecies }
             else -> state.markers + state.liveMarkers
         }
-        buildClusters(input, clusterZoom, thresholdPx.toDouble())
+        clusters = withContext(Dispatchers.Default) { buildClusters(input, clusterZoom, thresholdPx.toDouble()) }
     }
+
+    // T115: MapView-Lifecycle (Tile-Threads pausieren, wenn Screen/Tab nicht aktiv)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapViewRef.value?.onResume()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapViewRef.value?.onPause()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // Letzter Overlay-Stand: Neuaufbau nur bei echter Aenderung
+    val lastOverlayKey = remember { arrayOfNulls<Any>(1) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -377,6 +412,15 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 // T108: Quelle wechseln (nur bei Aenderung, setTileSource leert den Kachel-Cache)
                 val wanted = tileSourceFor(sourceMode, mapView.zoomLevelDouble.toInt())
                 if (mapView.tileProvider.tileSource != wanted) mapView.setTileSource(wanted)
+
+                // T115: Overlays nur neu aufbauen, wenn sich die Eingaben wirklich geaendert haben
+                val overlayKey = listOf(
+                    moveTarget, clusters, state.simultaneousLinks, state.linkAnchor?.detectionId,
+                    state.lockedSpecies, state.focusMode, sourceMode
+                )
+                if (lastOverlayKey[0] == overlayKey) return@AndroidView
+                lastOverlayKey[0] = overlayKey
+                val rebuildStart = android.os.SystemClock.elapsedRealtime()
 
                 // Einfaches clear — GestureDetector läuft unabhängig von Overlays
                 mapView.overlays.clear()
@@ -466,7 +510,12 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 }
 
                 mapView.invalidate()
+                android.util.Log.d(
+                    "MapScreen",
+                    "T115 overlays rebuilt n=${mapView.overlays.size} ms=${android.os.SystemClock.elapsedRealtime() - rebuildStart}"
+                )
             },
+            onRelease = { it.onPause() },
             modifier = Modifier.fillMaxSize()
         )
 
