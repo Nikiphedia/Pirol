@@ -99,6 +99,9 @@ val appModule = module {
     // SpeciesColorRepository — Singleton, laedt species_colors.json aus filesDir (T80)
     single { SpeciesColorRepository(androidContext()) }
 
+    // DetectionExporter — Singleton, Detektions-Ausschnitt teilen (T116)
+    single { ch.etasystems.pirol.data.export.DetectionExporter(androidContext(), get(), get(), get()) }
+
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
     viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }

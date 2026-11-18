@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Star
@@ -119,6 +120,7 @@ fun SpeciesCard(
     onCompare: (() -> Unit)? = null,
     onJumpToChunk: (() -> Unit)? = null,
     onPlay: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,  // T116: Detektion teilen
     isPlayEnabled: Boolean = true,
     playTimeLabel: String? = null,
     onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
@@ -401,7 +403,7 @@ fun SpeciesCard(
             }
 
             // Zeile 4: Verifikations-Buttons + Play (nur wenn Callbacks vorhanden)
-            if (onConfirm != null || onMarkUncertain != null || onReject != null || onCorrect != null || onPlay != null) {
+            if (onConfirm != null || onMarkUncertain != null || onReject != null || onCorrect != null || onPlay != null || onShare != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 // T112: einheitliche Aktionsleiste (alle 56 dp, gleicher Icon-Stil), umbricht auf schmalen Geraeten
                 val neutralContainer = MaterialTheme.colorScheme.secondaryContainer
@@ -506,6 +508,16 @@ fun SpeciesCard(
                             containerColor = neutralContainer,
                             contentColor = neutralContent,
                             enabled = isPlayEnabled
+                        )
+                    }
+                    // T116: Teilen-Button (Formatwahl-Dialog)
+                    if (onShare != null) {
+                        CardActionButton(
+                            onClick = onShare,
+                            icon = Icons.Filled.Share,
+                            description = "Teilen",
+                            containerColor = neutralContainer,
+                            contentColor = neutralContent
                         )
                     }
                     // Kein separates Status-Symbol mehr: der Status steht als Text in Zeile 3

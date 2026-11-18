@@ -133,6 +133,29 @@ class LiveViewModel(
     val snackbarEvents = _snackbarChannel.receiveAsFlow()
     private var pendingUndo: UndoEntry? = null
 
+    // --- T116: Detektion teilen ---
+    private val _shareRequest = MutableStateFlow<ch.etasystems.pirol.data.export.DetectionShareRequest?>(null)
+    val shareRequest: StateFlow<ch.etasystems.pirol.data.export.DetectionShareRequest?> = _shareRequest.asStateFlow()
+
+    /** Oeffnet den Share-Dialog, sofern die Aufnahme der laufenden Session vorliegt. */
+    fun requestShare(detectionId: String) {
+        val detection = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return
+        val dir = sessionManager.currentSessionDir
+        val wav = dir?.let { sessionManager.getRecordingFile(it) }
+        if (dir == null || wav == null || !wav.exists()) {
+            _snackbarChannel.trySend(SnackbarEvent("Aufnahme nicht verfuegbar - Teilen in der Analyse moeglich"))
+            return
+        }
+        viewModelScope.launch {
+            val note = sessionManager.loadMetadata(dir)?.note
+            _shareRequest.value = ch.etasystems.pirol.data.export.DetectionShareRequest(detection, wav, note)
+        }
+    }
+
+    fun clearShareRequest() { _shareRequest.value = null }
+
+    fun postSnackbar(message: String) { _snackbarChannel.trySend(SnackbarEvent(message)) }
+
     // --- T69: Voice-Memo ---
 
     /** Sprach-Memo Recorder — separater AudioRecord, blockiert RecordingService nicht. */

@@ -218,6 +218,16 @@ fun LiveScreen(
                 }
             }
         }
+        // T116: Share-Dialog (Detektion teilen)
+        val shareRequest by viewModel.shareRequest.collectAsState()
+        shareRequest?.let { req ->
+            ch.etasystems.pirol.ui.components.DetectionShareDialog(
+                request = req,
+                exporter = org.koin.compose.koinInject(),
+                onDismiss = { viewModel.clearShareRequest() },
+                onError = { viewModel.postSnackbar(it) }
+            )
+        }
         // Snackbar (T52): Verifikations-Feedback + Undo
         SnackbarHost(
             hostState = snackbarHostState,
@@ -317,6 +327,7 @@ private fun CompactLiveLayout(
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
@@ -513,6 +524,7 @@ private fun MediumLiveLayout(
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
@@ -709,6 +721,7 @@ private fun ExpandedLiveLayout(
                 onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,

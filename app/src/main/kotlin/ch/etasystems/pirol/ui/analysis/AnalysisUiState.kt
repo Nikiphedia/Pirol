@@ -44,6 +44,12 @@ data class AnalysisUiState(
     val sonogramLoading: Boolean = false,
     val sonogramError: String? = null,
 
+    // T116: Wiedergabe-Zoom — Sonogramm zeigt nur den Ausschnitt der abgespielten Detektion
+    val zoomRange: ch.etasystems.pirol.audio.export.DetectionExcerpt.Range? = null,
+    val zoomSpectrogramState: SpectrogramState = SpectrogramState(),
+    // T116: Detektion teilen (Dialog)
+    val shareRequest: ch.etasystems.pirol.data.export.DetectionShareRequest? = null,
+
     // Scroll-Signal (T39: nach Jump zum Chunk soll Sonogramm sichtbar sein)
     val scrollToTop: Boolean = false,
 
