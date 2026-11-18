@@ -163,7 +163,9 @@ fun DetectionList(
                         onCorrect = onCorrect?.let { callback -> { name -> callback(detection.id, name) } },
                         onSaveAsReference = onSaveAsReference?.let { callback -> { callback(detection.id) } },
                         isReference = detection.id in referencedIds,  // T127
-                        onShare = onShare?.let { callback -> { callback(detection.id) } },
+                        // T128: manuelle Eintraege ohne Audio-Position koennen nicht geteilt werden
+                        onShare = onShare?.takeIf { ch.etasystems.pirol.audio.export.DetectionExcerpt.hasAudioPosition(detection) }
+                            ?.let { callback -> { callback(detection.id) } },
                         onSelectAlternative = onSelectAlternative?.let { cb ->
                             { candidate -> cb(detection.id, candidate) }
                         },

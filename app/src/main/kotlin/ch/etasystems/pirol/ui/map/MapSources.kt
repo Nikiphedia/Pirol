@@ -16,12 +16,17 @@ enum class MapSourceMode(val label: String) {
     }
 }
 
-/** Automatik: OSM unterhalb Zoom 13, ab 13 swisstopo Landeskarte (Verhalten seit T106). */
+/** Automatik: OSM unterhalb Zoom 13, ab 13 swisstopo Landeskarte, aber nur wenn die Kartenmitte in der Schweiz liegt (T128). */
 const val AUTO_SWISSTOPO_MIN_ZOOM = 13
 
-fun tileSourceFor(mode: MapSourceMode, zoom: Int): ITileSource = when (mode) {
+/** T128: grobe Bounding-Box Schweiz + Liechtenstein (mit kleinem Rand), nur dort liefert swisstopo Kacheln. */
+fun isInSwitzerland(lat: Double, lon: Double): Boolean =
+    lat in 45.80..47.85 && lon in 5.90..10.55
+
+fun tileSourceFor(mode: MapSourceMode, zoom: Int, lat: Double, lon: Double): ITileSource = when (mode) {
     MapSourceMode.AUTO ->
-        if (zoom >= AUTO_SWISSTOPO_MIN_ZOOM) SwisstopoFarbeTileSource else TileSourceFactory.MAPNIK
+        if (zoom >= AUTO_SWISSTOPO_MIN_ZOOM && isInSwitzerland(lat, lon)) SwisstopoFarbeTileSource
+        else TileSourceFactory.MAPNIK
     MapSourceMode.OSM -> TileSourceFactory.MAPNIK
     MapSourceMode.SWISS_MAP -> SwisstopoFarbeTileSource
     MapSourceMode.SWISS_IMAGE -> SwisstopoLuftbildTileSource

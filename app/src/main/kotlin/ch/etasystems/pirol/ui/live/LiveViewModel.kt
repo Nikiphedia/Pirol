@@ -143,10 +143,11 @@ class LiveViewModel(
     private val _shareRequest = MutableStateFlow<ch.etasystems.pirol.data.export.DetectionShareRequest?>(null)
     val shareRequest: StateFlow<ch.etasystems.pirol.data.export.DetectionShareRequest?> = _shareRequest.asStateFlow()
 
-    /** Oeffnet den Share-Dialog, sofern die Aufnahme der laufenden Session vorliegt. */
+    /** Oeffnet den Share-Dialog; Aufnahme der laufenden Session, nach Stopp die der letzten Session (T128). */
     fun requestShare(detectionId: String) {
         val detection = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return
         val dir = sessionManager.currentSessionDir
+            ?: _uiState.value.lastSessionId?.let { id -> sessionManager.listSessions().firstOrNull { it.name == id } }
         val wav = dir?.let { sessionManager.getRecordingFile(it) }
         if (dir == null || wav == null || !wav.exists()) {
             _snackbarChannel.trySend(SnackbarEvent("Aufnahme nicht verfuegbar - Teilen in der Analyse moeglich"))

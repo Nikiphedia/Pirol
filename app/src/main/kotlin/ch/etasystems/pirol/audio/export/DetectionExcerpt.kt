@@ -28,6 +28,12 @@ object DetectionExcerpt {
     private const val FALLBACK_WINDOW_SEC = 3f
 
     /**
+     * T128: true, wenn die Detektion eine Position in recording.wav hat. Manuelle Eintraege
+     * werden mit chunkStart = chunkEnd = 0 angelegt und haben keine; sie sind nicht teilbar.
+     */
+    fun hasAudioPosition(d: DetectionResult): Boolean = !d.manualEntry || d.chunkEndSec > d.chunkStartSec
+
+    /**
      * Zeitbereich in recording.wav.
      * @param startSec Beginn des Ausschnitts
      * @param endSec Ende des Ausschnitts

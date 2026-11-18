@@ -328,7 +328,7 @@ private fun CompactLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
-                onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
+                onShare = if (uiState.isRecording || uiState.lastSessionId != null) { id -> viewModel.requestShare(id) } else null,  // T116/T128: auch nach Stopp (letzte Session)
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
@@ -526,7 +526,7 @@ private fun MediumLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
-                onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
+                onShare = if (uiState.isRecording || uiState.lastSessionId != null) { id -> viewModel.requestShare(id) } else null,  // T116/T128: auch nach Stopp (letzte Session)
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,
@@ -724,7 +724,7 @@ private fun ExpandedLiveLayout(
                 onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
                 onSaveAsReference = { id -> viewModel.saveAsReference(id) },
                 referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
-                onShare = if (uiState.isRecording) { id -> viewModel.requestShare(id) } else null,  // T116
+                onShare = if (uiState.isRecording || uiState.lastSessionId != null) { id -> viewModel.requestShare(id) } else null,  // T116/T128: auch nach Stopp (letzte Session)
                 onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
                 onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
                 atlasCodes = viewModel.atlasCodes,

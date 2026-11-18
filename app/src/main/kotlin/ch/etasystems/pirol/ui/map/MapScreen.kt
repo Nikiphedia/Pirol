@@ -242,15 +242,36 @@ private fun drawCircleMarkerIcon(
     return BitmapDrawable(resources, bitmap)
 }
 
-/** Belegter Kartenspeicher (osmdroid-SQLite-Cache) in Bytes */
+/** Namen der swisstopo-Quellen im osmdroid-Cache (Spalte provider) */
+private val SWISSTOPO_CACHE_NAMES = listOf(SwisstopoFarbeTileSource.name(), SwisstopoLuftbildTileSource.name())
+
+/**
+ * Belegter swisstopo-Kartenspeicher in Bytes (T128: nur swisstopo-Kacheln, OSM zaehlt nicht mit).
+ * Summe der Kachelgroessen direkt aus der osmdroid-SQLite-Datei, da die Dateigroesse nach
+ * dem Loeschen nicht schrumpft.
+ */
 private fun tileCacheBytes(): Long {
-    val writer = SqlTileWriter()
-    return try { writer.size } finally { writer.onDetach() }
+    val file = java.io.File(
+        org.osmdroid.config.Configuration.getInstance().osmdroidTileCache,
+        SqlTileWriter.DATABASE_FILENAME + ".sqlite"
+    )
+    if (!file.exists()) return 0L
+    val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+        file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+    )
+    return try {
+        val marks = SWISSTOPO_CACHE_NAMES.joinToString(",") { "?" }
+        db.rawQuery(
+            "SELECT COALESCE(SUM(LENGTH(tile)),0) FROM tiles WHERE provider IN ($marks)",
+            SWISSTOPO_CACHE_NAMES.toTypedArray()
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+    } finally { db.close() }
 }
 
+/** T128: loescht nur swisstopo-Kacheln, OSM-Kacheln bleiben erhalten */
 private fun purgeTileCache() {
     val writer = SqlTileWriter()
-    try { writer.purgeCache() } finally { writer.onDetach() }
+    try { SWISSTOPO_CACHE_NAMES.forEach { writer.purgeCache(it) } } finally { writer.onDetach() }
 }
 
 /** Dialoge rund um Kartenquelle und Offline-Download (T108) */
@@ -366,16 +387,25 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     rawZoom.doubleValue = 14.0
                     controller.setCenter(GeoPoint(state.centerLat, state.centerLon))
                     startCenter.value = GeoPoint(state.centerLat, state.centerLon)
-                    setTileSource(tileSourceFor(sourceModeRef.value, 14))
+                    setTileSource(tileSourceFor(sourceModeRef.value, 14, state.centerLat, state.centerLon))
                     addMapListener(object : org.osmdroid.events.MapListener {
                         override fun onZoom(event: org.osmdroid.events.ZoomEvent): Boolean {
                             // T106: nur bei Wechsel der Quelle setzen (setTileSource leert den Kachel-Cache)
                             rawZoom.doubleValue = event.zoomLevel
-                            val source = tileSourceFor(sourceModeRef.value, event.zoomLevel.toInt())
+                            val c = mapCenter
+                            val source = tileSourceFor(sourceModeRef.value, event.zoomLevel.toInt(), c.latitude, c.longitude)
                             if (tileProvider.tileSource != source) setTileSource(source)
                             return false
                         }
-                        override fun onScroll(event: org.osmdroid.events.ScrollEvent) = false
+                        override fun onScroll(event: org.osmdroid.events.ScrollEvent): Boolean {
+                            // T128: Automatik-Wechsel auch nach Verschieben (CH <-> Ausland)
+                            if (sourceModeRef.value == MapSourceMode.AUTO) {
+                                val c = mapCenter
+                                val source = tileSourceFor(MapSourceMode.AUTO, zoomLevelDouble.toInt(), c.latitude, c.longitude)
+                                if (tileProvider.tileSource != source) setTileSource(source)
+                            }
+                            return false
+                        }
                     })
                 }.also { mapView ->
                     mapViewRef.value = mapView
@@ -430,7 +460,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 }
 
                 // T108: Quelle wechseln (nur bei Aenderung, setTileSource leert den Kachel-Cache)
-                val wanted = tileSourceFor(sourceMode, mapView.zoomLevelDouble.toInt())
+                val centre = mapView.mapCenter
+                val wanted = tileSourceFor(sourceMode, mapView.zoomLevelDouble.toInt(), centre.latitude, centre.longitude)
                 if (mapView.tileProvider.tileSource != wanted) mapView.setTileSource(wanted)
 
                 // T115: Overlays nur neu aufbauen, wenn sich die Eingaben wirklich geaendert haben
@@ -826,7 +857,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 OfflineDialog.ConfirmDelete -> AlertDialog(
                     onDismissRequest = { offlineDialog = null },
                     title = { Text("Offline-Karten loeschen?") },
-                    text = { Text("Alle gespeicherten Kacheln (${cacheBytes / 1_000_000} MB) werden entfernt. Das kann nicht rueckgaengig gemacht werden.") },
+                    text = { Text("Alle gespeicherten swisstopo-Kacheln (${cacheBytes / 1_000_000} MB) werden entfernt. Das kann nicht rueckgaengig gemacht werden.") },
                     confirmButton = {
                         TextButton(onClick = {
                             offlineDialog = null
