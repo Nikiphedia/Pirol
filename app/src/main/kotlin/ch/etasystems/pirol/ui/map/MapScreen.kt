@@ -104,6 +104,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -869,7 +870,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     .align(Alignment.CenterStart)
                     .padding(top = 72.dp)
                     .fillMaxHeight()
-                    .width(24.dp)
+                    .width(48.dp)  // T122: 24 dp war im Feld kaum zu treffen
+                    .systemGestureExclusion()  // T122: Android-Zurueck-Geste hier nicht ausloesen
                     .pointerInput(Unit) {
                         val tracker = SideSwipeTracker(SideSwipeTracker.OPEN_THRESHOLD_DP * density)
                         detectHorizontalDragGestures(

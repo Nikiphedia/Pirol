@@ -108,13 +108,14 @@ class AudioPlayer(private val context: Context) {
      * @param startSec Startposition in Sekunden (relativ zum Datei-Anfang)
      * @param endSec   Endposition in Sekunden (null = bis Dateiende)
      */
-    fun playFromOffset(file: File, startSec: Float, endSec: Float? = null) {
+    fun playFromOffset(file: File, startSec: Float, endSec: Float? = null, normalizeDbfs: Float? = null) {
         stop()
         playFromOffsetInternal(
             openStream = { file.inputStream() },
             fileLength  = file.length(),
             startSec    = startSec,
-            endSec      = endSec
+            endSec      = endSec,
+            normalizeDbfs = normalizeDbfs
         )
     }
 
@@ -125,7 +126,7 @@ class AudioPlayer(private val context: Context) {
      * @param startSec Startposition in Sekunden (relativ zum Datei-Anfang)
      * @param endSec   Endposition in Sekunden (null = bis Dateiende)
      */
-    fun playFromOffset(uri: Uri, startSec: Float, endSec: Float? = null) {
+    fun playFromOffset(uri: Uri, startSec: Float, endSec: Float? = null, normalizeDbfs: Float? = null) {
         stop()
         val fileLength = try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
@@ -134,7 +135,8 @@ class AudioPlayer(private val context: Context) {
             openStream = { context.contentResolver.openInputStream(uri) },
             fileLength  = fileLength,
             startSec    = startSec,
-            endSec      = endSec
+            endSec      = endSec,
+            normalizeDbfs = normalizeDbfs
         )
     }
 
@@ -147,7 +149,8 @@ class AudioPlayer(private val context: Context) {
         openStream: () -> InputStream?,
         fileLength: Long,
         startSec:   Float,
-        endSec:     Float?
+        endSec:     Float?,
+        normalizeDbfs: Float? = null
     ) {
         // WAV-Header lesen (44 Bytes, Standard RIFF/PCM)
         val header = ByteArray(44)
@@ -189,6 +192,8 @@ class AudioPlayer(private val context: Context) {
                 }
             } ?: return
         } catch (_: Exception) { return }
+        // T122: Abspielen leiser Aufnahmen auf Zielpegel anheben (nur Wiedergabe, Datei unveraendert)
+        if (normalizeDbfs != null) PlaybackGain.normalizeInPlace(data, normalizeDbfs)
 
         val channelConfig = if (numChannels == 2) AudioFormat.CHANNEL_OUT_STEREO
                             else AudioFormat.CHANNEL_OUT_MONO

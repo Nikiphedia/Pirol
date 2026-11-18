@@ -53,6 +53,9 @@ import java.io.InputStream
  *      SAF-URI-Support fuer Playback und WAV-Lesen (AC5).
  *      MediaPlayer-Fehlerbehandlung via playerError (AC7).
  */
+/** T122: Wiedergabe im Analyse-Tab auf -10 dBFS normalisieren (Wunsch Feldtest) */
+private const val PLAYBACK_DBFS = -10f
+
 class AnalysisViewModel(
     private val sessionManager: SessionManager,
     private val audioPlayer: AudioPlayer,
@@ -251,8 +254,8 @@ class AnalysisViewModel(
             detection, _uiState.value.recordingDurationSec, appPreferences.excerptMaxSec.toFloat()
         )
         when {
-            uri != null -> audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec)
-            f   != null -> audioPlayer.playFromOffset(f,   startSec = range.startSec, endSec = range.endSec)
+            uri != null -> audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
+            f   != null -> audioPlayer.playFromOffset(f,   startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
             else -> return
         }
         _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id) }
@@ -396,8 +399,8 @@ class AnalysisViewModel(
         val f   = _uiState.value.recordingFile
         val det = _uiState.value.compareDetection ?: return
         when {
-            uri != null -> audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec)
-            f   != null -> audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec)
+            uri != null -> audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
+            f   != null -> audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
             else -> return
         }
         _uiState.update { it.copy(playingSource = PlayingSource.DETECTION) }
