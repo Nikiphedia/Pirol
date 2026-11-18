@@ -1,3 +1,12 @@
+import java.util.Properties
+
+// T126: Signierschluessel fuer Release-Builds aus keystore.properties (nicht im Repo, siehe .gitignore).
+// Fehlt die Datei, bleibt der Release-Build unsigniert (z.B. in der CI).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -36,8 +45,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val storePath = keystoreProps.getProperty("storeFile")
+            if (!storePath.isNullOrBlank()) {
+                storeFile = file(storePath)
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (!keystoreProps.getProperty("storeFile").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

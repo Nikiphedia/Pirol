@@ -30,3 +30,7 @@ crash.log
 *.xlsx
 .vs/
 .claude-worktrees/
+# T126: Signierschluessel und Passwoerter nie versionieren
+keystore.properties
+*.jks
+*.keystore
