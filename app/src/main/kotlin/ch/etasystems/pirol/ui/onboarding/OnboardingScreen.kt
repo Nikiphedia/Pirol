@@ -176,7 +176,8 @@ fun OnboardingScreen(
 
                 val regionOptions = listOf(
                     "ch_breeding" to "Schweizer Brutvoegel (180 Arten)",
-                    "dach" to "Mitteleuropa (350+ Arten)",
+                    // T106: ID muss in region_sets.json existieren ("dach" gab es nie → Filter war aus)
+                    "central_europe" to "Mitteleuropa (302 Arten)",
                     null to "Alle Arten (11'560)"
                 )
 

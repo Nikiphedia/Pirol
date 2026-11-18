@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.MotionEvent
+import org.osmdroid.views.overlay.CopyrightOverlay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -170,7 +171,9 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     setTileSource(tileSourceForZoom(14))
                     addMapListener(object : org.osmdroid.events.MapListener {
                         override fun onZoom(event: org.osmdroid.events.ZoomEvent): Boolean {
-                            setTileSource(tileSourceForZoom(event.zoomLevel.toInt()))
+                            // T106: nur bei Wechsel der Quelle setzen (setTileSource leert den Kachel-Cache)
+                            val source = tileSourceForZoom(event.zoomLevel.toInt())
+                            if (tileProvider.tileSource != source) setTileSource(source)
                             return false
                         }
                         override fun onScroll(event: org.osmdroid.events.ScrollEvent) = false
@@ -227,6 +230,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
 
                 // Einfaches clear — GestureDetector läuft unabhängig von Overlays
                 mapView.overlays.clear()
+                // T106: Quellenangabe der aktiven Kachelquelle (swisstopo / OpenStreetMap)
+                mapView.overlays.add(CopyrightOverlay(mapView.context))
 
                 if (moveTarget != null) {
                     // Move-Modus: nur Ziel-Marker anzeigen (orange, gross)

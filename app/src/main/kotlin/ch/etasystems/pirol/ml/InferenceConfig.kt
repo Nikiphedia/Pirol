@@ -23,7 +23,7 @@ data class InferenceConfig(
      */
     val topKThreshold: Float = 0.3f,
 
-    /** Region-ID fuer Artenfilter (null = kein Filter, "dach" = DACH-Filter) */
+    /** Region-ID fuer Artenfilter (null = kein Filter, z.B. "ch_breeding", "central_europe") */
     val regionFilter: String? = "ch_breeding",
 
     /** true = nur regionale Arten anzeigen, false = alle (ungewoehnliche markiert) */

@@ -27,7 +27,9 @@ class RegionalSpeciesFilter(private val context: Context) {
      *
      * @param regionId z.B. "ch_breeding", "ch_all", "central_europe", "all"
      */
-    fun loadRegion(regionId: String = "ch_breeding") {
+    fun loadRegion(requestedId: String = "ch_breeding") {
+        // T106: alte Onboarding-ID "dach" auf das existierende Set abbilden
+        val regionId = if (requestedId == "dach") "central_europe" else requestedId
         try {
             // Sets nur einmal parsen
             if (allSets.isEmpty()) {
