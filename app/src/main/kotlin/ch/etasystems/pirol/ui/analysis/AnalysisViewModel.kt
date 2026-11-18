@@ -8,6 +8,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.VoiceMemoRecorder
+import ch.etasystems.pirol.audio.export.DetectionExcerpt
+import ch.etasystems.pirol.audio.export.ExcerptWav
+import ch.etasystems.pirol.data.export.DetectionShareRequest
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
 import ch.etasystems.pirol.data.AppPreferences
@@ -175,7 +178,9 @@ class AnalysisViewModel(
                     detections = detections,
                     recordingFile = recFile,
                     recordingUri  = recUri,
-                    recordingDurationSec = durationSec
+                    recordingDurationSec = durationSec,
+                    zoomRange = null,
+                    zoomSpectrogramState = SpectrogramState()
                 )
             }
             // T62: Sonogramm streaming rendern (kein readBytes() auf ganzes File)
@@ -196,7 +201,9 @@ class AnalysisViewModel(
                 recordingUri = null,
                 spectrogramState = SpectrogramState(),
                 sonogramLoading = false,
-                sonogramError = null
+                sonogramError = null,
+                zoomRange = null,
+                zoomSpectrogramState = SpectrogramState()
             )
         }
     }
@@ -239,12 +246,62 @@ class AnalysisViewModel(
     fun playDetection(detection: DetectionResult) {
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
+        // T116: Ausschnitt mit Kontext (3 s davor, 5 s danach, max. excerptMaxSec)
+        val range = DetectionExcerpt.compute(
+            detection, _uiState.value.recordingDurationSec, appPreferences.excerptMaxSec.toFloat()
+        )
         when {
-            uri != null -> audioPlayer.playFromOffset(uri, startSec = detection.chunkStartSec, endSec = detection.chunkEndSec)
-            f   != null -> audioPlayer.playFromOffset(f,   startSec = detection.chunkStartSec, endSec = detection.chunkEndSec)
+            uri != null -> audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec)
+            f   != null -> audioPlayer.playFromOffset(f,   startSec = range.startSec, endSec = range.endSec)
             else -> return
         }
         _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id) }
+        if (f != null) renderZoomSonogram(f, range)
+    }
+
+    private var zoomJob: Job? = null
+
+    /** T116: Zoom beenden, Sonogramm zeigt wieder die ganze Session. */
+    fun clearZoom() {
+        zoomJob?.cancel()
+        _uiState.update { it.copy(zoomRange = null, zoomSpectrogramState = SpectrogramState()) }
+    }
+
+    /** T116: Mel-Frames nur fuer den Ausschnitt berechnen; Anzeige zoomt darauf. */
+    private fun renderZoomSonogram(file: File, range: DetectionExcerpt.Range) {
+        zoomJob?.cancel()
+        zoomJob = viewModelScope.launch(Dispatchers.Default) {
+            val frames = try {
+                val pcm = ExcerptWav.readRange(file, range.startSec, range.endSec) ?: return@launch
+                MelSpectrogram(sampleRate = pcm.sampleRate).process(pcm.samples)
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "T116 Zoom-Sonogramm fehlgeschlagen", e)
+                return@launch
+            }
+            if (frames.isEmpty() || _uiState.value.selectedSession == null) return@launch
+            val state = SpectrogramState(maxFrames = frames.size)
+            state.appendFrames(frames)
+            _uiState.update { it.copy(zoomRange = range, zoomSpectrogramState = state) }
+        }
+    }
+
+    /** T116: Share-Dialog fuer eine Detektion oeffnen. */
+    fun requestShare(detection: DetectionResult) {
+        val f = _uiState.value.recordingFile ?: return
+        val dir = _uiState.value.selectedSession?.sessionDir
+        viewModelScope.launch {
+            val note = dir?.let { sessionManager.loadMetadata(it)?.note }
+            _uiState.update { it.copy(shareRequest = DetectionShareRequest(detection, f, note)) }
+        }
+    }
+
+    fun clearShareRequest() {
+        _uiState.update { it.copy(shareRequest = null) }
+    }
+
+    /** T116: Fehlermeldung ueber den bestehenden Snackbar-Kanal anzeigen. */
+    fun reportError(message: String) {
+        _uiState.update { it.copy(saveErrorMessage = message) }
     }
 
     /** Scroll-to-Top Flag zuruecksetzen (nach consume durch UI) */

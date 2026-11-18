@@ -490,6 +490,35 @@ fun SettingsScreen(
             steps = 13  // 10,15,20,...,80 = 15 Positionen → 13 Zwischenschritte
         )
 
+        // T116: Max. Laenge des Detektions-Ausschnitts
+        Spacer(modifier = Modifier.height(12.dp))
+        var excerptMaxSec by remember { mutableIntStateOf(appPreferences.excerptMaxSec) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Max. Laenge Detektions-Ausschnitt", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Wiedergabe, Zoom und Teilen einer Detektion: 3 s davor, 5 s danach, hoechstens diese Laenge.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("$excerptMaxSec s", style = MaterialTheme.typography.bodyMedium)
+        }
+        Slider(
+            value = excerptMaxSec.toFloat(),
+            onValueChange = { v ->
+                val s = (v / 5f).roundToInt() * 5
+                excerptMaxSec = s
+                appPreferences.excerptMaxSec = s
+            },
+            valueRange = 10f..120f,
+            steps = 21  // 10,15,...,120 = 23 Positionen
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))

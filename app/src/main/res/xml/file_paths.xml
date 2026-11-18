@@ -2,4 +2,6 @@
 <paths>
     <!-- Sessions-Ordner (filesDir/sessions/) -->
     <files-path name="sessions" path="sessions/" />
+    <!-- T116: Detektions-Export (cacheDir/share/) -->
+    <cache-path name="share" path="share/" />
 </paths>

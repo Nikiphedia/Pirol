@@ -194,6 +194,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt("pirol_max_recording_minutes", 60)
         set(value) = prefs.edit().putInt("pirol_max_recording_minutes", value).apply()
 
+    // --- Detektions-Ausschnitt (T116) ---
+    /** Maximale Laenge des Detektions-Ausschnitts (Wiedergabe/Zoom/Export) in Sekunden. Default 30. */
+    var excerptMaxSec: Int
+        get() = prefs.getInt("pirol_excerpt_max_sec", 30)
+        set(value) = prefs.edit().putInt("pirol_excerpt_max_sec", value).apply()
+
     // --- Watchlist-Alarm-Cooldown (T58) ---
     /** Pause zwischen Alarmen derselben Art in Minuten. 0 = jeder Treffer alarmiert. Default 5. */
     var alarmCooldownMinutes: Int

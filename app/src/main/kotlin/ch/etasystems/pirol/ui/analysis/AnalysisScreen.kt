@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.defaultMinSize
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
@@ -235,8 +236,30 @@ private fun SessionListView(
 
 // ── Ebene 2: Session-Detail ─────────────────────────────────────
 
+/** T116: Rahmen mit Snackbar-Host (Fehler beim Teilen/Speichern) um die Session-Detailansicht. */
 @Composable
 private fun SessionDetailView(
+    state: AnalysisUiState,
+    viewModel: AnalysisViewModel
+) {
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    LaunchedEffect(state.saveErrorMessage) {
+        state.saveErrorMessage?.let { msg ->
+            viewModel.consumeSaveErrorMessage()
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        SessionDetailContent(state, viewModel)
+        androidx.compose.material3.SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+
+@Composable
+private fun SessionDetailContent(
     state: AnalysisUiState,
     viewModel: AnalysisViewModel
 ) {
@@ -408,6 +431,9 @@ private fun SessionDetailView(
             val settings by specRepo.settings.collectAsState()
             var showPanel by remember { mutableStateOf(false) }
             val sessionRange = rememberStaticRange(state.spectrogramState, settings)
+            // T116: Zoom auf den abgespielten Detektions-Ausschnitt
+            val zoom = state.zoomRange
+            val zoomRangeDb = rememberStaticRange(state.zoomSpectrogramState, settings)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -417,13 +443,13 @@ private fun SessionDetailView(
                     .onSpectrogramLongPress { showPanel = true }
             ) {
                 SpectrogramCanvas(
-                    spectrogramState = state.spectrogramState,
+                    spectrogramState = if (zoom != null) state.zoomSpectrogramState else state.spectrogramState,
                     config = SpectrogramConfig.BIRDS,
                     palette = settings.palette,
                     autoContrast = false,
                     manualMinDb = settings.minDb,
                     manualMaxDb = settings.maxDb,
-                    manualRangeOverride = sessionRange,
+                    manualRangeOverride = if (zoom != null) zoomRangeDb else sessionRange,
                     gamma = settings.gamma,
                     ceilingDb = settings.ceilingDb,
                     fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
@@ -449,16 +475,26 @@ private fun SessionDetailView(
                 }
                 // T107: Abspiel-Zeiger (Position relativ zur ganzen Aufnahme)
                 val posSec = state.playbackPositionSec
-                val durSec = state.recordingDurationSec
+                // T116: im Zoom relativ zum Ausschnitt statt zur ganzen Aufnahme
+                val viewStart = zoom?.startSec ?: 0f
+                val durSec = zoom?.durationSec ?: state.recordingDurationSec
                 if (posSec != null && durSec > 0f) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .drawBehind {
-                                val x = (posSec / durSec).coerceIn(0f, 1f) * size.width
+                                val x = ((posSec - viewStart) / durSec).coerceIn(0f, 1f) * size.width
                                 drawLine(Color.Cyan, Offset(x, 0f), Offset(x, size.height), strokeWidth = 3f)
                             }
                     )
+                }
+                if (zoom != null) {
+                    TextButton(
+                        onClick = { viewModel.clearZoom() },
+                        modifier = Modifier.align(Alignment.TopEnd).defaultMinSize(minHeight = 48.dp)
+                    ) {
+                        Text("Gesamte Session", color = Color.White)
+                    }
                 }
             }
             if (showPanel) {
@@ -583,11 +619,23 @@ private fun SessionDetailView(
                         onGetMemoTargetUri = { viewModel.getMemoTargetUri(detection.id) },
                         // T73: Lock-Species
                         onToggleLock = { viewModel.toggleLock(detection.id) },
+                        // T116: Teilen (Formatwahl-Dialog)
+                        onShare = if (!detection.manualEntry && state.recordingFile != null) { { viewModel.requestShare(detection) } } else null,
                     )
                     }
                 }
             }
         }
+    }
+
+    // T116: Share-Dialog (Detektion teilen)
+    state.shareRequest?.let { req ->
+        ch.etasystems.pirol.ui.components.DetectionShareDialog(
+            request = req,
+            exporter = org.koin.compose.koinInject(),
+            onDismiss = { viewModel.clearShareRequest() },
+            onError = { viewModel.reportError(it) }
+        )
     }
 
     // T78: Raven-Datei Vorschau-Dialog

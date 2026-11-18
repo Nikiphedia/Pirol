@@ -60,6 +60,7 @@ fun DetectionList(
     onReject: ((String) -> Unit)? = null,
     onCorrect: ((String, String) -> Unit)? = null,
     onSaveAsReference: ((String) -> Unit)? = null,
+    onShare: ((String) -> Unit)? = null,  // T116
     onSelectAlternative: ((String, DetectionCandidate) -> Unit)? = null,
     onEditDetection: ((id: String, count: Int, atlasCode: String?, note: String?, voiceMemoFile: String?) -> Unit)? = null,
     atlasCodes: List<AtlasCode> = emptyList(),
@@ -160,6 +161,7 @@ fun DetectionList(
                         onReject = onReject?.let { callback -> { callback(detection.id) } },
                         onCorrect = onCorrect?.let { callback -> { name -> callback(detection.id, name) } },
                         onSaveAsReference = onSaveAsReference?.let { callback -> { callback(detection.id) } },
+                        onShare = onShare?.let { callback -> { callback(detection.id) } },
                         onSelectAlternative = onSelectAlternative?.let { cb ->
                             { candidate -> cb(detection.id, candidate) }
                         },
