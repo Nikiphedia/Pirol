@@ -34,6 +34,8 @@ android {
             cmake {
                 cppFlags += "-std=c++17"
                 arguments += "-DANDROID_STL=c++_shared"
+                // 16-KB-Page-Size-Kompatibilitaet (Android 15+/16)
+                arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
             }
         }
     }
