@@ -23,6 +23,8 @@ import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.data.repository.SessionMetadata
 import ch.etasystems.pirol.data.sync.UploadManager
+import ch.etasystems.pirol.data.sync.UploadStatus
+import ch.etasystems.pirol.data.sync.UploadTargetFactory
 import kotlinx.serialization.json.Json as KJson
 import ch.etasystems.pirol.location.LocationProvider
 import ch.etasystems.pirol.ml.AudioClassifier
@@ -1281,7 +1283,8 @@ class LiveViewModel(
                             _uiState.update { it.copy(lastSessionId = finishedSessionId) }
                         }
                         // Auto-Upload pruefen (T17)
-                        if (uploadManager.autoUpload) {
+                        // T125: nur mit konfiguriertem Ziel (Default OFF = nie automatisch)
+                        if (uploadManager.autoUpload && UploadTargetFactory.isConfigured(appPreferences)) {
                             val sessions = sessionManager.listSessions()
                             if (sessions.isNotEmpty()) {
                                 uploadManager.enqueue(sessions.first())
@@ -1444,8 +1447,18 @@ class LiveViewModel(
      */
     private fun startUploadStatusObserver() {
         viewModelScope.launch {
+            var previous: UploadStatus? = null
             uploadManager.status.collect { status ->
                 _uiState.update { it.copy(uploadStatus = status) }
+                // T125: Snackbar nur bei Uebergang (nicht fuer veralteten Anfangszustand)
+                if (previous != null && previous != status) {
+                    when (status) {
+                        is UploadStatus.Success -> postSnackbar("Upload abgeschlossen")
+                        is UploadStatus.Failed -> postSnackbar("Upload fehlgeschlagen: ${status.error}")
+                        else -> Unit
+                    }
+                }
+                previous = status
             }
         }
     }
