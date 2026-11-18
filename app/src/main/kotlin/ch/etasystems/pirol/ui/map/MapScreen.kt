@@ -97,6 +97,23 @@ import kotlinx.coroutines.withContext
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import android.view.GestureDetector
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.core.view.GestureDetectorCompat
 
 // ── Hilfsfunktionen: Kreis-Marker mit Kuerzel ────────────────────────────────
@@ -260,13 +277,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val scope = rememberCoroutineScope()
     var sourceMode by remember { mutableStateOf(MapSourceMode.fromName(prefs.mapSourceMode)) }
     val sourceModeRef = rememberUpdatedState(sourceMode)
-    var sourceMenuOpen by remember { mutableStateOf(false) }
+    var panelOpen by remember { mutableStateOf(false) }  // T119: Seitenleiste
     var offlineDialog by remember { mutableStateOf<OfflineDialog?>(null) }
     var downloadTask by remember { mutableStateOf<CacheManager.CacheManagerTask?>(null) }
     var downloadDone by remember { mutableIntStateOf(0) }
     var downloadTotal by remember { mutableIntStateOf(0) }
     var cacheBytes by remember { mutableStateOf(0L) }
-    LaunchedEffect(sourceMenuOpen, downloadTask, offlineDialog) {
+    LaunchedEffect(panelOpen, downloadTask, offlineDialog) {
         cacheBytes = withContext(Dispatchers.IO) { runCatching { tileCacheBytes() }.getOrDefault(0L) }
     }
     val locationState by viewModel.currentLocation.collectAsState()
@@ -734,62 +751,6 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 Icon(Icons.Filled.MyLocation, contentDescription = "Mein Standort")
             }
 
-            // T108: Kartenquelle + Offline-Karten (oben rechts)
-            Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
-                IconButton(onClick = { sourceMenuOpen = true }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Filled.Layers, contentDescription = "Kartenquelle")
-                }
-                DropdownMenu(expanded = sourceMenuOpen, onDismissRequest = { sourceMenuOpen = false }) {
-                    for (mode in MapSourceMode.entries) {
-                        DropdownMenuItem(
-                            text = { Text(if (mode == sourceMode) "\u2713 ${mode.label}" else mode.label) },
-                            onClick = {
-                                sourceMode = mode
-                                prefs.mapSourceMode = mode.name
-                                sourceMenuOpen = false
-                            }
-                        )
-                    }
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("Ausschnitt herunterladen") },
-                        enabled = downloadTask == null,
-                        onClick = {
-                            sourceMenuOpen = false
-                            val mv = mapViewRef.value ?: return@DropdownMenuItem
-                            val source = mv.tileProvider.tileSource as? SwisstopoWmtsTileSource
-                            if (source == null) {
-                                offlineDialog = OfflineDialog.Info(
-                                    "Offline-Download gibt es nur fuer swisstopo-Karten. " +
-                                        "Waehle eine swisstopo-Quelle (bei Automatisch: ab Zoom $AUTO_SWISSTOPO_MIN_ZOOM)."
-                                )
-                                return@DropdownMenuItem
-                            }
-                            val zooms = OfflineTilePlan.zoomRange(mv.zoomLevelDouble.toInt(), source)
-                            val box = mv.boundingBox
-                            val tiles = try {
-                                CacheManager(mv).possibleTilesInArea(box, zooms.first, zooms.last)
-                            } catch (e: Exception) { 0 }
-                            offlineDialog = if (OfflineTilePlan.isAllowed(tiles)) {
-                                OfflineDialog.Confirm(box, zooms.first, zooms.last, tiles)
-                            } else {
-                                OfflineDialog.Info(
-                                    "Dieser Ausschnitt braucht $tiles Kacheln (Zoom ${zooms.first}-${zooms.last}). " +
-                                        "Erlaubt sind maximal ${OfflineTilePlan.MAX_TILES}. Bitte weiter hineinzoomen."
-                                )
-                            }
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Offline-Karten: ${cacheBytes / 1_000_000} MB \u2014 loeschen") },
-                        onClick = {
-                            sourceMenuOpen = false
-                            offlineDialog = OfflineDialog.ConfirmDelete
-                        }
-                    )
-                }
-            }
-
             // T108: Download-Fortschritt mit Abbrechen
             if (downloadTask != null) {
                 Column(
@@ -878,32 +839,48 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 null -> {}
             }
 
-            // Filter-Chips oben
-            Column(modifier = Modifier.align(Alignment.TopStart).padding(end = 56.dp)) {
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .horizontalScroll(rememberScrollState())
-                ) {
-                    FilterChip(
-                        selected = state.filterMode == FilterMode.ALL,
-                        onClick = { viewModel.setFilter(FilterMode.ALL) },
-                        label = { Text("Alle") }
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    FilterChip(
-                        selected = state.filterMode == FilterMode.LIVE_ONLY,
-                        onClick = { viewModel.setFilter(FilterMode.LIVE_ONLY) },
-                        label = { Text("Nur Live") }
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    FilterChip(
-                        selected = state.filterMode == FilterMode.RECENT_3,
-                        onClick = { viewModel.setFilter(FilterMode.RECENT_3) },
-                        label = { Text("Letzte 3") }
+            // T119: Menue-Karte oben links (solide Flaeche, auf jedem Kartenhintergrund lesbar)
+            Surface(
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 6.dp
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { panelOpen = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Kartenmenue oeffnen")
+                    }
+                    Text(
+                        when (state.filterMode) {
+                            FilterMode.ALL -> "Alle"
+                            FilterMode.LIVE_ONLY -> "Nur Live"
+                            FilterMode.RECENT_3 -> "Letzte 3"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(end = 14.dp)
                     )
                 }
             }
+
+            // T119: Randzone fuer Wischen von links (schmal, damit Karten-Panning ungestoert bleibt)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(top = 72.dp)
+                    .fillMaxHeight()
+                    .width(24.dp)
+                    .pointerInput(Unit) {
+                        val tracker = SideSwipeTracker(SideSwipeTracker.OPEN_THRESHOLD_DP * density)
+                        detectHorizontalDragGestures(
+                            onDragStart = { tracker.reset() },
+                            onHorizontalDrag = { change, dx ->
+                                change.consume()
+                                if (tracker.onDrag(dx)) panelOpen = true
+                            }
+                        )
+                    }
+            )
 
             // Ladeindikator
             if (state.isLoading) {
@@ -912,11 +889,174 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
 
             // Leerstate (kein Loading, keine Marker)
             if (!state.isLoading && allMarkers.isEmpty()) {
-                Text(
-                    text = "Noch keine georeferenzierten Detektionen",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center)
+                Surface(
+                    modifier = Modifier.align(Alignment.Center),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp
+                ) {
+                    Text(
+                        text = "Noch keine georeferenzierten Detektionen",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
+            }
+        }
+
+        // T119: Seitenleiste (nicht im Move-Modus)
+        if (!inMoveMode) {
+            BackHandler(enabled = panelOpen) { panelOpen = false }
+            AnimatedVisibility(visible = panelOpen, enter = fadeIn(), exit = fadeOut()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.32f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { panelOpen = false }
                 )
+            }
+            AnimatedVisibility(
+                visible = panelOpen,
+                enter = slideInHorizontally { -it },
+                exit = slideOutHorizontally { -it },
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(320.dp)
+                        .pointerInput(Unit) {
+                            // Wischen nach links schliesst
+                            val tracker = SideSwipeTracker(SideSwipeTracker.OPEN_THRESHOLD_DP * density)
+                            detectHorizontalDragGestures(
+                                onDragStart = { tracker.reset() },
+                                onHorizontalDrag = { change, dx ->
+                                    if (tracker.onDrag(-dx)) { change.consume(); panelOpen = false }
+                                }
+                            )
+                        },
+                    shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp,
+                    shadowElevation = 12.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Karte", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { panelOpen = false }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Filled.Close, contentDescription = "Menue schliessen")
+                            }
+                        }
+
+                        Text("Anzeige", style = MaterialTheme.typography.titleSmall)
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = state.filterMode == FilterMode.ALL,
+                                onClick = { viewModel.setFilter(FilterMode.ALL) },
+                                label = { Text("Alle") }
+                            )
+                            FilterChip(
+                                selected = state.filterMode == FilterMode.LIVE_ONLY,
+                                onClick = { viewModel.setFilter(FilterMode.LIVE_ONLY) },
+                                label = { Text("Nur Live") }
+                            )
+                            FilterChip(
+                                selected = state.filterMode == FilterMode.RECENT_3,
+                                onClick = { viewModel.setFilter(FilterMode.RECENT_3) },
+                                label = { Text("Letzte 3") }
+                            )
+                        }
+                        HorizontalDivider()
+
+                        Text("Kartenquelle", style = MaterialTheme.typography.titleSmall)
+                        for (mode in MapSourceMode.entries) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .clickable {
+                                        sourceMode = mode
+                                        prefs.mapSourceMode = mode.name
+                                    },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = mode == sourceMode, onClick = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(mode.label, style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                        HorizontalDivider()
+
+                        Text("Offline-Karten", style = MaterialTheme.typography.titleSmall)
+                        Button(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            enabled = downloadTask == null,
+                            onClick = {
+                                panelOpen = false
+                                val mv = mapViewRef.value ?: return@Button
+                                val source = mv.tileProvider.tileSource as? SwisstopoWmtsTileSource
+                                if (source == null) {
+                                    offlineDialog = OfflineDialog.Info(
+                                        "Offline-Download gibt es nur fuer swisstopo-Karten. " +
+                                            "Waehle eine swisstopo-Quelle (bei Automatisch: ab Zoom $AUTO_SWISSTOPO_MIN_ZOOM)."
+                                    )
+                                    return@Button
+                                }
+                                val zooms = OfflineTilePlan.zoomRange(mv.zoomLevelDouble.toInt(), source)
+                                val box = mv.boundingBox
+                                val tiles = try {
+                                    CacheManager(mv).possibleTilesInArea(box, zooms.first, zooms.last)
+                                } catch (e: Exception) { 0 }
+                                offlineDialog = if (OfflineTilePlan.isAllowed(tiles)) {
+                                    OfflineDialog.Confirm(box, zooms.first, zooms.last, tiles)
+                                } else {
+                                    OfflineDialog.Info(
+                                        "Dieser Ausschnitt braucht $tiles Kacheln (Zoom ${zooms.first}-${zooms.last}). " +
+                                            "Erlaubt sind maximal ${OfflineTilePlan.MAX_TILES}. Bitte weiter hineinzoomen."
+                                    )
+                                }
+                            }
+                        ) { Text("Ausschnitt herunterladen") }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            onClick = {
+                                panelOpen = false
+                                offlineDialog = OfflineDialog.ConfirmDelete
+                            }
+                        ) { Text("Offline-Karten: ${cacheBytes / 1_000_000} MB — loeschen") }
+
+                        // Legende: Artfarben der historischen Marker (max. 12)
+                        val legendSpecies = remember(state.markers) {
+                            state.markers.map { it.species }.distinct().sorted().take(12)
+                        }
+                        if (legendSpecies.isNotEmpty()) {
+                            HorizontalDivider()
+                            Text("Legende", style = MaterialTheme.typography.titleSmall)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(14.dp).background(Color(0xFF1976D2), CircleShape))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Live-Detektion", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            for (sp in legendSpecies) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(14.dp).background(Color(colorRepo.getColor(sp)), CircleShape))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(sp.replace('_', ' '), style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
