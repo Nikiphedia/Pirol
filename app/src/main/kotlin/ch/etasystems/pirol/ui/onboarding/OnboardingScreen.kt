@@ -102,6 +102,7 @@ fun OnboardingScreen(
     // T102: laufender Download des ModelManager (ueberlebt das Verlassen des Screens)
     val runningDownload by modelManager.downloadProgress.collectAsState()
     var sawDownload by remember { mutableStateOf(false) }
+    var partialTick by remember { mutableIntStateOf(0) }  // T104: erzwingt Neuberechnung der Teildatei-Groesse
     LaunchedEffect(runningDownload) {
         if (runningDownload != null) {
             sawDownload = true
@@ -356,6 +357,11 @@ fun OnboardingScreen(
                                 text = "${((runningDownload ?: downloadProgress) * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            // T104: Abbrechen behaelt die Teildatei zum Fortsetzen
+                            OutlinedButton(onClick = { modelManager.cancelDownload() }) {
+                                Text("Abbrechen")
+                            }
                         }
                     } else if (isImporting) {
                         // Fortschrittsbalken waehrend SAF-Import
@@ -377,6 +383,9 @@ fun OnboardingScreen(
                         }
                     } else {
                         // Download-Button
+                        val partialBytes = remember(selectedModel, partialTick, runningDownload) {
+                            modelManager.getPartialBytes(selectedModel)
+                        }
                         Button(
                             onClick = {
                                 isDownloading = true
@@ -391,13 +400,25 @@ fun OnboardingScreen(
                                         classifier.resetSession()
                                         Toast.makeText(context, "Modell heruntergeladen", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        importError = "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121
+                                        importError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) "Download abgebrochen — Teil bleibt zum Fortsetzen erhalten"
+                                        else "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121/T104
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Herunterladen (${selectedModel.expectedSizeMB} MB)")
+                            Text(
+                                if (partialBytes > 0L) "Fortsetzen (${partialBytes / 1_000_000} von ${selectedModel.expectedSizeMB} MB)"
+                                else "Herunterladen (${selectedModel.expectedSizeMB} MB)"
+                            )
+                        }
+                        if (partialBytes > 0L) {
+                            TextButton(onClick = {
+                                modelManager.discardPartialDownload()
+                                partialTick++
+                            }) {
+                                Text("Verwerfen")
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))

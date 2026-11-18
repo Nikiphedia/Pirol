@@ -558,6 +558,7 @@ fun SettingsScreen(
         // T102: laufender Download des ModelManager (ueberlebt das Verlassen des Screens)
         val runningDownload by modelManager.downloadProgress.collectAsState()
         var sawDownload by remember { mutableStateOf(false) }
+        var partialTick by remember { mutableIntStateOf(0) }  // T104: erzwingt Neuberechnung der Teildatei-Groesse
         LaunchedEffect(runningDownload) {
             if (runningDownload != null) {
                 sawDownload = true
@@ -683,6 +684,11 @@ fun SettingsScreen(
                 text = "${((runningDownload ?: downloadProgress) * 100).toInt()}%",
                 style = MaterialTheme.typography.bodySmall
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            // T104: Abbrechen behaelt die Teildatei zum Fortsetzen
+            OutlinedButton(onClick = { modelManager.cancelDownload() }) {
+                Text("Abbrechen")
+            }
         } else if (isImporting) {
             Text("Wird importiert...", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
@@ -696,6 +702,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(4.dp))
             ModelProfile.CATALOG.filter { it.downloadUrl != null }.forEach { model ->
                 val alreadyInstalled = installedModels.any { it.fileName == model.fileName }
+                val partialBytes = remember(model, partialTick, runningDownload) { modelManager.getPartialBytes(model) }
                 OutlinedButton(
                     onClick = {
                         isDownloading = true
@@ -710,7 +717,8 @@ fun SettingsScreen(
                                 installedModels = modelManager.listInstalledModels()
                                 Toast.makeText(context, "${model.name} heruntergeladen", Toast.LENGTH_SHORT).show()
                             } else {
-                                modelError = "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121
+                                modelError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) "Download abgebrochen — Teil bleibt zum Fortsetzen erhalten"
+                                    else "Download fehlgeschlagen — " + (modelManager.lastDownloadError ?: "Internetverbindung pruefen")  // T121/T104
                             }
                         }
                     },
@@ -719,8 +727,17 @@ fun SettingsScreen(
                 ) {
                     Text(
                         if (alreadyInstalled) "${model.name} ✓"
+                        else if (partialBytes > 0L) "${model.name} fortsetzen (${partialBytes / 1_000_000} von ${model.expectedSizeMB} MB)"
                         else "${model.name} (${model.expectedSizeMB} MB)"
                     )
+                }
+                if (partialBytes > 0L && !alreadyInstalled) {
+                    TextButton(onClick = {
+                        modelManager.discardPartialDownload()
+                        partialTick++
+                    }) {
+                        Text("Angefangenen Download verwerfen")
+                    }
                 }
             }
 
