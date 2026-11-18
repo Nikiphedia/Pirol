@@ -136,6 +136,37 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("pirol_spectrogram_ceiling_db", 0f)
         set(value) = prefs.edit().putFloat("pirol_spectrogram_ceiling_db", value).apply()
 
+    // --- T107: Sonogramm-Darstellung (Frequenzbereich, Zeitfenster, Auto-Kontrast-Parameter) ---
+    /** Untere Anzeige-Grenzfrequenz in Hz (wird auf den Bereich der SpectrogramConfig begrenzt). */
+    var spectrogramFreqMinHz: Float
+        get() = prefs.getFloat("pirol_spectrogram_freq_min_hz", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_min_hz", value).apply()
+
+    /** Obere Anzeige-Grenzfrequenz in Hz (wird auf den Bereich der SpectrogramConfig begrenzt). */
+    var spectrogramFreqMaxHz: Float
+        get() = prefs.getFloat("pirol_spectrogram_freq_max_hz", 24000f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_max_hz", value).apply()
+
+    /** Zeitfenster des Live-Sonogramms in Sekunden. */
+    var spectrogramWindowSec: Float
+        get() = prefs.getFloat("pirol_spectrogram_window_sec", 12f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_window_sec", value).apply()
+
+    /** Auto-Kontrast: unteres Perzentil (0..1). */
+    var spectrogramAutoLowPct: Float
+        get() = prefs.getFloat("pirol_spectrogram_auto_low_pct", 0.02f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_auto_low_pct", value).apply()
+
+    /** Auto-Kontrast: oberes Perzentil (0..1). */
+    var spectrogramAutoHighPct: Float
+        get() = prefs.getFloat("pirol_spectrogram_auto_high_pct", 0.98f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_auto_high_pct", value).apply()
+
+    /** Auto-Kontrast: Mindestspanne in dB. */
+    var spectrogramAutoMinSpanDb: Float
+        get() = prefs.getFloat("pirol_spectrogram_auto_min_span_db", 20f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_auto_min_span_db", value).apply()
+
     // --- Aktives Modell (T37) ---
     var activeModelFileName: String
         get() = prefs.getString("pirol_active_model", "birdnet_v3.onnx") ?: "birdnet_v3.onnx"

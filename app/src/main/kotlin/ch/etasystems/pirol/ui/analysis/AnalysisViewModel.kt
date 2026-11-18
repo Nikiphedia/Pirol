@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ui.analysis
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,6 +24,9 @@ import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.SpectrogramState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,9 +74,10 @@ class AnalysisViewModel(
     /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
     val memoAudioPlayer by lazy { AudioPlayer(context) }
 
+    /** T107: Polling-Job fuer die Abspielposition. */
+    private var positionJob: Job? = null
+
     init {
-        // T56: Sonogramm-Dynamik-Prefs laden
-        reloadSpectrogramPrefs()
         // T65: Crash-Recovery vor erstem Session-Laden (verwaiste Sessions reparieren)
         viewModelScope.launch {
             sessionManager.recoverOrphanSessions()
@@ -83,7 +88,22 @@ class AnalysisViewModel(
             audioPlayer.state.collect { state ->
                 _uiState.update { it.copy(playbackState = state) }
                 if (state == AudioPlayer.PlaybackState.IDLE) {
-                    _uiState.update { it.copy(playingChunkIndex = null, playingSource = null) }
+                    _uiState.update {
+                        it.copy(
+                            playingChunkIndex = null, playingSource = null,
+                            playingDetectionId = null, playbackPositionSec = null
+                        )
+                    }
+                }
+                // T107: Position fuer den Zeiger im Sonogramm pollen (~10 Hz), solange etwas spielt
+                positionJob?.cancel()
+                if (state == AudioPlayer.PlaybackState.PLAYING) {
+                    positionJob = viewModelScope.launch {
+                        while (isActive) {
+                            _uiState.update { it.copy(playbackPositionSec = audioPlayer.currentPositionSec()) }
+                            delay(100)
+                        }
+                    }
                 }
             }
         }
@@ -160,7 +180,7 @@ class AnalysisViewModel(
             }
             // T62: Sonogramm streaming rendern (kein readBytes() auf ganzes File)
             if (recFile != null) {
-                renderSessionSonogramStreaming { recFile.inputStream() }
+                renderSessionSonogramStreaming(recFile.length()) { recFile.inputStream() }
             }
         }
     }
@@ -175,7 +195,8 @@ class AnalysisViewModel(
                 recordingFile = null,
                 recordingUri = null,
                 spectrogramState = SpectrogramState(),
-                spectrogramRange = null
+                sonogramLoading = false,
+                sonogramError = null
             )
         }
     }
@@ -195,7 +216,7 @@ class AnalysisViewModel(
             f   != null -> audioPlayer.play(f)
             else -> return
         }
-        _uiState.update { it.copy(playingChunkIndex = 0) }
+        _uiState.update { it.copy(playingChunkIndex = 0, playingDetectionId = null) }
     }
 
     /** Aufnahme abspielen (spielt recording.wav) */
@@ -223,7 +244,7 @@ class AnalysisViewModel(
             f   != null -> audioPlayer.playFromOffset(f,   startSec = detection.chunkStartSec, endSec = detection.chunkEndSec)
             else -> return
         }
-        _uiState.update { it.copy(playingChunkIndex = null) }
+        _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id) }
     }
 
     /** Scroll-to-Top Flag zuruecksetzen (nach consume durch UI) */
@@ -296,9 +317,7 @@ class AnalysisViewModel(
                 referenceEntries = emptyList(),
                 selectedReference = null,
                 detectionSpectrogramState = SpectrogramState(),
-                detectionSpectrogramRange = null,
                 referenceSpectrogramState = SpectrogramState(),
-                referenceSpectrogramRange = null,
                 playingSource = null
             )
         }
@@ -355,10 +374,7 @@ class AnalysisViewModel(
             val mel    = MelSpectrogram(sampleRate = 48000)
             val frames = mel.process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
-            val range  = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
-            _uiState.update {
-                it.copy(detectionSpectrogramState = state, detectionSpectrogramRange = range)
-            }
+            _uiState.update { it.copy(detectionSpectrogramState = state) }
         }
     }
 
@@ -376,10 +392,7 @@ class AnalysisViewModel(
             val mel    = MelSpectrogram(sampleRate = 48000)
             val frames = mel.process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
-            val range  = if (frames.isNotEmpty()) DynamicRangeMapper.computeStatic(frames) else null
-            _uiState.update {
-                it.copy(referenceSpectrogramState = state, referenceSpectrogramRange = range)
-            }
+            _uiState.update { it.copy(referenceSpectrogramState = state) }
         }
     }
 
@@ -400,71 +413,99 @@ class AnalysisViewModel(
      *
      * @param openStream Lambda das einen frischen InputStream oeffnet (wird 2× aufgerufen).
      */
-    private fun renderSessionSonogramStreaming(openStream: () -> InputStream?) {
+    private fun renderSessionSonogramStreaming(fileLength: Long, openStream: () -> InputStream?) {
+        // T107: Ladeanzeige + Fehlertext statt stillem Abbruch
+        _uiState.update { it.copy(sonogramLoading = true, sonogramError = null) }
         viewModelScope.launch(Dispatchers.Default) {
+            val t0 = SystemClock.elapsedRealtime()
             val TARGET_FRAMES = 2048
             val CHUNK_SAMPLES = 480_000   // 10 Sekunden @ 48kHz
             val HOP_SIZE      = 512       // MelSpectrogram-Hop-Groesse
 
-            // Pass 1: Header lesen → sampleRate + totalSamples
-            val header = ByteArray(44)
-            val sampleRate: Int
-            val totalSamples: Long
-            try {
-                openStream()?.use { stream -> stream.read(header) } ?: return@launch
-                val buf      = java.nio.ByteBuffer.wrap(header).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                sampleRate   = buf.getInt(24).takeIf { it > 0 } ?: return@launch
-                val dataSize = buf.getInt(40).toLong().coerceAtLeast(0L)
-                totalSamples = dataSize / 2L  // 16-bit Mono
-            } catch (e: Exception) {
-                Log.e("AnalysisVM", "Sonogramm-Header-Fehler", e)
-                return@launch
-            }
-
-            // Stride: gleichmaessige Auswahl auf TARGET_FRAMES
-            val totalFramesEst  = (totalSamples / HOP_SIZE).toInt().coerceAtLeast(1)
-            val stride          = maxOf(1, totalFramesEst / TARGET_FRAMES)
-
-            // Pass 2: Chunks streamen, Mel berechnen, Stride filtern
-            val mel             = MelSpectrogram(sampleRate = sampleRate)
             val collectedFrames = mutableListOf<FloatArray>()
-            var frameCounter    = 0  // laufender Zaehler fuer Stride (ueber Chunk-Grenzen)
-
+            var error: String? = null
+            var totalSamples = 0L
+            var stride = 1
             try {
-                openStream()?.use { stream ->
-                    stream.skip(44)  // RIFF-Header ueberspringen
-                    val chunkBytes = ByteArray(CHUNK_SAMPLES * 2)
-                    var bytesRead: Int
-                    while (stream.read(chunkBytes).also { bytesRead = it } > 0) {
-                        val numSamples = bytesRead / 2
-                        val samples    = ShortArray(numSamples)
-                        val bbuf = java.nio.ByteBuffer
-                            .wrap(chunkBytes, 0, bytesRead)
-                            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                        for (i in 0 until numSamples) samples[i] = bbuf.short
+                // Pass 1: Header lesen -> sampleRate + totalSamples
+                val header = ByteArray(44)
+                val read = openStream()?.use { it.read(header) } ?: -1
+                if (read < 44) {
+                    error = "Aufnahme nicht lesbar (Header unvollstaendig)"
+                } else {
+                    val buf        = java.nio.ByteBuffer.wrap(header).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    val sampleRate = buf.getInt(24)
+                    val headerData = buf.getInt(40).toLong().coerceAtLeast(0L) / 2L
+                    // T107: Datenlaenge zusaetzlich aus der Dateigroesse — ein Header mit dataSize=0
+                    // (nicht finalisierte Aufnahme) wuerde sonst Stride 1 und nur die ersten ~22 s ergeben.
+                    val fileSamples = ((fileLength - 44L) / 2L).coerceAtLeast(0L)
+                    totalSamples = if (headerData in 1..fileSamples) headerData else fileSamples
+                    if (sampleRate <= 0) {
+                        error = "Ungueltige Abtastrate im WAV-Header"
+                    } else if (totalSamples <= 0L) {
+                        error = "Aufnahme enthaelt keine Audio-Daten"
+                    } else {
+                        // Aufrunden, damit hoechstens TARGET_FRAMES Frames die GANZE Session abdecken
+                        val totalFramesEst = (totalSamples / HOP_SIZE).toInt().coerceAtLeast(1)
+                        stride = maxOf(1, (totalFramesEst + TARGET_FRAMES - 1) / TARGET_FRAMES)
 
-                        val frames = mel.process(samples)
-                        for (frame in frames) {
-                            if (frameCounter % stride == 0) collectedFrames.add(frame)
-                            frameCounter++
+                        // Pass 2: Chunks streamen, Mel berechnen, Stride filtern
+                        val mel = MelSpectrogram(sampleRate = sampleRate)
+                        var frameCounter = 0
+                        try {
+                            openStream()?.use { stream ->
+                                stream.skip(44)
+                                val chunkBytes = ByteArray(CHUNK_SAMPLES * 2)
+                                var bytesRead: Int
+                                while (stream.read(chunkBytes).also { bytesRead = it } > 0) {
+                                    val numSamples = bytesRead / 2
+                                    val samples    = ShortArray(numSamples)
+                                    val bbuf = java.nio.ByteBuffer
+                                        .wrap(chunkBytes, 0, bytesRead)
+                                        .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                                    for (i in 0 until numSamples) samples[i] = bbuf.short
+                                    for (frame in mel.process(samples)) {
+                                        if (frameCounter % stride == 0) collectedFrames.add(frame)
+                                        frameCounter++
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AnalysisVM", "Sonogramm-Streaming-Fehler", e)
+                            // Teilweise gesammelte Frames werden weiter verwendet
+                            if (collectedFrames.isEmpty()) error = "Sonogramm-Fehler: ${e.message ?: e.javaClass.simpleName}"
                         }
+                        if (error == null && collectedFrames.isEmpty()) error = "Keine Spektrogramm-Frames berechnet"
                     }
                 }
             } catch (e: Exception) {
-                Log.e("AnalysisVM", "Sonogramm-Streaming-Fehler", e)
-                if (collectedFrames.isEmpty()) return@launch
-                // Teilweise gesammelte Frames verwenden
+                Log.e("AnalysisVM", "Sonogramm-Header-Fehler", e)
+                error = "Sonogramm-Fehler: ${e.message ?: e.javaClass.simpleName}"
             }
 
-            // Sicherheitsnetz: nie mehr als TARGET_FRAMES
             val limited = collectedFrames.take(TARGET_FRAMES)
-            if (limited.isEmpty()) return@launch
+            val ms = SystemClock.elapsedRealtime() - t0
+            if (limited.isEmpty()) {
+                Log.w("AnalysisVM", "T107 sonogram FAILED ms=$ms samples=$totalSamples error=$error")
+                _uiState.update { it.copy(sonogramLoading = false, sonogramError = error ?: "Kein Sonogramm") }
+                return@launch
+            }
 
             val state = SpectrogramState(maxFrames = TARGET_FRAMES)
             state.appendFrames(limited)
+            // Diagnose: Pegelverteilung (ein komplett stummes Audio ergibt ein schwarzes Bild)
             val range = DynamicRangeMapper.computeStatic(limited)
+            var sum = 0.0; var cnt = 0L; var mx = -200f
+            for (f in limited) for (v in f) { sum += v; cnt++; if (v > mx) mx = v }
+            Log.i(
+                "AnalysisVM",
+                "T107 sonogram frames=${limited.size} ms=$ms range=%.1f..%.1f mean_db=%.1f max_db=%.1f stride=$stride samples=$totalSamples"
+                    .format(range.first, range.second, sum / cnt, mx)
+            )
+            // Session wurde waehrend der Berechnung geschlossen: Ergebnis verwerfen
+            if (_uiState.value.selectedSession == null) return@launch
             _uiState.update {
-                it.copy(spectrogramState = state, spectrogramRange = range)
+                it.copy(spectrogramState = state, sonogramLoading = false, sonogramError = error)
             }
         }
     }
@@ -545,29 +586,6 @@ class AnalysisViewModel(
         } catch (e: Exception) {
             Log.e("AnalysisVM", "WAV-Range-Lesen fehlgeschlagen", e)
             null
-        }
-    }
-
-    // ── Settings / Prefs ────────────────────────────────────────────
-
-    /**
-     * T56/T56b: Liest Sonogramm-Dynamik-Prefs neu ein (Toggle + manueller dB-Range + Gamma aus Settings).
-     * Wird beim ViewModel-Start und bei ON_RESUME des Analyse-Tabs aufgerufen.
-     */
-    fun reloadSpectrogramPrefs() {
-        val autoContrast = appPreferences.spectrogramAutoContrast
-        val minDb        = appPreferences.spectrogramMinDb
-        val maxDb        = appPreferences.spectrogramMaxDb
-        val gamma        = appPreferences.spectrogramGamma
-        val ceilingDb    = appPreferences.spectrogramCeilingDb
-        _uiState.update {
-            it.copy(
-                spectrogramAutoContrast = autoContrast,
-                spectrogramMinDb = minDb,
-                spectrogramMaxDb = maxDb,
-                spectrogramGamma = gamma,
-                spectrogramCeilingDb = ceilingDb
-            )
         }
     }
 

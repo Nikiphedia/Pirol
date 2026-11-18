@@ -40,9 +40,9 @@ data class AnalysisUiState(
 
     // Sonogramm
     val spectrogramState: SpectrogramState = SpectrogramState(),
-    // T56: Einmal-Perzentil (p5, p95) ueber gesamte Session-WAV. null wenn Toggle AUS
-    // oder noch nicht berechnet — dann greifen manualMinDb/manualMaxDb aus Settings.
-    val spectrogramRange: Pair<Float, Float>? = null,
+    // T107: Ladeanzeige / Fehlertext fuer das Session-Sonogramm (statt stillem Abbruch)
+    val sonogramLoading: Boolean = false,
+    val sonogramError: String? = null,
 
     // Scroll-Signal (T39: nach Jump zum Chunk soll Sonogramm sichtbar sein)
     val scrollToTop: Boolean = false,
@@ -50,6 +50,9 @@ data class AnalysisUiState(
     // Audio-Playback
     val playbackState: AudioPlayer.PlaybackState = AudioPlayer.PlaybackState.IDLE,
     val playingChunkIndex: Int? = null,
+    // T107: abgespielte Detektion (Hervorhebung) + Abspielposition in Sekunden (Zeiger im Sonogramm)
+    val playingDetectionId: String? = null,
+    val playbackPositionSec: Float? = null,
     // T62: MediaPlayer-Fehler fuer Snackbar/Toast-Feedback (AC7).
     val playerError: String? = null,
 
@@ -58,23 +61,10 @@ data class AnalysisUiState(
     val compareDetection: DetectionResult? = null,
     val compareDetectionChunkIndex: Int? = null,
     val detectionSpectrogramState: SpectrogramState = SpectrogramState(),
-    val detectionSpectrogramRange: Pair<Float, Float>? = null,
     val referenceEntries: List<ReferenceEntry> = emptyList(),
     val selectedReference: ReferenceEntry? = null,
     val referenceSpectrogramState: SpectrogramState = SpectrogramState(),
-    val referenceSpectrogramRange: Pair<Float, Float>? = null,
     val playingSource: PlayingSource? = null,
-
-    // T56: Sonogramm-Dynamik aus Settings (wirkt auch im Analyse-Tab).
-    // autoContrast ON → Einmal-Perzentil (spectrogramRange) wird verwendet.
-    // autoContrast OFF → manualMinDb/manualMaxDb.
-    val spectrogramAutoContrast: Boolean = true,
-    val spectrogramMinDb: Float = -80f,
-    val spectrogramMaxDb: Float = 0f,
-    // T56b: Gamma-Kompression (< 1.0 = leise Anteile heller, 1.0 = aus)
-    val spectrogramGamma: Float = 1f,
-    // T56b: Lautstärke-Deckel in dBFS (0 = aus, negativ = clippt Lautes)
-    val spectrogramCeilingDb: Float = 0f,
 
     // Raven-Export Feedback
     val ravenExportMessage: String? = null,

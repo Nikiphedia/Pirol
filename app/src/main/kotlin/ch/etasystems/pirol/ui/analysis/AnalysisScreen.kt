@@ -60,7 +60,17 @@ import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import ch.etasystems.pirol.ui.components.SessionCard
 import ch.etasystems.pirol.ui.components.SpeciesCard
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
-import ch.etasystems.pirol.ui.components.SpectrogramPalette
+import ch.etasystems.pirol.data.SpectrogramSettingsRepository
+import ch.etasystems.pirol.ui.components.SpectrogramDisplaySettings
+import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
+import ch.etasystems.pirol.ui.components.onSpectrogramLongPress
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -74,13 +84,12 @@ fun AnalysisScreen(
     val state by viewModel.uiState.collectAsState()
 
     // ON_RESUME: Sessions neu laden (fuer App-Foregrounding + Tab-Wechsel, T51).
-    // T56: zusaetzlich Sonogramm-Dynamik-Prefs neu einlesen.
+    // T107: Sonogramm-Einstellungen kommen live aus dem SpectrogramSettingsRepository.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.loadSessions()
-                viewModel.reloadSpectrogramPrefs()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -271,10 +280,18 @@ private fun SessionDetailView(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
             }
             Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = session.metadata.startedAt.take(10), // Kurzform Datum
-                style = MaterialTheme.typography.titleMedium
-            )
+            Column {
+                Text(
+                    text = session.metadata.startedAt.take(10), // Kurzform Datum
+                    style = MaterialTheme.typography.titleMedium
+                )
+                // T107: Session-Kennung (= Ordnername) zur Zuordnung auf dem Geraet
+                Text(
+                    text = session.sessionDir.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         HorizontalDivider()
@@ -343,23 +360,74 @@ private fun SessionDetailView(
                 }
             }
 
-            // Sonogramm-Canvas (T56: Einmal-Perzentil wenn Toggle AN, sonst manueller Range; T56b: Gamma)
-            val sessionOverride = if (state.spectrogramAutoContrast) state.spectrogramRange else null
-            SpectrogramCanvas(
-                spectrogramState = state.spectrogramState,
-                config = SpectrogramConfig.BIRDS,
-                palette = SpectrogramPalette.MAGMA,
-                autoContrast = false,
-                manualMinDb = state.spectrogramMinDb,
-                manualMaxDb = state.spectrogramMaxDb,
-                manualRangeOverride = sessionOverride,
-                gamma = state.spectrogramGamma,
-                ceilingDb = state.spectrogramCeilingDb,
-                fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
+            // Sonogramm (T107: gemeinsame Einstellungen, Langdruck oeffnet das Panel darunter)
+            val specRepo: SpectrogramSettingsRepository = org.koin.compose.koinInject()
+            val settings by specRepo.settings.collectAsState()
+            var showPanel by remember { mutableStateOf(false) }
+            val sessionRange = rememberStaticRange(state.spectrogramState, settings)
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
-            )
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black)
+                    .onSpectrogramLongPress { showPanel = true }
+            ) {
+                SpectrogramCanvas(
+                    spectrogramState = state.spectrogramState,
+                    config = SpectrogramConfig.BIRDS,
+                    palette = settings.palette,
+                    autoContrast = false,
+                    manualMinDb = settings.minDb,
+                    manualMaxDb = settings.maxDb,
+                    manualRangeOverride = sessionRange,
+                    gamma = settings.gamma,
+                    ceilingDb = settings.ceilingDb,
+                    fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
+                    freqMinHz = settings.freqMinHz,
+                    freqMaxHz = settings.freqMaxHz,
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (state.sonogramLoading) {
+                    Row(
+                        modifier = Modifier.align(Alignment.Center),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sonogramm wird berechnet\u2026", color = Color.White.copy(alpha = 0.8f))
+                    }
+                } else if (state.sonogramError != null) {
+                    Text(
+                        text = state.sonogramError,
+                        color = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.align(Alignment.Center).padding(12.dp)
+                    )
+                }
+                // T107: Abspiel-Zeiger (Position relativ zur ganzen Aufnahme)
+                val posSec = state.playbackPositionSec
+                val durSec = state.recordingDurationSec
+                if (posSec != null && durSec > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawBehind {
+                                val x = (posSec / durSec).coerceIn(0f, 1f) * size.width
+                                drawLine(Color.Cyan, Offset(x, 0f), Offset(x, size.height), strokeWidth = 3f)
+                            }
+                    )
+                }
+            }
+            if (showPanel) {
+                Spacer(modifier = Modifier.height(4.dp))
+                SpectrogramSettingsPanel(
+                    repository = specRepo,
+                    settings = settings,
+                    config = SpectrogramConfig.BIRDS,
+                    showWindow = false,
+                    onClose = { showPanel = false }
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider()
@@ -423,6 +491,13 @@ private fun SessionDetailView(
                     key = { it.id }
                 ) { detection ->
                     val speciesKey = detection.scientificName.replace(' ', '_')
+                    // T107: abgespielte Detektion hervorheben
+                    val isPlaying = state.playingDetectionId == detection.id
+                    Box(
+                        modifier = if (isPlaying) {
+                            Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                        } else Modifier
+                    ) {
                     SpeciesCard(
                         detection = detection,
                         phenologyEnabled = phenologyEnabled,
@@ -466,6 +541,7 @@ private fun SessionDetailView(
                         // T73: Lock-Species
                         onToggleLock = { viewModel.toggleLock(detection.id) },
                     )
+                    }
                 }
             }
         }
@@ -555,17 +631,21 @@ private fun CompareView(
         Spacer(modifier = Modifier.height(4.dp))
 
         // Sonogramm Detektion (T56: Einmal-Perzentil wenn Toggle AN; T56b: Gamma)
-        val detectionOverride = if (state.spectrogramAutoContrast) state.detectionSpectrogramRange else null
+        val cmpRepo: SpectrogramSettingsRepository = org.koin.compose.koinInject()
+        val settings by cmpRepo.settings.collectAsState()
+        val detectionOverride = rememberStaticRange(state.detectionSpectrogramState, settings)
         SpectrogramCanvas(
             spectrogramState = state.detectionSpectrogramState,
             config = SpectrogramConfig.BIRDS,
-            palette = SpectrogramPalette.MAGMA,
+            palette = settings.palette,
             autoContrast = false,
-            manualMinDb = state.spectrogramMinDb,
-            manualMaxDb = state.spectrogramMaxDb,
+            manualMinDb = settings.minDb,
+            manualMaxDb = settings.maxDb,
             manualRangeOverride = detectionOverride,
-            gamma = state.spectrogramGamma,
-            ceilingDb = state.spectrogramCeilingDb,
+            gamma = settings.gamma,
+            ceilingDb = settings.ceilingDb,
+            freqMinHz = settings.freqMinHz,
+            freqMaxHz = settings.freqMaxHz,
             fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
             modifier = Modifier
                 .fillMaxWidth()
@@ -621,17 +701,19 @@ private fun CompareView(
 
         if (state.selectedReference != null) {
             // Sonogramm Referenz (T56: Einmal-Perzentil wenn Toggle AN; T56b: Gamma)
-            val referenceOverride = if (state.spectrogramAutoContrast) state.referenceSpectrogramRange else null
+            val referenceOverride = rememberStaticRange(state.referenceSpectrogramState, settings)
             SpectrogramCanvas(
                 spectrogramState = state.referenceSpectrogramState,
                 config = SpectrogramConfig.BIRDS,
-                palette = SpectrogramPalette.MAGMA,
+                palette = settings.palette,
                 autoContrast = false,
-                manualMinDb = state.spectrogramMinDb,
-                manualMaxDb = state.spectrogramMaxDb,
+                manualMinDb = settings.minDb,
+                manualMaxDb = settings.maxDb,
                 manualRangeOverride = referenceOverride,
-                gamma = state.spectrogramGamma,
-                ceilingDb = state.spectrogramCeilingDb,
+                gamma = settings.gamma,
+                ceilingDb = settings.ceilingDb,
+                freqMinHz = settings.freqMinHz,
+                freqMaxHz = settings.freqMaxHz,
                 fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
                 modifier = Modifier
                     .fillMaxWidth()
@@ -719,4 +801,28 @@ private fun formatSecondsAsMinSec(s: Float): String {
     val mm = total / 60
     val ss = total % 60
     return String.format("%02d:%02d", mm, ss)
+}
+
+/**
+ * T107: Einmal-Perzentil-Bereich ueber alle Frames eines (statischen) Sonogramms, abhaengig von den
+ * gemeinsamen Einstellungen. null bei AUS-geschaltetem Auto-Kontrast oder leerem State
+ * (dann greifen die manuellen dB-Werte). Rechenaufwand: Quickselect ueber <= 2048 x 128 Werte.
+ */
+@Composable
+private fun rememberStaticRange(
+    state: ch.etasystems.pirol.ui.components.SpectrogramState,
+    settings: SpectrogramDisplaySettings
+): Pair<Float, Float>? {
+    if (!settings.autoContrast) return null
+    val version = state.frameVersion  // Recomposition bei neuem Inhalt
+    return remember(state, version, settings.autoLowPct, settings.autoHighPct, settings.autoMinSpanDb) {
+        val frames = state.getVisibleFrames(state.maxFrames)
+        if (frames.isEmpty()) null
+        else ch.etasystems.pirol.audio.dsp.DynamicRangeMapper.computeStatic(
+            frames,
+            lowPercentile = settings.autoLowPct,
+            highPercentile = settings.autoHighPct,
+            minSpanDb = settings.autoMinSpanDb
+        )
+    }
 }
