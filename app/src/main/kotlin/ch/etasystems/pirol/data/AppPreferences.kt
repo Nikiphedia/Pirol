@@ -346,4 +346,9 @@ class AppPreferences(context: Context) {
     var lastSessionNote: String
         get() = prefs.getString("pirol_last_session_note", "") ?: ""
         set(value) = prefs.edit().putString("pirol_last_session_note", value).apply()
+
+    /** T110: Ueberlappung der Analysefenster in Prozent (0, 50, 67), Default 0 */
+    var overlapPercent: Int
+        get() = prefs.getInt("pirol_overlap_percent", 0)
+        set(value) = prefs.edit().putInt("pirol_overlap_percent", value).apply()
 }

@@ -190,27 +190,34 @@ class LiveViewModel(
     // ML-Pipeline: InferenceWorker mit Callback → DetectionListState + Embedding-Arm
     // T51: Callback wird bei jedem vollstaendigen 3s-Block aufgerufen (Daueraufnahme).
     // detections == null → Interval-Skip oder keine Treffer; Audio wird trotzdem geschrieben.
-    private val inferenceWorker = InferenceWorker(classifier, regionalFilter) { audioBlock, detections ->
-
-        // --- Audio immer speichern (T51: Daueraufnahme) ---
-        // startSec VOR dem Append erfassen fuer korrekte Detection-Zeitstempel.
-        val startSec = if (sessionManager.isActive) sessionManager.getCurrentRecordingOffsetSec() else 0f
-        if (sessionManager.isActive) {
-            // T61: Original-PCM verwenden statt Float→Short-Rueckkonvertierung (spart 144k Konvertierungen pro Block)
-            val shortSamples = audioBlock.pcm ?: ShortArray(audioBlock.samples.size) { i ->
-                (audioBlock.samples[i] * Short.MAX_VALUE).toInt().coerceIn(
-                    Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()
-                ).toShort()
+    // T110: Audio-Persistenz (jeder Hop genau einmal) getrennt von der Fenster-Analyse.
+    private val inferenceWorker = InferenceWorker(
+        classifier = classifier,
+        regionalFilter = regionalFilter,
+        onAudioPersist = { pcm ->
+            // --- Audio immer speichern (T51: Daueraufnahme) ---
+            // Offset VOR dem Append erfassen → Basis fuer Detection-Zeitstempel im WAV.
+            if (sessionManager.isActive) {
+                val startSec = sessionManager.getCurrentRecordingOffsetSec()
+                // F3: sessionDispatcher (Single-Thread) serialisiert Preroll + Live-Chunks (T63)
+                // Verhindert concurrent append() auf StreamingWavWriter (nicht thread-safe)
+                viewModelScope.launch(sessionDispatcher) {
+                    sessionManager.appendAudioSamples(pcm)
+                }
+                startSec
+            } else {
+                null
             }
-            // F3: sessionDispatcher (Single-Thread) serialisiert Preroll + Live-Chunks (T63)
-            // Verhindert concurrent append() auf StreamingWavWriter (nicht thread-safe)
-            viewModelScope.launch(sessionDispatcher) {
-                sessionManager.appendAudioSamples(shortSamples)
-            }
+        },
+        onOverlapReduced = { percent ->
+            _snackbarChannel.trySend(
+                SnackbarEvent("Analyse zu langsam — Ueberlappung auf $percent % reduziert")
+            )
         }
+    ) { audioBlock, detections ->
 
-        // --- Detektionsverarbeitung (nur wenn Ergebnisse vorliegen) ---
-        if (detections != null && detections.isNotEmpty()) {
+        // --- Detektionsverarbeitung (Callback nur bei Treffern) ---
+        run {
             // GPS-Position an Detektionen anhaengen
             val loc = locationProvider.location.value
             val locDetections = if (loc != null) {
@@ -243,19 +250,9 @@ class LiveViewModel(
                     }
                 )
             }
-            // Session-relative Zeitstempel setzen (T49)
-            // startSec wurde vor dem Audio-Append erfasst → korrekte Offset-Berechnung.
-            val durationSec = audioBlock.samples.size.toFloat() / audioBlock.sampleRate.toFloat()
-            val sessionRelativeDetections = if (sessionManager.isActive) {
-                geoDetections.map { det ->
-                    det.copy(
-                        chunkStartSec = startSec,
-                        chunkEndSec = startSec + durationSec
-                    )
-                }
-            } else {
-                geoDetections
-            }
+            // Session-relative Zeitstempel (T49): ab T110 setzt der InferenceWorker
+            // chunkStartSec/chunkEndSec auf den tatsaechlichen Fensterstart im WAV.
+            val sessionRelativeDetections = geoDetections
             if (Log.isLoggable(TAG, Log.DEBUG)) {
                 Log.d(TAG, "Detection-Offset: chunkStartSec=${sessionRelativeDetections.firstOrNull()?.chunkStartSec}")
             }
@@ -347,7 +344,8 @@ class LiveViewModel(
 
         // InferenceConfig aus SharedPreferences laden (statt Default)
         val savedConfig = appPreferences.loadInferenceConfig()
-        inferenceWorker.config = savedConfig
+        // T110: Ueberlappung separat aus den Prefs (wird zudem bei jedem Pipeline-Start neu gelesen)
+        inferenceWorker.config = savedConfig.copy(overlapPercent = appPreferences.overlapPercent)
 
         // Region laden (aus gespeicherter Config)
         val region = savedConfig.regionFilter ?: "ch_breeding"
@@ -995,7 +993,7 @@ class LiveViewModel(
         if (config.regionFilter != null && config.regionFilter != _uiState.value.inferenceConfig.regionFilter) {
             regionalFilter.loadRegion(config.regionFilter)
         }
-        inferenceWorker.config = config
+        inferenceWorker.config = config.copy(overlapPercent = appPreferences.overlapPercent)  // T110
         _uiState.update { it.copy(inferenceConfig = config) }
         // In SharedPreferences persistieren
         appPreferences.saveInferenceConfig(config)
@@ -1272,8 +1270,13 @@ class LiveViewModel(
 
         val svc = service ?: return
 
+        // T110: Ueberlappung aus Settings uebernehmen (Settings schreibt direkt in AppPreferences)
+        inferenceWorker.config = inferenceWorker.config.copy(overlapPercent = appPreferences.overlapPercent)
+
         inferenceJob = viewModelScope.launch(Dispatchers.Default) {
-            Log.d(TAG, "ML-Pipeline gestartet")
+            Log.d(TAG, "ML-Pipeline gestartet (Overlap ${inferenceWorker.config.overlapPercent} %)")
+            // T110: Analyse laeuft parallel; der Collector persistiert Audio ohne auf Inference zu warten
+            launch { inferenceWorker.runAnalysisLoop() }
             svc.audioChunkFlow.collect { chunk ->
                 // T95: kehrt sofort zurueck, sobald geladen. Waehrend des Ladens stauen sich die
                 // Chunks im SharedFlow-Puffer bzw. Ring-Buffer (T92) — es geht kein Audio verloren.

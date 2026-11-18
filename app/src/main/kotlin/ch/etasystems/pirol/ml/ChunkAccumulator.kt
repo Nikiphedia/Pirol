@@ -3,116 +3,163 @@ package ch.etasystems.pirol.ml
 import ch.etasystems.pirol.audio.AudioChunk
 
 /**
- * Akkumulierter Audio-Block aus mehreren Chunks.
- * Wird freigegeben wenn die Zieldauer (3s) erreicht ist.
+ * Audio-Abschnitt fuer die Persistenz (WAV). Jedes Eingangs-Sample landet in GENAU EINEM Hop.
+ *
+ * @param startIndex Stream-Index des ersten Samples (Samples seit letztem reset())
  */
-data class AccumulatedBlock(
-    val samples: ShortArray,   // Alle Samples konkateniert
+class PersistHop(
+    val pcm: ShortArray,
     val sampleRate: Int,
-    val timestampMs: Long,     // Timestamp des ersten Chunks im Block
-    val durationMs: Int        // Tatsaechliche Dauer
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is AccumulatedBlock) return false
-        return samples.contentEquals(other.samples) &&
-                sampleRate == other.sampleRate &&
-                timestampMs == other.timestampMs &&
-                durationMs == other.durationMs
-    }
-
-    override fun hashCode(): Int {
-        var result = samples.contentHashCode()
-        result = 31 * result + sampleRate
-        result = 31 * result + timestampMs.hashCode()
-        result = 31 * result + durationMs
-        return result
-    }
-}
+    val startIndex: Long
+)
 
 /**
- * Sammelt AudioChunks bis ein 3-Sekunden-Fenster voll ist.
+ * Analyse-Fenster fester Laenge (3 s) — kann sich mit Nachbarfenstern ueberlappen (T110).
  *
- * Feed-Mechanismus: Jeder Chunk wird angehaengt, sobald genug Samples fuer
- * die Zieldauer vorhanden sind, wird ein AccumulatedBlock freigegeben und
- * der interne Buffer zurueckgesetzt.
+ * @param startIndex Stream-Index des ersten Samples im Fenster
+ */
+class AnalysisWindow(
+    val pcm: ShortArray,
+    val sampleRate: Int,
+    val startIndex: Long
+)
+
+/** Ergebnis eines feed()-Aufrufs: fertige Persistenz-Hops und fertige Analyse-Fenster (je 0..n). */
+class FeedResult(
+    val hops: List<PersistHop>,
+    val windows: List<AnalysisWindow>
+)
+
+/**
+ * Trennt den Audio-Strom in zwei unabhaengige Ausgaben (T110):
  *
- * @param targetDurationMs Zieldauer pro Block in Millisekunden (Standard: 3000)
- * @param overlapMs Overlap zwischen Bloecken (Standard: 0, spaeter konfigurierbar)
+ * 1. **Persistenz-Hops:** Chunks werden gesammelt, sobald mindestens [hopMs] Audio vorliegt,
+ *    werden ALLE gesammelten Samples als ein Hop freigegeben. Jedes Sample genau einmal,
+ *    in Reihenfolge. Bei hopMs = 3000 (Overlap 0 %) identisch zum frueheren Verhalten
+ *    (Block = ganze Chunks bis >= 3 s, keine Kuerzung).
+ * 2. **Analyse-Fenster:** exakt [windowDurationMs] lange Fenster, Starts auf dem Raster
+ *    0, hop, 2*hop, ... (Stream-Index). Bei Overlap 0 % schliessen die Fenster lueckenlos an.
+ *
+ * Nicht thread-safe — wird nur vom Collector-Coroutine des InferenceWorker benutzt.
  */
 class ChunkAccumulator(
-    private val targetDurationMs: Int = CHUNK_DURATION_MS.toInt(),
-    @Suppress("unused") private val overlapMs: Int = 0
+    private val windowDurationMs: Int = CHUNK_DURATION_MS.toInt(),
+    hopMs: Int = windowDurationMs
 ) {
-    // Interne Sample-Sammlung
-    private val sampleBuffer = mutableListOf<ShortArray>()
-    private var totalSamples = 0
+    /** Abstand zwischen zwei Fensterstarts in ms (= Persistenz-Granularitaet). 1..windowDurationMs. */
+    var hopMs: Int = hopMs
+        set(value) {
+            require(value in 1..windowDurationMs) { "hopMs ausserhalb 1..$windowDurationMs: $value" }
+            field = value
+        }
+
     private var currentSampleRate: Int? = null
-    private var firstTimestampMs: Long = 0L
+
+    // --- Persistenz ---
+    private val pendingChunks = mutableListOf<ShortArray>()
+    private var pendingCount = 0
+    private var persistedTotal = 0L
+
+    // --- Fenster-Historie ---
+    private var hist = ShortArray(0)
+    private var histStart = 0L    // Stream-Index von hist[0]
+    private var histLen = 0
+    private var nextWindowStart = 0L
+
+    /** Gesamtzahl eingespeister Samples seit reset() */
+    var totalSamples: Long = 0L
+        private set
+
+    init {
+        this.hopMs = hopMs
+    }
 
     /**
-     * Fuegt einen Chunk hinzu und gibt einen fertigen Block zurueck
-     * wenn die Zieldauer erreicht ist.
-     *
-     * @throws IllegalArgumentException wenn die Samplerate sich innerhalb eines Blocks aendert
+     * Chunk einspeisen.
+     * @throws IllegalArgumentException bei Samplerate-Wechsel (Aufrufer: flushPending() + reset())
      */
-    fun feed(chunk: AudioChunk): AccumulatedBlock? {
-        // Samplerate-Konsistenz pruefen
+    fun feed(chunk: AudioChunk): FeedResult {
         val rate = currentSampleRate
         if (rate != null && rate != chunk.sampleRate) {
             throw IllegalArgumentException(
                 "Inkonsistente Samplerate: erwartet $rate, erhalten ${chunk.sampleRate}"
             )
         }
+        val sr = chunk.sampleRate
+        currentSampleRate = sr
+        val samples = chunk.samples
+        totalSamples += samples.size
 
-        // Erster Chunk im Block — Samplerate und Timestamp merken
-        if (currentSampleRate == null) {
-            currentSampleRate = chunk.sampleRate
-            firstTimestampMs = chunk.timestampMs
+        // 1. Persistenz (jedes Sample genau einmal)
+        val hopSamples = sr.toLong() * hopMs / 1000
+        val hops = if (samples.isEmpty()) emptyList() else {
+            pendingChunks.add(samples)
+            pendingCount += samples.size
+            if (pendingCount >= hopSamples) listOf(buildHop(sr)) else emptyList()
         }
 
-        sampleBuffer.add(chunk.samples)
-        totalSamples += chunk.samples.size
-
-        // Pruefen ob Zieldauer erreicht
-        val targetSamples = chunk.sampleRate.toLong() * targetDurationMs / 1000
-        if (totalSamples >= targetSamples) {
-            return buildBlock()
+        // 2. Fenster-Historie anhaengen
+        appendHistory(samples)
+        val windowSamples = (sr.toLong() * windowDurationMs / 1000).toInt()
+        val windows = mutableListOf<AnalysisWindow>()
+        while (nextWindowStart + windowSamples <= totalSamples) {
+            val off = (nextWindowStart - histStart).toInt()
+            windows.add(AnalysisWindow(hist.copyOfRange(off, off + windowSamples), sr, nextWindowStart))
+            nextWindowStart += hopSamples
         }
+        if (windows.isNotEmpty()) discardHistoryBefore(nextWindowStart)
 
-        return null
+        return FeedResult(hops, windows)
     }
 
-    /** Internen State zuruecksetzen */
+    /** Noch nicht persistierte Samples als Hop freigeben (z.B. vor reset() bei Samplerate-Wechsel). */
+    fun flushPending(): PersistHop? {
+        val sr = currentSampleRate ?: return null
+        if (pendingCount == 0) return null
+        return buildHop(sr)
+    }
+
+    /** Internen State zuruecksetzen (nicht persistierte Samples werden verworfen). */
     fun reset() {
-        sampleBuffer.clear()
-        totalSamples = 0
+        pendingChunks.clear()
+        pendingCount = 0
+        persistedTotal = 0L
+        hist = ShortArray(0)
+        histStart = 0L
+        histLen = 0
+        nextWindowStart = 0L
+        totalSamples = 0L
         currentSampleRate = null
-        firstTimestampMs = 0L
     }
 
-    /** Konkateniert alle gesammelten Samples und gibt einen Block zurueck */
-    private fun buildBlock(): AccumulatedBlock {
-        val sr = currentSampleRate ?: throw IllegalStateException("Keine Samplerate gesetzt")
-
-        // Alle ShortArrays in ein zusammenhaengendes Array kopieren
-        val combined = ShortArray(totalSamples)
+    private fun buildHop(sr: Int): PersistHop {
+        val combined = ShortArray(pendingCount)
         var offset = 0
-        for (buf in sampleBuffer) {
+        for (buf in pendingChunks) {
             buf.copyInto(combined, destinationOffset = offset)
             offset += buf.size
         }
+        val hop = PersistHop(combined, sr, persistedTotal)
+        persistedTotal += pendingCount
+        pendingChunks.clear()
+        pendingCount = 0
+        return hop
+    }
 
-        val durationMs = (totalSamples.toLong() * 1000 / sr).toInt()
-        val block = AccumulatedBlock(
-            samples = combined,
-            sampleRate = sr,
-            timestampMs = firstTimestampMs,
-            durationMs = durationMs
-        )
+    private fun appendHistory(samples: ShortArray) {
+        val needed = histLen + samples.size
+        if (needed > hist.size) {
+            hist = hist.copyOf(maxOf(needed, hist.size * 2))
+        }
+        samples.copyInto(hist, destinationOffset = histLen)
+        histLen = needed
+    }
 
-        // Buffer zuruecksetzen fuer naechsten Block
-        reset()
-        return block
+    private fun discardHistoryBefore(streamIndex: Long) {
+        val drop = (streamIndex - histStart).toInt().coerceAtMost(histLen)
+        if (drop <= 0) return
+        hist.copyInto(hist, destinationOffset = 0, startIndex = drop, endIndex = histLen)
+        histLen -= drop
+        histStart += drop
     }
 }
