@@ -1,5 +1,8 @@
 package ch.etasystems.pirol.ui.navigation
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -86,7 +89,9 @@ fun PirolNavHost(
         }
     } else if (useNavigationRail) {
         // Tablet: NavigationRail links + Content rechts
-        Row(modifier = Modifier.fillMaxSize()) {
+        // T114: Edge-to-Edge ohne Scaffold → System-Leisten selbst freihalten
+        // (sonst lag z.B. der Benchmark-Knopf unter der Navigationsleiste)
+        Row(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             NavigationRail {
                 Screen.entries.forEach { screen ->
                     val selected = currentDestination?.hierarchy?.any {

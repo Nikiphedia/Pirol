@@ -30,6 +30,7 @@ class BirdNetV3Classifier(
         private const val TAG = "BirdNetV3"
         private const val LABELS_PATH = "models/birdnet_v3_labels.csv"
         private const val ASSETS_MODEL_PATH = "models/birdnet_v3.onnx"
+        private const val INFERENCE_THREADS = 2
         private const val TARGET_SAMPLE_RATE = 32000
         private const val CHUNK_DURATION_SEC = 3.0f
         private const val CHUNK_SAMPLES = (TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC).toInt() // 96000
@@ -250,6 +251,9 @@ class BirdNetV3Classifier(
             val env = OrtEnvironment.getEnvironment()
             val opts = OrtSession.SessionOptions()
             opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+            // T114: feste Thread-Zahl. Benchmark SM-X236B (T96): 1 Thread 589 ms, 2 Threads 284 ms,
+            // 4 Threads 242 ms pro 3-s-Fenster — 2 Threads halbieren die Kernlast bei kaum mehr Zeit (Akku im Feld).
+            opts.setIntraOpNumThreads(INFERENCE_THREADS)
 
             // 1. Aktives Modell via ModelManager (direkter Pfad — memory-mapped)
             val activeFile = modelManager.getActiveModelFile()
