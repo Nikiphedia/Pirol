@@ -18,7 +18,7 @@ data class SpectrogramConfig(
     val numMelBins: Int = 128,
     val fMin: Float = 0f,
     val fMax: Float = -1f,
-    val refDb: Float = 80f,
+    val refDb: Float = 40f,  // T107: war 80 → Signale unter ~0 dB Mel-Energie (81 % der Pixel) lagen am Boden
     val minDb: Float = -80f
 ) {
     companion object {

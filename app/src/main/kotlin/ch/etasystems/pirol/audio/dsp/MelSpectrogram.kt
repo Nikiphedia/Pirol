@@ -34,7 +34,7 @@ class MelSpectrogram(
     numMelBins: Int = 128,
     fMin: Float = 0f,
     fMax: Float = -1f,
-    private val refDb: Float = 80f,
+    private val refDb: Float = 40f,  // T107: war 80 → Signale unter ~0 dB Mel-Energie (81 % der Pixel) lagen am Boden
     private val minDb: Float = -80f
 ) {
     private val actualFftSize = fftSize
