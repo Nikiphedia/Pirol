@@ -270,7 +270,8 @@ class SessionManager(
         latitude: Double? = null,
         longitude: Double? = null,
         regionFilter: String? = null,
-        confidenceThreshold: Float = 0.5f
+        confidenceThreshold: Float = 0.5f,
+        note: String? = null
     ): String = withContext(Dispatchers.IO) {
         // Alte Session sicherheitshalber schliessen
         if (isActive) endSession()
@@ -291,7 +292,8 @@ class SessionManager(
             latitude = latitude,
             longitude = longitude,
             regionFilter = regionFilter,
-            confidenceThreshold = confidenceThreshold
+            confidenceThreshold = confidenceThreshold,
+            note = note?.trim()?.ifEmpty { null }  // T109
         )
 
         val safUri = appPreferences.storageBaseUri
@@ -728,7 +730,7 @@ class SessionManager(
                     if (appPreferences.ravenFieldLat)            add(RavenExporter.FIELD_LAT)
                     if (appPreferences.ravenFieldLon)            add(RavenExporter.FIELD_LON)
                 }
-                RavenExporter.export(selectionsFile, detections, metadata.startedAt, updatedMetadata.recordingSegments, autoEnabledFields)
+                RavenExporter.export(selectionsFile, detections, metadata.startedAt, updatedMetadata.recordingSegments, autoEnabledFields, sessionNote = updatedMetadata.note)
                 Log.i(TAG, "Auto-Raven-Export: ${selectionsFile.name} (${detections.size} Detektionen)")
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
@@ -961,6 +963,37 @@ class SessionManager(
     }
 
     /**
+     * T109: Aendert die Bemerkung einer bestehenden Session (File-Modus: session.json atomar ersetzen).
+     * Die Analyse arbeitet ausschliesslich mit File-Session-Ordnern (listSessions/resolveSessionDirFromDoc);
+     * ein reiner SAF-Schreibpfad ist daher hier nicht noetig. Schreibt bei vorhandener
+     * recording.selections.txt diese neu (Spalte Session-Bemerkung).
+     * @return aktualisierte Metadaten oder null bei Fehler / fehlender session.json
+     */
+    suspend fun updateSessionNote(
+        sessionDir: File,
+        note: String?,
+        appPreferences: AppPreferences? = null
+    ): SessionMetadata? = withContext(Dispatchers.IO) {
+        val meta = loadMetadata(sessionDir) ?: return@withContext null
+        val updated = meta.copy(note = note?.trim()?.ifEmpty { null })
+        try {
+            writeFileReplacing(
+                File(sessionDir, "session.json"),
+                Json { prettyPrint = true }.encodeToString(updated)
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "updateSessionNote: session.json Schreiben fehlgeschlagen: ${sessionDir.name}", e)
+            return@withContext null
+        }
+        // Raven-Datei nur neu schreiben, wenn schon eine existiert (Auto-Export bei Stop)
+        if (File(sessionDir, "recording.selections.txt").exists()) {
+            try { exportRavenSelectionTable(sessionDir, appPreferences) }
+            catch (e: Exception) { Log.e(TAG, "updateSessionNote: Raven-Re-Export fehlgeschlagen", e) }
+        }
+        updated
+    }
+
+    /**
      * Laedt alle Detektionen einer Session aus detections.jsonl.
      */
     suspend fun loadDetections(sessionDir: File): List<DetectionResult> = withContext(Dispatchers.IO) {
@@ -1119,7 +1152,7 @@ class SessionManager(
             }
         }
         val linkMap = loadSimultaneousLinkMap(sessionDir)
-        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap)
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note)
         outputFile
     }
 

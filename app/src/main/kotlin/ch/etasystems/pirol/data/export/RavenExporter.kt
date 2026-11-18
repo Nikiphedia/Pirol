@@ -46,6 +46,7 @@ object RavenExporter {
      * @param recordingSegments WAV-Segmente bei rotierter Session (null = Single-File)
      * @param enabledFields    Set der aktiven Feld-Keys; null = alle Felder aktiv
      * @param linkMap          Simultan/Moeglich/Gleich-Links pro DetectionId (T85)
+     * @param sessionNote      T109: Session-Bemerkung; wenn nicht leer, als letzte Spalte "Session-Bemerkung" (gleicher Wert je Zeile)
      * @return Anzahl geschriebener Zeilen
      */
     fun export(
@@ -54,10 +55,12 @@ object RavenExporter {
         sessionStartedAt: String,
         recordingSegments: List<RecordingSegment>? = null,
         enabledFields: Set<String>? = null,
-        linkMap: Map<String, SimultaneousLinkSummary> = emptyMap()
+        linkMap: Map<String, SimultaneousLinkSummary> = emptyMap(),
+        sessionNote: String? = null
     ): Int {
         val sessionStart = OffsetDateTime.parse(sessionStartedAt)
         fun on(key: String) = enabledFields == null || key in enabledFields
+        val noteCell = escapeTsv(sessionNote.orEmpty())
 
         outputFile.bufferedWriter(Charsets.UTF_8).use { w ->
             // Kopfzeile: Selection/View/Channel immer; optionale Felder nach Selektion
@@ -77,6 +80,7 @@ object RavenExporter {
             if (on(FIELD_GLEICH))          header += "Gleich"
             header += "Status"
             header += "Corrected Species"
+            if (noteCell.isNotEmpty()) header += "Session-Bemerkung"
             w.appendLine(header.joinToString("\t"))
 
             detections.forEachIndexed { index, d ->
@@ -105,6 +109,7 @@ object RavenExporter {
                 if (on(FIELD_GLEICH))          row += linkMap[d.id]?.sameIndividual?.joinToString(",") ?: ""
                 row += d.verificationStatus.name
                 row += sanitize(d.correctedSpecies ?: "")
+                if (noteCell.isNotEmpty()) row += noteCell
                 w.appendLine(row.joinToString("\t"))
             }
         }
@@ -112,7 +117,10 @@ object RavenExporter {
     }
 
     /** Tabs/Newlines aus Strings entfernen, damit das TSV-Format nicht bricht. */
-    private fun sanitize(s: String): String =
+    private fun sanitize(s: String): String = escapeTsv(s)
+
+    /** T109: Tabs/Zeilenumbrueche durch Leerzeichen ersetzen (TSV-sicher). */
+    internal fun escapeTsv(s: String): String =
         s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ').trim()
 
     /** T85: Verlinkte DetectionIds pro Kategorie fuer eine Detektion. */

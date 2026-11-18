@@ -40,6 +40,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -289,6 +290,7 @@ private fun CompactLiveLayout(
 
             // Kompakte Status-Zeile (T30) + Export-Buttons
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
+            if (!uiState.isRecording) SessionNoteField(viewModel)
 
             LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
@@ -478,6 +480,7 @@ private fun MediumLiveLayout(
             Spacer(modifier = Modifier.height(4.dp))
 
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
+            if (!uiState.isRecording) SessionNoteField(viewModel)
 
             LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
@@ -673,6 +676,7 @@ private fun ExpandedLiveLayout(
             Spacer(modifier = Modifier.height(4.dp))
 
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
+            if (!uiState.isRecording) SessionNoteField(viewModel)
 
             LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
@@ -902,6 +906,32 @@ private fun LiveHeader(
             }
         }
     }
+}
+
+/**
+ * T109: Optionale Bemerkung zur naechsten Session (vorbelegt mit der zuletzt verwendeten).
+ * Nur vor Aufnahmestart sichtbar; Leeren per Clear-Icon.
+ */
+@Composable
+private fun SessionNoteField(viewModel: LiveViewModel) {
+    val note by viewModel.sessionNote.collectAsState()
+    androidx.compose.material3.OutlinedTextField(
+        value = note,
+        onValueChange = { viewModel.setSessionNote(it) },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodySmall,
+        placeholder = { Text("Bemerkung zur Session (optional)", style = MaterialTheme.typography.bodySmall) },
+        trailingIcon = if (note.isNotEmpty()) {
+            {
+                IconButton(onClick = { viewModel.setSessionNote("") }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Bemerkung leeren")
+                }
+            }
+        } else null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    )
 }
 
 /**

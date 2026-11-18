@@ -10,6 +10,7 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import ch.etasystems.pirol.data.repository.SessionNoteUtil
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -44,7 +45,7 @@ class SessionUploadWorker(
         }
 
         // ZIP erstellen (temporaer)
-        val zipFile = File(applicationContext.cacheDir, "${metadata.sessionId}.zip")
+        val zipFile = File(applicationContext.cacheDir, SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note))
         try {
             createZip(sessionDir, zipFile)
         } catch (e: Exception) {

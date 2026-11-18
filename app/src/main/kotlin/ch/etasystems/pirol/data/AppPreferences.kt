@@ -341,4 +341,9 @@ class AppPreferences(context: Context) {
     var mapSourceMode: String
         get() = prefs.getString("pirol_map_source_mode", "AUTO") ?: "AUTO"
         set(value) = prefs.edit().putString("pirol_map_source_mode", value).apply()
+
+    /** T109: zuletzt verwendete Session-Bemerkung (Vorbelegung beim naechsten Start) */
+    var lastSessionNote: String
+        get() = prefs.getString("pirol_last_session_note", "") ?: ""
+        set(value) = prefs.edit().putString("pirol_last_session_note", value).apply()
 }
