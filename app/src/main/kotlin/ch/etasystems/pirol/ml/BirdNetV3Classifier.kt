@@ -182,7 +182,7 @@ class BirdNetV3Classifier(
             // 1. Resample auf 32 kHz falls noetig
             val p = profile
             val resampled = if (sampleRate != p.sampleRate) {
-                AudioResampler.resample(samples, sampleRate, p.sampleRate)
+                AudioResampler.resample(samples, sampleRate, p.sampleRate, AudioResampler.defaultMode)
             } else {
                 samples
             }
@@ -229,7 +229,7 @@ class BirdNetV3Classifier(
             // 1. Resample auf 32 kHz falls noetig
             val p = profile
             val resampled = if (sampleRate != p.sampleRate) {
-                AudioResampler.resample(samples, sampleRate, p.sampleRate)
+                AudioResampler.resample(samples, sampleRate, p.sampleRate, AudioResampler.defaultMode)
             } else {
                 samples
             }

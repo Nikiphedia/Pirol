@@ -34,5 +34,11 @@ class PirolApp : Application() {
             androidContext(this@PirolApp)
             modules(appModule)
         }
+
+        // T133: gespeicherten Resampler-Modus aktivieren
+        ch.etasystems.pirol.audio.dsp.AudioResampler.defaultMode =
+            ch.etasystems.pirol.audio.dsp.AudioResampler.Mode.parse(
+                ch.etasystems.pirol.data.AppPreferences(this).resamplerMode
+            )
     }
 }
