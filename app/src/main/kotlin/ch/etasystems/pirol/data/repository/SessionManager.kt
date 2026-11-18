@@ -662,6 +662,10 @@ class SessionManager(
         }
     }
 
+    /** T118: Bisher in die WAV-Segmente der aktiven Session geschriebene Samples (fuer T118_STATS). */
+    val recordedSampleCount: Long
+        get() = totalSamplesCompleted + (recordingWriter?.sampleCount ?: 0L)
+
     /**
      * Aktueller Schreib-Offset in recording.wav in Sekunden.
      * Wird VOR appendAudioSamples() aufgerufen fuer korrekte Detection-Zeitstempel.

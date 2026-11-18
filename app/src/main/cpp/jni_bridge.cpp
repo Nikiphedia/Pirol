@@ -63,6 +63,13 @@ Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeResetReadCursor(
     gEngine.resetReadCursor();
 }
 
+// T118: Lese-Cursor fuer Preroll zuruecksetzen; Rueckgabe = tatsaechlich zurueckgesetzte Samples
+JNIEXPORT jint JNICALL
+Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeRewindReadCursor(
+        JNIEnv* /*env*/, jobject /*thiz*/, jint samples, jint marginSamples) {
+    return gEngine.rewindReadCursor(samples, marginSamples);
+}
+
 // T92: Alle neuen Samples seit dem Lese-Cursor; Array hat exakt die gelesene Laenge, null wenn nichts Neues
 JNIEXPORT jshortArray JNICALL
 Java_ch_etasystems_pirol_audio_OboeAudioEngine_nativeReadNewSamples(

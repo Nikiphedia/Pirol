@@ -26,6 +26,7 @@ class OboeAudioEngine {
     private external fun nativeIsRecording(): Boolean
     private external fun nativeGetAudioChunk(numSamples: Int): ShortArray?
     private external fun nativeResetReadCursor()
+    private external fun nativeRewindReadCursor(samples: Int, marginSamples: Int): Int
     private external fun nativeReadNewSamples(maxSamples: Int): ShortArray?
     private external fun nativeGetDroppedSamples(): Long
     private external fun nativeGetActualSampleRate(): Int
@@ -72,6 +73,14 @@ class OboeAudioEngine {
 
     /** T92: Lese-Cursor auf "jetzt" setzen und Dropped-Zaehler zuruecksetzen. */
     fun resetReadCursor() = nativeResetReadCursor()
+
+    /**
+     * T118: Lese-Cursor fuer den Preroll in die Vergangenheit setzen (statt auf "jetzt").
+     * Die folgenden readNewSamples()-Aufrufe liefern erst den Preroll, dann lueckenlos Live-Audio.
+     * @return tatsaechlich zurueckgesetzte Samples (begrenzt durch Puffer-Inhalt minus Marge)
+     */
+    fun rewindReadCursor(samples: Int, marginSamples: Int): Int =
+        nativeRewindReadCursor(samples, marginSamples)
 
     /**
      * T92: Alle neuen Samples seit dem letzten Aufruf lesen (lueckenlos, in Reihenfolge).

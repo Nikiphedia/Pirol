@@ -5,6 +5,9 @@ import ch.etasystems.pirol.audio.AudioChunk
 import ch.etasystems.pirol.audio.dsp.AudioDspUtils
 import ch.etasystems.pirol.audio.dsp.AudioResampler
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.selects.select
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -54,7 +57,9 @@ class InferenceWorker(
         /** Wanduhr-Zeit (Epoch ms) des Fensterstarts */
         val startEpochMs: Long,
         /** Offset des Fensterstarts in recording.wav (s), null = keine Session */
-        val recordingOffsetSec: Float?
+        val recordingOffsetSec: Float?,
+        /** T118: Fenster aus dem Preroll-Rueckstand (kein Echtzeit-Budget, wird nie verworfen) */
+        val backlog: Boolean = false
     )
 
     /** Zuordnung Stream-Index → WAV-Offset, gesetzt beim Persistieren eines Hops */
@@ -68,6 +73,13 @@ class InferenceWorker(
     // Kapazitaet 1: max. ein wartendes Fenster, bei Stau wird das aelteste verworfen
     private val windowChannel = Channel<WindowJob>(capacity = 1)
     private val droppedWindows = AtomicInteger(0)
+
+    // T118: Preroll-Fenster (Rueckstand) — unbegrenzt, Laenge durch Preroll begrenzt (max. 30 s → ~28
+    // Fenster bei 67 %), werden VOR Live-Fenstern analysiert und nie verworfen.
+    private val backlogChannel = Channel<WindowJob>(capacity = Channel.UNLIMITED)
+    private val backlogPending = AtomicInteger(0)
+    // T118: Live-Fenster, die waehrend des Preroll-Nachholens verworfen wurden (zaehlen nicht fuer den Fallback)
+    private val droppedDuringBacklog = AtomicInteger(0)
 
     /** Obergrenze durch Auto-Fallback (100 = keine Begrenzung). Schreibt Analyse, liest Collector. */
     @Volatile
@@ -88,8 +100,15 @@ class InferenceWorker(
 
     /**
      * Verarbeitet einen AudioChunk (Collector-Coroutine). Kehrt ohne Inference zurueck.
+     *
+     * @param nowEpochMs Wanduhr (Epoch ms) am ENDE des Chunks — Basis fuer Fenster-Zeitstempel
+     * @param backlog T118: true fuer den Preroll — vollstaendige Fenster daraus werden alle analysiert
      */
-    fun processChunk(chunk: AudioChunk) = synchronized(persistLock) {
+    fun processChunk(
+        chunk: AudioChunk,
+        nowEpochMs: Long = System.currentTimeMillis(),
+        backlog: Boolean = false
+    ) = synchronized(persistLock) {
         // Overlap-Stufe anwenden (Setting oder Auto-Fallback)
         val overlap = effectiveOverlap()
         if (overlap != activeOverlap) {
@@ -119,7 +138,7 @@ class InferenceWorker(
         }
 
         // 2. Analyse-Fenster einreihen
-        val nowEpoch = System.currentTimeMillis()
+        val nowEpoch = nowEpochMs
         for (window in result.windows) {
             val sr = window.sampleRate
             val hopMs = OverlapFallback.hopMsFor(overlap)
@@ -139,11 +158,18 @@ class InferenceWorker(
             val startEpochMs = nowEpoch - (accumulator.totalSamples - window.startIndex) * 1000 / sr
             val budgetMs = if (intervalMs > CHUNK_DURATION_MS) maxOf(hopMs.toLong(), intervalMs) else hopMs.toLong()
 
-            val job = WindowJob(window, overlap, hopMs, budgetMs, startEpochMs, recordingOffsetSec)
+            val job = WindowJob(window, overlap, hopMs, budgetMs, startEpochMs, recordingOffsetSec, backlog)
+            if (backlog) {
+                backlogPending.incrementAndGet()
+                backlogChannel.trySend(job)  // UNLIMITED → immer erfolgreich
+                continue
+            }
+            // T118: Verwerfen waehrend des Preroll-Nachholens separat zaehlen (kein Fallback-Ausloeser)
+            val dropCounter = if (backlogPending.get() > 0) droppedDuringBacklog else droppedWindows
             if (!windowChannel.trySend(job).isSuccess) {
                 // Stau: aeltestes wartendes Fenster verwerfen, neues einreihen
-                if (windowChannel.tryReceive().isSuccess) droppedWindows.incrementAndGet()
-                if (!windowChannel.trySend(job).isSuccess) droppedWindows.incrementAndGet()
+                if (windowChannel.tryReceive().isSuccess) dropCounter.incrementAndGet()
+                if (!windowChannel.trySend(job).isSuccess) dropCounter.incrementAndGet()
             }
         }
     }
@@ -153,8 +179,18 @@ class InferenceWorker(
      * Muss parallel zum Collector gestartet werden (z.B. launch im Inference-Job).
      */
     suspend fun runAnalysisLoop() {
-        for (job in windowChannel) {
-            analyze(job)
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            // T118: Preroll-Fenster haben Vorrang (select bevorzugt die erste bereite Klausel)
+            val job = backlogChannel.tryReceive().getOrNull() ?: select {
+                backlogChannel.onReceive { it }
+                windowChannel.onReceive { it }
+            }
+            try {
+                analyze(job)
+            } finally {
+                if (job.backlog) backlogPending.updateAndGet { if (it > 0) it - 1 else 0 }  // reset() kann parallel auf 0 gesetzt haben
+            }
         }
     }
 
@@ -191,7 +227,11 @@ class InferenceWorker(
         // T110: Auto-Fallback + Statistik
         analyzedWindows++
         val dropped = droppedWindows.get()
-        val reduced = fallback.evaluate(job.overlapPercent, job.budgetMs, inferMs, dropped)
+        if (job.backlog) {
+            // T118: Preroll-Nachholen hat kein Echtzeit-Budget → nicht in den Auto-Fallback einrechnen
+            if (backlogPending.get() <= 1) logStats(job, dropped, "preroll_done dropped_during_preroll=${droppedDuringBacklog.get()}")
+        }
+        val reduced = if (job.backlog) null else fallback.evaluate(job.overlapPercent, job.budgetMs, inferMs, dropped)
         if (reduced != null && reduced < overlapCap && reduced < OverlapFallback.normalize(job.overlapPercent)) {
             overlapCap = reduced
             logStats(job, dropped, "fallback_to=$reduced")
@@ -289,6 +329,9 @@ class InferenceWorker(
     fun reset() {
         accumulator.reset()
         while (windowChannel.tryReceive().isSuccess) { /* wartende Fenster verwerfen */ }
+        while (backlogChannel.tryReceive().isSuccess) { /* T118: wartende Preroll-Fenster verwerfen */ }
+        backlogPending.set(0)
+        droppedDuringBacklog.set(0)
         anchors.clear()
         lastAnalyzedStart = -1L
         fallback.reset()

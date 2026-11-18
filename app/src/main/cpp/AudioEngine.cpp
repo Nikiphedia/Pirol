@@ -98,6 +98,17 @@ void AudioEngine::resetReadCursor() {
     droppedSamples_.store(0, std::memory_order_relaxed);
 }
 
+int32_t AudioEngine::rewindReadCursor(int32_t samples, int32_t marginSamples) {
+    int64_t total = ringBuffer_.totalWritten();
+    int64_t avail = std::min<int64_t>(total, ringBuffer_.capacity());
+    int64_t usable = avail - std::max<int32_t>(marginSamples, 0);
+    if (usable < 0) usable = 0;
+    int64_t back = std::min<int64_t>(std::max<int32_t>(samples, 0), usable);
+    readCursor_ = total - back;
+    droppedSamples_.store(0, std::memory_order_relaxed);
+    return static_cast<int32_t>(back);
+}
+
 int32_t AudioEngine::readNewSamples(int16_t* outBuffer, int32_t maxSamples) {
     int64_t dropped = droppedSamples_.load(std::memory_order_relaxed);
     int32_t n = ringBuffer_.readSince(readCursor_, outBuffer, maxSamples, dropped);
