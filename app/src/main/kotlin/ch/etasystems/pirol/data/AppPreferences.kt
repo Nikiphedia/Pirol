@@ -435,4 +435,12 @@ class AppPreferences(context: Context) {
     var lastUploadResult: String
         get() = prefs.getString("pirol_last_upload_result", "") ?: ""
         set(value) = prefs.edit().putString("pirol_last_upload_result", value).apply()
+
+    /** T134: Auf-/Zuklapp-Zustand einer Einstellungs-Sektion */
+    fun isSettingsSectionExpanded(key: String, default: Boolean): Boolean =
+        prefs.getBoolean("pirol_settings_section_$key", default)
+
+    fun setSettingsSectionExpanded(key: String, expanded: Boolean) {
+        prefs.edit().putBoolean("pirol_settings_section_$key", expanded).apply()
+    }
 }

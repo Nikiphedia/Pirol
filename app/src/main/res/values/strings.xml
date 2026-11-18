@@ -439,4 +439,14 @@
     <string name="map_source_swiss_image">swisstopo Luftbild</string>
     <string name="common_import">Importieren...</string>
     <string name="svc_vorbereitung">Vorbereitung...</string>
+    <string name="settings_section_language">Sprache</string>
+    <string name="settings_section_model_detection">Modell &amp; Erkennung</string>
+    <string name="settings_section_recording_storage">Aufnahme &amp; Speicher</string>
+    <string name="settings_section_analysis_export">Analyse &amp; Export</string>
+    <string name="settings_section_watchlist_alarm">Watchlist &amp; Alarm</string>
+    <string name="settings_section_similar_refs">Ähnliche Arten &amp; Referenzen</string>
+    <string name="settings_section_upload">Upload</string>
+    <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
+    <string name="settings_resampler_polyphase">Polyphase (empfohlen, filtert Störgeräusche über 16 kHz)</string>
+    <string name="settings_resampler_linear">Linear (alt, wie AMSEL)</string>
 </resources>
