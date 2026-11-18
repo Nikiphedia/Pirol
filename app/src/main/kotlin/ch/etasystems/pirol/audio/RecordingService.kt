@@ -83,6 +83,11 @@ class RecordingService : Service() {
     private var prerollActive = false
     private var configuredPrerollSec: Int = 0  // Gespeichert von initPreroll() fuer Phase-Timer
 
+    // T118: Preroll wird in startRecording() erfasst; der Lese-Cursor steht danach direkt hinter dem Preroll
+    @Volatile private var pendingPreroll: PrerollCapture? = null
+    @Volatile private var lastPreroll: PrerollCapture? = null
+    @Volatile private var cursorPrepared = false
+
     private val _audioChunkFlow = MutableSharedFlow<AudioChunk>(
         replay = 0,
         extraBufferCapacity = 64 // Genug Puffer fuer langsame Consumer
@@ -167,6 +172,44 @@ class RecordingService : Service() {
     }
 
     /**
+     * T118: Preroll aus dem Ring-Buffer lesen und den Lese-Cursor direkt dahinter stehen lassen.
+     * Der Chunk-Emitter liest danach ab genau diesem Cursor weiter → Preroll und Live-Audio
+     * schliessen lueckenlos und ohne Doppel-Samples aneinander an.
+     */
+    private fun capturePreroll(prerollMs: Int): PrerollCapture? {
+        val rate = engine.actualSampleRate
+        if (rate <= 0) return null
+        val wanted = (rate.toLong() * prerollMs / 1000).toInt()
+        // Marge 100 ms: aelteste Samples koennten waehrend des Kopierens ueberschrieben werden
+        val back = engine.rewindReadCursor(wanted, rate / 10)
+        cursorPrepared = true
+        if (back <= 0) return null
+        val out = ShortArray(back + rate) // Reserve fuer waehrend des Lesens nachgeschriebene Samples
+        var n = 0
+        while (n < out.size) {
+            val part = engine.readNewSamples(out.size - n)
+            if (part.isEmpty()) break
+            part.copyInto(out, destinationOffset = n)
+            n += part.size
+        }
+        val captureEpochMs = System.currentTimeMillis()
+        Log.i("RecordingService", "T118 Preroll erfasst: $n Samples (angefordert $wanted, dropped=${engine.getDroppedSamples()})")
+        if (n == 0) return null
+        return PrerollCapture(out.copyOf(n), rate, captureEpochMs)
+    }
+
+    /** T118: Erfassten Preroll genau einmal abholen (fuer Persistenz + Analyse). */
+    fun takePrerollCapture(): PrerollCapture? {
+        val p = pendingPreroll
+        pendingPreroll = null
+        return p
+    }
+
+    /** T118: Preroll der letzten Aufnahme (nur lesen, z.B. fuer die Sonogramm-Anzeige). */
+    val lastPrerollCapture: PrerollCapture?
+        get() = lastPreroll
+
+    /**
      * Preroll-Engine stoppen. Nur moeglich wenn keine Aufnahme laeuft (F5).
      */
     fun stopPreroll() {
@@ -181,8 +224,21 @@ class RecordingService : Service() {
      * Falls Preroll aktiv: Engine laeuft bereits, nur Foreground + Chunk-Emitter starten.
      * Falls kein Preroll: Engine normal starten.
      */
-    fun startRecording(sampleRate: Int = OboeAudioEngine.SAMPLE_RATE_BIRDS) {
+    fun startRecording(sampleRate: Int = OboeAudioEngine.SAMPLE_RATE_BIRDS, prerollMs: Int = 0) {
         if (_isRecording.value) return
+
+        // T118: Preroll nur, wenn die Engine bereits lief (Ring-Buffer enthaelt echtes Audio vor dem Start).
+        // Wird VOR _isRecording = true erfasst, weil der Recording-Observer im LiveViewModel
+        // synchron beim Setzen von _isRecording feuern kann und den Preroll dort abholt.
+        cursorPrepared = false
+        pendingPreroll = null
+        lastPreroll = null
+        if (engine.isRecording && prerollMs > 0) {
+            capturePreroll(prerollMs)?.let {
+                pendingPreroll = it
+                lastPreroll = it
+            }
+        }
 
         if (!engine.isRecording) {
             val started = engine.start(sampleRate)
@@ -303,8 +359,10 @@ class RecordingService : Service() {
             var lastDropped = 0L
             val rate = engine.actualSampleRate
             val maxRead = if (rate > 0) rate else OboeAudioEngine.SAMPLE_RATE_BIRDS // 1 s
-            // T92: Lese-Cursor auf "jetzt" -- ab hier wird jedes Sample genau einmal geliefert
-            engine.resetReadCursor()
+            // T92: Lese-Cursor auf "jetzt" -- ab hier wird jedes Sample genau einmal geliefert.
+            // T118: Nach Preroll-Erfassung steht der Cursor bereits direkt hinter dem Preroll.
+            if (!cursorPrepared) engine.resetReadCursor()
+            cursorPrepared = false
             try {
                 while (isActive && _isRecording.value) {
                     var more: Boolean
@@ -343,3 +401,14 @@ class RecordingService : Service() {
         chunkJob = null
     }
 }
+
+/**
+ * T118: Beim Aufnahmestart erfasster Preroll.
+ * @param samples PCM vor dem Aufnahmestart (endet exakt dort, wo der Live-Emitter beginnt)
+ * @param captureEpochMs Wanduhr (Epoch ms) beim Erfassen = Ende des Prerolls
+ */
+class PrerollCapture(
+    val samples: ShortArray,
+    val sampleRate: Int,
+    val captureEpochMs: Long
+)

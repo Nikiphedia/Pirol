@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.etasystems.pirol.audio.AudioChunk
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.RecordingService
@@ -42,12 +43,14 @@ import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistManager
 import ch.etasystems.pirol.audio.AlarmService
 import ch.etasystems.pirol.ui.components.SpectrogramState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CoroutineScope
@@ -193,15 +196,17 @@ class LiveViewModel(
     // Session-ID der aktuellen/letzten Aufnahme (T15)
     private var currentSessionId: String? = null
 
-    // Preroll-Samples die nach startSession() angehaengt werden (T46)
-    private var pendingPrerollSamples: ShortArray = ShortArray(0)
+    // T118: Preroll laeuft durch denselben Pfad wie Live-Audio (InferenceWorker -> onAudioPersist).
+    // Zaehler fuer T118_STATS (Collector-Coroutine schreibt, Stop-Pfad liest)
+    private val prerollSamplesFed = java.util.concurrent.atomic.AtomicLong(0L)
+    private val liveSamplesFed = java.util.concurrent.atomic.AtomicLong(0L)
 
     // F5: User hat Preroll explizit gestartet
     private var prerollRunning = false
 
     // T54-Fix: Sequentieller Dispatcher fuer Session-Lifecycle-Operationen.
-    // startSession+appendPreroll und endSession laufen auf demselben Single-Thread-Kontext,
-    // damit endSession() niemals vor appendPreroll() ausgefuehrt wird (Race-Condition fix).
+    // startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf demselben Single-Thread-Kontext,
+    // damit endSession() niemals vor einem Append ausgefuehrt wird (Race-Condition fix).
     private val sessionDispatcher = Dispatchers.IO.limitedParallelism(1)
 
     // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt.
@@ -487,7 +492,8 @@ class LiveViewModel(
 
     /**
      * Aufnahme starten. Erstellt Foreground-Service und startet Audio-Capture.
-     * Bei aktivem Preroll: gepufferte Samples als chunk_000 speichern + im Sonogramm darstellen.
+     * Bei aktivem Preroll (T118): Service erfasst den Ring-Buffer-Inhalt; er wird als erster Block
+     * in recording.wav geschrieben, analysiert und hier im Sonogramm dargestellt.
      * @param sampleRate Ziel-Samplerate (Standard: 48kHz fuer Voegel)
      */
     fun startRecording(sampleRate: Int = 48000) {
@@ -505,22 +511,18 @@ class LiveViewModel(
         spectrogramState.clear()
         resetMelSpectrogram()
 
-        // Preroll-Samples VOR Aufnahmestart holen (T35)
-        val prerollSamples = if (appPreferences.prerollEnabled) {
-            svc.getPrerollSamples(appPreferences.prerollDurationSec * 1000)
-        } else {
-            ShortArray(0)
-        }
+        // T118: Preroll wird im Service beim Start erfasst (Lese-Cursor direkt dahinter -> lueckenlos).
+        // Persistenz + Analyse: observeRecordingState() holt ihn per takePrerollCapture() ab.
+        val prerollMs = if (appPreferences.prerollEnabled) appPreferences.prerollDurationSec * 1000 else 0
 
         // Foreground-Service starten + Aufnahme beginnen
         val intent = Intent(ctx, RecordingService::class.java)
         ctx.startForegroundService(intent)
-        svc.startRecording(sampleRate)
+        svc.startRecording(sampleRate, prerollMs)
 
-        // Preroll vormerken: wird nach startSession() angehaengt (T46 — Reihenfolge sicherstellen)
-        // Sonogramm-Darstellung passiert hier, Datei-Schreiben in observeRecordingState
+        // Sonogramm-Darstellung des Prerolls (Datei + Analyse laufen ueber den InferenceWorker)
+        val prerollSamples = svc.lastPrerollCapture?.samples ?: ShortArray(0)
         if (prerollSamples.isNotEmpty()) {
-            pendingPrerollSamples = prerollSamples
             // Preroll im Sonogramm darstellen
             val config = _uiState.value.spectrogramConfig
             val rate = svc.actualSampleRate.let { if (it > 0) it else sampleRate }
@@ -1161,30 +1163,38 @@ class LiveViewModel(
                 if (recording) {
                     locationProvider.start()
                     startCollectionPipeline()
-                    startInferencePipeline()
-                    // Session nur starten wenn keine aktive Session (verhindert Doppel-Session bei Tab-Wechsel, F1+F2)
+                    // T118: Session nur starten wenn keine aktive Session (verhindert Doppel-Session
+                    // bei Tab-Wechsel, F1+F2). Der InferenceWorker persistiert erst, wenn die Session
+                    // steht (sessionReady) - sonst wuerde der Preroll-Hop sofort und ohne Session verworfen.
+                    val sessionReady = CompletableDeferred<Unit>()
                     if (!sessionManager.isActive) {
+                        val preroll = service?.takePrerollCapture()
+                        prerollSamplesFed.set(0L)
+                        liveSamplesFed.set(0L)
+                        startInferencePipeline(preroll, sessionReady)
                         viewModelScope.launch(sessionDispatcher) {
-                            val loc = locationProvider.location.value
-                            val config = _uiState.value.inferenceConfig
-                            val sessionId = sessionManager.startSession(
-                                sampleRate = service?.actualSampleRate ?: 48000,
-                                latitude = loc?.latitude,
-                                longitude = loc?.longitude,
-                                regionFilter = config.regionFilter,
-                                confidenceThreshold = config.confidenceThreshold,
-                                note = _sessionNote.value  // T109
-                            )
-                            currentSessionId = sessionId
-                            // Fallback-Banner aktualisieren (T51)
-                            _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
-                            // Preroll nach startSession() anhaengen (T46)
-                            val preroll = pendingPrerollSamples
-                            pendingPrerollSamples = ShortArray(0)
-                            if (preroll.isNotEmpty()) {
-                                sessionManager.appendAudioSamples(preroll)
+                            try {
+                                val loc = locationProvider.location.value
+                                val config = _uiState.value.inferenceConfig
+                                val sessionId = sessionManager.startSession(
+                                    sampleRate = service?.actualSampleRate ?: 48000,
+                                    latitude = loc?.latitude,
+                                    longitude = loc?.longitude,
+                                    regionFilter = config.regionFilter,
+                                    confidenceThreshold = config.confidenceThreshold,
+                                    note = _sessionNote.value  // T109
+                                )
+                                currentSessionId = sessionId
+                                // Fallback-Banner aktualisieren (T51)
+                                _uiState.update { it.copy(storageUnavailableFallback = sessionManager.lastStartUsedFallback) }
+                            } finally {
+                                // Appends aus onAudioPersist laufen ebenfalls auf sessionDispatcher -> nach startSession
+                                sessionReady.complete(Unit)
                             }
                         }
+                    } else {
+                        sessionReady.complete(Unit)
+                        startInferencePipeline(null, sessionReady)
                     }
                 } else {
                     // T53: GpsStats VOR stop() erfassen — Zaehler bleiben bis naechsten start() erhalten
@@ -1198,6 +1208,8 @@ class LiveViewModel(
                     // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
                     // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
                     inferenceWorker.flushPendingAudio()
+                    val statsPreroll = prerollSamplesFed.get()
+                    val statsLive = liveSamplesFed.get()
                     // InferenceWorker Accumulator leeren
                     inferenceWorker.reset()
                     // Detektionsliste leeren — jede Aufnahme startet frisch (T33-AP5)
@@ -1205,9 +1217,12 @@ class LiveViewModel(
                     // Fallback-Banner zuruecksetzen (T51)
                     _uiState.update { it.copy(storageUnavailableFallback = false) }
                     // Session beenden + lastSessionId setzen (T15)
-                    // sessionDispatcher: wartet auf startSession+appendPreroll, bevor endSession laeuft (T54)
+                    // sessionDispatcher: wartet auf startSession + alle Appends, bevor endSession laeuft (T54)
                     val finishedSessionId = currentSessionId
                     viewModelScope.launch(sessionDispatcher) {
+                        // T118: alle Appends (inkl. Preroll + Rest) liegen vor diesem Block auf sessionDispatcher
+                        Log.i(TAG, "T118_STATS preroll_samples=$statsPreroll live_samples=$statsLive " +
+                                "wav_samples=${sessionManager.recordedSampleCount}")
                         sessionManager.endSession(gpsStats)  // T53: GPS-Statistiken mitgeben
                         saveEmbeddingDatabase()  // T97: einmal pro Session statt alle 10 Eintraege
                         alarmService.clearCooldowns()  // AC6: Cooldown-Map pro Session leeren
@@ -1286,7 +1301,10 @@ class LiveViewModel(
      *
      * Graceful Degradation: Wenn BirdNET-Modell nicht verfuegbar, wird der Job nicht gestartet.
      */
-    private fun startInferencePipeline() {
+    private fun startInferencePipeline(
+        preroll: ch.etasystems.pirol.audio.PrerollCapture?,
+        sessionReady: CompletableDeferred<Unit>
+    ) {
         stopInferenceJob()
 
         if (!_uiState.value.isModelAvailable) {
@@ -1303,12 +1321,29 @@ class LiveViewModel(
             Log.d(TAG, "ML-Pipeline gestartet (Overlap ${inferenceWorker.config.overlapPercent} %)")
             // T110: Analyse laeuft parallel; der Collector persistiert Audio ohne auf Inference zu warten
             launch { inferenceWorker.runAnalysisLoop() }
-            svc.audioChunkFlow.collect { chunk ->
-                // T95: kehrt sofort zurueck, sobald geladen. Waehrend des Ladens stauen sich die
-                // Chunks im SharedFlow-Puffer bzw. Ring-Buffer (T92) — es geht kein Audio verloren.
-                speciesNameResolver.load()
-                inferenceWorker.processChunk(chunk)
-            }
+            svc.audioChunkFlow
+                .onSubscription {
+                    // T118: Laeuft NACH der Anmeldung am SharedFlow - Live-Chunks stauen sich solange im
+                    // Puffer (kein Verlust). Erst Session abwarten, dann Preroll als ersten Block einspeisen:
+                    // derselbe Pfad wie Live -> genau einmal in recording.wav (Offset 0) + BirdNET-Analyse.
+                    sessionReady.await()
+                    if (preroll != null && preroll.samples.isNotEmpty()) {
+                        speciesNameResolver.load()
+                        inferenceWorker.processChunk(
+                            AudioChunk(preroll.samples, preroll.sampleRate, SystemClock.elapsedRealtime()),
+                            nowEpochMs = preroll.captureEpochMs,
+                            backlog = true
+                        )
+                        prerollSamplesFed.addAndGet(preroll.samples.size.toLong())
+                    }
+                }
+                .collect { chunk ->
+                    // T95: kehrt sofort zurueck, sobald geladen. Waehrend des Ladens stauen sich die
+                    // Chunks im SharedFlow-Puffer bzw. Ring-Buffer (T92) - es geht kein Audio verloren.
+                    speciesNameResolver.load()
+                    inferenceWorker.processChunk(chunk)
+                    liveSamplesFed.addAndGet(chunk.samples.size.toLong())
+                }
         }
     }
 

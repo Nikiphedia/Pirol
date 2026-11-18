@@ -41,6 +41,13 @@ public:
     /** T92: Lese-Cursor auf "jetzt" setzen und Dropped-Zaehler auf 0 (nur Konsumenten-Thread). */
     void resetReadCursor();
 
+    /**
+     * T118: Lese-Cursor um bis zu `samples` in die Vergangenheit setzen (Preroll), begrenzt auf
+     * den vorhandenen Puffer-Inhalt minus `marginSamples` (Schutz vor Ueberschreiben beim Lesen).
+     * Dropped-Zaehler auf 0. Rueckgabe: tatsaechliche Anzahl zurueckgesetzter Samples.
+     */
+    int32_t rewindReadCursor(int32_t samples, int32_t marginSamples);
+
     /** T92: Alle neuen Samples seit dem Cursor lesen (max. maxSamples). Rueckgabe: Anzahl. */
     int32_t readNewSamples(int16_t* outBuffer, int32_t maxSamples);
 
