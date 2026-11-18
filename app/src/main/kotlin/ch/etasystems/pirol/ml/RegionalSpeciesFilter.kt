@@ -15,10 +15,20 @@ class RegionalSpeciesFilter(private val context: Context) {
     companion object {
         private const val TAG = "RegionalSpeciesFilter"
         private const val REGION_SETS_PATH = "regions/region_sets.json"
+
+        /** T105: Region-Arten als kanonische Schluessel (reine Logik, testbar). */
+        internal fun canonicalize(species: Set<String>): Set<String> = species.map { SpeciesKey.of(it) }.toSet()
+
+        /** T105: Pruefung gegen kanonisierte Region (leer = kein Filter). */
+        internal fun matches(canonicalRegion: Set<String>, scientificName: String): Boolean =
+            canonicalRegion.isEmpty() || SpeciesKey.of(scientificName) in canonicalRegion
     }
 
     private var currentRegionId: String? = null
     private var speciesSet: Set<String> = emptySet()
+
+    // T105: kanonische Schluessel der aktiven Region (Synonyme aufgeloest) fuer den Vergleich
+    private var canonicalSet: Set<String> = emptySet()
     private var allSets: List<RegionInfo> = emptyList()
 
     /**
@@ -30,6 +40,7 @@ class RegionalSpeciesFilter(private val context: Context) {
     fun loadRegion(requestedId: String = "ch_breeding") {
         // T106: alte Onboarding-ID "dach" auf das existierende Set abbilden
         val regionId = if (requestedId == "dach") "central_europe" else requestedId
+        SpeciesKey.load(context)
         try {
             // Sets nur einmal parsen
             if (allSets.isEmpty()) {
@@ -39,6 +50,7 @@ class RegionalSpeciesFilter(private val context: Context) {
             // "all" = kein Filter (leere species-Liste)
             if (regionId == "all") {
                 speciesSet = emptySet()
+                canonicalSet = emptySet()
                 currentRegionId = "all"
                 Log.i(TAG, "Region 'all' aktiviert — kein Artenfilter")
                 return
@@ -58,6 +70,7 @@ class RegionalSpeciesFilter(private val context: Context) {
                         species.add(speciesArray.getString(j))
                     }
                     speciesSet = species
+                    canonicalSet = canonicalize(species)
                     currentRegionId = regionId
                     Log.i(TAG, "Region '$regionId' geladen: ${species.size} Arten")
                     return
@@ -80,12 +93,8 @@ class RegionalSpeciesFilter(private val context: Context) {
      * @return true wenn die Art in der Region vorkommt, oder wenn kein Filter aktiv ist
      */
     fun isPlausible(scientificName: String): Boolean {
-        // Kein Filter aktiv oder "all" gewaehlt
-        if (speciesSet.isEmpty()) return true
-
-        // Normalisierung: Leerzeichen → Unterstrich (BirdNET-Konvention)
-        val normalized = scientificName.replace(' ', '_')
-        return normalized in speciesSet
+        // Kein Filter aktiv oder "all" gewaehlt; sonst Vergleich ueber kanonischen Schluessel (T105)
+        return matches(canonicalSet, scientificName)
     }
 
     /** Alle Arten der aktuell geladenen Region */

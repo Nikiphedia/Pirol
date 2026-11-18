@@ -172,7 +172,7 @@ fun DetectionList(
                         },
                         atlasCodes = atlasCodes,
                         isWatchlisted = watchlistSpecies.contains(
-                            detection.scientificName.replace(' ', '_')
+                            ch.etasystems.pirol.ml.SpeciesKey.of(detection.scientificName)
                         ),
                         showTopNCandidates = showTopNCandidates,
                         // T74: Phenology
