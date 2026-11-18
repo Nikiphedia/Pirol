@@ -444,4 +444,12 @@ class AppPreferences(context: Context) {
             ch.etasystems.pirol.audio.dsp.AudioResampler.defaultMode =
                 ch.etasystems.pirol.audio.dsp.AudioResampler.Mode.parse(value)
         }
+
+    /** T134: Auf-/Zuklapp-Zustand einer Einstellungs-Sektion */
+    fun isSettingsSectionExpanded(key: String, default: Boolean): Boolean =
+        prefs.getBoolean("pirol_settings_section_$key", default)
+
+    fun setSettingsSectionExpanded(key: String, expanded: Boolean) {
+        prefs.edit().putBoolean("pirol_settings_section_$key", expanded).apply()
+    }
 }

@@ -438,4 +438,14 @@
     <string name="map_source_swiss_image">swisstopo aerial</string>
     <string name="common_import">Import...</string>
     <string name="svc_vorbereitung">Preparing...</string>
+    <string name="settings_section_language">Language</string>
+    <string name="settings_section_model_detection">Model &amp; detection</string>
+    <string name="settings_section_recording_storage">Recording &amp; storage</string>
+    <string name="settings_section_analysis_export">Analysis &amp; export</string>
+    <string name="settings_section_watchlist_alarm">Watchlist &amp; alarm</string>
+    <string name="settings_section_similar_refs">Similar species &amp; references</string>
+    <string name="settings_section_upload">Upload</string>
+    <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
+    <string name="settings_resampler_polyphase">Polyphase (recommended, filters noise above 16 kHz)</string>
+    <string name="settings_resampler_linear">Linear (old, as in AMSEL)</string>
 </resources>
