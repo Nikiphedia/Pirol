@@ -34,3 +34,7 @@ crash.log
 keystore.properties
 *.jks
 *.keystore
+
+# Archiv-Ordner: bereits versionierte Dateien bleiben, neue werden nicht mehr erfasst
+Historisch/
+Daten/
