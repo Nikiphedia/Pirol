@@ -43,6 +43,8 @@ object OnnxBenchmark {
     suspend fun run(
         modelFile: File,
         inputSamples: Int = INPUT_SAMPLES,  // T103a: Fensterlaenge des Modellprofils
+        inputName: String? = null,          // T151a: Eingangsname laut Profil (null = erster)
+        windowMs: Int = 3000,               // T151a: Fensterlaenge (Budget fuer Echtzeit)
         onProgress: (String) -> Unit
     ): String = withContext(Dispatchers.Default) {
         val report = StringBuilder()
@@ -55,7 +57,7 @@ object OnnxBenchmark {
         line("Geraet: ${Build.MANUFACTURER} ${Build.MODEL}, SoC $soc, " +
                 "${Runtime.getRuntime().availableProcessors()} Kerne, Android ${Build.VERSION.RELEASE}")
         line("Modell: ${modelFile.name} (${modelFile.length() / 1_000_000} MB)")
-        line("Messung: $MEASURED_RUNS Laeufe nach $WARMUP_RUNS Aufwaermlaeufen, 3 s Audio pro Lauf")
+        line("Messung: $MEASURED_RUNS Laeufe nach $WARMUP_RUNS Aufwaermlaeufen, ${windowMs / 1000.0} s Audio pro Lauf")
         line("Variante              Median   Max    Laden")
 
         // Fester Zufalls-Input: reproduzierbar und ohne Sonderfall "Stille"
@@ -72,7 +74,7 @@ object OnnxBenchmark {
                 val name = "${threads} Thread${if (threads > 1) "s" else " "}, ${if (xnnpack) "XNNPACK" else "CPU    "}"
                 onProgress("$step/$total: $name")
                 try {
-                    val result = measure(env, modelFile, threads, xnnpack, input)
+                    val result = measure(env, modelFile, threads, xnnpack, input, inputName)
                     line("%-20s %5d ms %5d ms %5d ms".format(name, result.medianMs, result.maxMs, result.loadMs))
                 } catch (e: Exception) {
                     // z.B. XNNPACK in diesem Build nicht enthalten oder Modell-Operator nicht unterstuetzt
@@ -80,7 +82,7 @@ object OnnxBenchmark {
                 }
             }
         }
-        line("Lesehilfe: Median unter 3000 ms heisst, die Inference haelt mit der Aufnahme mit.")
+        line("Lesehilfe: Median unter $windowMs ms heisst, die Inference haelt mit der Aufnahme mit.")
         report.toString()
     }
 
@@ -185,7 +187,8 @@ object OnnxBenchmark {
         modelFile: File,
         threads: Int,
         xnnpack: Boolean,
-        input: FloatArray
+        input: FloatArray,
+        inputName: String? = null
     ): Measurement {
         OrtSession.SessionOptions().use { opts ->
             opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
@@ -197,13 +200,14 @@ object OnnxBenchmark {
             val loadStart = SystemClock.elapsedRealtime()
             env.createSession(modelFile.absolutePath, opts).use { session ->
                 val loadMs = SystemClock.elapsedRealtime() - loadStart
-                val inputName = session.inputNames.first()
-                val shape = longArrayOf(1, input.size.toLong())
+                // T151a: Eingangsname und Form ([1, N] oder [N]) laut Modell
+                val inName = OrtModelIo.inputName(session, inputName)
+                val shape = OrtModelIo.tensorShape(session, inName, input.size)
                 val times = LongArray(MEASURED_RUNS)
                 for (i in 0 until WARMUP_RUNS + MEASURED_RUNS) {
                     OnnxTensor.createTensor(env, FloatBuffer.wrap(input), shape).use { tensor ->
                         val start = SystemClock.elapsedRealtime()
-                        session.run(mapOf(inputName to tensor)).use { }
+                        session.run(mapOf(inName to tensor)).use { }
                         val ms = SystemClock.elapsedRealtime() - start
                         if (i >= WARMUP_RUNS) times[i - WARMUP_RUNS] = ms
                     }

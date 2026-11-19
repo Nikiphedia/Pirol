@@ -14,7 +14,7 @@ class PersistHop(
 )
 
 /**
- * Analyse-Fenster fester Laenge (3 s) — kann sich mit Nachbarfenstern ueberlappen (T110).
+ * Analyse-Fenster fester Laenge (Fensterlaenge des Modells, BirdNET 3: 3 s) — kann sich mit Nachbarfenstern ueberlappen (T110).
  *
  * @param startIndex Stream-Index des ersten Samples im Fenster
  */
@@ -43,7 +43,8 @@ class FeedResult(
  * Nicht thread-safe — wird nur vom Collector-Coroutine des InferenceWorker benutzt.
  */
 class ChunkAccumulator(
-    private val windowDurationMs: Int = CHUNK_DURATION_MS.toInt(),
+    /** Fensterlaenge in ms (T151a: laut Modellprofil, Default 3 s) */
+    val windowDurationMs: Int = CHUNK_DURATION_MS.toInt(),
     hopMs: Int = windowDurationMs
 ) {
     /** Abstand zwischen zwei Fensterstarts in ms (= Persistenz-Granularitaet). 1..windowDurationMs. */

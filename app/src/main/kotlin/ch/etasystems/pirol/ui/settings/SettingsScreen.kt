@@ -406,6 +406,26 @@ fun SettingsScreen(
             var importProgress by remember { mutableFloatStateOf(0f) }
             var modelError by remember { mutableStateOf<String?>(null) }
             var pendingImport by remember { mutableStateOf<ModelManager.ImportResult.NeedsProfile?>(null) }
+            var deleteCandidate by remember { mutableStateOf<ModelManager.InstalledModel?>(null) }
+
+            // T151a: Loeschen eines importierten Modells bestaetigen (Dateien lassen sich nicht wiederherstellen)
+            deleteCandidate?.let { model ->
+                AlertDialog(
+                    onDismissRequest = { deleteCandidate = null },
+                    text = { Text(stringResource(R.string.model_delete_confirm, model.name)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            deleteCandidate = null
+                            modelManager.deleteModel(model.fileName)
+                            installedModels = modelManager.listInstalledModels()
+                            Toast.makeText(context, AppStrings.get(R.string.model_deleted, model.name), Toast.LENGTH_SHORT).show()
+                        }) { Text(stringResource(R.string.common_delete)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { deleteCandidate = null }) { Text(stringResource(R.string.common_cancel)) }
+                    }
+                )
+            }
 
             // T103a: Ergebnis eines Imports auswerten (Erfolg, Rueckfrage zum Profil, Fehler)
             fun handleImportResult(result: ModelManager.ImportResult) {
@@ -420,15 +440,15 @@ fun SettingsScreen(
                 }
             }
 
-            // SAF-Import fuer Modell (T37)
+            // SAF-Import fuer Modell (T37); T151a: Mehrfachauswahl fuer .onnx + .pirol.json + Label-CSV
             val modelImportLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument()
-            ) { uri ->
-                if (uri != null) {
+                contract = ActivityResultContracts.OpenMultipleDocuments()
+            ) { uris ->
+                if (uris.isNotEmpty()) {
                     isImporting = true
                     modelError = null
                     scope.launch {
-                        val result = modelManager.importFromUri(uri) { progress ->
+                        val result = modelManager.importUris(uris) { progress ->
                             importProgress = progress
                         }
                         isImporting = false
@@ -500,6 +520,25 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            // T151a: importierte Modelle mit Abtastrate, Fenster und Lizenz
+                            if (model.profile.source == ModelProfile.Source.IMPORTED) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.model_imported_info,
+                                        model.profile.sampleRate,
+                                        model.profile.windowSec,
+                                        model.profile.licenseNote
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        // T151a: importierte, nicht aktive Modelle loeschbar
+                        if (model.profile.source == ModelProfile.Source.IMPORTED && !model.isActive) {
+                            IconButton(onClick = { deleteCandidate = model }) {
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.model_delete))
+                            }
                         }
                     }
                 }
@@ -2034,7 +2073,8 @@ fun SettingsScreen(
                         benchmarkReport = ""
                         scope.launch {
                             benchmarkReport = try {
-                                OnnxBenchmark.run(modelFile, modelManager.getActiveProfile().windowSamples) { benchmarkProgress = it }
+                                val p = modelManager.getActiveProfile()  // T151a: Eingang/Fenster laut Profil
+                                OnnxBenchmark.run(modelFile, p.windowSamples, p.inputName, p.windowMs) { benchmarkProgress = it }
                             } catch (e: Exception) {
                                 AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
                             }

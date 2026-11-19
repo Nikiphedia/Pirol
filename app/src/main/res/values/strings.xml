@@ -483,4 +483,17 @@
     <string name="settings_bench_datei_hinweis">Misst eine beliebige ONNX-Datei (z.B. aus Download) mit Zufallsrauschen, 1/2/4 Threads. Die Datei wird kurz in den Cache kopiert.</string>
     <string name="settings_bench_datei_waehlen">ONNX-Datei wählen und messen</string>
     <string name="settings_bench_datei_kopiere">Kopiere Datei</string>
+    <string name="model_import_err_schema">Profil-JSON ungueltig: %1$s</string>
+    <string name="model_import_err_runtime">Laufzeit nicht unterstuetzt: %1$s</string>
+    <string name="model_import_err_missing_file">Datei fehlt in der Auswahl: %1$s. Bitte .onnx, .pirol.json und Label-CSV zusammen waehlen.</string>
+    <string name="model_import_err_checksum">Pruefsumme (SHA-256) stimmt nicht: %1$s</string>
+    <string name="model_import_err_labels">Label-Datei unlesbar: %1$s</string>
+    <string name="model_import_err_ort">Modell laesst sich nicht oeffnen: %1$s</string>
+    <string name="model_import_err_io">Modell passt nicht zum Profil: %1$s</string>
+    <string name="model_import_err_conflict">Name kollidiert mit eingebautem Modell: %1$s</string>
+    <string name="model_import_err_store">Import fehlgeschlagen: %1$s</string>
+    <string name="model_imported_info">Importiert — %1$d Hz, %2$.2f s — Lizenz: %3$s</string>
+    <string name="model_delete">Modell loeschen</string>
+    <string name="model_delete_confirm">%1$s mit Profil und Labels loeschen? Das laesst sich nicht rueckgaengig machen.</string>
+    <string name="model_deleted">%1$s geloescht</string>
 </resources>

@@ -64,7 +64,8 @@ class InferenceWorker(
     /** Zuordnung Stream-Index → WAV-Offset, gesetzt beim Persistieren eines Hops */
     private class Anchor(val streamIndex: Long, val offsetSec: Float?)
 
-    private val accumulator = ChunkAccumulator()
+    // T151a: wird bei anderer Fensterlaenge des Modells neu angelegt
+    private var accumulator = ChunkAccumulator(windowDurationMs = classifier.windowMs)
     // T117: processChunk und flushPendingAudio teilen den Accumulator (Collector vs. Stop-Pfad)
     private val persistLock = Any()
     private val fallback = OverlapFallback()
@@ -114,7 +115,16 @@ class InferenceWorker(
             Log.i(TAG, "Overlap $activeOverlap% → $overlap%")
             activeOverlap = overlap
         }
-        accumulator.hopMs = OverlapFallback.hopMsFor(overlap)
+        // T151a: Fensterlaenge des Modells hat gewechselt (Modellwechsel) → Rest sichern, neu anlegen
+        val windowMs = classifier.windowMs
+        if (windowMs != accumulator.windowDurationMs) {
+            Log.i(TAG, "Fensterlaenge ${accumulator.windowDurationMs} ms → $windowMs ms")
+            accumulator.flushPending()?.let { onAudioPersist(it.pcm) }
+            accumulator = ChunkAccumulator(windowDurationMs = windowMs)
+            anchors.clear()
+            lastAnalyzedStart = -1L
+        }
+        accumulator.hopMs = OverlapFallback.hopMsFor(overlap, windowMs)
 
         val result = try {
             accumulator.feed(chunk)
@@ -125,7 +135,7 @@ class InferenceWorker(
             accumulator.reset()
             anchors.clear()
             lastAnalyzedStart = -1L
-            accumulator.hopMs = OverlapFallback.hopMsFor(overlap)
+            accumulator.hopMs = OverlapFallback.hopMsFor(overlap, windowMs)
             accumulator.feed(chunk)
         }
 
@@ -140,7 +150,7 @@ class InferenceWorker(
         val nowEpoch = nowEpochMs
         for (window in result.windows) {
             val sr = window.sampleRate
-            val hopMs = OverlapFallback.hopMsFor(overlap)
+            val hopMs = OverlapFallback.hopMsFor(overlap, accumulator.windowDurationMs)
             val intervalMs = config.inferenceIntervalMs
             // T29: Energiesparmodus ueber Aufnahmezeit (Sample-Raster), nicht ueber Wanduhr
             if (intervalMs > CHUNK_DURATION_MS && lastAnalyzedStart >= 0 &&

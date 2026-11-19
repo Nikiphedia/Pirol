@@ -25,12 +25,16 @@ class OverlapFallback(
             else -> 0
         }
 
-        /** Hop (Abstand der Fensterstarts) in ms: 0 % = 3000, 50 % = 1500, 67 % = 1000 */
-        fun hopMsFor(percent: Int): Int = when (normalize(percent)) {
-            67 -> 1000
-            50 -> 1500
-            else -> CHUNK_DURATION_MS.toInt()
-        }
+        /**
+         * Hop (Abstand der Fensterstarts) in ms, bezogen auf die Fensterlaenge (T151a):
+         * Hop = Fenster * (1 - Overlap) → 0 % = Fenster, 50 % = Fenster/2, 67 % = Fenster/3.
+         * Bei 3 s: 3000 / 1500 / 1000.
+         */
+        fun hopMsFor(percent: Int, windowMs: Int = CHUNK_DURATION_MS.toInt()): Int = when (normalize(percent)) {
+            67 -> (windowMs + 1) / 3
+            50 -> (windowMs + 1) / 2
+            else -> windowMs
+        }.coerceIn(1, windowMs)
 
         /** Naechst-tiefere Stufe */
         fun stepDown(percent: Int): Int = when (normalize(percent)) {

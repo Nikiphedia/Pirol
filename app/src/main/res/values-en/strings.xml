@@ -482,4 +482,17 @@
     <string name="settings_bench_datei_hinweis">Measures any ONNX file (e.g. from Download) with random noise, 1/2/4 threads. The file is briefly copied to the cache.</string>
     <string name="settings_bench_datei_waehlen">Pick ONNX file and measure</string>
     <string name="settings_bench_datei_kopiere">Copying file</string>
+    <string name="model_import_err_schema">Invalid profile JSON: %1$s</string>
+    <string name="model_import_err_runtime">Runtime not supported: %1$s</string>
+    <string name="model_import_err_missing_file">File missing from selection: %1$s. Please select .onnx, .pirol.json and label CSV together.</string>
+    <string name="model_import_err_checksum">Checksum (SHA-256) does not match: %1$s</string>
+    <string name="model_import_err_labels">Label file unreadable: %1$s</string>
+    <string name="model_import_err_ort">Model cannot be opened: %1$s</string>
+    <string name="model_import_err_io">Model does not match its profile: %1$s</string>
+    <string name="model_import_err_conflict">Name clashes with a built-in model: %1$s</string>
+    <string name="model_import_err_store">Import failed: %1$s</string>
+    <string name="model_imported_info">Imported — %1$d Hz, %2$.2f s — License: %3$s</string>
+    <string name="model_delete">Delete model</string>
+    <string name="model_delete_confirm">Delete %1$s with its profile and labels? This cannot be undone.</string>
+    <string name="model_deleted">%1$s deleted</string>
 </resources>

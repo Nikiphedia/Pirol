@@ -46,6 +46,12 @@ interface AudioClassifier {
     /** T103a: Abtastrate, die das aktive Modell erwartet */
     val inputSampleRate: Int get() = 32000
 
+    /** T151a: Fensterlaenge des aktiven Modells in ms (Analyse-Fenster, Overlap-Hop) */
+    val windowMs: Int get() = CHUNK_DURATION_MS.toInt()
+
+    /** T151a: Modell liefert ein Embedding (sonst keine Aehnlichkeitssuche) */
+    val hasEmbedding: Boolean get() = true
+
     /** T103a: wissenschaftliche Namen aller Labels (Unterstrich-Format), leer wenn nicht geladen */
     val labelScientificNames: Set<String> get() = emptySet()
 

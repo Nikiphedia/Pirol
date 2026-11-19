@@ -4,7 +4,11 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
+import ch.etasystems.pirol.R
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.ui.AppStrings
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.header
@@ -70,6 +74,8 @@ class ModelManager(
         private set
 
     init {
+        // T151a: importierte Profile (filesDir/models/*.pirol.json) vor dem ersten getActiveProfile() einlesen
+        reloadImportedProfiles()
         // T103a: vor T103a importiertes 3.0-final-Modell hat keine Label-Datei → einmal beim Start nachladen
         downloadScope.launch {
             val profile = getActiveProfile()
@@ -117,14 +123,13 @@ class ModelManager(
 
         // 1. Aktives Modell pruefen
         val activeFile = File(modelsDir, activeFileName)
-        if (activeFile.exists() && activeFile.length() >= MIN_MODEL_SIZE_BYTES) {
+        if (activeFile.exists() && isUsableModelFile(activeFile)) {
             return activeFile
         }
 
         // 2. Irgendein installiertes Modell als Fallback
         val anyModel = modelsDir.listFiles()
-            ?.filter { it.extension == "onnx" && it.length() >= MIN_MODEL_SIZE_BYTES }
-            ?.firstOrNull()
+            ?.firstOrNull { isUsableModelFile(it) }
         if (anyModel != null) {
             appPreferences.activeModelFileName = anyModel.name
             return anyModel
@@ -157,7 +162,7 @@ class ModelManager(
         val activeFileName = appPreferences.activeModelFileName
 
         return modelsDir.listFiles()
-            ?.filter { it.extension == "onnx" && it.length() >= MIN_MODEL_SIZE_BYTES }
+            ?.filter { isUsableModelFile(it) }
             ?.map { file ->
                 val profile = ModelProfile.resolve(file.name, file.length())
                 InstalledModel(
@@ -597,9 +602,10 @@ class ModelManager(
         return algo to parts[1]
     }
 
-    /** Installiertes Modell loeschen */
+    /** Installiertes Modell loeschen (T151a: bei importierten Modellen inkl. Profil-JSON und Labels) */
     fun deleteModel(fileName: String): Boolean {
-        val file = File(File(context.filesDir, MODEL_DIR), fileName)
+        val dir = File(context.filesDir, MODEL_DIR)
+        val file = File(dir, fileName)
         if (!file.exists()) return false
 
         // Aktives Modell nicht loeschen
@@ -610,7 +616,230 @@ class ModelManager(
 
         val deleted = file.delete()
         Log.i(TAG, "Modell geloescht: $fileName = $deleted")
+        ModelProfile.imported.firstOrNull { it.fileName == fileName }?.let { p ->
+            val ownLabels = labelFilesOf(p)
+            File(dir, p.id + ModelProfileJson.FILE_SUFFIX).delete()
+            // Label-Dateien nur loeschen, wenn kein anderes Profil sie nutzt
+            val stillUsed = ModelProfile.all.filter { it.id != p.id }.flatMap { labelFilesOf(it) }.toSet()
+            ownLabels.filter { it !in stillUsed }.forEach { File(dir, it).delete() }
+            reloadImportedProfiles()
+        }
         return deleted
+    }
+
+    // --- T151a: Import ueber Profil-JSON pirol-model/1 ---
+
+    /** Katalog-Modelle muessen gross sein (Schutz vor abgebrochenen Dateien), importierte nicht */
+    private fun isUsableModelFile(file: File): Boolean =
+        file.extension == "onnx" &&
+            (file.length() >= MIN_MODEL_SIZE_BYTES || ModelProfile.imported.any { it.fileName == file.name })
+
+    /** Label-Dateien eines Profils (importiert: alle aus dem JSON, inkl. aux) */
+    private fun labelFilesOf(p: ModelProfile): List<String> {
+        if (p.source != ModelProfile.Source.IMPORTED) return listOfNotNull(p.labelFileName)
+        val jsonFile = File(File(context.filesDir, MODEL_DIR), p.id + ModelProfileJson.FILE_SUFFIX)
+        val fromJson = runCatching { ModelProfileJson.parse(jsonFile.readText()).labels.values.mapNotNull { it.file } }
+            .getOrDefault(emptyList())
+        return (fromJson + listOfNotNull(p.labelFileName)).distinct()
+    }
+
+    /**
+     * T151a: Liest alle `*.pirol.json` in filesDir/models/ ein und setzt [ModelProfile.imported].
+     * Profile ohne Modell- oder Label-Datei werden uebersprungen (Log).
+     */
+    fun reloadImportedProfiles() {
+        val dir = File(context.filesDir, MODEL_DIR)
+        val files = dir.listFiles { f -> f.name.endsWith(ModelProfileJson.FILE_SUFFIX) }.orEmpty()
+        val profiles = files.mapNotNull { f ->
+            try {
+                val p = ModelProfileJson.parse(f.readText()).profile
+                val labelFile = File(dir, p.labelFileName ?: "")
+                when {
+                    !File(dir, p.fileName).exists() || !labelFile.exists() -> {
+                        Log.w(TAG, "Profil ${f.name}: Modell- oder Label-Datei fehlt — uebersprungen")
+                        null
+                    }
+                    ModelProfile.CATALOG.any { it.id == p.id || it.fileName == p.fileName } -> {
+                        Log.w(TAG, "Profil ${f.name}: kollidiert mit eingebautem Profil — uebersprungen")
+                        null
+                    }
+                    else -> p.copy(speciesCount = countLabelRows(labelFile, p.genericLabels?.header ?: true))
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Profil ${f.name} unlesbar: ${e.message}")
+                null
+            }
+        }
+        ModelProfile.imported = profiles
+        if (profiles.isNotEmpty()) Log.i(TAG, "Importierte Profile: ${profiles.joinToString { it.id }}")
+    }
+
+    private fun countLabelRows(file: File, header: Boolean): Int =
+        file.bufferedReader().useLines { lines -> lines.count { it.isNotBlank() } } - if (header) 1 else 0
+
+    private fun importError(code: ModelProfileJson.ErrorCode, detail: String): ImportResult.Failed {
+        val res = when (code) {
+            ModelProfileJson.ErrorCode.SCHEMA -> R.string.model_import_err_schema
+            ModelProfileJson.ErrorCode.RUNTIME -> R.string.model_import_err_runtime
+            ModelProfileJson.ErrorCode.MISSING_FILE -> R.string.model_import_err_missing_file
+            ModelProfileJson.ErrorCode.CHECKSUM -> R.string.model_import_err_checksum
+            ModelProfileJson.ErrorCode.LABELS -> R.string.model_import_err_labels
+            ModelProfileJson.ErrorCode.ORT_OPEN -> R.string.model_import_err_ort
+            ModelProfileJson.ErrorCode.IO_MISMATCH -> R.string.model_import_err_io
+            ModelProfileJson.ErrorCode.ID_CONFLICT -> R.string.model_import_err_conflict
+        }
+        Log.w(TAG, "Import abgelehnt: $code $detail")
+        return ImportResult.Failed(AppStrings.get(res, detail))
+    }
+
+    /**
+     * T151a: Importiert mehrere per SAF gewaehlte Dateien. Ist eine `*.pirol.json` dabei, wird ein Modell
+     * nach Profil importiert ([importProfileBundle]); eine einzelne andere Datei laeuft ueber den
+     * bisherigen Import ([importFromUri]).
+     */
+    suspend fun importUris(uris: List<Uri>, onProgress: (Float) -> Unit = {}): ImportResult {
+        if (uris.isEmpty()) return importError(ModelProfileJson.ErrorCode.MISSING_FILE, "-")
+        val named = withContext(Dispatchers.IO) { uris.map { (queryDisplayName(it) ?: it.lastPathSegment ?: "") to it } }
+        val jsons = named.filter { it.first.endsWith(ModelProfileJson.FILE_SUFFIX, ignoreCase = true) }
+        return when {
+            jsons.size == 1 -> importProfileBundle(jsons.single().second, named - jsons.single(), onProgress)
+            jsons.size > 1 -> importError(ModelProfileJson.ErrorCode.SCHEMA, "mehrere *${ModelProfileJson.FILE_SUFFIX}")
+            uris.size == 1 -> importFromUri(uris.single(), onProgress)
+            else -> importError(ModelProfileJson.ErrorCode.MISSING_FILE, "*${ModelProfileJson.FILE_SUFFIX}")
+        }
+    }
+
+    /**
+     * T151a: Modell nach Profil-JSON importieren. Prueft Schema, SHA-256 von Modell und Labels,
+     * Labels, ORT-Session sowie Ein-/Ausgaenge (Probelauf). Erst wenn alles stimmt, landen die Dateien
+     * in filesDir/models/ und das Modell wird aktiv.
+     *
+     * Dateizuordnung ueber den Dateinamen laut JSON; fehlt er, wird eine eindeutige Datei mit gleicher
+     * Endung genommen (z.B. die einzige gewaehlte .onnx unter anderem Namen).
+     */
+    private suspend fun importProfileBundle(
+        jsonUri: Uri,
+        others: List<Pair<String, Uri>>,
+        onProgress: (Float) -> Unit
+    ): ImportResult = withContext(Dispatchers.IO) {
+        val dir = File(context.filesDir, MODEL_DIR).apply { mkdirs() }
+        val staging = File(dir, "$IMPORT_TEMP_PREFIX${System.currentTimeMillis()}").apply { mkdirs() }
+        try {
+            val jsonText = context.contentResolver.openInputStream(jsonUri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                ?: return@withContext importError(ModelProfileJson.ErrorCode.MISSING_FILE, ModelProfileJson.FILE_SUFFIX)
+            val parsed = ModelProfileJson.parse(jsonText)
+            val profile = parsed.profile
+            ModelProfile.CATALOG.firstOrNull { it.id == profile.id || it.fileName == profile.fileName }?.let {
+                return@withContext importError(ModelProfileJson.ErrorCode.ID_CONFLICT, it.id)
+            }
+            // Label-Dateien eingebauter Profile duerfen nur mit identischem Inhalt ueberschrieben werden
+            for (l in parsed.labels.values) {
+                val clash = ModelProfile.CATALOG.firstOrNull { it.labelFileName == l.file }
+                if (clash != null && clash.labelChecksum?.substringAfter(':')?.lowercase() != l.sha256!!.lowercase()) {
+                    return@withContext importError(ModelProfileJson.ErrorCode.ID_CONFLICT, l.file!!)
+                }
+            }
+
+            // Benoetigte Dateien: Modell + alle Label-Dateien (Name → erwartetes SHA-256)
+            val needed = linkedMapOf(parsed.modelFile to parsed.modelSha256)
+            parsed.labels.values.forEach { needed[it.file!!] = it.sha256!!.lowercase() }
+            val byName = others.toMap()
+            fun ext(n: String) = n.substringAfterLast('.', "").lowercase()
+            val sources = LinkedHashMap<String, Uri>()
+            for (name in needed.keys) {
+                val direct = byName[name]
+                val uri = direct ?: run {
+                    val freeFiles = others.filter { ext(it.first) == ext(name) && it.first !in needed }
+                    val openNames = needed.keys.count { ext(it) == ext(name) && it !in byName }
+                    if (freeFiles.size == 1 && openNames == 1) freeFiles.single().second else null
+                } ?: return@withContext importError(ModelProfileJson.ErrorCode.MISSING_FILE, name)
+                sources[name] = uri
+            }
+
+            // Kopieren in den Staging-Ordner, dabei SHA-256 bilden
+            val total = sources.values.sumOf { queryFileSize(it).coerceAtLeast(0L) }.coerceAtLeast(1L)
+            var done = 0L
+            for ((name, uri) in sources) {
+                val digest = MessageDigest.getInstance("SHA-256")
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: return@withContext importError(ModelProfileJson.ErrorCode.MISSING_FILE, name)
+                input.use { inp ->
+                    FileOutputStream(File(staging, name)).use { out ->
+                        val buf = ByteArray(65536)
+                        while (true) {
+                            val r = inp.read(buf)
+                            if (r < 0) break
+                            out.write(buf, 0, r)
+                            digest.update(buf, 0, r)
+                            done += r
+                            onProgress((done.toFloat() / total).coerceAtMost(0.95f))
+                        }
+                    }
+                }
+                val hex = digest.digest().joinToString("") { "%02x".format(it) }
+                if (hex != needed.getValue(name)) {
+                    return@withContext importError(ModelProfileJson.ErrorCode.CHECKSUM, name)
+                }
+            }
+
+            // Labels lesen (Zeilenzahl fuer die Ausgangspruefung)
+            val labelCounts = HashMap<String, Int>()
+            for ((key, l) in parsed.labels) {
+                labelCounts[key] = try {
+                    ModelLabelParser.parseGeneric(File(staging, l.file!!).readText(), ModelProfileJson.genericLabels(l)).size
+                } catch (e: Exception) {
+                    return@withContext importError(ModelProfileJson.ErrorCode.LABELS, "$key: ${e.message}")
+                }
+            }
+
+            // ORT: Session oeffnen, Eingangsform und Ausgangsgroessen (Probelauf) pruefen
+            val modelPath = File(staging, parsed.modelFile).absolutePath
+            val session = try {
+                OrtEnvironment.getEnvironment().createSession(modelPath, OrtSession.SessionOptions())
+            } catch (e: Exception) {
+                return@withContext importError(ModelProfileJson.ErrorCode.ORT_OPEN, e.message?.take(200) ?: e.javaClass.simpleName)
+            }
+            session.use { s ->
+                val inputShapes = s.inputNames.associateWith { OrtModelIo.inputShape(s, it) ?: longArrayOf() }
+                val inName = parsed.input.name!!
+                val outputSizes = if (inName in s.inputNames) {
+                    try {
+                        OrtModelIo.probeOutputSizes(s, inName, parsed.windowSamples)
+                    } catch (e: Exception) {
+                        return@withContext importError(ModelProfileJson.ErrorCode.IO_MISMATCH, "Probelauf: ${e.message?.take(200)}")
+                    }
+                } else emptyMap()
+                ModelProfileJson.checkIo(parsed, inputShapes, outputSizes, labelCounts)
+                if (profile.auxOutputNames.isNotEmpty()) {
+                    // T151: aux-Ausgaenge werden geprueft, aber noch nicht ausgewertet
+                    Log.i(TAG, "aux-Ausgaenge ${profile.auxOutputNames} geprueft, nicht ausgewertet")
+                }
+            }
+
+            // Ablegen (Modell + Labels + JSON) und aktivieren
+            for (name in needed.keys) {
+                val target = File(dir, name)
+                if (target.exists()) target.delete()
+                if (!File(staging, name).renameTo(target)) {
+                    return@withContext ImportResult.Failed(AppStrings.get(R.string.model_import_err_store, name))
+                }
+            }
+            File(dir, profile.id + ModelProfileJson.FILE_SUFFIX).writeText(jsonText)
+            reloadImportedProfiles()
+            val installed = ModelProfile.byId(profile.id) ?: profile
+            appPreferences.activeModelFileName = installed.fileName
+            onProgress(1f)
+            Log.i(TAG, "Modell importiert (Profil-JSON): ${installed.id}, ${installed.sampleRate} Hz, " +
+                    "${installed.windowSec} s, ${installed.speciesCount} Klassen")
+            ImportResult.Success(installed)
+        } catch (e: ModelProfileJson.ProfileError) {
+            importError(e.code, e.detail)
+        } catch (e: Exception) {
+            Log.e(TAG, "Profil-Import fehlgeschlagen", e)
+            ImportResult.Failed(AppStrings.get(R.string.model_import_err_store, e.javaClass.simpleName))
+        } finally {
+            staging.deleteRecursively()
+        }
     }
 
     // --- Private Hilfsfunktionen ---

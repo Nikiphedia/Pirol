@@ -15,6 +15,10 @@ package ch.etasystems.pirol.ml
  * @param scoreOutputName Name des Score-Ausgangs (bevorzugt); [scoreOutputIndex] als Rueckfall
  * @param embeddingOutputName Name des Embedding-Ausgangs (bevorzugt); [embeddingOutputIndex] als Rueckfall
  * @param embeddingDbFileName Datei unter filesDir/embeddings/ — Vektoren verschiedener Modelle nie mischen
+ * @param inputName T151a: Eingangsname im ONNX-Graph (null = erster Eingang)
+ * @param genericLabels T151a: Spaltenbeschreibung bei [LabelFormat.GENERIC_CSV]
+ * @param auxOutputNames T151a: weitere Ausgaenge (role "aux"), werden nur geprueft, nicht ausgewertet
+ * @param source T151a: Katalog (Code) oder importiert (Profil-JSON pirol-model/1)
  */
 data class ModelProfile(
     val id: String,
@@ -39,7 +43,12 @@ data class ModelProfile(
     val scoreTransform: ScoreTransform,
     val speciesCount: Int,
     val licenseNote: String,
-    val embeddingDbFileName: String
+    val embeddingDbFileName: String,
+    val runtime: String = "onnx",
+    val inputName: String? = null,
+    val genericLabels: GenericLabels? = null,
+    val auxOutputNames: List<String> = emptyList(),
+    val source: Source = Source.CATALOG
 ) {
     /** Groesse in MB fuer die UI (gerundet) */
     val expectedSizeMB: Int get() = ((sizeBytes ?: 0L) / 1_000_000L).toInt()
@@ -47,12 +56,37 @@ data class ModelProfile(
     /** Fensterlaenge in Sekunden */
     val windowSec: Float get() = windowSamples.toFloat() / sampleRate
 
+    /** T151a: Fensterlaenge in ms (Raster fuer Analyse-Fenster und Overlap-Hop) */
+    val windowMs: Int get() = kotlin.math.round(windowSamples * 1000.0 / sampleRate).toInt()
+
+    /** T151a: Modell liefert ein Embedding (sonst keine Aehnlichkeitssuche) */
+    val hasEmbedding: Boolean get() = embeddingOutputName != null || embeddingOutputIndex >= 0
+
+    /** T151a: Herkunft des Profils */
+    enum class Source { CATALOG, IMPORTED }
+
+    /**
+     * T151a: Beschreibung einer generischen Label-CSV (Profil-JSON `labels.<key>`).
+     * Spalten entweder ueber den Namen (nur mit Kopfzeile) oder den 0-basierten Index.
+     */
+    data class GenericLabels(
+        val delimiter: Char,
+        val header: Boolean,
+        val scientificColumn: Column,
+        val commonColumn: Column? = null
+    )
+
+    /** T151a: Spaltenangabe — Name ODER Index */
+    data class Column(val name: String? = null, val index: Int? = null)
+
     /** Format der Label-Datei */
     enum class LabelFormat {
         /** Preview 3/3.1: Semikolon-CSV `idx;id;sci_name;com_name;class;order` */
         PREVIEW_SEMICOLON,
         /** 3.0 final: Komma-CSV mit Kopfzeile `ix,birdnet_id,scientific_name,common_name,...,common_name_<lang>` */
-        FINAL_CSV
+        FINAL_CSV,
+        /** T151a: importiertes Modell — Spalten/Delimiter laut [GenericLabels] */
+        GENERIC_CSV
     }
 
     /** Umrechnung der rohen Modell-Ausgabe in Konfidenzen 0..1 */
@@ -143,9 +177,19 @@ data class ModelProfile(
         /** Profil fuer alte/unbekannte Modelldateien (vor T103a gab es nur Preview-Modelle) */
         val LEGACY_DEFAULT: ModelProfile = PREVIEW31_FP32
 
-        fun byId(id: String?): ModelProfile? = CATALOG.firstOrNull { it.id == id }
+        /**
+         * T151a: importierte Profile (Dateien `<id>.pirol.json` in filesDir/models). Setzt nur der ModelManager
+         * (beim Start und nach Import/Loeschen).
+         */
+        @Volatile
+        var imported: List<ModelProfile> = emptyList()
 
-        fun byFileName(fileName: String): ModelProfile? = CATALOG.firstOrNull { it.fileName == fileName }
+        /** Katalog + importierte Profile */
+        val all: List<ModelProfile> get() = CATALOG + imported
+
+        fun byId(id: String?): ModelProfile? = all.firstOrNull { it.id == id }
+
+        fun byFileName(fileName: String): ModelProfile? = all.firstOrNull { it.fileName == fileName }
 
         fun bySize(sizeBytes: Long): ModelProfile? = CATALOG.firstOrNull { it.sizeBytes == sizeBytes }
 

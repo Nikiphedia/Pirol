@@ -125,6 +125,11 @@ class BirdNetV3Classifier(
 
     override val inputSampleRate: Int get() = profile.sampleRate
 
+    // T151a: Fensterlaenge und Embedding laut Profil
+    override val windowMs: Int get() = profile.windowMs
+
+    override val hasEmbedding: Boolean get() = profile.hasEmbedding
+
     override val labelScientificNames: Set<String> get() = labelNameSet
 
     /**
@@ -387,7 +392,7 @@ class BirdNetV3Classifier(
                 file.readText()
             }
             val languages = SpeciesNameResolver.AVAILABLE_LANGUAGES.mapTo(HashSet()) { it.first }
-            val parsed = ModelLabelParser.parse(text, p.labelFormat, languages)
+            val parsed = ModelLabelParser.parse(text, p.labelFormat, languages, p.genericLabels)
             labels = parsed.map { it.scientificName to it.commonName }
             labelNameSet = parsed.mapTo(HashSet(parsed.size * 2)) { it.scientificName.replace(' ', '_') }
             labelsProfileId = p.id
@@ -395,10 +400,16 @@ class BirdNetV3Classifier(
                 Log.w(TAG, "Label-Anzahl ${labels.size} weicht vom Profil ab (${p.speciesCount})")
             }
             // Sprachspalten als Rueckfall fuer SpeciesNameResolver (Arten ohne Eintrag in species_master)
-            speciesNameResolver?.setModelNames(
+            // T151a: generische Labels haben nur einen Trivialnamen ohne Sprache → als "en"-Rueckfall,
+            // damit species_master (App-Sprache) Vorrang hat und sonst commonColumn statt des wiss. Namens kommt
+            val modelNames = if (p.labelFormat == ModelProfile.LabelFormat.GENERIC_CSV) {
+                parsed.filter { it.commonName != it.scientificName }
+                    .associate { it.scientificName.replace(' ', '_') to mapOf("en" to it.commonName) }
+            } else {
                 parsed.filter { it.namesByLanguage.isNotEmpty() }
                     .associate { it.scientificName.replace(' ', '_') to it.namesByLanguage }
-            )
+            }
+            speciesNameResolver?.setModelNames(modelNames)
 
             Log.i(TAG, "Labels geladen: ${labels.size} Arten (${p.labelFormat})")
         } catch (e: Exception) {
@@ -436,6 +447,11 @@ class BirdNetV3Classifier(
         val p = profile
         val idx = selectOutputIndex(session.outputNames.toList(), p.scoreOutputName, p.scoreOutputIndex)
         var scores = flattenOutput(result[idx].value) ?: return FloatArray(0)
+        // T151a: Rueckfall nur fuer Katalog-Profile; importierte sind beim Import geprueft
+        if (scores.size != labels.size && p.source == ModelProfile.Source.IMPORTED) {
+            Log.e(TAG, "Score-Ausgang hat ${scores.size} Werte, ${labels.size} Labels (Profil ${p.id})")
+            return FloatArray(0)
+        }
         if (scores.size != labels.size) {
             // T122: Rueckfall auf den Ausgang mit passender Laenge (Preview 3.1 hat das Layout von 3.0 final,
             // nicht von Preview 3 — feste Indizes im Profil waren falsch → keine Erkennung mehr)
@@ -480,11 +496,12 @@ class BirdNetV3Classifier(
      */
     private fun runInferenceRaw(session: OrtSession, chunk: FloatArray): OrtSession.Result? {
         val env = OrtEnvironment.getEnvironment()
-        val shape = longArrayOf(1, chunk.size.toLong())
+        // T151a: Eingangsname laut Profil, Form [1, N] oder [N] laut Modell
+        val inputName = OrtModelIo.inputName(session, profile.inputName)
+        val shape = OrtModelIo.tensorShape(session, inputName, chunk.size)
         val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(chunk), shape)
 
         return try {
-            val inputName = session.inputNames.first()
             session.run(mapOf(inputName to tensor))
         } catch (e: Exception) {
             Log.e(TAG, "ONNX Inference fehlgeschlagen", e)
@@ -502,10 +519,13 @@ class BirdNetV3Classifier(
     private fun extractEmbeddingFromResult(result: OrtSession.Result, session: OrtSession): FloatArray? {
         val p = profile
         val outputNames = session.outputNames.toList()
-        if (outputNames.isEmpty()) return null
+        if (outputNames.isEmpty() || !p.hasEmbedding) return null  // T151a: Modell ohne Embedding
+        // T151a: ohne Index-Rueckfall (importierte Profile) muss der Name passen
+        if (p.embeddingOutputIndex < 0 && p.embeddingOutputName !in outputNames) return null
         var idx = selectOutputIndex(outputNames, p.embeddingOutputName, p.embeddingOutputIndex)
-        // T122: liegt auf dem Index der Score-Vektor, den anderen Ausgang nehmen
-        if (outputNames.size == 2 && flattenOutput(result[idx].value)?.size == labels.size) idx = 1 - idx
+        // T122: liegt auf dem Index der Score-Vektor, den anderen Ausgang nehmen (nur Katalog)
+        if (p.source == ModelProfile.Source.CATALOG && outputNames.size == 2 &&
+            flattenOutput(result[idx].value)?.size == labels.size) idx = 1 - idx
         val flat = flattenOutput(result[idx].value) ?: run {
             Log.w(TAG, "Kein Embedding-Output gefunden")
             return null

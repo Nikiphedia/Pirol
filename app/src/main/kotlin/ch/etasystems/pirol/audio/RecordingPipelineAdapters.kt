@@ -57,6 +57,9 @@ class EmbeddingDbStore(
     @Volatile private var loaded = false
     @Volatile private var fileName: String? = null
 
+    /** T151a: Modell ohne Embedding-Ausgang → keine Embedding-DB, keine Aehnlichkeitssuche */
+    val enabled: Boolean get() = classifier.hasEmbedding
+
     private fun activeFileName(): String =
         (ModelProfile.byId(classifier.modelId) ?: ModelProfile.LEGACY_DEFAULT).embeddingDbFileName
 
@@ -171,7 +174,9 @@ class AndroidPipelineHooks(
         alarmService.triggerAlarm(detection, priority)
     }
 
-    override suspend fun addEmbedding(block: AudioBlock, top: DetectionResult): FloatArray {
+    override suspend fun addEmbedding(block: AudioBlock, top: DetectionResult): FloatArray? {
+        // T151a: ohne Embedding-Ausgang kein MFCC-Ersatz in die DB (Aehnlichkeitssuche bleibt aus)
+        if (!embeddingDbStore.enabled) return null
         val embedding = embeddingExtractor.extract(block.samples, block.sampleRate, precomputed = block.embedding)
         embeddingDatabase.add(recordingId = top.id, species = top.scientificName, embedding = embedding)
         return embedding
