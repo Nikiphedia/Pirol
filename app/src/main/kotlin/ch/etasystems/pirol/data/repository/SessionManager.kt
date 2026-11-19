@@ -28,7 +28,6 @@ import java.io.OutputStreamWriter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -350,11 +349,8 @@ class SessionManager(
         if (isActive) endSession()
         lastStartUsedFallback = false
 
-        // Session-ID: ISO-Datum (UTC) + UUID-Prefix (unveraendert, CLAUDE.md)
-        val nowUtc = LocalDateTime.now(ZoneOffset.UTC)
-        val dateStr = nowUtc.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss"))
-        val uuidShort = UUID.randomUUID().toString().take(6)
-        val sessionId = "${dateStr}_${uuidShort}"
+        // Session-ID: Ortszeit (T155) + UUID-Prefix
+        val sessionId = buildSessionId(LocalDateTime.now(), UUID.randomUUID().toString().take(6))
 
         val daySubdir = dailySubdirName()
 
@@ -1570,3 +1566,8 @@ class SessionManager(
         }
     }
 }
+
+
+/** T155: Session-ID im Format `yyyy-MM-dd'T'HH-mm-ss_uuid6`, Zeit = Ortszeit (wie Tages-Unterordner). */
+internal fun buildSessionId(localNow: LocalDateTime, uuidShort: String): String =
+    localNow.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")) + "_" + uuidShort

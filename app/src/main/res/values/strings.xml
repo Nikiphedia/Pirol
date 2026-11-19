@@ -500,4 +500,8 @@
     <string name="settings_gps_mode_continuous">Dauernd</string>
     <string name="settings_gps_mode_on_detection">Nur bei Detektion</string>
     <string name="settings_gps_mode_on_detection_hint">GPS wird nur bei einer Detektion eingeschaltet, mindestens 30 s zwischen zwei Fixes. Spart Akku; das Intervall gilt in diesem Modus nicht.</string>
+    <string name="palette_magma">Magma</string>
+    <string name="palette_viridis">Viridis</string>
+    <string name="palette_grayscale">Graustufen</string>
+    <string name="palette_paper">Papier (hell)</string>
 </resources>

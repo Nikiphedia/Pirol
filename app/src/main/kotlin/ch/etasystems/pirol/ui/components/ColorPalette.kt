@@ -103,3 +103,11 @@ fun colorForValue(normalizedValue: Float, palette: SpectrogramPalette): Color {
     val idx = (normalizedValue.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255)
     return Color(lut[idx])
 }
+
+/** T155: Anzeigename der Palette (gespeichert wird weiterhin der Enum-Name). */
+fun SpectrogramPalette.labelRes(): Int = when (this) {
+    SpectrogramPalette.MAGMA -> ch.etasystems.pirol.R.string.palette_magma
+    SpectrogramPalette.VIRIDIS -> ch.etasystems.pirol.R.string.palette_viridis
+    SpectrogramPalette.GRAYSCALE -> ch.etasystems.pirol.R.string.palette_grayscale
+    SpectrogramPalette.PAPER -> ch.etasystems.pirol.R.string.palette_paper
+}

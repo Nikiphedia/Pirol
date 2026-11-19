@@ -84,6 +84,7 @@ import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.DetectionList
 import ch.etasystems.pirol.ui.components.SimilarityPanel
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
+import ch.etasystems.pirol.ui.components.labelRes
 import ch.etasystems.pirol.ui.components.SpectrogramOverlay
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import org.koin.androidx.compose.koinViewModel
@@ -897,7 +898,7 @@ private fun LiveHeader(
             }) {
                 Icon(
                     Icons.Filled.Palette,
-                    contentDescription = stringResource(R.string.live_farbpalette_wechseln, palette.name),
+                    contentDescription = stringResource(R.string.live_farbpalette_wechseln, stringResource(palette.labelRes())),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

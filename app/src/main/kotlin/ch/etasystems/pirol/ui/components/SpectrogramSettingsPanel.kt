@@ -152,7 +152,7 @@ fun SpectrogramSettingsPanel(
                     FilterChip(
                         selected = settings.palette == p,
                         onClick = { repository.update { it.copy(palette = p) } },
-                        label = { Text(p.name) }
+                        label = { Text(stringResource(p.labelRes())) }
                     )
                 }
             }
