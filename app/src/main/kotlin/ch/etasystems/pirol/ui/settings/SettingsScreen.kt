@@ -1574,8 +1574,33 @@ fun SettingsScreen(
             AlarmCheckRow(AppStrings.get(R.string.settings_vollbild_hinweis_in_der_app), alarmBanner) {
                 alarmBanner = it; appPreferences.alarmBannerEnabled = it
             }
-            OutlinedButton(onClick = { alarmService.triggerTestAlarm() }) {
-                Text(stringResource(R.string.settings_alarm_testen))
+            if (Build.VERSION.SDK_INT >= 34 && alarmService.needsFullScreenHint()) {
+                // T135: Full-Screen-Berechtigung fehlt -> nur Heads-up auf dem Sperrbildschirm
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_alarm_fullscreen_hinweis),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(onClick = {
+                            context.startActivity(
+                                Intent(
+                                    android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                    Uri.parse("package:" + context.packageName)
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }) { Text(stringResource(R.string.settings_alarm_fullscreen_oeffnen)) }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { alarmService.triggerTestAlarm() }) {
+                    Text(stringResource(R.string.settings_alarm_testen))
+                }
+                OutlinedButton(onClick = { alarmService.triggerTestAlarm(5_000L) }) {
+                    Text(stringResource(R.string.settings_alarm_testen_5s))
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

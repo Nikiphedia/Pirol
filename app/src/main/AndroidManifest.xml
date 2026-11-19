@@ -20,6 +20,9 @@
     <!-- Vibration fuer Watchlist-Alarm (T20) -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Alarm ueber dem Sperrbildschirm (T135) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
     <application
         android:name=".PirolApp"
         android:allowBackup="true"
@@ -39,6 +42,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- T135: Watchlist-Alarm ueber dem Sperrbildschirm, weckt den Bildschirm -->
+        <activity
+            android:name=".AlarmActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Pirol" />
 
         <service
             android:name=".audio.RecordingService"
