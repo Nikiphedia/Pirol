@@ -46,7 +46,6 @@ class ModelManager(
     companion object {
         private const val TAG = "ModelManager"
         private const val MODEL_DIR = "models"
-        private const val LEGACY_MODEL_FILE = "birdnet_v3.onnx"
 
         /** T103a: Mindestgroesse einer Modelldatei (3.0 final pruned = 72 MB) */
         private const val MIN_MODEL_SIZE_BYTES = 50_000_000L
@@ -122,15 +121,7 @@ class ModelManager(
             return activeFile
         }
 
-        // 2. Legacy-Dateiname als Fallback (Backward-Compat)
-        if (activeFileName != LEGACY_MODEL_FILE) {
-            val legacyFile = File(modelsDir, LEGACY_MODEL_FILE)
-            if (legacyFile.exists() && legacyFile.length() >= MIN_MODEL_SIZE_BYTES) {
-                return legacyFile
-            }
-        }
-
-        // 3. Irgendein installiertes Modell als Fallback
+        // 2. Irgendein installiertes Modell als Fallback
         val anyModel = modelsDir.listFiles()
             ?.filter { it.extension == "onnx" && it.length() >= MIN_MODEL_SIZE_BYTES }
             ?.firstOrNull()

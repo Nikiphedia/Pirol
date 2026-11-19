@@ -60,11 +60,11 @@ data class MigrationResult(
  *   session.json, detections.jsonl, verifications.jsonl,
  *   recording.wav, recording.selections.txt
  *
- * Kein audio/-Unterordner mehr (Rueckwaertskompatibilitaet: getRecordingFile() prueft beides).
+ * Kein audio/-Unterordner.
  *
  * Storage-Modi:
  * - SAF (storageBaseUri gesetzt): DocumentFile fuer Writes, File-API fuer Reads (primaerer Speicher)
- * - FileBased (kein SAF): File-API fuer alles; Basis = getExternalFilesDir/PIROL oder legacyPath/PIROL
+ * - FileBased (kein SAF): File-API fuer alles; Basis = getExternalFilesDir/PIROL
  *
  * Lifecycle: startSession() → appendDetections() / appendAudioSamples() → endSession()
  */
@@ -76,8 +76,6 @@ class SessionManager(
     companion object {
         private const val TAG = "SessionManager"
         private const val PIROL_DIR = "PIROL"
-        /** Veraltetes Sessions-Verzeichnis (pre-T51, fuer Rueckwaertskompatibilitaet) */
-        private const val LEGACY_SESSIONS_DIR = "sessions"
 
         /** Dateiname fuer Segment-Index: 0 → "recording.wav", 1 → "recording-002.wav", ... */
         internal fun segmentFileName(index: Int): String =
@@ -269,9 +267,8 @@ class SessionManager(
             val resolved = safUriToFile(Uri.parse(safUri))
             if (resolved != null) return resolved
         }
-        // Fallback: Legacy-Pfad oder getExternalFilesDir
-        val legacyPath = appPreferences.storagePath
-        val base = if (legacyPath != null) File(legacyPath) else (context.getExternalFilesDir(null) ?: context.filesDir)
+        // Fallback: getExternalFilesDir
+        val base = context.getExternalFilesDir(null) ?: context.filesDir
         return File(base, PIROL_DIR)
     }
 
@@ -365,8 +362,7 @@ class SessionManager(
             regionFilter = regionFilter,
             confidenceThreshold = confidenceThreshold,
             note = note?.trim()?.ifEmpty { null },  // T109
-            modelId = modelId,  // T103a
-            sessionRelativeOffsets = true  // T130: Offsets laufen ueber alle Segmente
+            modelId = modelId  // T103a
         )
 
         val safUri = appPreferences.storageBaseUri
@@ -976,9 +972,6 @@ class SessionManager(
                 ?.let { results.addAll(it) }
         }
 
-        // 2. Legacy-Pfad: [oldBase]/sessions/{sessionId}/ (pre-T51)
-        addLegacySessions(results)
-
         // Duplikate entfernen: File-Sessions, die schon als SAF-Session gelistet sind, fallen weg
         val (safKeys, fileSessions) = results.partition { safSessions.containsKey(it.path) }
         return (safKeys + SessionFilesLogic.dropListedNames(fileSessions, safNames))
@@ -1013,19 +1006,6 @@ class SessionManager(
 
     private fun looksLikeDateDir(name: String): Boolean {
         return name.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))
-    }
-
-    private fun addLegacySessions(results: MutableList<File>) {
-        // Interner Speicher (pre-T51 default)
-        val internalLegacy = File(context.filesDir, LEGACY_SESSIONS_DIR)
-        internalLegacy.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
-
-        // Externer legacy-Pfad (SD-Karte, T38)
-        val legacyPath = appPreferences.storagePath
-        if (legacyPath != null) {
-            val externalLegacy = File(legacyPath, LEGACY_SESSIONS_DIR)
-            externalLegacy.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
-        }
     }
 
     /** Loescht Session-Folder im File- oder SAF-Modus (T60: Auto-Delete). */
@@ -1240,32 +1220,17 @@ class SessionManager(
 
     /**
      * Gibt die Recording-Datei einer Session zurueck.
-     * Prueft zuerst flache Struktur (T51), dann Legacy-Pfad audio/ (pre-T51).
      */
-    fun getRecordingFile(sessionDir: File): File? {
-        // Neue flache Struktur (T51)
-        val flat = File(sessionDir, "recording.wav")
-        if (flat.exists()) return flat
-        // Legacy: audio/recording.wav (pre-T51)
-        val legacy = File(sessionDir, "audio/recording.wav")
-        return if (legacy.exists()) legacy else null
-    }
+    fun getRecordingFile(sessionDir: File): File? =
+        File(sessionDir, "recording.wav").takeIf { it.exists() }
 
     /**
      * T130: Alle WAV-Segmente einer Session als eine Zeitachse (Wiedergabe, Sonogramm, Ausschnitte).
-     * null = keine Aufnahme. Alte Sessions mit mehreren Segmenten (vor T130) haben segment-lokale
-     * Detektions-Offsets; das wird hier aus session.json abgeleitet.
+     * null = keine Aufnahme.
      */
     suspend fun loadRecording(sessionDir: File): SegmentedRecording? = withContext(Dispatchers.IO) {
-        val meta = loadMetadata(sessionDir)
-        val startedMs = meta?.startedAt?.let { s ->
-            runCatching { ZonedDateTime.parse(s).toInstant().toEpochMilli() }.getOrNull()
-        }
         // T131: File- und SAF-Segmente (content://) ueber SessionFiles
-        accessFor(sessionDir).recording(
-            legacyLocalOffsets = meta != null && !meta.sessionRelativeOffsets,
-            startedAtEpochMs = startedMs
-        )
+        accessFor(sessionDir).recording()
     }
 
     /** T131: true, wenn die Session mindestens ein WAV-Segment hat (File oder SAF). */
@@ -1279,9 +1244,8 @@ class SessionManager(
     }
 
     /**
-     * Repariert defekte WAV-Header aller Aufnahme-Segmente einer Session (T61).
-     * Betrifft Aufnahmen aus V0.0.6 (siehe [WavWriter.repairHeaderIfNeeded]).
-     * Dateien mit gueltigem Header bleiben unveraendert.
+     * Fuehrt veraltete RIFF-/data-Groessen aller Aufnahme-Segmente nach (T130, Prozess-Kill-Recovery).
+     * Dateien mit passendem Header bleiben unveraendert.
      *
      * @return Anzahl reparierter Dateien
      */
@@ -1289,19 +1253,15 @@ class SessionManager(
         // T131: SAF-Sessions werden nicht repariert (kein RandomAccess-Schreibzugriff via ContentResolver);
         // SegmentedRecording liest die Laenge aus der Dateigroesse und ist gegen alte Header robust.
         if (docFor(sessionDir) != null) return@withContext 0
-        val sampleRate = loadMetadata(sessionDir)?.sampleRate ?: return@withContext 0
         val candidates = (sessionDir.listFiles { f ->
             f.isFile && f.name.startsWith("recording") && f.name.endsWith(".wav")
-        }?.toList() ?: emptyList()) + listOfNotNull(File(sessionDir, "audio/recording.wav").takeIf { it.exists() })
+        }?.toList() ?: emptyList())
         var repaired = 0
         // T130: Segmente der laufenden Session werden noch geschrieben → nicht anfassen
         val active = isActiveDir(sessionDir)
         for (file in candidates) {
             try {
-                if (WavWriter.repairHeaderIfNeeded(file, sampleRate)) {
-                    repaired++
-                    Log.w(TAG, "WAV-Header repariert: ${sessionDir.name}/${file.name}")
-                } else if (!active && WavWriter.headerSizesStale(file)) {
+                if (!active && WavWriter.headerSizesStale(file)) {
                     // T130: nach Prozess-Kill veraltete RIFF-/data-Groessen aus der Dateilaenge setzen
                     StreamingWavWriter.finalizeHeader(file)
                     repaired++
@@ -1330,10 +1290,7 @@ class SessionManager(
         // SAF: erst in eine Cache-Datei exportieren, dann in den Session-Ordner schreiben
         val outputFile = if (isDoc) File(context.cacheDir, "recording.selections.txt")
                          else File(sessionDir, "recording.selections.txt")
-        // T130: alte Sessions mit mehreren Segmenten → segment-lokale Offsets auf Session-Achse umrechnen
-        val recording = loadRecording(sessionDir)
         val detections = loadDetectionsWithVerifications(sessionDir)
-            .let { list -> if (recording != null) list.map { recording.sessionRelative(it) } else list }
         // Metadaten fuer startedAt + recordingSegments laden (T57-B3)
         val meta = runCatching {
             val jsonText = access.readText("session.json") ?: error("session.json fehlt")

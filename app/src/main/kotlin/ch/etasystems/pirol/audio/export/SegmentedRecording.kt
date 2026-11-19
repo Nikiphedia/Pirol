@@ -15,17 +15,11 @@ import java.nio.ByteOrder
  * berechnet (sample-genau, robust gegen nicht finalisierte Header und fehlende session.json-Liste
  * nach einem Absturz). Reines java.io (unit-testbar).
  *
- * Zeitbasis: [DetectionResult.chunkStartSec] ist ab T130 Session-relativ. Aeltere Sessions mit
- * mehreren Segmenten speicherten den Offset im jeweiligen Segment ([legacyLocalOffsets]);
- * [sessionRelative] rechnet diese anhand der Wanduhr auf die Session-Zeitachse um.
+ * Zeitbasis: [DetectionResult.chunkStartSec] ist Session-relativ (ueber alle Segmente).
  */
 class SegmentedRecording(
     val parts: List<Part>,
-    val sampleRate: Int,
-    /** true = Detektions-Offsets der Session sind segment-lokal (vor T130, nur relevant bei > 1 Segment) */
-    val legacyLocalOffsets: Boolean = false,
-    /** Wanduhr des Session-Starts (ms), fuer die Legacy-Umrechnung; null = unbekannt */
-    val startedAtEpochMs: Long? = null
+    val sampleRate: Int
 ) {
 
     /** Ein Segment: Datei, Start-Frame auf der Session-Achse, Anzahl Frames (16-bit Mono). */
@@ -93,21 +87,9 @@ class SegmentedRecording(
      */
     fun openWavStream(): InputStream = VirtualWavStream()
 
-    /**
-     * Detektion mit Session-relativen chunkStart/End (Legacy-Offsets umgerechnet).
-     * Bei aktuellen Sessions oder nur einem Segment unveraendert.
-     */
-    fun sessionRelative(d: DetectionResult): DetectionResult {
-        if (!legacyLocalOffsets || parts.size < 2 || sampleRate <= 0) return d
-        val wallSec = startedAtEpochMs?.let { (d.timestampMs - it) / 1000f } ?: return d
-        val base = legacySegmentStartSec(d.chunkStartSec, wallSec, parts.map { it.startFrame.toFloat() / sampleRate })
-        if (base == 0f) return d
-        return d.copy(chunkStartSec = d.chunkStartSec + base, chunkEndSec = d.chunkEndSec + base)
-    }
-
     /** Ausschnitt einer Detektion auf der Session-Achse (T116-Regeln, begrenzt auf die ganze Session). */
     fun excerptRange(d: DetectionResult, maxSec: Float): DetectionExcerpt.Range =
-        DetectionExcerpt.compute(sessionRelative(d), durationSec, maxSec)
+        DetectionExcerpt.compute(d, durationSec, maxSec)
 
     private inner class VirtualWavStream : InputStream() {
         private val header = ExcerptWav.header(
@@ -185,14 +167,10 @@ class SegmentedRecording(
             else -> SEGMENT_REGEX.matchEntire(name)?.groupValues?.get(1)?.toIntOrNull()?.minus(1)
         }
 
-        /** Segment-Dateien einer Session in Aufnahme-Reihenfolge (flach; Legacy audio/recording.wav als Einzeldatei). */
-        fun segmentFiles(sessionDir: File): List<File> {
-            val flat = sessionDir.listFiles { f -> f.isFile && segmentIndex(f.name) != null }
+        /** Segment-Dateien einer Session in Aufnahme-Reihenfolge. */
+        fun segmentFiles(sessionDir: File): List<File> =
+            sessionDir.listFiles { f -> f.isFile && segmentIndex(f.name) != null }
                 ?.sortedBy { segmentIndex(it.name) } ?: emptyList()
-            if (flat.isNotEmpty()) return flat
-            val legacy = File(sessionDir, "audio/recording.wav")
-            return if (legacy.isFile) listOf(legacy) else emptyList()
-        }
 
         /** Datenframes einer PIROL-WAV aus der Dateilaenge (16-bit Mono, 44-Byte-Header). */
         fun framesOf(file: File): Long = ((file.length() - HEADER_SIZE) / 2L).coerceAtLeast(0L)
@@ -210,47 +188,34 @@ class SegmentedRecording(
             names.filter { segmentIndex(it) != null }.sortedBy { segmentIndex(it) }
 
         /** T131: Baut die Segmentfolge aus beliebigen Quellen (File oder content://); null = keine. */
-        fun fromSources(
-            sources: List<SegmentSource>,
-            legacyLocalOffsets: Boolean = false,
-            startedAtEpochMs: Long? = null
-        ): SegmentedRecording? {
+        fun fromSources(sources: List<SegmentSource>): SegmentedRecording? {
             if (sources.isEmpty()) return null
             var start = 0L
             val parts = sources.map { src ->
                 val frames = ((src.length() - HEADER_SIZE) / 2L).coerceAtLeast(0L)
                 Part(src, start, frames).also { start += frames }
             }
-            return SegmentedRecording(parts, sources.first().sampleRate(), legacyLocalOffsets, startedAtEpochMs)
+            return SegmentedRecording(parts, sources.first().sampleRate())
         }
 
         /** Baut die Segmentfolge aus Dateien; Start jedes Segments = Summe der vorherigen Laengen. */
         fun fromFiles(
             files: List<File>,
-            sampleRate: Int = files.firstOrNull()?.let { sampleRateOf(it) } ?: 0,
-            legacyLocalOffsets: Boolean = false,
-            startedAtEpochMs: Long? = null
+            sampleRate: Int = files.firstOrNull()?.let { sampleRateOf(it) } ?: 0
         ): SegmentedRecording {
             var start = 0L
             val parts = files.map { f ->
                 val frames = framesOf(f)
                 Part(f, start, frames).also { start += frames }
             }
-            return SegmentedRecording(parts, sampleRate, legacyLocalOffsets, startedAtEpochMs)
+            return SegmentedRecording(parts, sampleRate)
         }
 
-        /**
-         * Aufnahme einer Session (alle Segmente). null = keine Aufnahme vorhanden.
-         * @param legacyLocalOffsets aus session.json (fehlendes T130-Flag bei mehreren Segmenten)
-         */
-        fun forSession(
-            sessionDir: File,
-            legacyLocalOffsets: Boolean = false,
-            startedAtEpochMs: Long? = null
-        ): SegmentedRecording? {
+        /** Aufnahme einer Session (alle Segmente). null = keine Aufnahme vorhanden. */
+        fun forSession(sessionDir: File): SegmentedRecording? {
             val files = segmentFiles(sessionDir)
             if (files.isEmpty()) return null
-            return fromFiles(files, legacyLocalOffsets = legacyLocalOffsets, startedAtEpochMs = startedAtEpochMs)
+            return fromFiles(files)
         }
 
         /** Wie [forSession], ausgehend von recording.wav (oder einer anderen Segment-Datei) der Session. */
@@ -259,13 +224,5 @@ class SegmentedRecording(
             if (dir == null || segmentIndex(recordingFile.name) == null) return fromFiles(listOf(recordingFile))
             return forSession(dir) ?: fromFiles(listOf(recordingFile))
         }
-
-        /**
-         * Legacy (vor T130): Detektions-Offsets waren segment-lokal. Waehlt das Segment, dessen
-         * Start + lokaler Offset am naechsten an der Wanduhr-Zeit seit Session-Start liegt
-         * (Fehler durch Preroll << Segmentlaenge >= 10 min). Liefert den Segment-Start (s).
-         */
-        fun legacySegmentStartSec(localSec: Float, wallSecSinceStart: Float, segmentStartsSec: List<Float>): Float =
-            segmentStartsSec.minByOrNull { kotlin.math.abs(it + localSec - wallSecSinceStart) } ?: 0f
     }
 }

@@ -121,24 +121,6 @@ class SegmentedRecordingTest {
         assertEquals(4500, rec.readRange(r.startSec, r.endSec)!!.samples.size)
     }
 
-    @Test fun legacy_local_offsets_resolved_by_wall_clock() {
-        // Segment-Starts 0, 600, 1200 s; lokale Offsets 10 s; Wanduhr 615 s nach Start (+ Preroll)
-        val starts = listOf(0f, 600f, 1200f)
-        assertEquals(600f, SegmentedRecording.legacySegmentStartSec(10f, 615f, starts), 0f)
-        assertEquals(0f, SegmentedRecording.legacySegmentStartSec(10f, 5f, starts), 0f)
-        assertEquals(1200f, SegmentedRecording.legacySegmentStartSec(10f, 1190f, starts), 0f)
-
-        writeWav("recording.wav", samples(0, 2000))
-        writeWav("recording-002.wav", samples(2000, 2000))
-        val legacy = SegmentedRecording.forSession(dir, legacyLocalOffsets = true, startedAtEpochMs = 1_000_000L)!!
-        // Wanduhr 2.6 s nach Start, lokaler Offset 0.5 s → Segment 2 → Session 2.5 s
-        val d = det(chunkStart = 0.5f, timestampMs = 1_002_600L)
-        assertEquals(2.5f, legacy.sessionRelative(d).chunkStartSec, 1e-4f)
-        // Neue Session (Flag aus): unveraendert
-        val current = SegmentedRecording.forSession(dir)!!
-        assertEquals(0.5f, current.sessionRelative(d).chunkStartSec, 0f)
-    }
-
     @Test fun empty_dir_has_no_recording() {
         assertNull(SegmentedRecording.forSession(dir))
         assertNotNull(dir)

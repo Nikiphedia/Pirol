@@ -31,8 +31,8 @@ interface SessionFiles {
     fun deleteAll(): Boolean
 
     /** Aufnahme (alle Segmente) oder null */
-    fun recording(legacyLocalOffsets: Boolean, startedAtEpochMs: Long?): SegmentedRecording? =
-        SegmentedRecording.fromSources(segmentSources(), legacyLocalOffsets, startedAtEpochMs)
+    fun recording(): SegmentedRecording? =
+        SegmentedRecording.fromSources(segmentSources())
 }
 
 /** File-Modus: Session-Ordner im Dateisystem. */

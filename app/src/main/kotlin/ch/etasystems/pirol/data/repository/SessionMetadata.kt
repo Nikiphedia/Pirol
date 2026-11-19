@@ -44,8 +44,5 @@ data class SessionMetadata(
     val gpsStats: GpsStats? = null,         // T53: nullable fuer Rueckwaertskompatibilitaet mit alten Sessions
     val recordingSegments: List<RecordingSegment>? = null,  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
     val note: String? = null,       // T109: Freitext-Bemerkung zur Session (null = keine; alte session.json ohne Feld)
-    val modelId: String? = null,    // T103a: Profil-ID des Modells (z.B. "v3_final_fp16"); null = alte Session
-    // T130: true = chunkStartSec/EndSec der Detektionen sind Session-relativ (ueber alle Segmente).
-    // false (alte Sessions) = bei mehreren Segmenten waren die Offsets segment-lokal.
-    val sessionRelativeOffsets: Boolean = false
+    val modelId: String? = null     // T103a: Profil-ID des Modells (z.B. "v3_final_fp16")
 )

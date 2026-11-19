@@ -173,7 +173,7 @@ class AnalysisViewModel(
     fun openSession(summary: SessionSummary) {
         viewModelScope.launch(Dispatchers.IO) {
             val detections = sessionManager.loadDetectionsWithVerifications(summary.sessionDir)
-            // T61: Defekte WAV-Header aus V0.0.6 reparieren, bevor Dauer/Sonogramm/Playback die Datei lesen
+            // T130: Veraltete WAV-Header-Groessen (Prozess-Kill) nachfuehren, bevor Dauer/Sonogramm/Playback die Datei lesen
             sessionManager.repairRecordingHeaders(summary.sessionDir)
             // T131: SAF-Session → kein File-Pfad; Aufnahme nur ueber content://-Segmente (rec)
             val isDoc = sessionManager.docFor(summary.sessionDir) != null
@@ -462,9 +462,7 @@ class AnalysisViewModel(
         val rec = recording
         when {
             // T130: Session-Achse ueber alle Segmente
-            rec != null -> rec.sessionRelative(det).let { d ->
-                audioPlayer.playFromOffset(rec, startSec = d.chunkStartSec, endSec = d.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
-            }
+            rec != null -> audioPlayer.playFromOffset(rec, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
             uri != null -> audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
             f   != null -> audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
             else -> return
@@ -493,7 +491,7 @@ class AnalysisViewModel(
         if (recFile == null && rec == null) return  // T131: SAF → nur ueber recording
         viewModelScope.launch(Dispatchers.Default) {
             // T130: bei mehreren Segmenten ueber die Session-Achse lesen
-            val d = rec?.sessionRelative(detection) ?: detection
+            val d = detection
             val samples = readWavSamplesRange(
                 openStream = { rec?.openWavStream() ?: recFile!!.inputStream() },
                 fileLength  = rec?.virtualWavLength ?: recFile!!.length(),
