@@ -130,14 +130,16 @@ class LiveViewModel(
     /** Oeffnet den Share-Dialog; Aufnahme der laufenden Session, nach Stopp die der letzten Session (T128). */
     fun requestShare(detectionId: String) {
         val detection = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return
-        val dir = sessionManager.currentSessionDir
-            ?: _uiState.value.lastSessionId?.let { id -> sessionManager.listSessions().firstOrNull { it.name == id } }
-        val wav = dir?.let { sessionManager.getRecordingFile(it) }
-        if (dir == null || wav == null || !wav.exists()) {
-            _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_aufnahme_nicht_verfuegbar_teilen_in)))
-            return
-        }
-        viewModelScope.launch {
+        val lastId = _uiState.value.lastSessionId
+        // T136: Dateizugriffe (listSessions, Metadaten, Segmente) auf IO, UI bleibt reaktiv
+        viewModelScope.launch(Dispatchers.IO) {
+            val dir = sessionManager.currentSessionDir
+                ?: lastId?.let { id -> sessionManager.listSessions().firstOrNull { it.name == id } }
+            val wav = dir?.let { sessionManager.getRecordingFile(it) }
+            if (dir == null || wav == null || !wav.exists()) {
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_aufnahme_nicht_verfuegbar_teilen_in)))
+                return@launch
+            }
             val note = sessionManager.loadMetadata(dir)?.note
             // T130: alle WAV-Segmente der Session
             val recording = sessionManager.loadRecording(dir)

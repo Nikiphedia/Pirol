@@ -93,6 +93,13 @@ object CustomSpeciesLists {
         else CustomListParseResult(lists, null)
     }
 
+    /**
+     * T136: Aenderungs-Signatur aus (Name, lastModified, Groesse) aller Listendateien.
+     * Gleiche Signatur = nichts neu einlesen. Reihenfolge-unabhaengig.
+     */
+    fun signature(files: List<Triple<String, Long, Long>>): String =
+        files.sortedBy { it.first }.joinToString("|") { "${it.first}:${it.second}:${it.third}" }
+
     /** Pruefung gegen die Liste ueber SpeciesKey (Aliase). */
     fun matches(list: CustomSpeciesList, scientificName: String): Boolean =
         RegionalSpeciesFilter.matches(list.canonical(), scientificName)

@@ -17,6 +17,15 @@ object DownloadResume {
         REJECT
     }
 
+    /**
+     * T136: Aus [existing] (Dateinamen im Modellordner) nur die .tmp-Dateien des gewaehlten Modells
+     * (Modell- und Label-Datei) auswaehlen; .tmp anderer Modelle bleiben unberuehrt.
+     */
+    fun tmpFilesFor(existing: List<String>, modelFileName: String, labelFileName: String?): List<String> {
+        val wanted = setOfNotNull(modelFileName, labelFileName).map { "$it.tmp" }.toSet()
+        return existing.filter { it in wanted }
+    }
+
     /** Anzahl Versuche bei voruebergehenden Netzwerkfehlern */
     const val MAX_ATTEMPTS = 3
 

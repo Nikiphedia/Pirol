@@ -78,4 +78,12 @@ class CustomSpeciesListsTest {
         assertTrue(CustomSpeciesLists.matches(l, "accipiter gentilis"))
         assertFalse(CustomSpeciesLists.matches(l, "Parus_major"))
     }
+
+    @Test
+    fun signature_erkenntAenderungen() {
+        val a = listOf(Triple("a.json", 1L, 10L), Triple("b.json", 2L, 20L))
+        assertEquals(CustomSpeciesLists.signature(a), CustomSpeciesLists.signature(a.reversed()))
+        assertTrue(CustomSpeciesLists.signature(a) != CustomSpeciesLists.signature(listOf(Triple("a.json", 5L, 10L), a[1])))
+        assertTrue(CustomSpeciesLists.signature(a) != CustomSpeciesLists.signature(a.take(1)))
+    }
 }
