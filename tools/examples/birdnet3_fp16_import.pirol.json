@@ -1,0 +1,30 @@
+{
+  "schema": "pirol-model/1",
+  "id": "birdnet3_fp16_import",
+  "name": "BirdNET 3.0 FP16 (importiert, Test T151a)",
+  "family": "birdnet3",
+  "runtime": "onnx",
+  "modelFile": "birdnet3_fp16_import.onnx",
+  "modelSha256": "9891d615f12a7a51fbc15dc40ffbd65a841dae9a2d9a80874ddc892729796dd3",
+  "license": "Apache 2.0 (BirdNET+, Cornell Lab / TU Chemnitz)",
+  "input": {
+    "name": "input",
+    "sampleRate": 32000,
+    "windowSec": 3.0,
+    "layout": "waveform"
+  },
+  "outputs": [
+    { "name": "predictions", "role": "scores", "transform": "none", "labels": "species" },
+    { "name": "embeddings_out", "role": "embedding" }
+  ],
+  "labels": {
+    "species": {
+      "file": "birdnet_v3_final_labels.csv",
+      "sha256": "88d976477fac81127ac8ac4c215c37749d0a6537944112ea606d321317cb7640",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": "scientific_name",
+      "commonColumn": "common_name"
+    }
+  }
+}
