@@ -19,6 +19,7 @@ import ch.etasystems.pirol.MainActivity
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.SpeciesNameResolver
+import ch.etasystems.pirol.ml.VerificationService
 import ch.etasystems.pirol.ml.WatchlistMatcher
 import ch.etasystems.pirol.ml.WatchlistPriority
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +61,8 @@ data class AlarmEvent(
 class AlarmService(
     private val context: Context,
     private val appPreferences: AppPreferences,
-    private val speciesNameResolver: SpeciesNameResolver
+    private val speciesNameResolver: SpeciesNameResolver,
+    private val verificationService: VerificationService  // T137
 ) {
 
     companion object {
@@ -83,10 +85,6 @@ class AlarmService(
     // In-App-Hinweis: aktueller Alarm (null = keiner sichtbar)
     private val _activeAlarm = MutableStateFlow<AlarmEvent?>(null)
     val activeAlarm: StateFlow<AlarmEvent?> = _activeAlarm.asStateFlow()
-
-    // "Bestaetigen" im Hinweis -> LiveViewModel setzt die Detektion auf CONFIRMED
-    private val _confirmRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
-    val confirmRequests: SharedFlow<String> = _confirmRequests.asSharedFlow()
 
     init {
         createNotificationChannel()
@@ -186,7 +184,7 @@ class AlarmService(
     fun resolveFromActivity(detectionId: String, notificationId: Int, confirm: Boolean) {
         _activeAlarm.value = null
         NotificationManagerCompat.from(context).cancel(notificationId)
-        if (confirm && detectionId.isNotEmpty()) _confirmRequests.tryEmit(detectionId)
+        if (confirm && detectionId.isNotEmpty()) confirmDetection(detectionId)
     }
 
     /** Hinweis schliessen und Detektion bestaetigen (nur echte Alarme). */
@@ -194,8 +192,13 @@ class AlarmService(
         val event = _activeAlarm.value ?: return
         _activeAlarm.value = null
         if (!event.isTest && event.detectionId.isNotEmpty()) {
-            _confirmRequests.tryEmit(event.detectionId)
+            confirmDetection(event.detectionId)
         }
+    }
+
+    // T137: Bestaetigung ueber den Service-Pfad (unabhaengig vom LiveViewModel)
+    private fun confirmDetection(detectionId: String) {
+        scope.launch(Dispatchers.IO) { verificationService.confirm(detectionId) }
     }
 
     private fun fire(event: AlarmEvent) {
@@ -241,6 +244,19 @@ class AlarmService(
             .setVibrate(VIBRATION_PATTERN)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+
+        if (!event.isTest && event.detectionId.isNotEmpty()) {
+            val confirmIntent = Intent(context, AlarmActionReceiver::class.java).apply {
+                action = AlarmActionReceiver.ACTION_CONFIRM
+                putExtra(AlarmActionReceiver.EXTRA_DETECTION_ID, event.detectionId)
+                putExtra(AlarmActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            }
+            val confirmPending = PendingIntent.getBroadcast(
+                context, notificationId, confirmIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(0, AppStrings.get(R.string.ui_bestaetigen), confirmPending)
+        }
 
         if (presentation == AlarmPresentation.FULL_SCREEN) {
             // Weckt den Bildschirm und zeigt AlarmActivity ueber dem Sperrbildschirm

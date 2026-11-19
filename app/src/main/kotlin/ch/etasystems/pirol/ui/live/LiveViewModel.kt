@@ -97,6 +97,7 @@ class LiveViewModel(
     private val speciesNameResolver: SpeciesNameResolver,
     private val atlasCodeRepository: AtlasCodeRepository,
     private val embeddingDbStore: EmbeddingDbStore,  // T94
+    private val verificationService: ch.etasystems.pirol.ml.VerificationService,  // T137
     private val context: android.content.Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
 ) : ViewModel() {
 
@@ -161,7 +162,7 @@ class LiveViewModel(
     private var lastFabTapAt = 0L
 
     // Serialisiert Verifikations-IO: verhindert Race bei Schnell-Taps (AC6)
-    private val verificationMutex = Mutex()
+    private val verificationMutex = verificationService.mutex  // T137: geteilt mit dem Alarm-Pfad
 
     // T73: Referenz auf lockedSpecies-StateFlow in DetectionListState (fuer toggleLock)
     private val lockedSpecies = detectionListState.lockedSpecies
@@ -253,13 +254,6 @@ class LiveViewModel(
         viewModelScope.launch {
             watchlistManager.watchedSpeciesFlow.collect { species ->
                 _uiState.update { it.copy(watchlistSpecies = species) }
-            }
-        }
-
-        // T124: "Bestaetigen" im Alarm-Hinweis -> Detektion verifizieren
-        viewModelScope.launch {
-            alarmService.confirmRequests.collect { id ->
-                verifyDetection(id, VerificationStatus.CONFIRMED)
             }
         }
 
