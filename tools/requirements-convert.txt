@@ -1,0 +1,8 @@
+# Getestet mit Python 3.11 (TensorFlow 2.15 laeuft nicht auf 3.13/3.14)
+tensorflow==2.15.1
+tf2onnx==1.16.1
+onnx==1.16.2
+onnxruntime==1.22.0
+onnxconverter-common==1.14.0
+numpy==1.26.4
+protobuf==3.20.2
