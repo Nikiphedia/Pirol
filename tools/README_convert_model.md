@@ -90,8 +90,11 @@ faengt aehnliche Probleme bei anderen Modellen ab.
 ## In die App importieren
 
 1. `<id>.onnx`, `<id>.pirol.json` und die `<id>_*.csv` auf das Geraet kopieren.
-2. In PIROL: Einstellungen, Modell importieren (Storage Access Framework), `.pirol.json` und `.onnx` waehlen.
-   Die App prueft SHA-256, Eingangslaenge und Labelanzahl und zeigt die Lizenz an.
+2. In PIROL: Settings → Modell & Erkennung → "Anderes Modell importieren..." → im Dateidialog die erste Datei
+   lang antippen, dann **alle** zugehoerigen Dateien markieren (`.onnx`, `.pirol.json`, alle `<id>_*.csv`) → "Auswaehlen".
+   Die App prueft SHA-256, Eingangs-/Ausgangsformen und Labelanzahl und zeigt die Lizenz an.
+   Erscheinen per USB/adb kopierte Dateien nicht im Dateidialog, hat Android sie noch nicht indexiert:
+   Tablet neu starten oder `adb shell content call --method scan_volume --uri content://media --arg external_primary`.
 3. Modell auswaehlen; die Session-Metadaten tragen die `id` als `modelId`.
 
 Die Lizenz des Originalmodells gilt auch fuer das ONNX. Nighthawk ist CC BY-NC 4.0 (nur nicht-kommerziell, Namensnennung).
