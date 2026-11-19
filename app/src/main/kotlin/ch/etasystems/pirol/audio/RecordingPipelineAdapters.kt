@@ -148,7 +148,8 @@ class AndroidPipelineHooks(
     private val embeddingDatabase: EmbeddingDatabase,
     private val embeddingDbStore: EmbeddingDbStore,
     private val uploadManager: UploadManager,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val regionalFilter: ch.etasystems.pirol.ml.RegionalSpeciesFilter  // T157
 ) : PipelineHooks {
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
@@ -183,7 +184,11 @@ class AndroidPipelineHooks(
         return embedding
     }
 
-    override fun beforeSessionStart() = embeddingDbStore.switchIfModelChanged()
+    override fun beforeSessionStart() {
+        // T157: eigene Artenlisten pro Aufnahme aktuell halten (nur bei geaenderten Dateien, keine Ueberwachung)
+        try { regionalFilter.refreshCustomListsIfChanged() } catch (e: Exception) { Log.w("RecordingPipeline", "Listen-Refresh fehlgeschlagen", e) }
+        embeddingDbStore.switchIfModelChanged()
+    }
 
     override suspend fun afterSessionEnd() {
         embeddingDbStore.save()  // T97

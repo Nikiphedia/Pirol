@@ -116,7 +116,7 @@ val appModule = module {
             detectionListState = get(),
             session = ch.etasystems.pirol.audio.SessionManagerPipelineSession(get()),
             hooks = ch.etasystems.pirol.audio.AndroidPipelineHooks(
-                get(), get(), get(), get(), get(), get(), get(), get(), get(), get()
+                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()
             )
         )
     }
