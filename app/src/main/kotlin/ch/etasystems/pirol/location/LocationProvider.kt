@@ -71,6 +71,7 @@ class LocationProvider(
 
     private val fusedClient = LocationServices.getFusedLocationProviderClient(context)
     private var isTracking = false
+    private var detectionOnly = false  // T152: kein Dauer-Tracking, Fixes nur auf Anfrage
 
     // --- Accuracy-Filter & Statistik (T53) ---
     private var fixCount = 0
@@ -145,6 +146,14 @@ class LocationProvider(
         acceptedAccuracies.clear()
         fixWindow.clear()
 
+        detectionOnly = appPreferences.gpsOnDetectionOnly
+        if (detectionOnly) {
+            // T152: GNSS bleibt zwischen den Fixes aus; nur letzte bekannte Position als Startwert
+            Log.i(TAG, "GPS-Modus 'Nur bei Detektion': keine Dauerabfrage")
+            publishLastKnown()
+            return
+        }
+
         val intervalMs = appPreferences.gpsIntervalSeconds * 1000L
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
             .setMinUpdateIntervalMillis(intervalMs / 2)
@@ -214,6 +223,7 @@ class LocationProvider(
                             timestampMs = it.time
                         )
                     }
+                    if (data != null && detectionOnly) registerDetectionFix(data)
                     if (cont.isActive) cont.resume(data) {}
                 }
                 .addOnFailureListener { e ->
@@ -227,6 +237,13 @@ class LocationProvider(
         }
     }
 
+    /** T152: Fix aus requestFreshFix im Modus "Nur bei Detektion" zaehlen und veroeffentlichen. */
+    private fun registerDetectionFix(fix: LocationData) {
+        fixCount++
+        fix.accuracyM?.let { acceptedAccuracies.add(it) }
+        _location.value = fix
+    }
+
     /**
      * GPS-Tracking stoppen. Idempotent.
      * AC4: Nach Session-Stop keine weiteren Location-Updates.
@@ -235,7 +252,7 @@ class LocationProvider(
         if (!isTracking) return
         isTracking = false
 
-        fusedClient.removeLocationUpdates(locationCallback)
+        if (!detectionOnly) fusedClient.removeLocationUpdates(locationCallback)
         fixWindow.clear()
         Log.i(TAG, "GPS-Tracking gestoppt (fixes=$fixCount, verworfen=$rejectedCount)")
     }
