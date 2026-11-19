@@ -167,6 +167,47 @@ def convert(args, orig, out_onnx, n_samples):
             fail("tf2onnx (TFLite) fehlgeschlagen")
 
 
+def fix_rfft_real(path):
+    """Workaround fuer tf2onnx 1.16.1: tf.signal.rfft wird nur mit ComplexAbs als Verbraucher umgesetzt.
+    BirdNET 2.4 schickt das Ergebnis aber durch Cast auf float32 (= nur der Realteil); tf2onnx laesst dann
+    einen ungueltigen 'RFFT'-Knoten im Graph. Ersetzt jeden solchen Knoten durch ONNX-DFT (opset 17,
+    onesided) und nimmt den Realteil. Der Cast dahinter bleibt (float -> float)."""
+    import onnx
+    from onnx import helper, numpy_helper, TensorProto
+    m = onnx.load(str(path))
+    g = m.graph
+    inits = {i.name: numpy_helper.to_array(i) for i in g.initializer}
+    consts = {n.output[0]: numpy_helper.to_array(n.attribute[0].t) for n in g.node
+              if n.op_type == "Constant" and n.attribute and n.attribute[0].name == "value"}
+    consts.update(inits)
+    new_nodes, n_fixed = [], 0
+    for node in g.node:
+        if node.op_type != "RFFT":
+            new_nodes.append(node)
+            continue
+        length = consts.get(node.input[1])
+        if length is None:
+            fail("RFFT-Knoten '%s' mit nicht konstanter Laenge, Workaround nicht moeglich" % node.name)
+        base = node.name or node.output[0]
+        len_name, ax_name, idx_name = base + "__len", base + "__ax", base + "__re"
+        g.initializer.append(numpy_helper.from_array(np.array(int(length.reshape(-1)[0]), dtype=np.int64), len_name))
+        g.initializer.append(numpy_helper.from_array(np.array([-1], dtype=np.int64), ax_name))
+        g.initializer.append(numpy_helper.from_array(np.array(0, dtype=np.int64), idx_name))
+        x4, spec = base + "__x4", base + "__dft"
+        new_nodes += [
+            helper.make_node("Unsqueeze", [node.input[0], ax_name], [x4], name=base + "__unsq"),
+            # Signalachse = vorletzte Achse (Rang 4: [Batch, Frames, Samples, 1]) -> axis 2
+            helper.make_node("DFT", [x4, len_name], [spec], name=base + "__dft", axis=2, onesided=1, inverse=0),
+            helper.make_node("Gather", [spec, idx_name], [node.output[0]], name=base + "__real", axis=3),
+        ]
+        n_fixed += 1
+    if n_fixed:
+        del g.node[:]
+        g.node.extend(new_nodes)
+        onnx.save(m, str(path))
+        print("RFFT: %d Knoten durch DFT (nur Realteil) ersetzt" % n_fixed)
+
+
 def fix_same_padding(path):
     """Workaround fuer tf2onnx 1.16.1: berechnet die SAME-Paddings von Convs/Pools mit Stride > 1
     aus statischen TF-Formen, und diese stimmen bei Modellen mit Vorverarbeitung (STFT) nicht
@@ -294,7 +335,7 @@ def onnx_io(path):
 
 def last_dim(shape):
     d = shape[-1] if shape else None
-    return d if isinstance(d, int) else None
+    return int(d) if isinstance(d, (int, np.integer)) else None  # TFLite liefert numpy-Ganzzahlen
 
 
 # ---------------------------------------------------------------- Labels
@@ -375,7 +416,10 @@ def main():
     ap.add_argument("--scores-output", required=True, help="Name des Score-Ausgangs (siehe Ausgabe 'Ausgaenge')")
     ap.add_argument("--transform", choices=["none", "sigmoid", "softmax"], required=True)
     ap.add_argument("--labels", required=True, help="CSV der Klassen des Score-Ausgangs")
-    ap.add_argument("--scientific-column", required=True, help="Spaltenname (oder Index ohne Kopfzeile)")
+    ap.add_argument("--labels-format", choices=["csv", "birdnet24"], default="csv",
+                    help="birdnet24: Textdatei 'Wissenschaftlich_Common' pro Zeile ohne Kopf; wird in eine CSV "
+                    "scientific_name,common_name umgewandelt (Spaltenoptionen entfallen)")
+    ap.add_argument("--scientific-column", help="Spaltenname (oder Index ohne Kopfzeile)")
     ap.add_argument("--common-column")
     ap.add_argument("--no-header", action="store_true", help="Labeldateien ohne Kopfzeile")
     ap.add_argument("--aux-output", action="append", default=[], metavar="NAME:LABELS.csv:TRANSFORM",
@@ -393,6 +437,23 @@ def main():
         fail("--id muss [a-z0-9_]+ sein")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    labels_tmp = None
+    if args.labels_format == "birdnet24":
+        # BirdNET-2.4-Labels: pro Zeile "Wissenschaftlicher Name_Common Name", Trennung am ersten "_"
+        labels_tmp = out_dir / (args.id + "_labels_src.csv")
+        with open(args.labels, encoding="utf-8-sig") as f, open(labels_tmp, "w", newline="", encoding="utf-8") as g:
+            w = csv.writer(g)
+            w.writerow(["scientific_name", "common_name"])
+            for line in f:
+                line = line.strip()
+                if line:
+                    sci, _, com = line.partition("_")
+                    w.writerow([sci, com])
+        args.labels, args.no_header = str(labels_tmp), False
+        args.scientific_column, args.common_column = "scientific_name", "common_name"
+        print("Labels (birdnet24) nach CSV umgewandelt")
+    if not args.scientific_column:
+        fail("--scientific-column fehlt")
     n_samples = round(args.sample_rate * args.window_sec)
     mid = args.id
     report, ok = [], True
@@ -419,6 +480,7 @@ def main():
     onnx_path = out_dir / (mid + ".onnx")
     t0 = time.time()
     convert(args, orig, onnx_path, n_samples)
+    fix_rfft_real(onnx_path)
     fix_resize_scales(onnx_path)
     fix_same_padding(onnx_path)
     drop_unused_inputs(onnx_path)
@@ -451,6 +513,8 @@ def main():
     sci, common = args.scientific_column, args.common_column
     entry, n = label_entry("species", Path(args.labels), args, out_dir, mid, sci, common)
     labels["species"] = entry
+    if labels_tmp:
+        labels_tmp.unlink()
     label_counts = [("species", scores, n)]
     outputs.append({"name": scores, "role": "scores", "transform": args.transform, "labels": "species"})
     for spec in args.aux_output:

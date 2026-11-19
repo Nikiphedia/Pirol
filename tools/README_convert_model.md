@@ -37,12 +37,29 @@ Weitere Optionen:
 | `--embedding-output NAME` | Ausgang als Embedding eintragen (App: Aehnlichkeitssuche) |
 | `--fp16` | Gewichte in Float16 (Datei etwa halb so gross), Ein-/Ausgang bleibt Float32; Pruefung dann nur Top-1 und Toleranz x10 |
 | `--opset N` | ONNX-Opset, Default 17 (passt zu onnxruntime-android 1.22) |
+| `--labels-format birdnet24` | Labels als Textdatei `Wissenschaftlich_Common` pro Zeile ohne Kopf (BirdNET 2.4); wird in `scientific_name,common_name` umgewandelt, `--scientific-column` entfaellt |
 | `--no-header` | Labeldateien ohne Kopfzeile; Spalten dann als 0-basierter Index angeben |
 | `--preprocess datei.py` | siehe Abschnitt Vorverarbeitung |
 | `--tol X` | erlaubte max. Abweichung (Default 1e-3) |
 
 Labeldateien: erste Zeile = Kopfzeile, danach pro Zeile eine Klasse in der Reihenfolge der Modellausgabe.
 Das Trennzeichen (`,` `;` Tab) wird erkannt. Bei Zusatzausgaengen (`--aux-output`) gilt die erste Spalte als Name.
+
+## Beispiel BirdNET 2.4 (T147)
+
+Die TFLite-Datei von Zenodo laesst sich mit tf2onnx nicht umwandeln (RFFT-Knoten der Mel-Schicht). Stattdessen das
+Protobuf-Modell (`BirdNET_v2.4_protobuf.zip`, Zenodo 15050749) nehmen; es hat die Signaturen `basic` (Scores) und
+`embeddings`. `make_birdnet24_savedmodel.py` fasst beide zu einem SavedModel zusammen:
+
+```powershell
+.\venv\Scripts\python.exe tools\make_birdnet24_savedmodel.py pb\audio-model combined
+.\venv\Scripts\python.exe tools\convert_model.py combined --out-dir out --id birdnet24_global6k `
+  --name "BirdNET 2.4 (Global 6K)" --family birdnet --license "CC BY-NC-SA 4.0" `
+  --sample-rate 48000 --window-sec 3.0 --scores-output scores --embedding-output embeddings `
+  --transform sigmoid --labels labels\en_us.txt --labels-format birdnet24 --test-audio ausschnitt.wav
+```
+
+Ausfuehrliche Angaben: `Bericht_T147_BirdNET24.md`.
 
 ## Ausgabe
 
@@ -83,6 +100,9 @@ Das Skript behebt automatisch und meldet in der Konsole:
 - **Resize**: `tf.image.resize` wird mit Float-Skalierung exportiert, ORT rundet damit eine Spalte ab; das Skript
   setzt die Zielgroesse (`sizes`) fest.
 - Ungenutzte Zusatz-Eingaenge im Graph werden entfernt.
+- **RFFT mit Cast auf float** (BirdNET 2.4: nur Realteil des Spektrums): tf2onnx laesst einen ungueltigen `RFFT`-Knoten stehen;
+  das Skript ersetzt ihn durch ONNX-`DFT` (opset 17, Realteil).
+- TFLite-Eingaben gehen nur, wenn tf2onnx alle Operatoren kennt (Mel-Schicht mit RFFT nicht): dann das SavedModel/Keras-Original verwenden.
 
 Ohne diese Korrekturen laedt das Nighthawk-ONNX nicht oder weicht um bis zu 0.5 ab. Die Abweichungspruefung
 faengt aehnliche Probleme bei anderen Modellen ab.
