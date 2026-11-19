@@ -1,0 +1,73 @@
+{
+  "schema": "pirol-model/1",
+  "id": "nighthawk_v1",
+  "name": "Nighthawk 0.3.1",
+  "family": "nighthawk",
+  "runtime": "onnx",
+  "modelFile": "nighthawk_v1.onnx",
+  "modelSha256": "53725a95574f946779ad8f8656cd6941fca560fc1b928d84ee40ba49d216b2e8",
+  "license": "CC BY-NC 4.0",
+  "input": {
+    "name": "inputs",
+    "sampleRate": 22050,
+    "windowSec": 1.0,
+    "layout": "waveform"
+  },
+  "outputs": [
+    {
+      "name": "output_4",
+      "role": "scores",
+      "transform": "sigmoid",
+      "labels": "species"
+    },
+    {
+      "name": "output_3",
+      "role": "aux",
+      "transform": "sigmoid",
+      "labels": "output_3"
+    },
+    {
+      "name": "output_2",
+      "role": "aux",
+      "transform": "sigmoid",
+      "labels": "output_2"
+    },
+    {
+      "name": "output_1",
+      "role": "aux",
+      "transform": "sigmoid",
+      "labels": "output_1"
+    }
+  ],
+  "labels": {
+    "species": {
+      "file": "nighthawk_v1_species.csv",
+      "sha256": "2d78ab287f26cc875f72af98cd579bf9126610d01fe2ceda57c28d6f0088af26",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": "scientific_name",
+      "commonColumn": "common_name"
+    },
+    "output_3": {
+      "file": "nighthawk_v1_output_3.csv",
+      "sha256": "92458a0b34a7e3e85836b90322fef8fc0fb7da3c77aba095b38054dcb1f8dd50",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": "name"
+    },
+    "output_2": {
+      "file": "nighthawk_v1_output_2.csv",
+      "sha256": "7c18a07fdd20ef9bebf31b1248508a1ce60848634a1d70dabd0861bf47178d92",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": "name"
+    },
+    "output_1": {
+      "file": "nighthawk_v1_output_1.csv",
+      "sha256": "c032c4156a81ccb5963d2c0c86452b469d3e5d29e7bc92d22307782d4ecb1b95",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": "name"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "pirol-model/1",
+  "id": "birdnet24_global6k",
+  "name": "BirdNET 2.4 (Global 6K)",
+  "family": "birdnet",
+  "runtime": "onnx",
+  "modelFile": "birdnet24_global6k.onnx",
+  "modelSha256": "ebd404fad404bef3ea680aecdc1ef45de749b45cd31d19559fd5e671f7bf6a32",
+  "license": "CC BY-NC-SA 4.0",
+  "input": {
+    "name": "inputs",
+    "sampleRate": 48000,
+    "windowSec": 3.0,
+    "layout": "waveform"
+  },
+  "outputs": [
+    {
+      "name": "scores",
+      "role": "scores",
+      "transform": "sigmoid",
+      "labels": "species"
+    },
+    {
+      "name": "embeddings",
+      "role": "embedding"
+    }
+  ],
+  "labels": {
+    "species": {
+      "file": "birdnet24_global6k_species.csv",
+      "sha256": "bde3a2663090bf84069c687f9eedf43a0ade43cdcbe8359e3f41dcccae540985",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": "scientific_name",
+      "commonColumn": "common_name"
+    }
+  }
+}

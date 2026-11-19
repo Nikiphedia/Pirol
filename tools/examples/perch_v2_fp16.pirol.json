@@ -1,0 +1,24 @@
+{
+  "schema": "pirol-model/1",
+  "id": "perch_v2_fp16",
+  "name": "Perch v2 FP16 (Google)",
+  "family": "perch",
+  "runtime": "onnx",
+  "modelFile": "perch_v2_fp16.onnx",
+  "modelSha256": "50fc2b2d0cabc4653999e81e2d69857fd369becad32e3f7d54d453b9279a618b",
+  "license": "Apache 2.0 (Google Perch v2; ONNX FP16: RobertEcker/earshot-perch-v2)",
+  "input": { "name": "inputs", "sampleRate": 32000, "windowSec": 5.0, "layout": "waveform" },
+  "outputs": [
+    { "name": "label", "role": "scores", "transform": "softmax", "labels": "species" },
+    { "name": "embedding", "role": "embedding" }
+  ],
+  "labels": {
+    "species": {
+      "file": "perch_v2_fp16_species.csv",
+      "sha256": "e4d5c0397d8fb08bf90c6b13a34810af53504faad927e472fcc567793c9de057",
+      "delimiter": ",",
+      "header": true,
+      "scientificColumn": 0
+    }
+  }
+}
