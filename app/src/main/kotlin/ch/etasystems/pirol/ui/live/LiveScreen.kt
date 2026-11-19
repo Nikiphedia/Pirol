@@ -124,10 +124,16 @@ fun LiveScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.reloadPrefs()
             }
+            // T157: Alarm-Bestaetigung ggf. mit Undo-Snackbar anbieten
+            if (event == Lifecycle.Event.ON_START) viewModel.setScreenVisible(true)
+            if (event == Lifecycle.Event.ON_STOP) viewModel.setScreenVisible(false)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+        // T157: Observer wird erst nach ON_START registriert; Sichtbarkeit explizit nachziehen
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) viewModel.setScreenVisible(true)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.setScreenVisible(false)
         }
     }
 

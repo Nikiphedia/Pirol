@@ -124,6 +124,29 @@ class LiveViewModel(
     val snackbarEvents = _snackbarChannel.receiveAsFlow()
     private var pendingUndo: UndoEntry? = null
 
+    // --- T157: Undo nach Bestaetigen ueber den Alarm ---
+    @Volatile private var screenVisible = false
+
+    init {
+        verificationService.alarmUndo.onRecorded = { viewModelScope.launch { offerAlarmUndo() } }
+    }
+
+    /** Vom LiveScreen bei ON_START/ON_STOP gesetzt; beim Sichtbarwerden wird ein frischer Eintrag angeboten. */
+    fun setScreenVisible(visible: Boolean) {
+        screenVisible = visible
+        if (visible) viewModelScope.launch { offerAlarmUndo() }
+    }
+
+    private suspend fun offerAlarmUndo() {
+        if (!screenVisible) return
+        val entry = verificationService.alarmUndo.take() ?: return
+        _snackbarChannel.send(SnackbarEvent(
+            message = AppStrings.get(R.string.live_bestaetigt, entry.commonName),
+            actionLabel = AppStrings.get(R.string.common_undo),
+            onAction = { viewModelScope.launch(Dispatchers.IO) { verificationService.undoAlarmConfirm(entry) } }
+        ))
+    }
+
     // --- T116: Detektion teilen ---
     private val _shareRequest = MutableStateFlow<ch.etasystems.pirol.data.export.DetectionShareRequest?>(null)
     val shareRequest: StateFlow<ch.etasystems.pirol.data.export.DetectionShareRequest?> = _shareRequest.asStateFlow()

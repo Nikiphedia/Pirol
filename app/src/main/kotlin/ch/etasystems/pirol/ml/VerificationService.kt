@@ -13,11 +13,15 @@ import kotlinx.coroutines.sync.withLock
  */
 class VerificationService(
     private val detectionListState: DetectionListState,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    clock: () -> Long = System::currentTimeMillis
 ) {
     companion object {
         private const val TAG = "VerificationService"
     }
+
+    /** T157: letzte Alarm-Bestaetigung, die in der App noch rueckgaengig gemacht werden kann. */
+    val alarmUndo = PendingAlarmUndo(clock)
 
     /** Serialisiert Verifikations-IO (Schnell-Taps, Alarm + UI gleichzeitig). */
     val mutex = Mutex()
@@ -44,6 +48,7 @@ class VerificationService(
         val prevStatus = detection.verificationStatus
         val prevCorrected = detection.correctedSpecies
         detectionListState.updateVerification(detectionId, VerificationStatus.CONFIRMED, null)
+        alarmUndo.record(PendingAlarmUndo.Entry(detectionId, detection.commonName, prevStatus, prevCorrected, written = sessionManager.isActive))
         if (!sessionManager.isActive) return true
         mutex.withLock {
             try {
@@ -51,9 +56,23 @@ class VerificationService(
             } catch (e: Exception) {
                 Log.e(TAG, "Verifikation schreiben fehlgeschlagen", e)
                 detectionListState.updateVerification(detectionId, prevStatus, prevCorrected)
+                alarmUndo.clear()
                 return false
             }
         }
         return true
+    }
+
+    /** T157: Alarm-Bestaetigung zuruecknehmen (Status + UNDO ueber denselben Pfad wie im Live-Tab). */
+    suspend fun undoAlarmConfirm(entry: PendingAlarmUndo.Entry) {
+        detectionListState.updateVerification(entry.detectionId, entry.previousStatus, entry.previousCorrected)
+        if (!entry.written) return
+        mutex.withLock {
+            try {
+                sessionManager.removeLastVerification(entry.detectionId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Undo schreiben fehlgeschlagen", e)
+            }
+        }
     }
 }
