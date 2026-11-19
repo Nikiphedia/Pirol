@@ -53,6 +53,11 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.Pirol" />
 
+        <!-- T137: Bestaetigen-Aktion der Alarm-Benachrichtigung (ohne ViewModel) -->
+        <receiver
+            android:name=".audio.AlarmActionReceiver"
+            android:exported="false" />
+
         <service
             android:name=".audio.RecordingService"
             android:foregroundServiceType="microphone"

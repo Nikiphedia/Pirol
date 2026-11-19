@@ -118,6 +118,10 @@ class RecordingPipeline(
     @Volatile private var running = false
     private var currentSessionId: String? = null
 
+    // T137: Persistenz-Zaehler (an die Persistenz uebergebene Samples), pro Session zurueckgesetzt
+    private val persistedSamples = AtomicLong(0L)
+    @Volatile private var persistSampleRate = 0
+
     // T118_STATS
     private val prerollSamplesFed = AtomicLong(0L)
     private val liveSamplesFed = AtomicLong(0L)
@@ -149,9 +153,12 @@ class RecordingPipeline(
         classifier = classifier,
         regionalFilter = regionalFilter,
         onAudioPersist = { pcm ->
-            // Offset VOR dem Append erfassen → Basis fuer Detection-Zeitstempel im WAV.
+            // T137: Offset aus dem pipeline-eigenen Zaehler (exakt die bisher an die Persistenz
+            // uebergebenen Samples), nicht aus der Dateiposition - die hinkt bei Rueckstau hinterher.
             if (session.isActive) {
-                val startSec = session.currentRecordingOffsetSec()
+                val rate = persistSampleRate
+                val before = persistedSamples.getAndAdd(pcm.size.toLong())
+                val startSec = if (rate > 0) (before.toDouble() / rate).toFloat() else 0f
                 // F3: sessionDispatcher serialisiert Preroll + Live-Chunks (StreamingWavWriter nicht thread-safe)
                 scope.launch(sessionDispatcher) { session.appendAudio(pcm) }
                 startSec
@@ -176,6 +183,7 @@ class RecordingPipeline(
     fun onRecordingStarted(chunks: SharedFlow<AudioChunk>, sampleRate: Int, preroll: PrerollCapture?) {
         if (running) return
         running = true
+        persistSampleRate = sampleRate
         hooks.startLocation()
         setInferenceConfig(hooks.loadInferenceConfig())
 
@@ -185,6 +193,7 @@ class RecordingPipeline(
         var prerollToFeed: PrerollCapture? = null
         if (!session.isActive) {
             prerollToFeed = preroll
+            persistedSamples.set(0L)
             prerollSamplesFed.set(0L)
             liveSamplesFed.set(0L)
             val config = inferenceWorker.config
@@ -210,6 +219,8 @@ class RecordingPipeline(
                 }
             }
         } else {
+            // Bereits laufende Session: Zaehler an die bisher geschriebene Laenge anlehnen
+            persistedSamples.set(session.recordedSampleCount)
             sessionReady.complete(Unit)
         }
 

@@ -51,12 +51,14 @@ class RecordingPipelineTest {
         val events: MutableList<String> = Collections.synchronizedList(mutableListOf())
         val detections: MutableList<DetectionResult> = Collections.synchronizedList(mutableListOf())
         @Volatile var samples = 0L
+        @Volatile var appendDelayMs = 0L  // T137: Rueckstau simulieren
         override val isActive get() = active
         override val lastStartUsedFallback = false
         override val recordedSampleCount get() = samples
         override fun currentRecordingOffsetSec() = samples.toFloat() / 48000
         override suspend fun appendAudio(samples: ShortArray) {
             check(active) { "Append ohne Session" }
+            if (appendDelayMs > 0) Thread.sleep(appendDelayMs)  // blockierendes IO wie der echte Writer (kein Suspend-Interleaving)
             audio += samples
             this.samples += samples.size
             events += "append"
@@ -187,5 +189,31 @@ class RecordingPipelineTest {
         p.onRecordingStopped()!!.join()
         assertTrue("Liste nach Stopp leer", list.getDetections().isEmpty())
         assertEquals("end", session.events.last())
+    }
+
+    /** T137: Persistenz hinkt hinterher (Rueckstau) - chunkStartSec stammt aus dem Pipeline-Zaehler. */
+    @Test
+    fun detectionOffsetsCorrectUnderPersistenceBacklog() = runBlocking {
+        val session = FakeSession().apply { appendDelayMs = 150 }
+        val hooks = FakeHooks()
+        val list = DetectionListState()
+        val p = pipeline(session, hooks, list, hit = true)
+        val flow = MutableSharedFlow<AudioChunk>(extraBufferCapacity = 64)
+        p.onRecordingStarted(flow, sr, null)
+
+        var pos = 0
+        while (pos < sr * 7) {
+            flow.emit(AudioChunk(pattern(pos, sr), sr, 0L))
+            pos += sr
+        }
+        waitUntil("zwei Fenster analysiert") { session.detections.size >= 2 }
+        // Datei liegt hinter der Pipeline zurueck (Backlog), die Offsets duerfen es nicht sein
+        val starts = session.detections.toList().map { it.chunkStartSec }.sorted()
+        assertEquals(0f, starts[0], 0.001f)
+        assertEquals(3f, starts[1], 0.001f)
+
+        waitUntil("alle Samples eingespeist") { p.fedSamples() == (sr * 7).toLong() }
+        p.onRecordingStopped()!!.join()
+        assertEquals((sr * 7).toLong(), session.samples)  // genau einmal
     }
 }

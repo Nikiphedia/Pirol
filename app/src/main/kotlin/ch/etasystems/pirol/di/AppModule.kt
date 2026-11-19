@@ -78,7 +78,8 @@ val appModule = module {
     single { WatchlistManager(get(), get()) }
 
     // AlarmService — Singleton, Notification + Vibration fuer Watchlist-Matches (T20/T58)
-    single { AlarmService(get(), get(), get()) }
+    single { ch.etasystems.pirol.ml.VerificationService(get(), get()) }  // T137
+    single { AlarmService(get(), get(), get(), get()) }
 
     // AppPreferences — Singleton, SharedPreferences-Wrapper (T22)
     single { AppPreferences(get()) }
@@ -122,7 +123,7 @@ val appModule = module {
 
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
-    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }  // T94: EmbeddingExtractor -> RecordingPipeline, + EmbeddingDbStore
+    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }  // T94: EmbeddingExtractor -> RecordingPipeline, + EmbeddingDbStore
 
     // ReferenceViewModel — Referenzbibliothek-UI
     viewModel { ReferenceViewModel(get(), get(), get(), androidContext()) }
