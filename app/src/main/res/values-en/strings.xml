@@ -499,4 +499,5 @@
     <string name="settings_gps_mode_continuous">Continuous</string>
     <string name="settings_gps_mode_on_detection">On detection only</string>
     <string name="settings_gps_mode_on_detection_hint">GPS is only switched on for a detection, at least 30 s between two fixes. Saves battery; the interval does not apply in this mode.</string>
+    <string name="model_min_confidence">Minimum confidence %1$d%%</string>
 </resources>

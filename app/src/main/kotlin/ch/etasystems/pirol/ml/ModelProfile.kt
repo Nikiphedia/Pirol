@@ -48,7 +48,9 @@ data class ModelProfile(
     val inputName: String? = null,
     val genericLabels: GenericLabels? = null,
     val auxOutputNames: List<String> = emptyList(),
-    val source: Source = Source.CATALOG
+    val source: Source = Source.CATALOG,
+    /** T156: Mindest-Konfidenz des Modells (Profil-JSON), null = nur globale Schwelle */
+    val minConfidence: Float? = null
 ) {
     /** Groesse in MB fuer die UI (gerundet) */
     val expectedSizeMB: Int get() = ((sizeBytes ?: 0L) / 1_000_000L).toInt()

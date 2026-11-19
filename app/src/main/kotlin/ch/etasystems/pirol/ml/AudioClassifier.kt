@@ -49,6 +49,9 @@ interface AudioClassifier {
     /** T151a: Fensterlaenge des aktiven Modells in ms (Analyse-Fenster, Overlap-Hop) */
     val windowMs: Int get() = CHUNK_DURATION_MS.toInt()
 
+    /** T156: Mindest-Konfidenz des aktiven Modells (null = nur globale Schwelle) */
+    val minConfidence: Float? get() = null
+
     /** T151a: Modell liefert ein Embedding (sonst keine Aehnlichkeitssuche) */
     val hasEmbedding: Boolean get() = true
 

@@ -235,7 +235,7 @@ class RecordingPipeline(
                         latitude = loc?.latitude,
                         longitude = loc?.longitude,
                         regionFilter = config.regionFilter,
-                        confidenceThreshold = config.confidenceThreshold,
+                        confidenceThreshold = InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence),
                         note = hooks.sessionNote(),  // T109
                         modelId = classifier.modelId  // T103a
                     )

@@ -123,6 +123,8 @@ class BirdNetV3Classifier(
 
     override val modelId: String get() = profile.id
 
+    override val minConfidence: Float? get() = profile.minConfidence
+
     override val inputSampleRate: Int get() = profile.sampleRate
 
     // T151a: Fensterlaenge und Embedding laut Profil

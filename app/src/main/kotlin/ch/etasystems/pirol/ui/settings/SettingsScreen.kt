@@ -532,6 +532,14 @@ fun SettingsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                // T156: Mindest-Konfidenz des Modells (Profil-JSON)
+                                model.profile.minConfidence?.let { min ->
+                                    Text(
+                                        text = stringResource(R.string.model_min_confidence, (min * 100).roundToInt()),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                         // T151a: importierte, nicht aktive Modelle loeschbar

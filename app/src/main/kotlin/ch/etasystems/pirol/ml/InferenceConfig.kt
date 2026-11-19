@@ -39,6 +39,10 @@ data class InferenceConfig(
     val overlapPercent: Int = 0
 ) {
     companion object {
+        /** T156: wirksame Schwelle = max(globale Schwelle, Mindest-Konfidenz des Modells) */
+        fun effectiveThreshold(global: Float, modelMin: Float?): Float =
+            if (modelMin != null && modelMin > global) modelMin else global
+
         /** Standard-Konfiguration: ausgewogen (TopK=3, Threshold=0.3) */
         val DEFAULT = InferenceConfig()
 

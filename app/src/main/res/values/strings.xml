@@ -500,4 +500,5 @@
     <string name="settings_gps_mode_continuous">Dauernd</string>
     <string name="settings_gps_mode_on_detection">Nur bei Detektion</string>
     <string name="settings_gps_mode_on_detection_hint">GPS wird nur bei einer Detektion eingeschaltet, mindestens 30 s zwischen zwei Fixes. Spart Akku; das Intervall gilt in diesem Modus nicht.</string>
+    <string name="model_min_confidence">Mindest-Konfidenz %1$d %%</string>
 </resources>
