@@ -369,7 +369,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Dieser Ausschnitt braucht %1$s Kacheln (Zoom %2$s-%3$s). Erlaubt sind maximal %4$s. Bitte weiter hineinzoomen.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Schweizer Brutvoegel (180 Arten)</string>
     <string name="onboarding_mitteleuropa_302_arten">Mitteleuropa (302 Arten)</string>
-    <string name="onboarding_alle_arten_11_560">Alle Arten (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download abgebrochen — Teil bleibt zum Fortsetzen erhalten</string>
     <string name="onboarding_download_fehlgeschlagen">"Download fehlgeschlagen — "</string>
     <string name="onboarding_internetverbindung_pruefen">Internetverbindung pruefen</string>
@@ -479,4 +478,6 @@
     <string name="mig_result_failed">%1$d verschoben, %2$d fehlgeschlagen. Originale bleiben unverändert. %3$s</string>
     <string name="mig_notif_done_title">Session-Migration beendet</string>
     <string name="mig_notif_result">%1$d verschoben, %2$d übersprungen, %3$d fehlgeschlagen</string>
+    <string name="onboarding_alle_arten_n">Alle Arten (%1$s)</string>
+    <string name="onboarding_modell_x_von_n">(Modell %1$d von %2$d)</string>
 </resources>

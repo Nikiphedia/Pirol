@@ -369,7 +369,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Dit gebied heeft %1$s tegels nodig (zoom %2$s-%3$s). Maximaal toegestaan: %4$s. Zoom verder in.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Zwitserse broedvogels (180 soorten)</string>
     <string name="onboarding_mitteleuropa_302_arten">Midden-Europa (302 soorten)</string>
-    <string name="onboarding_alle_arten_11_560">Alle soorten (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download afgebroken: het deel blijft bewaard om verder te gaan</string>
     <string name="onboarding_download_fehlgeschlagen">"Download mislukt: "</string>
     <string name="onboarding_internetverbindung_pruefen">Controleer de internetverbinding</string>
@@ -463,4 +462,5 @@
     <string name="settings_alarm_testen_5s">Over 5 s, toestel vergrendelen</string>
     <string name="settings_alarm_fullscreen_hinweis">Op het vergrendelscherm verschijnt het alarm alleen als melding zolang \"volledig-scherm-meldingen\" niet zijn toegestaan voor PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Toestemming openen</string>
+    <string name="onboarding_alle_arten_n">Alle soorten (11\'560)</string>
 </resources>

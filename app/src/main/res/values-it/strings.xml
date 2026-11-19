@@ -369,7 +369,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Quest\'area richiede %1$s riquadri (zoom %2$s-%3$s). Il massimo consentito è %4$s. Avvicina la mappa.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Uccelli nidificanti svizzeri (180 specie)</string>
     <string name="onboarding_mitteleuropa_302_arten">Europa centrale (302 specie)</string>
-    <string name="onboarding_alle_arten_11_560">Tutte le specie (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download interrotto: la parte scaricata resta per riprendere</string>
     <string name="onboarding_download_fehlgeschlagen">"Download non riuscito: "</string>
     <string name="onboarding_internetverbindung_pruefen">Verifica la connessione Internet</string>
@@ -463,4 +462,5 @@
     <string name="settings_alarm_testen_5s">Tra 5 s, blocca il dispositivo</string>
     <string name="settings_alarm_fullscreen_hinweis">Sulla schermata di blocco l\'allarme appare solo come notifica finché le \"notifiche a schermo intero\" non sono consentite per PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Apri autorizzazione</string>
+    <string name="onboarding_alle_arten_n">Tutte le specie (11\'560)</string>
 </resources>

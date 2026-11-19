@@ -369,7 +369,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Dä Usschnitt bruucht %1$s Chachle (Zoom %2$s-%3$s). Erlaubt sind maximal %4$s. Bitte witer ine zoome.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Schwiizer Brutvögel (180 Arte)</string>
     <string name="onboarding_mitteleuropa_302_arten">Mitteleuropa (302 Arte)</string>
-    <string name="onboarding_alle_arten_11_560">Alli Arte (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download abbroche — Teil blibt zum Witermache erhalte</string>
     <string name="onboarding_download_fehlgeschlagen">"Download het nid klappt — "</string>
     <string name="onboarding_internetverbindung_pruefen">Internetverbindig prüefe</string>
@@ -463,4 +462,5 @@
     <string name="settings_alarm_testen_5s">Nach 5 s, Gerät sperre</string>
     <string name="settings_alarm_fullscreen_hinweis">Uf em Sperrbildschirm erschiint de Alarm nume als Benachrichtigung, so lang \"Vollbild-Benachrichtigungen\" fürs PIROL nöd erlaubt sind.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Berechtigung öffne</string>
+    <string name="onboarding_alle_arten_n">Alli Arte (11\'560)</string>
 </resources>
