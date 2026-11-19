@@ -14,12 +14,18 @@ import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import ch.etasystems.pirol.AlarmActivity
 import ch.etasystems.pirol.MainActivity
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.WatchlistMatcher
 import ch.etasystems.pirol.ml.WatchlistPriority
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -59,13 +65,17 @@ class AlarmService(
 
     companion object {
         private const val TAG = "AlarmService"
-        private const val CHANNEL_ID = "watchlist_alarm_v2"
-        private const val OLD_CHANNEL_ID = "watchlist_alarm"
+        // T135: Kanal-Einstellungen sind nach dem Anlegen unveraenderbar -> neue ID
+        const val CHANNEL_ID = "pirol_watchlist_alarm_v2"
+        private val OLD_CHANNEL_IDS = listOf("watchlist_alarm", "watchlist_alarm_v2")
         private const val NOTIFICATION_ID_BASE = 1000  // Offset zu RecordingService (1)
         private val VIBRATION_PATTERN = longArrayOf(0, 400, 150, 400, 150, 800)
     }
 
     private var notificationCounter = 0
+
+    // Scope fuer den verzoegerten Test-Alarm (T135); kein GlobalScope
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // Letzte Alarm-Zeitpunkte pro Art (Cooldown-Tracking, Schluessel normalisiert)
     private val lastAlarmTimes = mutableMapOf<String, Long>()
@@ -85,15 +95,17 @@ class AlarmService(
     private fun createNotificationChannel() {
         val manager = context.getSystemService(NotificationManager::class.java)
         // Alter Kanal hatte unveraenderbare Einstellungen -> neu anlegen
-        manager.deleteNotificationChannel(OLD_CHANNEL_ID)
+        OLD_CHANNEL_IDS.forEach { manager.deleteNotificationChannel(it) }
         val channel = NotificationChannel(
             CHANNEL_ID,
             AppStrings.get(R.string.svc_watchlist_alarm),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = AppStrings.get(R.string.svc_alarm_bei_erkennung_von_watchlist)
-            enableVibration(false)  // Vibration steuert die App selbst (Settings-Schalter)
+            enableVibration(true)
+            vibrationPattern = VIBRATION_PATTERN
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setBypassDnd(false)
         }
         manager.createNotificationChannel(channel)
     }
@@ -135,7 +147,14 @@ class AlarmService(
     }
 
     /** Test-Alarm aus den Settings (ohne Cooldown, nutzt die aktiven Ausgaenge). */
-    fun triggerTestAlarm() {
+    fun triggerTestAlarm(delayMs: Long = 0L) {
+        if (delayMs > 0) {
+            scope.launch {
+                delay(delayMs)
+                triggerTestAlarm(0L)
+            }
+            return
+        }
         val sci = "Turdus_merula"
         fire(
             AlarmEvent(
@@ -154,6 +173,22 @@ class AlarmService(
         _activeAlarm.value = null
     }
 
+    /** true wenn die Full-Screen-Berechtigung fehlt (nur Android 14+), fuer den Settings-Hinweis. */
+    fun needsFullScreenHint(): Boolean =
+        AlarmPolicy.needsFullScreenHint(Build.VERSION.SDK_INT, canUseFullScreenIntent())
+
+    private fun canUseFullScreenIntent(): Boolean =
+        if (Build.VERSION.SDK_INT >= 34) {
+            context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+        } else true
+
+    /** Aus der AlarmActivity: Alarm beenden, Notification entfernen, optional Detektion bestaetigen. */
+    fun resolveFromActivity(detectionId: String, notificationId: Int, confirm: Boolean) {
+        _activeAlarm.value = null
+        NotificationManagerCompat.from(context).cancel(notificationId)
+        if (confirm && detectionId.isNotEmpty()) _confirmRequests.tryEmit(detectionId)
+    }
+
     /** Hinweis schliessen und Detektion bestaetigen (nur echte Alarme). */
     fun confirmActiveAlarm() {
         val event = _activeAlarm.value ?: return
@@ -170,12 +205,19 @@ class AlarmService(
     }
 
     private fun showNotification(event: AlarmEvent) {
-        // Ohne POST_NOTIFICATIONS (Android 13+) wuerde notify() stillschweigend verworfen
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+        val allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        val presentation = AlarmPolicy.decide(
+            notificationEnabled = true,
+            notificationsAllowed = allowed,
+            sdkInt = Build.VERSION.SDK_INT,
+            canUseFullScreenIntent = canUseFullScreenIntent()
+        )
+        if (presentation == AlarmPresentation.NONE) {
             Log.w(TAG, "Benachrichtigungen nicht erlaubt - Alarm-Notification uebersprungen")
             return
         }
         notificationCounter++
+        val notificationId = NOTIFICATION_ID_BASE + notificationCounter
         val pct = (event.confidence * 100).toInt()
         val time = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))
 
@@ -188,20 +230,30 @@ class AlarmService(
         )
 
         val title = if (event.isTest) AppStrings.get(R.string.svc_test, event.commonName) else AppStrings.get(R.string.svc_erkannt, event.commonName)
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText("${event.scientificName.replace('_', ' ')} - $pct% - $time")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(false)
+            .setVibrate(VIBRATION_PATTERN)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .build()
+
+        if (presentation == AlarmPresentation.FULL_SCREEN) {
+            // Weckt den Bildschirm und zeigt AlarmActivity ueber dem Sperrbildschirm
+            val fsIntent = AlarmActivity.createIntent(context, event, notificationId)
+            val fsPending = PendingIntent.getActivity(
+                context, notificationId, fsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.setFullScreenIntent(fsPending, true)
+        }
 
         try {
-            NotificationManagerCompat.from(context)
-                .notify(NOTIFICATION_ID_BASE + notificationCounter, notification)
+            NotificationManagerCompat.from(context).notify(notificationId, builder.build())
         } catch (e: SecurityException) {
             Log.w(TAG, "notify() ohne Berechtigung", e)
         }

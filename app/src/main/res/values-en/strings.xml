@@ -459,4 +459,7 @@
     <string name="settings_beispielliste_fehler">Could not create example list</string>
     <string name="settings_eigene_liste">Custom list</string>
     <string name="settings_eigene_liste_warnung">List skipped: %1$s</string>
+    <string name="settings_alarm_testen_5s">In 5 s, lock device</string>
+    <string name="settings_alarm_fullscreen_hinweis">On the lock screen the alarm only appears as a notification until \"full-screen notifications\" are allowed for PIROL.</string>
+    <string name="settings_alarm_fullscreen_oeffnen">Open permission</string>
 </resources>

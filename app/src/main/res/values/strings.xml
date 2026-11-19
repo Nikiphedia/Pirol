@@ -460,4 +460,7 @@
     <string name="settings_beispielliste_fehler">Beispielliste konnte nicht angelegt werden</string>
     <string name="settings_eigene_liste">Eigene Liste</string>
     <string name="settings_eigene_liste_warnung">Liste übersprungen: %1$s</string>
+    <string name="settings_alarm_testen_5s">Nach 5 s, Geraet sperren</string>
+    <string name="settings_alarm_fullscreen_hinweis">Auf dem Sperrbildschirm erscheint der Alarm nur als Benachrichtigung, solange \"Vollbild-Benachrichtigungen\" fuer PIROL nicht erlaubt sind.</string>
+    <string name="settings_alarm_fullscreen_oeffnen">Berechtigung oeffnen</string>
 </resources>
