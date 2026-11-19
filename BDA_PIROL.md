@@ -1,258 +1,316 @@
 # PIROL — Bedienungsanleitung
 
-Akustische Echtzeit-Artenerkennung fuer Android.
+Akustische Echtzeit-Artenerkennung fuer Android, gedacht fuer die Feldarbeit.
 
-*Gilt ab Version v0.0.6 (Stand 2026-04-26). Neuerungen ab v0.0.7 stehen vorerst nur im `CHANGELOG.md`; die Anleitung wird auf v0.0.9 nachgefuehrt.*
+*Gilt ab Version v0.0.9 (Stand 2026-11-19). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
 
----
-
-## Erster Start
-
-1. App oeffnen → Onboarding fuehrt durch Berechtigungen (Mikrofon, GPS, Speicher)
-2. BirdNET-Modell herunterladen (Zenodo, ~50 MB) oder manuell per SAF importieren
-3. Modellvariante waehlen: FP32 (genauer) oder FP16 (schneller, weniger RAM)
-4. Speicherort pruefen: Aufnahmen landen unter `Downloads/PIROL/YYYY-MM-DD/` (SAF-Zugriff, sichtbar per USB)
+Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**.
 
 ---
 
-## Live-Erkennung
+## 1. Erster Start
 
-**Start:** FAB-Button auf dem Live-Tab druecken.
+1. App oeffnen. Das Onboarding fuehrt durch Region, Modell und Berechtigungen (Mikrofon, GPS, Benachrichtigungen).
+2. **Region** waehlen (z.B. Schweizer Brutvoegel, Mitteleuropa oder alle Arten). Sie filtert die Artenliste auf plausible Arten.
+3. **Modell** herunterladen: Es lassen sich mehrere Modelle auf einmal auswaehlen. Standard ist BirdNET 3.0 FP16 (empfohlen, ca. 170 MB). Der Download laeuft im Hintergrund weiter, kann abgebrochen und spaeter fortgesetzt werden. Alternativ eine Modell-Datei manuell auswaehlen.
+4. **Speicherort** pruefen (Settings > Aufnahme & Speicher). Standard: `Downloads/PIROL/`, per USB sichtbar.
 
-Das Sonogramm laeuft sofort. Erkannte Arten erscheinen als Karten unterhalb des Sonogramms mit:
-- Artname (Sprache waehlbar in Settings), wissenschaftlicher Name
-- Confidence in Prozent
-- Zeitstempel + GPS-Koordinaten (falls verfuegbar)
-- Top-N Kandidaten (aufklappbar, klickbar — siehe Verifikation)
-
-**FAB-Zustaende (V0.0.6):**
-
-| Farbe | Zustand | Bedeutung |
-|-------|---------|-----------|
-| Gruen (pulsierend) | PREROLL_BUFFERING | Preroll wird gepuffert |
-| Rot (pulsierend) | RECORDING | Aufnahme laeuft |
-
-**Status-Zeile:** Zeigt Laufzeit in mm:ss (1 Hz-Takt).
-
-**GPS-Bar:** Zeigt aktuelle Genauigkeit in ±m. Wird rot wenn laenger als 30 s kein gueltiger Fix.
-
-**Ruhige Liste:** Eine bereits gesehene Art rueckt nur dann wieder an Platz 1, wenn sie seit mindestens 10 Sekunden nicht mehr gehoert wurde.
-
-**Preroll:** Wenn aktiviert (Settings → Erkennung), werden 5/10/30 Sekunden Audio VOR dem Erkennungszeitpunkt mitgespeichert. Der Preroll steht direkt am Anfang der Session-Audiodatei. Das Sonogramm zeigt davon max. 5 s an — die WAV-Datei enthaelt den vollstaendigen Preroll.
-
-**Sonogramm Auto-Kontrast (V0.0.6):** DynamicRangeMapper berechnet rollierend p5/p95 ueber ein 5-s-Fenster, IIR-geglaettet (alpha 0.15), alle 250 ms neu. Ergebnis: Sonogramm passt sich automatisch an Umgebungslautstaerke an. Manueller dB-Range-Slider als Fallback in Settings → Sonogramm.
-
-**Session-Rotation (V0.0.6):** Bei langen Aufnahmen wechselt PIROL automatisch nach max. 60 Minuten (konfigurierbar: 10–80 min) in ein neues Segment (`recording-002.wav` usw.). Die Aufnahme laeuft unterbrechungsfrei weiter.
-
-**Hochpassfilter:** Default an (200 Hz). Filtert Wind- und Trittschall. Abschaltbar in Settings → Erkennung.
-
-**Stopp:** Nochmals FAB druecken. Session und Raven-Export werden automatisch gespeichert.
+**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 auf v0.0.9 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
 
 ---
 
-## Verifikation (auf SpeciesCard)
+## 2. Live-Erkennung
 
-Pro Detektion stehen fuenf Aktionen zur Verfuegung:
+**Start:** Aufnahme-Knopf im Live-Tab druecken. **Stopp:** Knopf lang druecken. Session und Raven-Export werden automatisch gespeichert.
 
-| Icon | Aktion | Status | Visualisierung |
-|------|--------|--------|----------------|
-| ✓ | Bestaetigen | CONFIRMED | gruener Rand |
-| ? | Unsicher | UNCERTAIN | oranger Rand, Badge "Unsicher" |
-| ✗ | Ablehnen | REJECTED | ausgegraut (alpha 0.6) |
-| ✎ | Korrigieren | CORRECTED | Art durch Dropdown ersetzt |
-| (Klick auf Alternative) | Alternative waehlen | REPLACED | Original ausgegraut, roter Rand, Badge "Ersetzt → <Art>" |
+Aufnahme und Analyse laufen in einem Dienst. Sie gehen weiter, wenn die App in den Hintergrund geht oder der Bildschirm ausgeschaltet wird.
 
-**Alternative waehlen:** Wenn die erkannte Art nicht stimmt, Kandidaten-Zeile aufklappen und die richtige Art antippen. Die Alternative erscheint als neue Detektion an Index 0, die urspruengliche Detektion bleibt sichtbar als REPLACED in der Liste (Audit-Trail).
+Erkannte Arten erscheinen als Karten unter dem Sonogramm:
+- Artname in der gewaehlten Sprache, wissenschaftlicher Name als Zusatz
+- Konfidenz in Prozent, Zeitstempel, GPS-Position
+- Alternativen (aufklappbar, antippbar)
+- Hinweise "Selten", "Saison-untypisch", Watchlist-Markierung
 
-**Instant-Update (V0.0.6):** Status-Aenderungen werden sofort in der UI sichtbar — kein manuelles Reload noetig.
+| Knopf | Zustand |
+|-------|---------|
+| gruen, pulsierend | Preroll-Puffer laeuft (Aufnahme noch nicht gestartet) |
+| rot, pulsierend | Aufnahme laeuft |
 
-Jede Verifikation wird in `verifications.jsonl` der Session gespeichert.
+**Status-Zeile:** Laufzeit in mm:ss. **GPS-Leiste:** aktuelle Genauigkeit in ±m, rot bei laenger als 30 s ohne gueltigen Fix.
+
+**Ruhige Liste:** Eine bereits gesehene Art rueckt nur dann wieder an Platz 1, wenn sie seit mindestens 10 s nicht mehr gehoert wurde.
+
+**Bemerkung:** Pro Aufnahme kann ein Titel eingegeben werden. Er erscheint in der Session-Liste, im ZIP-Namen und im Raven-Export.
+
+**Manuell hinzufuegen:** Eine Art von Hand eintragen (mit Stueckzahl, Atlascode, Bemerkung). Pro Detektion lassen sich ausserdem Stueckzahl, Atlascode, Bemerkung und ein Sprach-Memo erfassen. Eine Art kann gesperrt werden (nur eine Meldung pro Session).
+
+**Zusammenfassen:** Detektionen derselben Art werden raeumlich und zeitlich zu einem Eintrag zusammengefasst (Radius und Zeitfenster einstellbar, Settings > Modell & Erkennung).
+
+### Preroll
+Wenn aktiviert, wird Audio **vor** dem Aufnahmestart mitgespeichert (Laenge einstellbar) und auch analysiert. Der Preroll steht lueckenlos am Anfang von `recording.wav`. Das Sonogramm zeigt davon hoechstens 5 s.
+
+### Ueberlappung
+Analysefenster koennen sich ueberlappen: 0 % (Standard, Fenster alle 3 s), 50 % (alle 1.5 s) oder 67 % (jede Sekunde). Mehr Ueberlappung erkennt kurze Rufe an Fenstergrenzen besser, braucht aber mehr Rechenzeit und Akku. Ist das Geraet zu langsam, reduziert PIROL die Ueberlappung automatisch und meldet das einmal pro Session in einer Snackbar.
+
+### Lange Aufnahmen (Segmente)
+Nach der eingestellten Maximaldauer (Standard 60 min, einstellbar 10-80 min) beginnt automatisch eine neue Datei (`recording-002.wav` usw.). Die Aufnahme laeuft ohne Unterbruch weiter. Zeitangaben in `detections.jsonl` und Raven gelten ab Session-Start. Der WAV-Kopf wird alle 5 s nachgefuehrt: Wird die App hart beendet, gehen hoechstens ca. 3 s Audio verloren.
+
+### Hochpassfilter und Aufbereitung
+Der Hochpassfilter (200 Hz) filtert Wind und Trittschall, standardmaessig an. Er wirkt nur auf die Kopie fuer die Erkennung, die gespeicherte Aufnahme bleibt unveraendert. Aenderungen gelten ab der naechsten Aufnahme.
 
 ---
 
-## Sessions
+## 3. Sonogramm
 
-Jede Aufnahme erzeugt eine Session unter `Downloads/PIROL/YYYY-MM-DD/{sessionId}/`:
+Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt wird bis **12 kHz** (Voreinstellung fuer Voegel).
+
+**Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) oeffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Sonogramm. Das Panel gilt fuer Live, Analyse und Settings gemeinsam.
+
+| Regler | Wirkung |
+|--------|---------|
+| Voreinstellung | Standard / Leise Rufe / Laute Umgebung |
+| Auto-Kontrast | passt die dB-Schwelle laufend dem Signal an; sonst von Hand (Bereich in dB) |
+| Intensitaet (Gamma) | kleiner = leise Anteile heller |
+| Helligkeits-Deckel | begrenzt starke Signale |
+| Farbpalette | Magma, Viridis, Graustufen, **Papier (hell)** |
+| Frequenz | angezeigter Bereich in kHz |
+| Zeitfenster | Sekunden, die sichtbar sind |
+
+**Papier (hell):** helle Palette wie ein klassisches Papier-Sonagramm, gut bei Tageslicht. Ein Tipp auf das Palettensymbol im Live-Tab wechselt die Palette schnell.
+
+**Modus** (Settings > Sonogramm): Voegel, Fledermaus oder Breitband. Der Fledermaus-Modus nimmt mit 96 kHz auf (Ultraschall); dabei gibt es keinen Preroll.
+
+---
+
+## 4. Verifikation
+
+Pro Detektion stehen diese Aktionen zur Verfuegung (Live-Tab, Analyse-Tab und Karte):
+
+| Aktion | Status | Darstellung |
+|--------|--------|-------------|
+| Bestaetigen | Bestaetigt | gruener Rand |
+| Unsicher (?) | Unsicher | oranger Rand |
+| Ablehnen | Abgelehnt | ausgegraut |
+| Korrigieren | Korrigiert | Name durch eigene Eingabe ersetzt |
+| Alternative waehlen | Ersetzt | Original ausgegraut mit rotem Rand, Alternative erscheint als neue Detektion |
+
+Jede Aktion zeigt eine Snackbar mit **Rueckgaengig** (mindestens 5 s). Das gilt auch fuer das Bestaetigen ueber den Watchlist-Alarm. Alle Aktionen werden in `verifications.jsonl` festgehalten; auch abgelehnte und ersetzte Detektionen bleiben im Export (Audit-Trail).
+
+**Detektion teilen:** Ausschnitt (3 s davor, 5 s danach, Maximallaenge einstellbar) als WAV, M4A (AAC), FLAC (falls das Geraet es kann) oder Sonogramm-PNG mit Beschriftung.
+
+---
+
+## 5. Sessions
+
+Jede Aufnahme erzeugt einen Session-Ordner, standardmaessig `Downloads/PIROL/YYYY-MM-DD/{sessionId}/`. Der Ordnername traegt die Ortszeit.
 
 ```
-Downloads/PIROL/2026-04-26/a3f9c1/
-├── session.json                   ← Metadaten (Dauer, Ort, GpsStats, recordingSegments)
-├── detections.jsonl               ← Alle Detektionen (Zeitoffsets in Sekunden ab Aufnahme-Start)
-├── verifications.jsonl            ← Alle Verifikations-Aktionen
-├── recording.wav                  ← Eine durchgehende WAV-Datei (kurze Sessions)
-│   oder
-├── recording-001.wav              ← Segment 1 (bei Session-Rotation, T57)
-├── recording-002.wav              ← Segment 2
-│   ...
-└── recording.selections.txt       ← Raven Selection Table (Auto-Export nach Session-Ende)
+session.json              Metadaten (Dauer, Ort, GPS-Statistik, verwendetes Modell)
+detections.jsonl          alle Detektionen
+verifications.jsonl       alle Verifikations-Aktionen
+recording.wav             Aufnahme (16-bit, Mono, 48 kHz); bei langen Sessions
+recording-002.wav ...     weitere Segmente
+recording.selections.txt  Raven Selection Table (automatisch beim Stopp)
 ```
 
-**Kein `audio/`-Unterordner mehr** (seit V0.0.6/T51): Alle Dateien liegen direkt im Session-Ordner.
+- **Speicherbedarf:** ca. 5.5 MB pro Minute Aufnahme.
+- **Zeitstempel:** immer Ortszeit mit Zonen-Offset (z.B. `+02:00`).
+- **Auto-Loeschen:** Kurze Sessions ohne Detektion werden geloescht (Mindestdauer einstellbar, 0 = aus).
+- **Loeschen** einer Session in der Analyse: mit Bestaetigung.
 
-**Session-Rotation:** Bei Aufnahmen laenger als das konfigurierte Maximum (Default 60 min) entstehen mehrere WAV-Segmente. `session.json` enthaelt die vollstaendige `recordingSegments`-Liste (nullable, rueckwaertskompatibel).
+### Speicherort wechseln
+Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: interner Speicher, SD-Karte, Cloud-Ordner). Optional mit Tages-Unterordnern. Ist der Ordner nicht erreichbar, speichert PIROL im Fallback-Ordner der App und meldet das.
 
-**Periodischer WAV-Header-Update:** Alle ~60 s wird der RIFF-Header (fileSize + dataSize) aktualisiert. Wird die App gekillt, bleibt die Datei trotzdem abspielbar.
-
-**Auto-Delete (V0.0.6):** Kurze Sessions ohne Nachweis (keine Detektionen, konfigurierbare Mindestdauer) werden automatisch geloescht. Einstellbar in Settings → Speicher.
-
-**Storage-Migration:** Beim Wechsel des Speicherorts (intern ↔ SD-Karte) koennen bestehende Sessions migriert werden. Der SessionMigrationWorker nutzt SAF-URIs und benoetigt keinen direkten Dateisystem-Zugriff.
-
-**Loeschen:** Wisch-Geste oder Loeschen-Button auf der Session-Karte (mit Bestaetigung + Snackbar-Undo 5 s).
-
-> **Hinweis zu aelteren Sessions:** Sessions die vor V0.0.3 aufgenommen wurden, liegen noch im alten Chunk-Format (`audio/chunk_NNN.wav`) vor. Sie werden im Analyse-Tab weiterhin angezeigt, die Audio-Wiedergabe ist aber nicht verfuegbar (Banner erscheint). Detektions-Daten bleiben sichtbar.
+**Sessions verschieben:** Beim Wechsel fragt PIROL, ob bestehende Sessions an den neuen Ort **kopiert** werden sollen ("Kopieren") oder nur der Ort gewechselt wird ("Nur wechseln").
 
 ---
 
-## Analyse-Tab
+## 6. Analyse-Tab
 
-- **Session-Browser:** Alle gespeicherten Sessions, sortiert nach Datum. Session-Karte zeigt Dauer (mm:ss) und Groesse (MB).
-- **Session oeffnen:** Sonogramm + Detektionsliste mit Zeit-Labels (MM:SS pro Detektion).
-- **Play-Button pro Detektion:** Springt direkt an die Sekunde in `recording.wav` an der die Art detektiert wurde. Auto-Stop nach ~3 Sekunden.
-- **Globaler Play/Stop:** Spielt die gesamte Aufnahme ab. Bei segmentierten Sessions werden die Segmente nahtlos aneinandergereiht.
-- **AudioPlayer SAF-Unterstuetzung (V0.0.6):** Liest WAV-Dateien via SAF-URI; kein direkter Dateisystem-Zugriff benoetigt.
-- **Streaming-Sonogramm (V0.0.6):** Lange Aufnahmen werden gestreamt — kein vollstaendiger RAM-Load.
-- **Verifikation:** Jede Detektion kann nachtraeglich bestaetigt, abgelehnt, als unsicher markiert, korrigiert oder durch eine Alternative ersetzt werden. Status-Update sofort sichtbar.
-- **Dual-Sonogramm:** Detektion vs. Referenz nebeneinander vergleichen + synchrone Wiedergabe.
-- **Manueller Raven-Re-Export:** Raven Selection Table neu generieren (z.B. nach nachtraeglicher Verifikation).
+- **Session-Liste:** nach Datum, mit Dauer, Groesse und Bemerkung.
+- **Session oeffnen:** Sonogramm und Detektionsliste mit Zeitangabe. Die gerade abgespielte Detektion ist markiert, ein Zeiger zeigt die Position.
+- **Abspielen:** pro Detektion (Ausschnitt mit Zoom) oder die ganze Aufnahme; Segmente werden nahtlos aneinandergereiht. Lange Aufnahmen werden gestreamt.
+- **Verifizieren, korrigieren, Art hinzufuegen:** wie im Live-Tab, auch nachtraeglich.
+- **Vergleich:** Detektion und Referenz nebeneinander, mit synchroner Wiedergabe.
+- **Raven-Datei neu erzeugen**, z.B. nach nachtraeglicher Verifikation.
 
 ---
 
-## Export
+## 7. Export
 
-### Raven Selection Table (einziger Export-Typ ab V0.0.6)
+**Raven Selection Table** (`recording.selections.txt`): wird beim Stopp automatisch neben der WAV geschrieben, Tab-getrennt, UTF-8. Oeffnet in Cornell Raven, Audacity (als Label-Spur) und Sonic Visualiser.
 
-Wird **automatisch beim Session-Stop** als `recording.selections.txt` im Session-Ordner gespeichert. Manueller Re-Export im Analyse-Tab weiterhin moeglich.
+Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Begin/End Time (s), Low/High Freq (Hz), Begin Date Time (mit Offset), Species, Confidence, Status. Welche weiteren Spalten geschrieben werden, steht unter Settings > Analyse & Export > Raven-Export Felder. KML-Export gibt es nicht mehr.
 
-Tab-getrenntes Textformat — oeffnet direkt in:
-- Cornell Raven (bioakustische Profi-Software)
-- Audacity (als Label-Track importieren)
-- Sonic Visualiser
-
-**Format V0.0.6 (14 Spalten):**
-
-```
-Selection	Begin File	Begin Time (s)	End Time (s)	Low Freq (Hz)	High Freq (Hz)	Begin Date Time	Species	Confidence	Status
-1	recording.wav	12.345	15.345	150	10000	2026-04-26T08:23:24+02:00	Parus major	0.873	CONFIRMED
-2	recording-002.wav	45.900	48.900	150	10000	2026-04-26T09:28:17+02:00	Erithacus rubecula	0.910	REPLACED
-```
-
-Neu gegenueber V005:
-- Spalte `Begin File` (vor Begin Time): Dateiname des WAV-Segments — relevant bei Session-Rotation
-- Spalte `Begin Date Time` (nach High Freq): Absoluter Zeitstempel inkl. Timezone-Offset
-- `Low Freq` neu: 150 Hz (war 0 Hz)
-- Multi-File-Support: Zeitoffsets relativ zu jeweiligem Segment-Start
-
-Alle Detektionen werden exportiert — auch REJECTED/REPLACED (Audit-Trail).
-
-> **KML-Export entfernt** (seit V0.0.6/T51): Der KML-Export ist nicht mehr verfuegbar.
+**ZIP-Paket:** die Session als ZIP, fuer manuelles Teilen oder den automatischen Upload (Kapitel 12).
 
 ---
 
-## Referenzbibliothek
+## 8. Karte
 
-Verifizierte Aufnahmen werden als Referenzen gespeichert. Embedding-basierter Aehnlichkeitsvergleich (Cosine Similarity) gegen neue Detektionen.
+Georeferenzierte Detektionen auf einer Karte. Das Menue oeffnet sich per Wisch vom Rand oder ueber das Kartenmenue-Symbol.
 
-- **Hinzufuegen:** Verifizierte Detektion → "Als Referenz speichern"
-- **Vergleich:** Automatisch bei neuer Detektion oder manuell im Analyse-Tab
-- **Loeschen:** Loeschen-Button auf der Referenz-Karte (mit Bestaetigung)
-
----
-
-## Karte
-
-GPS-georeferenzierte Detektionen auf osmdroid-Karte. Marker pro Art, farbcodiert nach Confidence.
+- **Kartenquelle:** Automatisch (swisstopo in der Schweiz, OpenStreetMap ausserhalb), OpenStreetMap, swisstopo Karte, swisstopo Luftbild.
+- **Offline:** Fuer swisstopo-Karten laesst sich der sichtbare Ausschnitt herunterladen ("Ausschnitt herunterladen", mit Angabe der Kachelzahl und Groesse). Ein Abbruch behaelt bereits geladene Kacheln; ein erneuter Start laedt nur Fehlendes. "Offline-Karten loeschen" entfernt alle gespeicherten Kacheln.
+- **Anzeige:** alle Sessions, "Nur Live" oder "Letzte 3". Abgelehnte Beobachtungen sind ausgeblendet. Ueberlappende Marker werden je nach Zoom gruppiert. Die Karte startet auf dem eigenen Standort.
+- **Verifizieren auf der Karte:** Marker antippen, bestaetigen oder ablehnen (mit Rueckgaengig). Langdruck erlaubt, die Position zu verschieben oder Beobachtungen als Simultanbeobachtung zu verknuepfen.
 
 ---
 
-## Species-Alarm
+## 9. Referenzen und aehnliche Arten
 
-**Watchlist:** Liste mit Zielarten. Import aus `Downloads/PIROL/watchlist.json` oder per SAF. Editierbar in Settings → Alarm.
+Verifizierte Detektionen lassen sich als Referenz speichern ("Als Referenz speichern") und wieder entfernen. Der Referenzen-Tab zeigt die gespeicherten Aufnahmen, auch ein Audio-Import ist moeglich. Neue Detektionen werden per Embedding mit den Referenzen verglichen.
 
-**Normalisierung (V0.0.6):** Gross-/Kleinschreibung und fuehrendes/nachfolgendes Leerzeichen werden bei Watchlist-Abgleich normalisiert — Tippfehler fuehren nicht mehr zu stillen Nicht-Treffern.
-
-Bei Detektion einer Watchlist-Art: Vibration + Notification.
-
-**Cooldown-Slider (V0.0.6):** Cooldown-Dauer stufenlos konfigurierbar in Settings → Alarm (verhindert Daueralarm).
+Settings > Aehnliche Arten & Referenzen: Aehnlichkeitssuche an/aus, Anzahl angezeigter Zeilen (0 = aus, 0.5 = Laufschrift der letzten 5, 1-10 = Liste), Obergrenze gespeicherter Vergleichsaufnahmen.
 
 ---
 
-## Energiesparmodus
+## 10. Watchlist und Alarm
 
-Settings → Erkennung → Analyse-Intervall:
+**Watchlist:** Zielarten, die einen Alarm ausloesen. Verwaltung unter Settings > Watchlist & Alarm: Art suchen und hinzufuegen, entfernen, oder aus `watchlist.json` laden. Gross-/Kleinschreibung und Leerzeichen spielen beim Abgleich keine Rolle.
 
-| Profil | Intervall | Beschreibung |
-|--------|-----------|-------------|
-| Genau | 3s | Jeder Chunk wird analysiert |
-| Balanciert | 6s | Jeder 2. Chunk |
-| Sparsam | 15s | Jeder 5. Chunk |
-| Ultra-Sparsam | 30s | Jeder 10. Chunk |
+**Freigegebener Ordner:** Unter "PIROL-Ordner freigeben" einmalig `Downloads/PIROL` waehlen. PIROL liest dann `watchlist.json` und die Ordner `lists/` automatisch (Details Kapitel 11). "Beispielliste anlegen" erzeugt eine Vorlage.
 
-FP16-Modell halbiert den RAM-Verbrauch und beschleunigt Inference.
+**Alarm-Ausgabe** (einzeln ein-/ausschaltbar): Vibration, Benachrichtigung, Vollbild-Hinweis. Auf dem **Sperrbildschirm** erscheint der Vollbild-Alarm nur, wenn "Vollbild-Benachrichtigungen" fuer PIROL in den Android-Einstellungen erlaubt sind (Knopf "Berechtigung oeffnen"). Sonst bleibt es eine Benachrichtigung. Mit "Alarm testen" (nach 5 s, Geraet sperren) laesst sich das pruefen.
 
----
+Im Alarm kann die Art direkt **bestaetigt** werden; "Rueckgaengig" bleibt danach verfuegbar.
 
-## Modell-Management
-
-Settings → Modell:
-- **Installierte Modelle:** Liste mit RadioButton-Auswahl
-- **Download:** Zenodo-Link, Progress-Anzeige
-- **SAF-Import:** Lokale .onnx-Datei importieren
-- **Umschaltung:** Sofort wirksam, naechste Inference nutzt neues Modell
+**Alarm-Pause:** Mindestabstand zwischen Alarmen derselben Art (0 = jeder Treffer alarmiert).
 
 ---
 
-## Einstellungen Uebersicht
+## 11. Eigene Artenlisten
 
-| Sektion | Parameter |
-|---------|-----------|
-| Erkennung | Confidence-Schwelle, Analyse-Intervall, Hochpassfilter, Preroll (5/10/30 s) |
-| GPS | Genauigkeits-Filter (Default 50 m), Intervall (2/5/10/20/60 s), Median-Smoothing |
-| Sonogramm | Auto-Kontrast (DynamicRangeMapper an/aus), manueller dB-Range-Slider |
-| Modell | Installiert, Download, Import, Auswahl (FP32/FP16) |
-| Artnamen | Sprache (23 verfuegbar) |
-| Region | Artfilter (z.B. CH Brutvoegel, DACH) |
-| Alarm | Watchlist, Cooldown-Slider |
-| Speicher | Intern / SD-Karte, Migration, Auto-Delete kurze Sessions, Max. Segment-Dauer (10–80 min) |
+Neben der Region koennen eigene Artenlisten als JSON-Dateien im Ordner `lists/` des freigegebenen PIROL-Ordners abgelegt werden (`Downloads/PIROL/lists/*.json`). Sie erscheinen als waehlbare Listen im Artfilter ("Eigene Liste"). Die Listen werden bei **jedem Aufnahmestart neu eingelesen**; Aenderungen gelten also ab der naechsten Aufnahme. Fehlerhafte Listen werden uebersprungen und mit Grund gemeldet. Als Vorlage dient "Beispielliste anlegen" (`lists/beispiel_liste.json`).
+
+Alte und neue wissenschaftliche Namen (z.B. nach Taxonomie-Aenderungen) werden zusammengefuehrt, sodass Listen modelluebergreifend funktionieren.
 
 ---
 
-## Technische Hinweise
+## 12. Upload
 
-- **Samplerates:** 48 kHz (Standard) / 96 kHz (Fledermaus-Modus, kein Preroll)
-- **Inference:** BirdNET V3 via ONNX Runtime, Resampling auf 32 kHz
-- **DSP-Kette:** Hochpassfilter (200 Hz Butterworth) → Peak-Normalisierung → Brickwall-Limiter (nur auf Inference-Kopie, Original-Audio unangetastet)
-- **Audio-Speicher:** Eine durchgehende `recording.wav` pro Session (16-bit PCM Mono). Bei Session-Rotation mehrere Segmente (`recording-001.wav`, `recording-002.wav`, …). Streaming-Writer mit RandomAccessFile; WAV-Header wird alle ~60 s an Offset 4 (fileSize) + Offset 40 (dataSize) aktualisiert → Datei bei Kill stets abspielbar.
-- **Zeitstempel:** ISO 8601 mit Timezone-Offset (`+02:00`). `chunkStartSec` / `chunkEndSec` in `detections.jsonl` sind Sekunden ab Session-Start (Position in `recording.wav` bzw. jeweiligem Segment). `parseInstantCompat` verarbeitet beide Formate (Z und +HH:MM).
-- **Speicherbedarf:** ~5.5 MB pro Minute Aufnahme (48 kHz, 16-bit, Mono)
-- **GPS (V0.0.6):** FusedLocationProvider, PRIORITY_HIGH_ACCURACY. Genauigkeits-Filter 50 m (konfigurierbar), LastKnown-Fallback 2 min, Median-Smoothing ueber 5 akzeptierte Fixes. `GpsStats` (fixCount, rejectedCount, medianAccuracy, intervalMs) werden in `session.json` gespeichert. Intervall konfigurierbar: 2/5/10/20/60 s (Default 10 s).
-- **Fairphone-Kompatibilitaet (V0.0.6):** Sample-Rate-Negotiation statt Fixed 48 kHz; AAudio→OpenSLES-Fallback bei Initialisierungsfehler; Preroll-Flush-Serialisierung verhindert Crash bei Preroll-Stop-Race.
-- **Preroll-Sonogramm:** Darstellung auf max. 5 s Samples begrenzt (kein ANR); WAV-Datei enthaelt den vollstaendigen Preroll ungekuerzt.
-- **Sonogramm Auto-Kontrast:** DynamicRangeMapper; Rolling-Window p5/p95 ueber 5 s; IIR-Glaettung alpha=0.15; Recompute-Intervall 250 ms. Im Analyse-Tab: einmaliges Einlesen der Perzentile ueber die gesamte Session (`computeStatic`).
-- **Worker-Konventionen (V0.0.7+):** Max. 60k Tokens pro Worker-Session; Test-Build-Naming `V{Release}.T{N}` (z.B. `V0.0.6.T66`); Worktree-Disziplin (frische Branch von master, kein Task-Stapeln); Quality-Gates: jedes AP vor Dispatch und jedes Handover vor Master-Merge vom User freigegeben.
+Settings > Upload: Aufgenommene Sessions koennen automatisch nach der Aufnahme hochgeladen werden.
+
+| Ziel | Angaben |
+|------|---------|
+| Aus | nur lokale Kopie, manueller Export |
+| Ordner | beliebiger Ordner (Geraet, Drive, OneDrive ...) per Ordnerwahl |
+| NAS (SMB / Windows-Freigabe) | Host, Freigabe, Pfad, Benutzer, Passwort |
+
+Das NAS-Passwort wird verschluesselt auf dem Geraet gespeichert. "Verbindung testen" prueft die Angaben. Optionen: nur bei WLAN hochladen, lokale ZIP-Kopie nach dem Upload nicht behalten. Der Status des letzten Uploads steht darunter.
 
 ---
 
-## Changelog — inkorporierte Tasks
+## 13. Modelle
 
-| Task | Kurzbeschreibung |
-|------|-----------------|
-| T50 | Streaming-WAV-Writer: kontinuierliche WAV-Datei statt Chunk-Files *(kein Handover vorhanden; Quelle: master-briefing)* |
-| T51 | SAF-Speicherlayout (`Downloads/PIROL/YYYY-MM-DD/`), Auto-Raven-Export, KML-Entfernung, Timezone-Fix (ZonedDateTime), Daueraufnahme-Fix (kein Early-Return in InferenceWorker) |
-| T52 | Live-UX: FAB-3-State, Snackbar-Undo (≥ 5 s), GPS-Bar 1 Hz, Top-N stable Re-Sort, parseInstantCompat, Session-Info mm:ss + MB |
-| T53 | GPS-Robustheit: Accuracy-Filter 50 m, LastKnown-Fallback, Median-Smoothing, GpsStats in session.json, 12 Unit-Tests |
-| T54 | Preroll-Crash: 3 Race-Conditions behoben (prerollMel isoliert, sessionDispatcher serialisiert, Sonogramm auf 5 s gekappt) |
-| T55 | Per-Species-Freq / BSED-Embeddings *(kein Handover vorhanden; Quelle: master-briefing)* |
-| T56 | Sonogramm Auto-Kontrast: DynamicRangeMapper (p5/p95 Rolling, IIR), manueller dB-Range-Slider, Analyse-Tab computeStatic |
-| T57 | Session-Rotation (RecordingSegment, Multi-WAV), WAV-Header Periodic Update, Raven-TSV: Begin File + Begin Date Time + Low Freq 150 Hz + Multi-File, FAB-Farben: Preroll=Gruen, Recording=Rot |
-| T58 | Watchlist-Normalisierung (Gross-/Kleinschreibung, Whitespace), Cooldown-Slider, WatchlistManager Unit-Tests |
-| T59 | SessionMigrationWorker SAF-URI-Fix: Storage-Wechsel ohne direkten Dateisystem-Zugriff |
-| T60 | Auto-Delete kurzer Sessions ohne Nachweis: `shouldAutoDelete()`, konfigurierbare Mindestdauer |
-| T61 | Verifikations-Status Instant-Update: Mutex-Serialisierung, IO-Fehlerbehandlung, Race-Condition-Tests |
-| T62 | AudioPlayer SAF-Unterstuetzung + Streaming-Sonogramm fuer lange Dateien (kein RAM-Vollload) |
-| T63 | Fairphone Preroll-Crash: Sample-Rate-Negotiation, AAudio→OpenSLES-Fallback, Preroll-Flush-Serialisierung, WavWriter-Bug-Fix |
-| T64 | *(Handover nicht vorhanden zum Dispatch-Zeitpunkt 2026-04-26)* |
-| T65 | *(Handover nicht vorhanden zum Dispatch-Zeitpunkt 2026-04-26)* |
+Settings > Modell & Erkennung > Modell:
+
+| Modell | Eigenschaften |
+|--------|---------------|
+| BirdNET 3.0 FP16 (empfohlen) | Standard, 11'725 Klassen, 32 kHz, 3-s-Fenster |
+| BirdNET 3.0 FP16 kompakt (pruned) | kleiner (ca. 70 MB), Erkennung praktisch gleich |
+| BirdNET 3.0 Preview 3.1 FP16 / FP32 | aeltere Vorabversion, 11'560 Klassen |
+
+Das aktive Modell wird per Auswahl umgeschaltet, ab der naechsten Analyse. Die Artenzahl neben dem Modell stimmt nach dem Wechsel sofort. Modelle koennen heruntergeladen (abbrechen und fortsetzen moeglich), importiert und geloescht werden. Jede Session merkt sich das verwendete Modell.
+
+**Mindest-Konfidenz:** Die Erkennungs-Schwelle ist global einstellbar. Ein Modell kann zusaetzlich eine eigene Mindest-Konfidenz mitbringen (z.B. 80 % fuer Perch). Es gilt der hoehere Wert; das Modell zeigt ihn an.
+
+### Eigene und weitere Modelle importieren
+PIROL ist nicht auf BirdNET festgelegt. Ueber "Anderes Modell importieren..." wird ein Paket aus drei Dateien gemeinsam ausgewaehlt: `.onnx` (Modell), `.pirol.json` (Profil) und Label-CSV. Die App prueft Pruefsummen, Ein-/Ausgaenge und Labelzahl und meldet Fehler im Klartext. Abtastrate und Fensterlaenge sind frei.
+
+Geprueft sind **BirdNET 2.4** (6'522 Arten, 48 kHz, etwa halbe Rechenzeit von 3.0), **Perch v2** (Google, 14'795 Klassen, 5-s-Fenster) und **Nighthawk 0.3.1**. Die Dateien sind nicht Teil der App. Fuer die Umwandlung von TensorFlow-, Keras- und TFLite-Modellen (auch eigene Trainings) liegt das Skript `tools/convert_model.py` bei, siehe `tools/README_convert_model.md` und `tools/MODEL_PROFILE_FORMAT.md`.
+
+**Lizenzen:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 und Nighthawk nur nicht-kommerziell (CC BY-NC bzw. BY-NC-SA). Die Lizenz wird beim Import angezeigt.
+
+**Hinweis:** Perch arbeitet mit 32 kHz; Laubheuschrecken im Ultraschall sind damit nicht hoerbar.
 
 ---
 
-*PIROL V0.0.6 — ETA Systems — Stand 2026-04-26 (V0.0.6 + Block A, T50–T63)*
+## 14. GPS
+
+Settings > Aufnahme & Speicher:
+
+| Einstellung | Bedeutung |
+|-------------|-----------|
+| GPS-Modus "Dauernd" | laufend Fixes im eingestellten Intervall (2/5/10/20/60 s, Standard 10 s) |
+| GPS-Modus "Nur bei Detektion" | GPS nur bei einer Detektion, mindestens 30 s zwischen zwei Fixes; das Intervall gilt dann nicht. Spart rund ein Drittel Akku |
+| Max. GPS-Ungenauigkeit | ungenauere Fixes werden verworfen (Standard 50 m) |
+| GPS-Smoothing | Median ueber 5 Fixes, glaettet Ausreisser |
+
+Jede Detektion erhaelt einen frischen Standort, auch bei ausgeschaltetem Bildschirm. Aenderungen wirken ab der naechsten Aufnahme.
+
+---
+
+## 15. Energie und Akku
+
+Settings > Modell & Erkennung > Energieprofil:
+
+| Profil | Analyse |
+|--------|---------|
+| Genau | jedes 3-s-Fenster |
+| Balanciert | alle 6 s |
+| Sparsam | alle 15 s, fuer lange Feldtage |
+| Ultra-Sparsam | alle 30 s, maximale Laufzeit |
+
+**Praxiswerte** (Tablet Galaxy Tab A11+, 6'840 mAh, Daueraufnahme, WLAN an, BirdNET 3.0 FP16; Richtwerte, ca. ±15 %):
+
+| Einstellung | Verbrauch | Laufzeit voller Akku |
+|-------------|-----------|----------------------|
+| Genau, Bildschirm aus, GPS dauernd (10 s) | ca. 2.2 %/h | ca. 45 h |
+| wie oben, 67 % Ueberlappung | ca. 3.5 %/h | ca. 28 h |
+| wie oben, **Bildschirm an** | ca. 9 %/h | ca. 12 h |
+| Genau, GPS nur bei Detektion | ca. 1.5 %/h | ca. 60 h |
+| Sparsam (15 s), GPS 60 s | ca. 0.9 %/h | ca. 4-5 Tage |
+
+**Tipps:**
+1. **Bildschirm ausschalten** ist der groesste Hebel (mehr als doppelt so viel wie Aufnahme und Analyse zusammen). Die Aufnahme laeuft im Dienst weiter.
+2. GPS-Modus "Nur bei Detektion" waehlen.
+3. Ueberlappung bei 0 % lassen, bei langen Einsaetzen Profil "Sparsam".
+4. Modellwahl spielt kaum eine Rolle (pruned etwa wie final, Preview 3.1 ca. 10 % mehr, FP32 nicht mehr als FP16).
+
+---
+
+## 16. Sprachen
+
+Settings > Sprache: Sprache der App (Systemsprache oder Auswahl): Deutsch, Englisch, Franzoesisch, Italienisch, Katalanisch, Portugiesisch, Niederlaendisch, Baerndeutsch. **Baerndeutsch und Portugiesisch sind Entwuerfe**, fehlende Texte erscheinen auf Deutsch. Die **Artennamen**-Sprache folgt der App-Sprache, kann aber separat gesetzt werden (23 Sprachen).
+
+---
+
+## 17. Einstellungen im Ueberblick
+
+Die Settings sind in einklappbare Sektionen gegliedert; der Zustand wird gemerkt. Standardmaessig offen ist nur "Sprache".
+
+| Sektion | Inhalt |
+|---------|--------|
+| Sprache | App-Sprache, Artennamen-Sprache |
+| Modell & Erkennung | Modelle (Download, Import, Loeschen), Region/Artfilter, Erkennungs-Schwelle, Max. Arten pro Fenster, Hochpassfilter, Artvorschlaege, Energieprofil, Ueberlappung, Resampler, Zusammenfassen von Detektionen |
+| Sonogramm | Modus (Voegel/Fledermaus/Breitband), Voreinstellung, Kontrast, Gamma, Deckel, Palette, Frequenz, Zeitfenster |
+| Aufnahme & Speicher | Preroll, Max. Aufnahmelaenge pro WAV, Max. Laenge Detektions-Ausschnitt, GPS (Modus, Intervall, Genauigkeit, Smoothing), Speicherort, Tages-Unterordner, Auto-Loeschen, Sessions verschieben |
+| Analyse & Export | Raven-Export Felder, Simultanbeobachtungen |
+| Watchlist & Alarm | Watchlist, PIROL-Ordner, Saisonalitaet und Seltenheit, Alarm-Pause, Alarm-Ausgabe, Alarm testen |
+| Aehnliche Arten & Referenzen | Aehnlichkeitssuche, Zeilenzahl, Obergrenze Referenzen |
+| Upload | Ziel (Ordner/NAS), Passwort, Verbindung testen, nur WLAN |
+| Diagnose | Inferenz-Benchmark |
+
+**Resampler:** Polyphase (empfohlen) filtert Stoergeraeusche ueber 16 kHz, die sonst als Geistersignale erscheinen koennen. "Linear" ist die alte Methode.
+
+**Diagnose:** Der Benchmark misst die Rechenzeit des aktiven Modells mit 1/2/4 Threads (1-3 Minuten, nicht waehrend einer Aufnahme). Mit "ONNX-Datei waehlen und messen" laesst sich auch ein beliebiges Modell vor dem Import testen.
+
+---
+
+## 18. Technische Hinweise
+
+- **Aufnahme:** 48 kHz, 16-bit PCM, Mono (96 kHz im Fledermaus-Modus). Erkennung auf 32 kHz umgerechnet (BirdNET 3.0).
+- **Mindestgeraet:** Android 8.0. Kompatibel mit 16-KB-Speicherseiten (Android 15+).
+- **Fairphone und andere Geraete:** Die Abtastrate wird mit dem Geraet ausgehandelt, bei Problemen weicht die App auf einen anderen Audio-Treiber aus.
+- **Datenformate:** `session.json`, `detections.jsonl`, `verifications.jsonl`, Raven-TSV; Zeitstempel in Ortszeit mit Offset.
+
+---
+
+## 19. Aenderungen
+
+Die Liste der Aenderungen pro Version steht in `CHANGELOG.md` im Projekt.
+
+---
+
+*PIROL v0.0.9 — ETA Systems — Stand 2026-11-19*
