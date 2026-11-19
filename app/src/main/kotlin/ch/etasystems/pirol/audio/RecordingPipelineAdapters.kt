@@ -151,6 +151,8 @@ class AndroidPipelineHooks(
     override fun overlapPercent(): Int = appPreferences.overlapPercent
     override fun sessionNote(): String = appPreferences.lastSessionNote
     override fun currentLocation(): LocationData? = locationProvider.location.value
+    override suspend fun requestFreshFix(timeoutMs: Long): LocationData? = locationProvider.requestFreshFix(timeoutMs)
+    override fun maxFixAccuracyM(): Float = appPreferences.gpsMaxAccuracyMeters
     override fun startLocation() = locationProvider.start()
     override fun stopLocation(): GpsStats {
         val stats = locationProvider.buildGpsStats(appPreferences.gpsIntervalSeconds * 1000L)

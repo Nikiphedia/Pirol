@@ -2,6 +2,7 @@ package ch.etasystems.pirol.audio
 
 import android.util.Log
 import ch.etasystems.pirol.data.repository.GpsStats
+import ch.etasystems.pirol.location.DetectionFixPolicy
 import ch.etasystems.pirol.location.LocationData
 import ch.etasystems.pirol.ml.AudioBlock
 import ch.etasystems.pirol.ml.AudioClassifier
@@ -64,6 +65,10 @@ interface PipelineHooks {
     fun overlapPercent(): Int
     fun sessionNote(): String?
     fun currentLocation(): LocationData?
+    /** T143: Frischen High-Accuracy-Fix anfordern (null = Timeout/nicht verfuegbar) */
+    suspend fun requestFreshFix(timeoutMs: Long): LocationData? = null
+    /** T143: Genauigkeitsschwelle aus den Einstellungen (Meter) */
+    fun maxFixAccuracyM(): Float = Float.MAX_VALUE
     fun startLocation()
     /** GPS-Statistik erfassen (T53: VOR stop) und GPS stoppen */
     fun stopLocation(): GpsStats?
@@ -121,6 +126,10 @@ class RecordingPipeline(
     // T137: Persistenz-Zaehler (an die Persistenz uebergebene Samples), pro Session zurueckgesetzt
     private val persistedSamples = AtomicLong(0L)
     @Volatile private var persistSampleRate = 0
+
+    // T143_STATS
+    private val detectionFixes = AtomicLong(0L)
+    private val staleAttached = AtomicLong(0L)
 
     // T118_STATS
     private val prerollSamplesFed = AtomicLong(0L)
@@ -195,6 +204,8 @@ class RecordingPipeline(
             prerollToFeed = preroll
             persistedSamples.set(0L)
             prerollSamplesFed.set(0L)
+            detectionFixes.set(0L)
+            staleAttached.set(0L)
             liveSamplesFed.set(0L)
             val config = inferenceWorker.config
             scope.launch(sessionDispatcher) {
@@ -280,6 +291,7 @@ class RecordingPipeline(
         // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
         // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
         inferenceWorker.flushPendingAudio()
+        Log.i(TAG, "T143_STATS fixes=${gpsStats?.fixCount ?: 0} detection_fixes=${detectionFixes.get()} stale_attached=${staleAttached.get()}")
         val statsPreroll = prerollSamplesFed.get()
         val statsLive = liveSamplesFed.get()
         inferenceWorker.reset()
@@ -305,13 +317,48 @@ class RecordingPipeline(
         }
     }
 
+    /**
+     * T143: Neue Detektionen mit frischer Position versehen, wenn der letzte Fix zu alt/ungenau ist
+     * (z.B. Bildschirm aus, Updates gedrosselt). Aktualisiert Liste und detections.jsonl.
+     */
+    private suspend fun refreshFixes(newDetections: List<DetectionResult>, lastFix: LocationData?) {
+        val maxAcc = hooks.maxFixAccuracyM()
+        if (!DetectionFixPolicy.needsFreshFix(lastFix, System.currentTimeMillis(), maxAcc)) return
+        val fresh = try {
+            hooks.requestFreshFix(DetectionFixPolicy.FRESH_FIX_TIMEOUT_MS)
+        } catch (e: Exception) {
+            Log.w(TAG, "Frischer Fix fehlgeschlagen", e)
+            null
+        }
+        val now = System.currentTimeMillis()
+        val choice = DetectionFixPolicy.choose(lastFix, fresh, now, maxAcc)
+        val fix = choice.fix ?: return
+        if (choice.stale) staleAttached.incrementAndGet()
+        if (choice.source == DetectionFixPolicy.Source.FRESH) detectionFixes.incrementAndGet()
+        for (det in newDetections) {
+            // aktuellen Stand holen (Nutzer koennte inzwischen verifiziert haben): nur Positionsfelder setzen
+            val current = detectionListState.getDetections().firstOrNull { it.id == det.id } ?: continue
+            val updated = current.copy(
+                latitude = fix.latitude, longitude = fix.longitude,
+                locationAgeMs = DetectionFixPolicy.ageMs(fix, now), locationAccuracyM = fix.accuracyM
+            )
+            if (detectionListState.updateDetection(updated) && session.isActive) session.replaceDetection(updated)
+        }
+    }
+
     // --- Detektionsverarbeitung (Callback nur bei Treffern) ---
 
     private fun handleDetections(audioBlock: AudioBlock, detections: List<DetectionResult>) {
         // GPS-Position anhaengen
         val loc = hooks.currentLocation()
+        val nowMs = System.currentTimeMillis()
         val locDetections = if (loc != null) {
-            detections.map { it.copy(latitude = loc.latitude, longitude = loc.longitude) }
+            detections.map {
+                it.copy(
+                    latitude = loc.latitude, longitude = loc.longitude,
+                    locationAgeMs = DetectionFixPolicy.ageMs(loc, nowMs), locationAccuracyM = loc.accuracyM
+                )
+            }
         } else {
             detections
         }
@@ -377,7 +424,13 @@ class RecordingPipeline(
 
         // Neue Detektionen in JSONL schreiben (Merges via replaceDetection)
         if (session.isActive && newDetections.isNotEmpty()) {
-            scope.launch(ioDispatcher) { session.appendDetections(newDetections) }
+            scope.launch(ioDispatcher) {
+                session.appendDetections(newDetections)
+                // T143: erst nach dem Append, damit replaceDetection die Zeile findet
+                refreshFixes(newDetections, loc)
+            }
+        } else if (newDetections.isNotEmpty()) {
+            scope.launch(ioDispatcher) { refreshFixes(newDetections, loc) }
         }
 
         // Embedding-Arm (T61: Embedding aus der Klassifikations-Inference)
