@@ -64,4 +64,12 @@ class DownloadResumeTest {
         assertEquals(2000L, DownloadResume.backoffMillis(1))
         assertEquals(4000L, DownloadResume.backoffMillis(2))
     }
+
+    @org.junit.Test
+    fun tmpFilesFor_nurGewaehltesModell() {
+        val existing = listOf("a.onnx.tmp", "b.onnx.tmp", "a_labels.csv.tmp", "a.onnx", "x.tmp")
+        val r = DownloadResume.tmpFilesFor(existing, "a.onnx", "a_labels.csv")
+        org.junit.Assert.assertEquals(listOf("a.onnx.tmp", "a_labels.csv.tmp"), r)
+        org.junit.Assert.assertEquals(listOf("b.onnx.tmp"), DownloadResume.tmpFilesFor(existing, "b.onnx", null))
+    }
 }

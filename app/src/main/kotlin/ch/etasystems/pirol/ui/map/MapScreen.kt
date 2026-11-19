@@ -661,13 +661,12 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                         )
                                     }
                                 }
-                                if (!state.focusMode) {
-                                    MapVerifyButtons(
-                                        status = m.verificationStatus,
-                                        onVerify = { viewModel.verifyMarker(m, it) },
-                                        modifier = Modifier.padding(bottom = 6.dp)
-                                    )
-                                }
+                                // T136: Verifikation auch im Fokusmodus (Auswahl als Linkziel bleibt)
+                                MapVerifyButtons(
+                                    status = m.verificationStatus,
+                                    onVerify = { viewModel.verifyMarker(m, it) },
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
                                 HorizontalDivider()
                             }
                         }

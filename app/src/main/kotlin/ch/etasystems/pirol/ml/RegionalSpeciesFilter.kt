@@ -37,8 +37,27 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
     @Volatile
     private var customWarnings: List<String> = emptyList()
 
+    @Volatile
+    private var listsSignature: String? = null
+
+    /**
+     * T136: Listen nur neu einlesen, wenn sich Dateien (Name/lastModified/Groesse) geaendert haben (IO).
+     * @return true, wenn neu eingelesen wurde
+     */
+    fun refreshCustomListsIfChanged(): Boolean {
+        val sig = try {
+            CustomSpeciesLists.signature(pirolFolder?.listFileStats().orEmpty())
+        } catch (e: Exception) { null }
+        if (sig != null && sig == listsSignature) return false
+        refreshCustomLists()
+        return true
+    }
+
     /** T129: Listen aus dem freigegebenen Ordner neu einlesen (IO). Warnungen siehe [getCustomWarnings]. */
     fun refreshCustomLists() {
+        listsSignature = try {
+            CustomSpeciesLists.signature(pirolFolder?.listFileStats().orEmpty())
+        } catch (e: Exception) { null }
         val lists = mutableListOf<CustomSpeciesList>()
         val warnings = mutableListOf<String>()
         try {

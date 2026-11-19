@@ -417,7 +417,7 @@ fun OnboardingScreen(
                         }
                         if (partialBytes > 0L) {
                             TextButton(onClick = {
-                                modelManager.discardPartialDownload()
+                                modelManager.discardPartialDownload(selectedModel)
                                 partialTick++
                             }) {
                                 Text(stringResource(R.string.onboarding_verwerfen))

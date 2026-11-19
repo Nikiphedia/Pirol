@@ -325,20 +325,21 @@ class ModelManager(
      * T104: Laufenden Download abbrechen. Die .tmp-Datei bleibt zum Fortsetzen erhalten,
      * ausser [discardPartial] ist gesetzt ("Verwerfen").
      */
-    fun cancelDownload(discardPartial: Boolean = false) {
+    fun cancelDownload(discardPartial: Boolean = false, model: ModelProfile? = null) {
         val job = synchronized(downloadLock) { activeDownload }
         downloadScope.launch {
             job?.takeIf { it.isActive }?.cancelAndJoin()
-            if (discardPartial) discardPartialDownload()
+            if (discardPartial && model != null) discardPartialDownload(model)
         }
     }
 
-    /** T104: Angefangene Download-Dateien (.tmp) verwerfen — nur wenn kein Download laeuft */
-    fun discardPartialDownload() {
+    /** T104/T136: Angefangene Download-Dateien (.tmp) nur des gewaehlten Modells verwerfen — nur wenn kein Download laeuft */
+    fun discardPartialDownload(model: ModelProfile) {
         if (activeDownload?.isActive == true) return
-        File(context.filesDir, MODEL_DIR).listFiles()
-            ?.filter { it.name.endsWith(".tmp") }
-            ?.forEach { it.delete() }
+        val dir = File(context.filesDir, MODEL_DIR)
+        val names = dir.listFiles()?.map { it.name }.orEmpty()
+        DownloadResume.tmpFilesFor(names, model.fileName, model.labelFileName)
+            .forEach { File(dir, it).delete() }
     }
 
     /**

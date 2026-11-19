@@ -58,6 +58,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -199,6 +200,25 @@ fun SettingsScreen(
         customWarnings = regionalFilter.getCustomWarnings()
     }
     LaunchedEffect(Unit) { refreshFolder() }
+    // T136: Auswahl der eigenen Listen auch bei ON_START (Rueckkehr aus Dateimanager) auffrischen
+    val settingsLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(settingsLifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                scope.launch {
+                    val changed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        regionalFilter.refreshCustomListsIfChanged()
+                    }
+                    if (changed) {
+                        customRegions = regionalFilter.getAvailableRegions().filter { it.isCustom }
+                        customWarnings = regionalFilter.getCustomWarnings()
+                    }
+                }
+            }
+        }
+        settingsLifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { settingsLifecycleOwner.lifecycle.removeObserver(obs) }
+    }
     val folderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -536,7 +556,7 @@ fun SettingsScreen(
                     }
                     if (partialBytes > 0L && !alreadyInstalled) {
                         TextButton(onClick = {
-                            modelManager.discardPartialDownload()
+                            modelManager.discardPartialDownload(model)
                             partialTick++
                         }) {
                             Text(stringResource(R.string.settings_angefangenen_download_verwerfen))

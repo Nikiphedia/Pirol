@@ -68,6 +68,15 @@ class PirolFolder(private val context: Context, private val prefs: AppPreference
         }
     }
 
+    /** T136: (Name, lastModified, Groesse) der Listendateien — guenstig, ohne Inhalt zu lesen */
+    fun listFileStats(): List<Triple<String, Long, Long>> {
+        val dir = root()?.findFile(CustomSpeciesLists.FOLDER_NAME) ?: return emptyList()
+        if (!dir.isDirectory) return emptyList()
+        return dir.listFiles()
+            .filter { it.isFile && (it.name ?: "").endsWith(".json", ignoreCase = true) }
+            .map { Triple(it.name ?: "?", it.lastModified(), it.length()) }
+    }
+
     /** Alle *.json-Dateien aus lists/ als (Name, Inhalt); Lesefehler -> Inhalt null */
     fun readListFiles(): List<Pair<String, String?>> {
         val dir = root()?.findFile(CustomSpeciesLists.FOLDER_NAME) ?: return emptyList()
