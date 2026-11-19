@@ -1,8 +1,8 @@
-# PIROL V0.0.6 — Bedienungsanleitung
+# PIROL — Bedienungsanleitung
 
 Akustische Echtzeit-Artenerkennung fuer Android.
 
-*Version: V006 | Stand: 2026-04-26 (V0.0.6 + Block A, T50–T63)*
+*Gilt ab Version v0.0.6 (Stand 2026-04-26). Neuerungen ab v0.0.7 stehen vorerst nur im `CHANGELOG.md`; die Anleitung wird auf v0.0.9 nachgefuehrt.*
 
 ---
 
