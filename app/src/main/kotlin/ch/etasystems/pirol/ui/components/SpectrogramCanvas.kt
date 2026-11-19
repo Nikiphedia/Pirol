@@ -245,9 +245,10 @@ internal class BitmapRenderer {
         // Division-by-zero Schutz: minimal 1 dB Spanne
         val range = (maxDb - minDb).coerceAtLeast(1f)
         val invRange = 1f / range
-        val black = (0xFF shl 24)
+        // T144: Stille-Farbe = erster LUT-Eintrag (schwarz bei dunklen Paletten, weiss bei PAPER)
+        val black = gammaColorLut[0]
 
-        // Leere Spalten links (schwarz)
+        // Leere Spalten links (Stille-Farbe)
         for (x in 0 until emptyColumns) {
             for (y in 0 until h) {
                 pixelBuffer[y * w + x] = black

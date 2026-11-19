@@ -145,15 +145,16 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putFloat("pirol_spectrogram_ceiling_db", value).apply()
 
     // --- T107: Sonogramm-Darstellung (Frequenzbereich, Zeitfenster, Auto-Kontrast-Parameter) ---
+    // T144: neue Schluessel (_t144), damit alte gespeicherte 8-kHz-Grenzen ignoriert werden
     /** Untere Anzeige-Grenzfrequenz in Hz (wird auf den Bereich der SpectrogramConfig begrenzt). */
     var spectrogramFreqMinHz: Float
-        get() = prefs.getFloat("pirol_spectrogram_freq_min_hz", 0f)
-        set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_min_hz", value).apply()
+        get() = prefs.getFloat("pirol_spectrogram_freq_min_hz_t144", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_min_hz_t144", value).apply()
 
     /** Obere Anzeige-Grenzfrequenz in Hz (wird auf den Bereich der SpectrogramConfig begrenzt). */
     var spectrogramFreqMaxHz: Float
-        get() = prefs.getFloat("pirol_spectrogram_freq_max_hz", 24000f)
-        set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_max_hz", value).apply()
+        get() = prefs.getFloat("pirol_spectrogram_freq_max_hz_t144", 24000f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_max_hz_t144", value).apply()
 
     /** Zeitfenster des Live-Sonogramms in Sekunden. */
     var spectrogramWindowSec: Float

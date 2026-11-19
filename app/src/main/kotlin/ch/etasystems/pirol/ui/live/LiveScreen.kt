@@ -890,7 +890,8 @@ private fun LiveHeader(
                 val next = when (palette) {
                     SpectrogramPalette.MAGMA -> SpectrogramPalette.VIRIDIS
                     SpectrogramPalette.VIRIDIS -> SpectrogramPalette.GRAYSCALE
-                    SpectrogramPalette.GRAYSCALE -> SpectrogramPalette.MAGMA
+                    SpectrogramPalette.GRAYSCALE -> SpectrogramPalette.PAPER
+                    SpectrogramPalette.PAPER -> SpectrogramPalette.MAGMA
                 }
                 specRepo.update { it.copy(palette = next) }
             }) {
@@ -1086,7 +1087,7 @@ private fun SpectrogramBox(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.Black)
+            .background(if (settings.palette.isLight) Color.White else Color.Black)
             .onSpectrogramLongPress(onLongPress)
     ) {
         if (uiState.spectrogramState.availableFrames > 0) {
@@ -1094,7 +1095,8 @@ private fun SpectrogramBox(
                 config = uiState.spectrogramConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
                 spectrogramState = uiState.spectrogramState,
                 sampleRate = sampleRate,
-                windowFrames = windowFrames
+                windowFrames = windowFrames,
+                lightBackground = settings.palette.isLight
             ) {
                 SpectrogramCanvas(
                     spectrogramState = uiState.spectrogramState,

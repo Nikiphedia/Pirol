@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,10 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.etasystems.pirol.audio.dsp.MelFilterbank
@@ -44,12 +42,9 @@ fun SpectrogramOverlay(
     spectrogramState: SpectrogramState,
     sampleRate: Int = 48000,
     windowFrames: Int? = null,
+    lightBackground: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val frequencyTicks = remember(config) {
-        computeFrequencyTicks(config)
-    }
-
     // Sekunden pro Frame = hopSize / sampleRate
     val secondsPerFrame = config.hopSize.toFloat() / sampleRate
 
@@ -59,11 +54,10 @@ fun SpectrogramOverlay(
 
         // Frequenzachse (links)
         FrequencyAxis(
-            ticks = frequencyTicks,
             config = config,
+            lightBackground = lightBackground,
             modifier = Modifier
                 .fillMaxHeight()
-                .width(40.dp)
                 .align(Alignment.CenterStart)
         )
 
@@ -72,6 +66,7 @@ fun SpectrogramOverlay(
             spectrogramState = spectrogramState,
             secondsPerFrame = secondsPerFrame,
             windowFrames = windowFrames,
+            lightBackground = lightBackground,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(18.dp)
@@ -81,53 +76,49 @@ fun SpectrogramOverlay(
 }
 
 /**
- * Frequenz-Labels links am Sonogramm.
+ * T144: Frequenzachse links mit festen Marken (1/2/4/8/12 kHz, nur im sichtbaren Bereich).
+ * Eigenstaendig nutzbar (Analyse-Tab), im [SpectrogramOverlay] zusammen mit der Zeitachse.
+ *
+ * @param config Anzeige-Config (fMin/fMax = sichtbarer Bereich, siehe `forDisplay`)
+ * @param lightBackground true bei heller Palette: dunkle Schrift auf hellem Streifen
  */
 @Composable
-private fun FrequencyAxis(
-    ticks: List<FrequencyTick>,
+fun FrequencyAxis(
     config: SpectrogramConfig,
+    lightBackground: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    var boxSize = IntSize.Zero
+    val fMin = config.fMin
+    val fMax = if (config.fMax <= 0f) 24000f else config.fMax
+    val ticks = remember(fMin, fMax) { computeFrequencyTicks(fMin, fMax) }
+    val textColor = if (lightBackground) Color.Black else Color.White
+    val stripColor = if (lightBackground) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.4f)
 
-    Box(
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.4f))
-            .onSizeChanged { boxSize = it }
-    ) {
-        if (boxSize.height <= 0) return@Box
-
-        val fMin = config.fMin
-        val fMax = if (config.fMax <= 0f) 24000f else config.fMax // Fallback Nyquist
-        val numBins = config.numMelBins
-
+    BoxWithConstraints(modifier = modifier.width(40.dp).background(stripColor)) {
+        val heightDp = maxHeight
         for (tick in ticks) {
-            // Mel-Position im Bin-Raum berechnen
-            val melMin = MelFilterbank.hzToMel(fMin)
-            val melMax = MelFilterbank.hzToMel(fMax)
-            val melTick = MelFilterbank.hzToMel(tick.hz)
-
-            // Normalisierte Position [0, 1] (0 = fMin unten, 1 = fMax oben)
-            val normalizedPos = ((melTick - melMin) / (melMax - melMin)).coerceIn(0f, 1f)
-
-            // Y-Position (invertiert: 0 oben, 1 unten → fMin unten)
-            val yFraction = 1f - normalizedPos
-            val yPx = yFraction * boxSize.height
-
-            with(density) {
-                Text(
-                    text = tick.label,
-                    fontSize = 9.sp,
-                    color = Color.White.copy(alpha = 0.85f),
-                    textAlign = TextAlign.End,
-                    modifier = Modifier
-                        .offset(y = (yPx / density.density).dp - 6.dp)
-                        .padding(horizontal = 3.dp)
-                        .align(Alignment.TopEnd)
-                )
-            }
+            val yDp = heightDp * (1f - frequencyFraction(tick.hz, fMin, fMax))
+            // Kleine Linie an der Tick-Position (rechter Rand der Achse)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(y = yDp)
+                    .width(6.dp)
+                    .height(1.dp)
+                    .background(textColor.copy(alpha = 0.9f))
+            )
+            // Label auf Hoehe der Linie, innerhalb der Achsenhoehe gehalten
+            val labelY = (yDp - 6.dp).coerceIn(0.dp, (heightDp - 12.dp).coerceAtLeast(0.dp))
+            Text(
+                text = tick.label,
+                fontSize = 9.sp,
+                color = textColor.copy(alpha = 0.9f),
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(y = labelY)
+                    .padding(end = 8.dp)
+            )
         }
     }
 }
@@ -140,8 +131,10 @@ private fun TimeAxis(
     spectrogramState: SpectrogramState,
     secondsPerFrame: Float,
     windowFrames: Int? = null,
+    lightBackground: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val textColor = (if (lightBackground) Color.Black else Color.White).copy(alpha = 0.85f)
     // Lese frameVersion fuer Recomposition
     @Suppress("UNUSED_VARIABLE")
     val version = spectrogramState.frameVersion
@@ -151,13 +144,15 @@ private fun TimeAxis(
     val totalSeconds = totalFrames * secondsPerFrame
 
     Box(
-        modifier = modifier.background(Color.Black.copy(alpha = 0.4f))
+        modifier = modifier.background(
+            if (lightBackground) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.4f)
+        )
     ) {
         // "Jetzt" rechts
         Text(
             text = stringResource(R.string.ui_jetzt),
             fontSize = 9.sp,
-            color = Color.White.copy(alpha = 0.85f),
+            color = textColor,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 4.dp)
@@ -169,7 +164,7 @@ private fun TimeAxis(
             Text(
                 text = timeLabel,
                 fontSize = 9.sp,
-                color = Color.White.copy(alpha = 0.85f),
+                color = textColor,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .padding(start = 42.dp) // Platz fuer Frequenzachse
@@ -182,52 +177,33 @@ private fun TimeAxis(
             Text(
                 text = midLabel,
                 fontSize = 9.sp,
-                color = Color.White.copy(alpha = 0.85f),
+                color = textColor,
                 modifier = Modifier.align(Alignment.Center)
             )
         }
     }
 }
 
-/**
- * Berechnet sinnvolle Frequenz-Tick-Positionen basierend auf dem Config-Bereich.
- */
-private fun computeFrequencyTicks(config: SpectrogramConfig): List<FrequencyTick> {
-    val fMin = config.fMin
-    val fMax = if (config.fMax <= 0f) 24000f else config.fMax
+/** T144: Feste Frequenz-Marken in Hz (Vogel-Standard). */
+internal val FIXED_FREQUENCY_TICKS_HZ = floatArrayOf(1000f, 2000f, 4000f, 8000f, 12000f)
 
-    // Kandidaten-Frequenzen (Hz)
-    val candidates = listOf(
-        62.5f, 125f, 250f, 500f, 1000f, 2000f, 4000f,
-        8000f, 16000f, 24000f, 48000f
-    )
-
-    // Nur Frequenzen im Bereich [fMin, fMax] behalten, max 5 Ticks
-    val ticks = candidates
+/** T144: Marken im sichtbaren Bereich [fMin, fMax]. */
+internal fun computeFrequencyTicks(fMin: Float, fMax: Float): List<FrequencyTick> =
+    FIXED_FREQUENCY_TICKS_HZ
         .filter { it >= fMin && it <= fMax }
-        .map { hz ->
-            FrequencyTick(
-                hz = hz,
-                label = formatHz(hz)
-            )
-        }
+        .map { FrequencyTick(hz = it, label = "${(it / 1000f).toInt()}k") }
 
-    // Max 5 Ticks: gleichmaessig verteilt auswaehlen
-    return if (ticks.size > 5) {
-        val step = ticks.size.toFloat() / 5f
-        (0 until 5).map { i -> ticks[(i * step).toInt()] }
-    } else {
-        ticks
-    }
+/**
+ * T144: Position einer Frequenz auf der Mel-Skala als Anteil [0, 1] (0 = fMin unten, 1 = fMax oben).
+ */
+internal fun frequencyFraction(hz: Float, fMin: Float, fMax: Float): Float {
+    val melMin = MelFilterbank.hzToMel(fMin)
+    val melMax = MelFilterbank.hzToMel(fMax)
+    if (melMax <= melMin) return 0f
+    return ((MelFilterbank.hzToMel(hz) - melMin) / (melMax - melMin)).coerceIn(0f, 1f)
 }
 
-private fun formatHz(hz: Float): String = when {
-    hz >= 1000f -> "${(hz / 1000).toInt()}k"
-    hz >= 100f -> "${hz.toInt()}"
-    else -> "${"%.0f".format(hz)}"
-}
-
-private data class FrequencyTick(
+internal data class FrequencyTick(
     val hz: Float,
     val label: String
 )
