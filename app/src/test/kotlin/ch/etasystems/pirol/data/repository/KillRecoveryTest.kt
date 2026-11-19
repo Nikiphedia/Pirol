@@ -78,7 +78,7 @@ class KillRecoveryTest {
 
         val meta = SessionMetadata(
             sessionId = "s", startedAt = started.toString(), sampleRate = rate,
-            confidenceThreshold = 0.5f, sessionRelativeOffsets = true
+            confidenceThreshold = 0.5f
         )
         val rec = SessionManager.recoverMetadata(meta, listOf(seg1, seg2), detectionLineCount = 7)
         assertEquals(602_500L, rec.totalRecordedSamples)

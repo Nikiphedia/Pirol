@@ -8,9 +8,6 @@ import ch.etasystems.pirol.ml.InferenceConfig
  * SharedPreferences-Wrapper fuer persistente App-Einstellungen.
  * Keys mit Prefix pirol_ um Kollisionen zu vermeiden.
  */
-/** T106: alte Region-ID aus dem Onboarding, wird auf "central_europe" migriert */
-private const val LEGACY_REGION_DACH = "dach"
-
 class AppPreferences(context: Context) {
 
     private val prefs = context.getSharedPreferences("pirol_prefs", Context.MODE_PRIVATE)
@@ -35,15 +32,7 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putFloat("pirol_topk_threshold", value).apply()
 
     var regionFilter: String?
-        get() {
-            val stored = prefs.getString("pirol_region_filter", "ch_breeding")
-            // T106: Onboarding schrieb bis V0.0.6.T102 die nicht existierende ID "dach"
-            if (stored == LEGACY_REGION_DACH) {
-                prefs.edit().putString("pirol_region_filter", "central_europe").apply()
-                return "central_europe"
-            }
-            return stored
-        }
+        get() = prefs.getString("pirol_region_filter", "ch_breeding")
         set(value) = prefs.edit().putString("pirol_region_filter", value).apply()
 
     var showOnlyFiltered: Boolean
@@ -192,11 +181,6 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString("pirol_active_model", value).apply()
 
     // --- Speicherort (T38, erweitert T51) ---
-    /** Veralteter Pfad-Key (pre-T51). Wird noch fuer einen Release als Fallback genutzt. */
-    var storagePath: String?
-        get() = prefs.getString("pirol_storage_path", null)
-        set(value) = prefs.edit().putString("pirol_storage_path", value).apply()
-
     /** SAF-URI als String fuer user-konfigurierten Speicherort (null = Fallback auf getExternalFilesDir). */
     var storageBaseUri: String?
         get() = prefs.getString("pirol_storage_base_uri", null)

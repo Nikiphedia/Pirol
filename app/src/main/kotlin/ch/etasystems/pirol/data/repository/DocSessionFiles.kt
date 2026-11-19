@@ -46,10 +46,7 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
     override fun segmentSources(): List<SegmentSource> {
         val byName = doc.listFiles().filter { it.isFile && it.name != null }.associateBy { it.name!! }
         val ordered = SegmentedRecording.orderedSegmentNames(byName.keys.toList())
-        if (ordered.isNotEmpty()) return ordered.map { UriSegment(resolver, byName.getValue(it)) }
-        // Legacy: audio/recording.wav
-        val legacy = doc.findFile("audio")?.findFile("recording.wav")
-        return if (legacy != null) listOf(UriSegment(resolver, legacy)) else emptyList()
+        return ordered.map { UriSegment(resolver, byName.getValue(it)) }
     }
 
     override fun deleteAll(): Boolean = doc.delete()
