@@ -22,8 +22,8 @@ data class SpectrogramConfig(
     val minDb: Float = -80f
 ) {
     companion object {
-        /** Voegel: 125-8000 Hz, feines Frequenzraster */
-        val BIRDS = SpectrogramConfig(fMin = 125f, fMax = 8000f)
+        /** Voegel: 125-12000 Hz, feines Frequenzraster */
+        val BIRDS = SpectrogramConfig(fMin = 125f, fMax = 12000f)
 
         /** Fledermaeuse: breites Spektrum bis Nyquist */
         val BATS = SpectrogramConfig(fftSize = 1024, hopSize = 256, fMin = 10000f, fMax = -1f)

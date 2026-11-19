@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +62,8 @@ import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import ch.etasystems.pirol.ui.components.SessionCard
 import ch.etasystems.pirol.ui.components.SpeciesCard
+import ch.etasystems.pirol.ui.components.FrequencyAxis
+import ch.etasystems.pirol.ui.components.forDisplay
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import ch.etasystems.pirol.ui.components.SpectrogramDisplaySettings
@@ -441,7 +444,7 @@ private fun SessionDetailContent(
                     .fillMaxWidth()
                     .height(150.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black)
+                    .background(if (settings.palette.isLight) Color.White else Color.Black)
                     .onSpectrogramLongPress { showPanel = true }
             ) {
                 SpectrogramCanvas(
@@ -458,6 +461,12 @@ private fun SessionDetailContent(
                     freqMinHz = settings.freqMinHz,
                     freqMaxHz = settings.freqMaxHz,
                     modifier = Modifier.fillMaxSize()
+                )
+                // T144: Frequenzachse links (1/2/4/8/12 kHz)
+                FrequencyAxis(
+                    config = SpectrogramConfig.BIRDS.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                    lightBackground = settings.palette.isLight,
+                    modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
                 )
                 if (state.sonogramLoading) {
                     Row(
@@ -730,6 +739,12 @@ private fun CompareView(
         val cmpRepo: SpectrogramSettingsRepository = org.koin.compose.koinInject()
         val settings by cmpRepo.settings.collectAsState()
         val detectionOverride = rememberStaticRange(state.detectionSpectrogramState, settings)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .background(if (settings.palette.isLight) Color.White else Color.Black)
+        ) {
         SpectrogramCanvas(
             spectrogramState = state.detectionSpectrogramState,
             config = SpectrogramConfig.BIRDS,
@@ -743,10 +758,14 @@ private fun CompareView(
             freqMinHz = settings.freqMinHz,
             freqMaxHz = settings.freqMaxHz,
             fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
+            modifier = Modifier.fillMaxSize()
         )
+        FrequencyAxis(
+            config = SpectrogramConfig.BIRDS.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+            lightBackground = settings.palette.isLight,
+            modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
+        )
+        }
 
         // Info + Play
         Row(
@@ -798,6 +817,12 @@ private fun CompareView(
         if (state.selectedReference != null) {
             // Sonogramm Referenz (T56: Einmal-Perzentil wenn Toggle AN; T56b: Gamma)
             val referenceOverride = rememberStaticRange(state.referenceSpectrogramState, settings)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(if (settings.palette.isLight) Color.White else Color.Black)
+            ) {
             SpectrogramCanvas(
                 spectrogramState = state.referenceSpectrogramState,
                 config = SpectrogramConfig.BIRDS,
@@ -811,10 +836,14 @@ private fun CompareView(
                 freqMinHz = settings.freqMinHz,
                 freqMaxHz = settings.freqMaxHz,
                 fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
+                modifier = Modifier.fillMaxSize()
             )
+            FrequencyAxis(
+                config = SpectrogramConfig.BIRDS.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                lightBackground = settings.palette.isLight,
+                modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
+            )
+            }
 
             // Info + Play
             Row(

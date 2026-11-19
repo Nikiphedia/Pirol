@@ -12,7 +12,11 @@ import androidx.compose.ui.graphics.Color
 enum class SpectrogramPalette {
     MAGMA,      // Schwarz → dunkelrot → gelb → weiss
     VIRIDIS,    // Dunkelviolett → blau → gruen → gelb
-    GRAYSCALE;  // Schwarz → weiss
+    GRAYSCALE,  // Schwarz → weiss
+    PAPER;      // T144: Weiss → schwarz (wie Papier-Sonagramm: leise = weiss, laut = dunkel)
+
+    /** T144: true = heller Hintergrund (Achsenbeschriftung dunkel). */
+    val isLight: Boolean get() = this == PAPER
 
     companion object {
         private const val LUT_SIZE = 256
@@ -33,6 +37,7 @@ enum class SpectrogramPalette {
         val magmaLut: IntArray by lazy { buildLut(MAGMA_STOPS, MAGMA_R, MAGMA_G, MAGMA_B) }
         val viridisLut: IntArray by lazy { buildLut(VIRIDIS_STOPS, VIRIDIS_R, VIRIDIS_G, VIRIDIS_B) }
         val grayscaleLut: IntArray by lazy { buildGrayscaleLut() }
+        val paperLut: IntArray by lazy { IntArray(LUT_SIZE) { i -> grayscaleLut[LUT_SIZE - 1 - i] } }
 
         /**
          * Baut eine 256-Eintraege ARGB-LUT aus Stuetzstellen mit linearer Interpolation.
@@ -85,6 +90,7 @@ enum class SpectrogramPalette {
             MAGMA -> magmaLut
             VIRIDIS -> viridisLut
             GRAYSCALE -> grayscaleLut
+            PAPER -> paperLut
         }
     }
 }
