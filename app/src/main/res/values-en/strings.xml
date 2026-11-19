@@ -479,4 +479,7 @@
     <string name="mig_notif_result">%1$d moved, %2$d skipped, %3$d failed</string>
     <string name="onboarding_alle_arten_n">All species (%1$s)</string>
     <string name="onboarding_modell_x_von_n">(model %1$d of %2$d)</string>
+    <string name="settings_bench_datei_hinweis">Measures any ONNX file (e.g. from Download) with random noise, 1/2/4 threads. The file is briefly copied to the cache.</string>
+    <string name="settings_bench_datei_waehlen">Pick ONNX file and measure</string>
+    <string name="settings_bench_datei_kopiere">Copying file</string>
 </resources>

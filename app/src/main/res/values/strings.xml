@@ -480,4 +480,7 @@
     <string name="mig_notif_result">%1$d verschoben, %2$d übersprungen, %3$d fehlgeschlagen</string>
     <string name="onboarding_alle_arten_n">Alle Arten (%1$s)</string>
     <string name="onboarding_modell_x_von_n">(Modell %1$d von %2$d)</string>
+    <string name="settings_bench_datei_hinweis">Misst eine beliebige ONNX-Datei (z.B. aus Download) mit Zufallsrauschen, 1/2/4 Threads. Die Datei wird kurz in den Cache kopiert.</string>
+    <string name="settings_bench_datei_waehlen">ONNX-Datei wählen und messen</string>
+    <string name="settings_bench_datei_kopiere">Kopiere Datei</string>
 </resources>
