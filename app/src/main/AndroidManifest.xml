@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Audio-Aufnahme -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -7,6 +8,7 @@
     <!-- Foreground Service fuer Hintergrund-Aufnahme -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Netzwerk (Xeno-Canto, Cloud-Sync) -->
@@ -62,6 +64,13 @@
             android:name=".audio.RecordingService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
+
+        <!-- T141: WorkManager-Foreground-Service fuer die Session-Migration (dataSync) -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"
+            tools:node="merge" />
 
         <!-- T120a: Pro-App-Sprache auf API < 33 persistent speichern -->
         <service

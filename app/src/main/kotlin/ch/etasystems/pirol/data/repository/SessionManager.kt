@@ -13,6 +13,7 @@ import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -49,7 +50,11 @@ data class MigrationInfo(
 data class MigrationResult(
     val sessionsCopied: Int,
     val bytesCopied: Long,
-    val errors: List<String>
+    val errors: List<String>,
+    /** T141: Sessions, die am Ziel schon vorhanden waren (unveraendert uebersprungen) */
+    val sessionsSkipped: Int = 0,
+    /** T141: Sessions mit Fehler (Quelle bleibt unveraendert) */
+    val sessionsFailed: Int = 0
 )
 
 /**
@@ -1326,163 +1331,176 @@ class SessionManager(
 
     // ── Migrations-Methoden (T41, erweitert T51) ──────────────────────
 
+    // ── Migrations-Methoden (T41, T51, neu T141) ──────────────────────
+
+    /** Standard-Basisordner im App-Speicher (Ziel "zurueck auf App-Speicher"). */
+    fun defaultBaseDir(): File = File(context.getExternalFilesDir(null) ?: context.filesDir, PIROL_DIR)
+
+    /** Eine Datei einer Quell-Session (relativer Pfad, Laenge, Stream-Oeffner). */
+    private class SrcEntry(val rel: String, val length: Long, val open: () -> java.io.InputStream)
+
+    private fun collectEntries(sessionDir: File): List<SrcEntry> {
+        val doc = docFor(sessionDir)
+        val out = mutableListOf<SrcEntry>()
+        if (doc != null) {
+            val cr = context.contentResolver
+            fun walk(dir: DocumentFile, prefix: String) {
+                for (child in dir.listFiles()) {
+                    val n = child.name ?: continue
+                    if (child.isDirectory) walk(child, "$prefix$n/")
+                    else out += SrcEntry("$prefix$n", child.length(), {
+                        cr.openInputStream(child.uri) ?: throw java.io.IOException("Nicht lesbar: $n")
+                    })
+                }
+            }
+            walk(doc, "")
+        } else {
+            sessionDir.walkTopDown().filter { it.isFile }.forEach { f ->
+                out += SrcEntry(f.relativeTo(sessionDir).path.replace('\\', '/'), f.length(), { f.inputStream() })
+            }
+        }
+        return out
+    }
+
     /**
-     * Zaehlt Sessions und berechnet Gesamtgroesse am aktuellen Speicherort.
+     * Zaehlt Sessions und berechnet Gesamtgroesse am aktuellen Speicherort (File und SAF).
+     * Blockierend — vom IO-Dispatcher aufrufen.
      */
     fun getMigrationInfo(): MigrationInfo {
         val sessions = listSessions()
-        val totalSize = sessions.sumOf { dir ->
-            dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        }
+        val totalSize = sessions.sumOf { dir -> collectEntries(dir).sumOf { it.length } }
         return MigrationInfo(sessions.size, totalSize)
     }
 
-    /**
-     * Kopiert alle Sessions zum File-basierten Zielort (z.B. filesDir).
-     * - Duplikate werden uebersprungen (Idempotenz, AC6)
-     * - deleteSource: Quell-Dir erst loeschen nach Groessen-Verifizierung (AC7)
-     */
-    suspend fun migrateSessionsTo(
-        targetBaseDir: File,
-        deleteSource: Boolean = false,
-        onProgress: (Float) -> Unit = {}
-    ): MigrationResult = withContext(Dispatchers.IO) {
-        val sessionDirs = listSessions()
-        if (sessionDirs.isEmpty()) return@withContext MigrationResult(0, 0L, emptyList())
+    /** Ziel-Schreiber einer Migration (File oder SAF). */
+    private interface MigrationSink {
+        /** Legt den Session-Ordner an; false = Session existiert am Ziel schon. */
+        fun begin(sessionName: String, dayDir: String?): Boolean
+        /** Schreibt eine Datei und verifiziert die Groesse; liefert geschriebene Bytes. */
+        fun write(entry: SrcEntry): Long
+        /** Verwirft die angefangene Session am Ziel. */
+        fun rollback()
+    }
 
+    private class FileSink(private val base: File) : MigrationSink {
+        private var dir: File? = null
+        override fun begin(sessionName: String, dayDir: String?): Boolean {
+            val parent = if (dayDir != null) File(base, dayDir) else base
+            val d = File(parent, sessionName)
+            if (d.exists()) return false
+            if (!d.mkdirs()) throw java.io.IOException("Verzeichnis nicht erstellbar")
+            dir = d
+            return true
+        }
+        override fun write(entry: SrcEntry): Long {
+            val f = File(dir!!, entry.rel)
+            f.parentFile?.mkdirs()
+            val n = entry.open().use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+            if (f.length() != n || (entry.length > 0 && n != entry.length))
+                throw java.io.IOException("${entry.rel}: Groessenabweichung (${f.length()} != ${entry.length})")
+            return n
+        }
+        override fun rollback() { dir?.deleteRecursively() }
+    }
+
+    private inner class TreeSink(private val root: DocumentFile) : MigrationSink {
+        private var dir: DocumentFile? = null
+        private val cr = context.contentResolver
+        override fun begin(sessionName: String, dayDir: String?): Boolean {
+            val parent = if (dayDir != null) root.findOrCreateDir(dayDir)
+                ?: throw java.io.IOException("Tagesordner nicht erstellbar") else root
+            if (parent.findFile(sessionName)?.isDirectory == true) return false
+            dir = parent.createDirectory(sessionName) ?: throw java.io.IOException("Verzeichnis nicht erstellbar")
+            return true
+        }
+        override fun write(entry: SrcEntry): Long {
+            var d = dir!!
+            val parts = entry.rel.split('/')
+            for (p in parts.dropLast(1)) d = d.findOrCreateDir(p) ?: throw java.io.IOException("$p: Ordner nicht erstellbar")
+            val fileName = parts.last()
+            val mime = when {
+                fileName.endsWith(".json") -> "application/json"
+                fileName.endsWith(".wav") -> "audio/wav"
+                fileName.endsWith(".txt") -> "text/plain"
+                else -> "application/octet-stream"
+            }
+            val dest = d.createFile(mime, fileName) ?: throw java.io.IOException("$fileName: Datei nicht erstellbar")
+            val n = entry.open().use { i ->
+                (cr.openOutputStream(dest.uri) ?: throw java.io.IOException("$fileName: nicht beschreibbar"))
+                    .use { o -> i.copyTo(o) }
+            }
+            val destSize = cr.openFileDescriptor(dest.uri, "r")?.use { it.statSize } ?: dest.length()
+            if (destSize != n || (entry.length > 0 && n != entry.length))
+                throw java.io.IOException("$fileName: Groessenabweichung ($destSize != ${entry.length})")
+            return n
+        }
+        override fun rollback() { dir?.delete() }
+    }
+
+    /**
+     * T141: Kopiert alle Sessions (File- oder SAF-Quelle) an das Ziel (File oder SAF), mit Groessenpruefung
+     * pro Datei. Segmente (recording-00N.wav) und Unterordner (memos/) werden mitkopiert.
+     * - Session am Ziel schon vorhanden: uebersprungen (Idempotenz)
+     * - Fehler: Zielordner dieser Session wird verworfen, die Quelle bleibt unveraendert
+     * - deleteSource: Originale werden erst am Ende und nur geloescht, wenn KEINE Session fehlgeschlagen ist
+     * Waehrend einer aktiven Aufnahme wird nichts getan.
+     */
+    suspend fun migrateSessions(
+        target: MigrationTarget,
+        deleteSource: Boolean = false,
+        onProgress: (MigrationProgress) -> Unit = {}
+    ): MigrationResult = withContext(Dispatchers.IO) {
+        if (this@SessionManager.isActive) return@withContext MigrationResult(0, 0L, listOf("Aufnahme laeuft"), 0, 0)
+        val sink: MigrationSink = when (target) {
+            is MigrationTarget.Dir -> { target.base.mkdirs(); FileSink(target.base) }
+            is MigrationTarget.Tree -> {
+                val root = DocumentFile.fromTreeUri(context, target.uri)
+                    ?: return@withContext MigrationResult(0, 0L, listOf("Zielordner nicht erreichbar"), 0, 0)
+                TreeSink(root)
+            }
+        }
+        val sessionDirs = listSessions()
         var copied = 0
+        var skipped = 0
         var bytesCopied = 0L
         val errors = mutableListOf<String>()
+        val copiedSources = mutableListOf<File>()
+        onProgress(MigrationProgress(0, sessionDirs.size, 0L))
 
         sessionDirs.forEachIndexed { index, sessionDir ->
-            val targetDir = File(targetBaseDir, sessionDir.name)
-            if (targetDir.exists()) {
-                Log.i(TAG, "Session ${sessionDir.name} existiert am Ziel — uebersprungen")
-                onProgress((index + 1).toFloat() / sessionDirs.size)
-                return@forEachIndexed
-            }
             try {
-                val success = sessionDir.copyRecursively(targetDir, overwrite = false)
-                if (success) {
-                    val srcSize = sessionDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    val dstSize = targetDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    if (srcSize == dstSize) {
-                        bytesCopied += dstSize
-                        copied++
-                        if (deleteSource) sessionDir.deleteRecursively()
-                        Log.i(TAG, "Session kopiert: ${sessionDir.name}")
-                    } else {
-                        errors.add("${sessionDir.name}: Grössenabweichung ($dstSize != $srcSize)")
-                        targetDir.deleteRecursively()
-                    }
+                if (!sink.begin(sessionDir.name, SessionMigrationLogic.dayDirOf(sessionDir))) {
+                    skipped++
                 } else {
-                    errors.add("${sessionDir.name}: Kopieren fehlgeschlagen")
-                    targetDir.deleteRecursively()
+                    try {
+                        var bytes = 0L
+                        for (e in collectEntries(sessionDir)) {
+                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                            bytes += sink.write(e)
+                        }
+                        bytesCopied += bytes
+                        copied++
+                        copiedSources += sessionDir
+                    } catch (e: Exception) {
+                        sink.rollback()
+                        throw e
+                    }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errors.add("${sessionDir.name}: ${e.message}")
-                targetDir.deleteRecursively()
                 Log.e(TAG, "Session-Migration fehlgeschlagen: ${sessionDir.name}", e)
             }
-            onProgress((index + 1).toFloat() / sessionDirs.size)
+            onProgress(MigrationProgress(index + 1, sessionDirs.size, bytesCopied))
         }
 
-        MigrationResult(copied, bytesCopied, errors)
-    }
-
-    /**
-     * Kopiert alle Sessions in einen SAF-Zielordner via ContentResolver (AC1/AC2).
-     * Funktioniert fuer beliebige SAF-URIs inkl. SD-Karte und nicht-primaere Speicher.
-     * - Duplikate werden uebersprungen (Idempotenz, AC6)
-     * - deleteSource: Quell-Dir erst loeschen nach Groessen-Verifizierung (AC7)
-     */
-    suspend fun migrateSessionsTo(
-        targetUri: Uri,
-        deleteSource: Boolean = false,
-        onProgress: (Float) -> Unit = {}
-    ): MigrationResult = withContext(Dispatchers.IO) {
-        val targetRoot = DocumentFile.fromTreeUri(context, targetUri)
-            ?: return@withContext MigrationResult(0, 0L, listOf("Zielordner nicht erreichbar"))
-
-        val sessionDirs = listSessions()
-        if (sessionDirs.isEmpty()) return@withContext MigrationResult(0, 0L, emptyList())
-
-        var copied = 0
-        var bytesCopied = 0L
-        val errors = mutableListOf<String>()
-        val cr = context.contentResolver
-
-        sessionDirs.forEachIndexed { index, sessionDir ->
-            if (targetRoot.findFile(sessionDir.name)?.isDirectory == true) {
-                Log.i(TAG, "Session ${sessionDir.name} existiert am Ziel — uebersprungen")
-                onProgress((index + 1).toFloat() / sessionDirs.size)
-                return@forEachIndexed
-            }
-
-            val targetDir = targetRoot.createDirectory(sessionDir.name)
-            if (targetDir == null) {
-                errors.add("${sessionDir.name}: Verzeichnis nicht erstellbar")
-                onProgress((index + 1).toFloat() / sessionDirs.size)
-                return@forEachIndexed
-            }
-
-            try {
-                val sessionErrors = mutableListOf<String>()
-                var sessionBytes = 0L
-                copyDirContentsToDocFile(sessionDir, targetDir, cr, sessionErrors) { bytes -> sessionBytes += bytes }
-
-                if (sessionErrors.isEmpty()) {
-                    bytesCopied += sessionBytes
-                    copied++
-                    if (deleteSource) sessionDir.deleteRecursively()
-                    Log.i(TAG, "Session migriert: ${sessionDir.name}")
-                } else {
-                    errors.addAll(sessionErrors)
-                    targetDir.delete()
-                }
-            } catch (e: Exception) {
-                errors.add("${sessionDir.name}: ${e.message}")
-                targetDir.delete()
-                Log.e(TAG, "Migration fehlgeschlagen: ${sessionDir.name}", e)
-            }
-            onProgress((index + 1).toFloat() / sessionDirs.size)
-        }
-
-        MigrationResult(copied, bytesCopied, errors)
-    }
-
-    private fun copyDirContentsToDocFile(
-        srcDir: File,
-        destDir: DocumentFile,
-        cr: android.content.ContentResolver,
-        errors: MutableList<String>,
-        onBytes: (Long) -> Unit
-    ) {
-        for (child in srcDir.listFiles() ?: emptyArray()) {
-            if (child.isDirectory) {
-                val subDest = destDir.createDirectory(child.name)
-                if (subDest == null) { errors.add("${child.path}: Ordner nicht erstellbar"); return }
-                copyDirContentsToDocFile(child, subDest, cr, errors, onBytes)
-            } else {
-                val destFile = destDir.createFile("application/octet-stream", child.name)
-                if (destFile == null) { errors.add("${child.path}: Datei nicht erstellbar"); return }
-                try {
-                    cr.openOutputStream(destFile.uri)?.use { out ->
-                        child.inputStream().use { inp -> inp.copyTo(out) }
-                    }
-                    val destSize = cr.openFileDescriptor(destFile.uri, "r")?.use { it.statSize } ?: -1L
-                    if (destSize != child.length()) {
-                        errors.add("${child.path}: Grössenabweichung ($destSize != ${child.length()})")
-                        destFile.delete()
-                    } else {
-                        onBytes(destSize)
-                    }
-                } catch (e: Exception) {
-                    errors.add("${child.path}: ${e.message}")
-                    destFile.delete()
-                }
+        if (SessionMigrationLogic.shouldDeleteSources(deleteSource, errors.size)) {
+            for (src in copiedSources) {
+                try { accessFor(src).deleteAll() } catch (e: Exception) { Log.w(TAG, "Original nicht geloescht: ${src.name}", e) }
             }
         }
+        MigrationResult(copied, bytesCopied, errors, skipped, errors.size)
     }
 
     /**
