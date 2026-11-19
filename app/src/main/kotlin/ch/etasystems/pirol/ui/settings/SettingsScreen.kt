@@ -75,7 +75,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.repository.MigrationRefusal
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.data.repository.SessionMigrationLogic
+import ch.etasystems.pirol.data.repository.SessionMigrationWorker
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.InferenceConfig
@@ -96,6 +101,8 @@ import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.font.FontFamily
 import ch.etasystems.pirol.ml.OnnxBenchmark
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
@@ -1232,13 +1239,44 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // SAF-Picker (T51)
-            var migrationTargetUri by remember { mutableStateOf<Uri?>(null) }
+            // SAF-Picker (T51) + Session-Migration (T141)
+            var pendingTargetUri by remember { mutableStateOf<Uri?>(null) }
+            var pendingManual by remember { mutableStateOf(false) }
             var showMigrationDialog by remember { mutableStateOf(false) }
             var migrationSessionCount by remember { mutableIntStateOf(0) }
-            var migrationSizeMB by remember { mutableLongStateOf(0L) }
-            var isMigrating by remember { mutableStateOf(false) }
-            var migrationProgress by remember { mutableFloatStateOf(0f) }
+            var migrationSizeBytes by remember { mutableLongStateOf(0L) }
+            var deleteOriginal by remember { mutableStateOf(false) }
+            var manualPick by remember { mutableStateOf(false) }
+
+            fun refusalMessage(r: MigrationRefusal): String = when (r) {
+                MigrationRefusal.RECORDING_ACTIVE -> AppStrings.get(R.string.mig_refuse_recording)
+                MigrationRefusal.SAME_LOCATION -> AppStrings.get(R.string.mig_refuse_same)
+                MigrationRefusal.NO_SESSIONS -> AppStrings.get(R.string.settings_keine_sessions_vorhanden)
+            }
+
+            // uri == null = Ziel App-Speicher (Standard)
+            val prepareMigration: (Uri?, Boolean) -> Unit = { uri, manual ->
+                scope.launch {
+                    val same = if (uri == null) currentBaseUri == null else uri.toString() == currentBaseUri
+                    val info = withContext(Dispatchers.IO) { sessionManager.getMigrationInfo() }
+                    val refusal = SessionMigrationLogic.refusal(sessionManager.isActive, info.sessionCount, same)
+                    when {
+                        refusal == null -> {
+                            migrationSessionCount = info.sessionCount
+                            migrationSizeBytes = info.totalSizeBytes
+                            pendingTargetUri = uri
+                            pendingManual = manual
+                            showMigrationDialog = true
+                        }
+                        !manual && uri != null && refusal == MigrationRefusal.NO_SESSIONS -> {
+                            appPreferences.storageBaseUri = uri.toString()
+                            currentBaseUri = uri.toString()
+                            Toast.makeText(context, AppStrings.get(R.string.settings_speicherort_gespeichert), Toast.LENGTH_SHORT).show()
+                        }
+                        else -> Toast.makeText(context, refusalMessage(refusal), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
 
             val safLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocumentTree()
@@ -1248,21 +1286,18 @@ fun SettingsScreen(
                         uri,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     )
-                    val info = sessionManager.getMigrationInfo()
-                    migrationSessionCount = info.sessionCount
-                    migrationSizeMB = info.totalSizeBytes / 1_000_000
-                    if (info.sessionCount > 0) {
-                        migrationTargetUri = uri
-                        showMigrationDialog = true
-                    } else {
-                        appPreferences.storageBaseUri = uri.toString()
-                        currentBaseUri = uri.toString()
-                        Toast.makeText(context, AppStrings.get(R.string.settings_speicherort_gespeichert), Toast.LENGTH_SHORT).show()
-                    }
+                    prepareMigration(uri, manualPick)
                 }
             }
 
-            OutlinedButton(onClick = { safLauncher.launch(null) }) {
+            OutlinedButton(onClick = {
+                if (sessionManager.isActive) {
+                    Toast.makeText(context, AppStrings.get(R.string.mig_refuse_recording), Toast.LENGTH_LONG).show()
+                } else {
+                    manualPick = false
+                    safLauncher.launch(null)
+                }
+            }) {
                 Text(stringResource(R.string.settings_anderen_ordner_waehlen))
             }
 
@@ -1347,83 +1382,116 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Migration-Button
-            OutlinedButton(onClick = {
-                val info = sessionManager.getMigrationInfo()
-                migrationSessionCount = info.sessionCount
-                migrationSizeMB = info.totalSizeBytes / 1_000_000
-                if (info.sessionCount > 0) showMigrationDialog = true
-                else Toast.makeText(context, AppStrings.get(R.string.settings_keine_sessions_vorhanden), Toast.LENGTH_SHORT).show()
-            }) {
-                Text(stringResource(R.string.settings_bestehende_sessions_verschieben))
+            // Manuelle Migration (T141)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    if (sessionManager.isActive) {
+                        Toast.makeText(context, AppStrings.get(R.string.mig_refuse_recording), Toast.LENGTH_LONG).show()
+                    } else {
+                        manualPick = true
+                        safLauncher.launch(null)
+                    }
+                }) { Text(stringResource(R.string.mig_manual_button)) }
+                if (currentBaseUri != null) {
+                    OutlinedButton(onClick = { prepareMigration(null, true) }) {
+                        Text(stringResource(R.string.mig_to_default_button))
+                    }
+                }
             }
 
-            // Fortschrittsanzeige waehrend Migration
-            if (isMigrating) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(stringResource(R.string.settings_sessions_werden_kopiert), style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.height(4.dp))
-                LinearProgressIndicator(progress = { migrationProgress }, modifier = Modifier.fillMaxWidth())
-                Text(
-                    text = "${(migrationProgress * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodySmall
-                )
+            // Fortschritt und Ergebnis der Migration (WorkManager)
+            val migWork by WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkFlow(SessionMigrationWorker.UNIQUE_NAME)
+                .collectAsState(initial = emptyList())
+            val migInfo = migWork.firstOrNull()
+            var dismissedMigId by remember { mutableStateOf<java.util.UUID?>(null) }
+            LaunchedEffect(migInfo?.state) { currentBaseUri = appPreferences.storageBaseUri }
+            if (migInfo != null) {
+                when (migInfo.state) {
+                    WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED -> {
+                        val done = migInfo.progress.getInt(SessionMigrationWorker.KEY_DONE, 0)
+                        val total = migInfo.progress.getInt(SessionMigrationWorker.KEY_TOTAL, 0)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(stringResource(R.string.mig_progress, done, total), style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (total > 0) LinearProgressIndicator(progress = { done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED -> if (dismissedMigId != migInfo.id) {
+                        val out = migInfo.outputData
+                        val copied = out.getInt(SessionMigrationWorker.KEY_COPIED, 0)
+                        val skipped = out.getInt(SessionMigrationWorker.KEY_SKIPPED, 0)
+                        val failed = out.getInt(SessionMigrationWorker.KEY_FAILED, 0)
+                        val bytes = out.getLong(SessionMigrationWorker.KEY_BYTES, 0L)
+                        val errs = out.getString(SessionMigrationWorker.KEY_ERRORS) ?: ""
+                        val ok = migInfo.state == WorkInfo.State.SUCCEEDED
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (ok) stringResource(R.string.mig_result_ok, copied, SessionMigrationLogic.formatSize(bytes), skipped)
+                                       else stringResource(R.string.mig_result_failed, copied, failed, errs),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (ok) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { dismissedMigId = migInfo.id }) { Text(stringResource(R.string.mig_dismiss)) }
+                        }
+                    }
+                    else -> {}
+                }
             }
 
             // Bestaetigungsdialog fuer Migration
             if (showMigrationDialog) {
                 AlertDialog(
-                    onDismissRequest = {
-                        showMigrationDialog = false
-                        migrationTargetUri = null
-                    },
-                    title = { Text(stringResource(R.string.settings_sessions_verschieben)) },
+                    onDismissRequest = { showMigrationDialog = false; pendingTargetUri = null },
+                    title = { Text(stringResource(R.string.mig_dialog_title)) },
                     text = {
-                        Text(stringResource(R.string.settings_sessions_mb_an_neuen_speicherort, migrationSessionCount, migrationSizeMB))
+                        Column {
+                            Text(stringResource(R.string.mig_dialog_body, migrationSessionCount, SessionMigrationLogic.formatSize(migrationSizeBytes)))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = deleteOriginal, onCheckedChange = { deleteOriginal = it })
+                                Text(stringResource(R.string.mig_delete_original), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
                     },
                     confirmButton = {
                         TextButton(onClick = {
                             showMigrationDialog = false
-                            isMigrating = true
-                            migrationProgress = 0f
-                            val targetUri = migrationTargetUri
-                            scope.launch {
-                                if (targetUri != null) {
-                                    val result = sessionManager.migrateSessionsTo(targetUri, deleteSource = true) { p ->
-                                        migrationProgress = p
-                                    }
-                                    isMigrating = false
-                                    if (result.errors.isEmpty()) {
-                                        appPreferences.storageBaseUri = targetUri.toString()
-                                        currentBaseUri = targetUri.toString()
-                                        Toast.makeText(context, AppStrings.get(R.string.settings_sessions_kopiert, result.sessionsCopied), Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, AppStrings.get(R.string.settings_fehler, result.errors.joinToString("; ")), Toast.LENGTH_LONG).show()
-                                    }
-                                } else {
-                                    isMigrating = false
-                                    Toast.makeText(context, AppStrings.get(R.string.settings_kein_zielordner_ausgewaehlt), Toast.LENGTH_LONG).show()
-                                }
-                                migrationTargetUri = null
+                            if (sessionManager.isActive) {
+                                Toast.makeText(context, AppStrings.get(R.string.mig_refuse_recording), Toast.LENGTH_LONG).show()
+                            } else {
+                                val uri = pendingTargetUri
+                                SessionMigrationWorker.enqueue(
+                                    context,
+                                    targetUri = uri?.toString(),
+                                    targetPath = if (uri == null) sessionManager.defaultBaseDir().absolutePath else null,
+                                    deleteSource = deleteOriginal,
+                                    switchStorage = true
+                                )
+                                Toast.makeText(context, AppStrings.get(R.string.mig_started), Toast.LENGTH_SHORT).show()
                             }
-                        }) { Text(stringResource(R.string.settings_kopieren)) }
+                            pendingTargetUri = null
+                        }) { Text(stringResource(R.string.mig_start)) }
                     },
                     dismissButton = {
                         Row {
-                            TextButton(onClick = {
-                                // Ohne Migration wechseln — nur URI speichern
-                                showMigrationDialog = false
-                                migrationTargetUri?.let { uri ->
-                                    appPreferences.storageBaseUri = uri.toString()
-                                    currentBaseUri = uri.toString()
-                                }
-                                migrationTargetUri = null
-                            }) { Text(stringResource(R.string.settings_nur_wechseln)) }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            TextButton(onClick = {
-                                showMigrationDialog = false
-                                migrationTargetUri = null
-                            }) { Text(stringResource(R.string.common_cancel)) }
+                            if (!pendingManual) {
+                                TextButton(onClick = {
+                                    // Ohne Migration wechseln — nur URI speichern
+                                    showMigrationDialog = false
+                                    pendingTargetUri?.let { uri ->
+                                        appPreferences.storageBaseUri = uri.toString()
+                                        currentBaseUri = uri.toString()
+                                    }
+                                    pendingTargetUri = null
+                                }) { Text(stringResource(R.string.settings_nur_wechseln)) }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            TextButton(onClick = { showMigrationDialog = false; pendingTargetUri = null }) {
+                                Text(stringResource(R.string.common_cancel))
+                            }
                         }
                     }
                 )

@@ -463,4 +463,20 @@
     <string name="settings_alarm_testen_5s">Nach 5 s, Geraet sperren</string>
     <string name="settings_alarm_fullscreen_hinweis">Auf dem Sperrbildschirm erscheint der Alarm nur als Benachrichtigung, solange \"Vollbild-Benachrichtigungen\" fuer PIROL nicht erlaubt sind.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Berechtigung oeffnen</string>
+    <!-- T141: Session-Migration -->
+    <string name="mig_dialog_title">Bestehende Sessions an den neuen Ort verschieben?</string>
+    <string name="mig_dialog_body">%1$d Sessions (%2$s) werden an den neuen Speicherort kopiert und geprüft.</string>
+    <string name="mig_delete_original">Original nach erfolgreicher Prüfung löschen</string>
+    <string name="mig_start">Verschieben</string>
+    <string name="mig_dismiss">OK</string>
+    <string name="mig_manual_button">Sessions verschieben…</string>
+    <string name="mig_to_default_button">In App-Speicher verschieben…</string>
+    <string name="mig_refuse_recording">Während einer Aufnahme können keine Sessions verschoben werden.</string>
+    <string name="mig_refuse_same">Das ist bereits der aktuelle Speicherort.</string>
+    <string name="mig_started">Migration gestartet</string>
+    <string name="mig_progress">Sessions werden verschoben: %1$d / %2$d</string>
+    <string name="mig_result_ok">%1$d Sessions verschoben (%2$s), %3$d bereits vorhanden</string>
+    <string name="mig_result_failed">%1$d verschoben, %2$d fehlgeschlagen. Originale bleiben unverändert. %3$s</string>
+    <string name="mig_notif_done_title">Session-Migration beendet</string>
+    <string name="mig_notif_result">%1$d verschoben, %2$d übersprungen, %3$d fehlgeschlagen</string>
 </resources>

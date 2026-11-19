@@ -462,4 +462,20 @@
     <string name="settings_alarm_testen_5s">In 5 s, lock device</string>
     <string name="settings_alarm_fullscreen_hinweis">On the lock screen the alarm only appears as a notification until \"full-screen notifications\" are allowed for PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Open permission</string>
+    <!-- T141: session migration -->
+    <string name="mig_dialog_title">Move existing sessions to the new location?</string>
+    <string name="mig_dialog_body">%1$d sessions (%2$s) will be copied to the new storage location and verified.</string>
+    <string name="mig_delete_original">Delete originals after successful verification</string>
+    <string name="mig_start">Move</string>
+    <string name="mig_dismiss">OK</string>
+    <string name="mig_manual_button">Move sessions…</string>
+    <string name="mig_to_default_button">Move to app storage…</string>
+    <string name="mig_refuse_recording">Sessions cannot be moved while a recording is running.</string>
+    <string name="mig_refuse_same">This is already the current storage location.</string>
+    <string name="mig_started">Migration started</string>
+    <string name="mig_progress">Moving sessions: %1$d / %2$d</string>
+    <string name="mig_result_ok">%1$d sessions moved (%2$s), %3$d already present</string>
+    <string name="mig_result_failed">%1$d moved, %2$d failed. Originals are unchanged. %3$s</string>
+    <string name="mig_notif_done_title">Session migration finished</string>
+    <string name="mig_notif_result">%1$d moved, %2$d skipped, %3$d failed</string>
 </resources>
