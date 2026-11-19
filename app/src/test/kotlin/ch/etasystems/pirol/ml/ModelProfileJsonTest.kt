@@ -99,6 +99,34 @@ class ModelProfileJsonTest {
         assertFalse(fam.header)
     }
 
+    // --- T156: minConfidence ---
+
+    private fun scoresWith(min: String) = """
+        { "name": "species", "role": "scores", "labels": "species"$min },
+        { "name": "family", "role": "aux", "labels": "family" }
+    """
+
+    @Test
+    fun `minConfidence wird gelesen, fehlt = null`() {
+        assertEquals(0.8f, ModelProfileJson.parse(json(outputs = scoresWith(", \"minConfidence\": 0.8"))).profile.minConfidence)
+        assertNull(ModelProfileJson.parse(json()).profile.minConfidence)
+        assertEquals(0f, ModelProfileJson.parse(json(outputs = scoresWith(", \"minConfidence\": 0"))).profile.minConfidence)
+    }
+
+    @Test
+    fun `minConfidence ausserhalb 0 bis 1 ist Importfehler`() {
+        expectError(ModelProfileJson.ErrorCode.SCHEMA, json(outputs = scoresWith(", \"minConfidence\": -0.1")))
+        expectError(ModelProfileJson.ErrorCode.SCHEMA, json(outputs = scoresWith(", \"minConfidence\": 1.5")))
+        expectError(ModelProfileJson.ErrorCode.SCHEMA, json(outputs = scoresWith(", \"minConfidence\": \"hoch\"")))
+    }
+
+    @Test
+    fun `effektive Schwelle ist das Maximum`() {
+        assertEquals(0.8f, InferenceConfig.effectiveThreshold(0.3f, 0.8f))
+        assertEquals(0.5f, InferenceConfig.effectiveThreshold(0.5f, 0.2f))
+        assertEquals(0.3f, InferenceConfig.effectiveThreshold(0.3f, null))
+    }
+
     @Test
     fun `ohne Embedding-Ausgang keine Aehnlichkeitssuche`() {
         val p = ModelProfileJson.parse(json(outputs = """

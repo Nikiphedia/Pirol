@@ -503,4 +503,5 @@
     <string name="palette_viridis">Viridis</string>
     <string name="palette_grayscale">Grayscale</string>
     <string name="palette_paper">Paper (light)</string>
+    <string name="model_min_confidence">Minimum confidence %1$d%%</string>
 </resources>

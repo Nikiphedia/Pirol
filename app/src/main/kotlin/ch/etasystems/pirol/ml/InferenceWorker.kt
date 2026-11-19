@@ -259,7 +259,7 @@ class InferenceWorker(
                 samples = resampled,
                 sampleRate = targetRate,
                 topK = config.topK,
-                threshold = config.topKThreshold
+                threshold = InferenceConfig.effectiveThreshold(config.topKThreshold, classifier.minConfidence)
             )
             embedding = output.embedding
             logUnmappedRegionSpecies()

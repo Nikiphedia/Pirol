@@ -415,6 +415,7 @@ def main():
     ap.add_argument("--window-sec", type=float, required=True)
     ap.add_argument("--scores-output", required=True, help="Name des Score-Ausgangs (siehe Ausgabe 'Ausgaenge')")
     ap.add_argument("--transform", choices=["none", "sigmoid", "softmax"], required=True)
+    ap.add_argument("--min-confidence", type=float, help="T156: Mindest-Konfidenz 0..1 des Modells (Profil-JSON minConfidence)")
     ap.add_argument("--labels", required=True, help="CSV der Klassen des Score-Ausgangs")
     ap.add_argument("--labels-format", choices=["csv", "birdnet24"], default="csv",
                     help="birdnet24: Textdatei 'Wissenschaftlich_Common' pro Zeile ohne Kopf; wird in eine CSV "
@@ -517,6 +518,8 @@ def main():
         labels_tmp.unlink()
     label_counts = [("species", scores, n)]
     outputs.append({"name": scores, "role": "scores", "transform": args.transform, "labels": "species"})
+    if args.min_confidence is not None:
+        outputs[-1]["minConfidence"] = args.min_confidence
     for spec in args.aux_output:
         parts = spec.split(":")
         if len(parts) < 3:

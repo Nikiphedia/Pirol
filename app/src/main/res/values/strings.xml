@@ -504,4 +504,5 @@
     <string name="palette_viridis">Viridis</string>
     <string name="palette_grayscale">Graustufen</string>
     <string name="palette_paper">Papier (hell)</string>
+    <string name="model_min_confidence">Mindest-Konfidenz %1$d %%</string>
 </resources>

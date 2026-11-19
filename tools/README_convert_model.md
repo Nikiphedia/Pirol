@@ -26,6 +26,10 @@ py -3.11 -m venv venv
   --test-audio aufnahme.wav
 ```
 
+Optional `--min-confidence 0.8` schreibt `minConfidence` in den Score-Ausgang des Profils (T156): PIROL
+nutzt dann max(globale Schwelle, 0.8) fuer dieses Modell (sinnvoll z.B. bei Softmax-Ausgaengen). Von Hand:
+`{ "name": "label", "role": "scores", "transform": "softmax", "labels": "species", "minConfidence": 0.8 }`.
+
 Die Namen der Ausgaenge stehen in der Konsole ("ONNX Ausgaenge"). Stimmt `--scores-output` nicht,
 bricht das Skript mit der Liste der vorhandenen Namen ab. Bei SavedModels sind es die Schluessel der
 Signatur (`tf.saved_model.save(..., signatures=...)`): dort sprechende Namen vergeben.

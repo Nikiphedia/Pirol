@@ -57,7 +57,9 @@ object ModelProfileJson {
         val name: String? = null,
         val role: String? = null,
         val transform: String? = null,
-        val labels: String? = null
+        val labels: String? = null,
+        // T156: nur am scores-Ausgang gueltig, 0.0..1.0
+        val minConfidence: Double? = null
     )
 
     @Serializable
@@ -154,6 +156,9 @@ object ModelProfileJson {
                 if (key !in labels) fail("outputs[$i].labels \"$key\" nicht in labels")
             }
         }
+        outputs.firstOrNull { it.role == "scores" }?.minConfidence?.let {
+            if (!(it >= 0.0 && it <= 1.0)) fail("minConfidence $it ausserhalb 0..1")
+        }
         if (outputs.map { it.name }.toSet().size != outputs.size) fail("Ausgangsnamen doppelt")
         val scores = outputs.count { it.role == "scores" }
         if (scores != 1) fail("genau ein Ausgang mit role \"scores\" noetig (sind $scores)")
@@ -234,7 +239,8 @@ object ModelProfileJson {
             inputName = input.name,
             genericLabels = genericLabels(labelSpec),
             auxOutputNames = outputs.filter { it.role == "aux" }.map { it.name!! },
-            source = ModelProfile.Source.IMPORTED
+            source = ModelProfile.Source.IMPORTED,
+            minConfidence = scores.minConfidence?.toFloat()
         )
     }
 
