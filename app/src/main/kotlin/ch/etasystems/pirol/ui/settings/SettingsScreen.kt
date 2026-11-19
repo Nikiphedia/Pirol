@@ -1182,6 +1182,36 @@ fun SettingsScreen(
             Text("GPS", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
+            // T152: GPS-Modus
+            var gpsMode by remember { mutableStateOf(appPreferences.gpsMode) }
+            Text(stringResource(R.string.settings_gps_mode), style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    ch.etasystems.pirol.data.GPS_MODE_CONTINUOUS to R.string.settings_gps_mode_continuous,
+                    ch.etasystems.pirol.data.GPS_MODE_ON_DETECTION to R.string.settings_gps_mode_on_detection
+                ).forEach { (mode, labelRes) ->
+                    FilterChip(
+                        selected = gpsMode == mode,
+                        onClick = {
+                            gpsMode = mode
+                            appPreferences.gpsMode = mode
+                        },
+                        label = { Text(stringResource(labelRes)) }
+                    )
+                }
+            }
+            val gpsOnDetection = gpsMode == ch.etasystems.pirol.data.GPS_MODE_ON_DETECTION
+            if (gpsOnDetection) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.settings_gps_mode_on_detection_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
             // GPS-Intervall
             var selectedGpsInterval by remember { mutableIntStateOf(appPreferences.gpsIntervalSeconds) }
             Text(stringResource(R.string.settings_gps_intervall), style = MaterialTheme.typography.bodyMedium)
@@ -1196,6 +1226,7 @@ fun SettingsScreen(
                 listOf(2 to "2s", 5 to "5s", 10 to "10s", 20 to "20s", 60 to "60s").forEach { (sec, label) ->
                     FilterChip(
                         selected = selectedGpsInterval == sec,
+                        enabled = !gpsOnDetection,
                         onClick = {
                             selectedGpsInterval = sec
                             appPreferences.gpsIntervalSeconds = sec

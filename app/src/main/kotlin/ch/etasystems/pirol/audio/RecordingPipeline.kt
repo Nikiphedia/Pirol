@@ -2,6 +2,7 @@ package ch.etasystems.pirol.audio
 
 import android.util.Log
 import ch.etasystems.pirol.data.repository.GpsStats
+import ch.etasystems.pirol.location.DetectionFixGate
 import ch.etasystems.pirol.location.DetectionFixPolicy
 import ch.etasystems.pirol.location.LocationData
 import ch.etasystems.pirol.ml.AudioBlock
@@ -69,6 +70,8 @@ interface PipelineHooks {
     suspend fun requestFreshFix(timeoutMs: Long): LocationData? = null
     /** T143: Genauigkeitsschwelle aus den Einstellungen (Meter) */
     fun maxFixAccuracyM(): Float = Float.MAX_VALUE
+    /** T152: GPS-Modus "Nur bei Detektion" (Fix nur bei Detektion, mind. 30 s Abstand) */
+    fun gpsOnDetectionOnly(): Boolean = false
     fun startLocation()
     /** GPS-Statistik erfassen (T53: VOR stop) und GPS stoppen */
     fun stopLocation(): GpsStats?
@@ -113,6 +116,8 @@ class RecordingPipeline(
 ) {
     companion object {
         private const val TAG = "RecordingPipeline"
+        /** T152: Timeout des Startfixes (Audio-Puffer des Service ist begrenzt) */
+        private const val STARTUP_FIX_TIMEOUT_MS = 3_000L
     }
 
     // T54-Fix: startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf
@@ -129,6 +134,9 @@ class RecordingPipeline(
 
     // T143_STATS
     private val detectionFixes = AtomicLong(0L)
+    // T152: Regel "Nur bei Detektion"; pro Aufnahme neu
+    @Volatile private var fixGate = DetectionFixGate()
+    @Volatile private var detectionOnlyGps = false
     private val staleAttached = AtomicLong(0L)
 
     // T118_STATS
@@ -193,6 +201,8 @@ class RecordingPipeline(
         if (running) return
         running = true
         persistSampleRate = sampleRate
+        detectionOnlyGps = hooks.gpsOnDetectionOnly()
+        fixGate = DetectionFixGate()
         hooks.startLocation()
         setInferenceConfig(hooks.loadInferenceConfig())
 
@@ -211,7 +221,15 @@ class RecordingPipeline(
             scope.launch(sessionDispatcher) {
                 try {
                     hooks.beforeSessionStart()  // T103a
-                    val loc = hooks.currentLocation()
+                    // T152: Startfix (kurzer Timeout, Audio-Puffer des Service ist begrenzt)
+                    if (detectionOnlyGps) {
+                        val start = try { hooks.requestFreshFix(STARTUP_FIX_TIMEOUT_MS) } catch (e: Exception) { null }
+                        if (start != null) {
+                            fixGate.seed(start)
+                            Log.i(TAG, "T152_FIX age_ms=${DetectionFixPolicy.ageMs(start, System.currentTimeMillis())} acc_m=${start.accuracyM} (Start)")
+                        }
+                    }
+                    val loc = hooks.currentLocation() ?: fixGate.latestFix()
                     currentSessionId = session.startSession(
                         sampleRate = sampleRate,
                         latitude = loc?.latitude,
@@ -291,6 +309,7 @@ class RecordingPipeline(
         // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
         // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
         inferenceWorker.flushPendingAudio()
+        if (detectionOnlyGps) Log.i(TAG, "T152_STATS fixes=${fixGate.freshCount} reused=${fixGate.reusedCount}")
         Log.i(TAG, "T143_STATS fixes=${gpsStats?.fixCount ?: 0} detection_fixes=${detectionFixes.get()} stale_attached=${staleAttached.get()}")
         val statsPreroll = prerollSamplesFed.get()
         val statsLive = liveSamplesFed.get()
@@ -323,15 +342,20 @@ class RecordingPipeline(
      */
     private suspend fun refreshFixes(newDetections: List<DetectionResult>, lastFix: LocationData?) {
         val maxAcc = hooks.maxFixAccuracyM()
-        if (!DetectionFixPolicy.needsFreshFix(lastFix, System.currentTimeMillis(), maxAcc)) return
-        val fresh = try {
-            hooks.requestFreshFix(DetectionFixPolicy.FRESH_FIX_TIMEOUT_MS)
-        } catch (e: Exception) {
-            Log.w(TAG, "Frischer Fix fehlgeschlagen", e)
-            null
+        val choice: DetectionFixPolicy.Choice
+        if (detectionOnlyGps) {
+            choice = obtainDetectionFix(lastFix, DetectionFixPolicy.FRESH_FIX_TIMEOUT_MS)
+        } else {
+            if (!DetectionFixPolicy.needsFreshFix(lastFix, System.currentTimeMillis(), maxAcc)) return
+            val fresh = try {
+                hooks.requestFreshFix(DetectionFixPolicy.FRESH_FIX_TIMEOUT_MS)
+            } catch (e: Exception) {
+                Log.w(TAG, "Frischer Fix fehlgeschlagen", e)
+                null
+            }
+            choice = DetectionFixPolicy.choose(lastFix, fresh, System.currentTimeMillis(), maxAcc)
         }
         val now = System.currentTimeMillis()
-        val choice = DetectionFixPolicy.choose(lastFix, fresh, now, maxAcc)
         val fix = choice.fix ?: return
         if (choice.stale) staleAttached.incrementAndGet()
         if (choice.source == DetectionFixPolicy.Source.FRESH) detectionFixes.incrementAndGet()
@@ -344,6 +368,16 @@ class RecordingPipeline(
             )
             if (detectionListState.updateDetection(updated) && session.isActive) session.replaceDetection(updated)
         }
+    }
+
+    /** T152: Fix ueber [DetectionFixGate] holen (Wiederverwendung < 30 s, mind. 30 s Abstand, ein Fix gleichzeitig). */
+    private suspend fun obtainDetectionFix(lastFix: LocationData?, timeoutMs: Long): DetectionFixPolicy.Choice {
+        val r = fixGate.obtain(lastFix, hooks.maxFixAccuracyM()) { hooks.requestFreshFix(timeoutMs) }
+        val fix = r.choice.fix
+        if (r.fetched && fix != null) {
+            Log.i(TAG, "T152_FIX age_ms=${DetectionFixPolicy.ageMs(fix, System.currentTimeMillis())} acc_m=${fix.accuracyM}")
+        }
+        return r.choice
     }
 
     // --- Detektionsverarbeitung (Callback nur bei Treffern) ---

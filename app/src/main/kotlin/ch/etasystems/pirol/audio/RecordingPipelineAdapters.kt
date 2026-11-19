@@ -156,9 +156,10 @@ class AndroidPipelineHooks(
     override fun currentLocation(): LocationData? = locationProvider.location.value
     override suspend fun requestFreshFix(timeoutMs: Long): LocationData? = locationProvider.requestFreshFix(timeoutMs)
     override fun maxFixAccuracyM(): Float = appPreferences.gpsMaxAccuracyMeters
+    override fun gpsOnDetectionOnly(): Boolean = appPreferences.gpsOnDetectionOnly
     override fun startLocation() = locationProvider.start()
     override fun stopLocation(): GpsStats {
-        val stats = locationProvider.buildGpsStats(appPreferences.gpsIntervalSeconds * 1000L)
+        val stats = locationProvider.buildGpsStats(if (appPreferences.gpsOnDetectionOnly) 0L else appPreferences.gpsIntervalSeconds * 1000L)
         locationProvider.stop()
         return stats
     }

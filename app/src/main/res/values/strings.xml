@@ -496,4 +496,8 @@
     <string name="model_delete">Modell loeschen</string>
     <string name="model_delete_confirm">%1$s mit Profil und Labels loeschen? Das laesst sich nicht rueckgaengig machen.</string>
     <string name="model_deleted">%1$s geloescht</string>
+    <string name="settings_gps_mode">GPS-Modus</string>
+    <string name="settings_gps_mode_continuous">Dauernd</string>
+    <string name="settings_gps_mode_on_detection">Nur bei Detektion</string>
+    <string name="settings_gps_mode_on_detection_hint">GPS wird nur bei einer Detektion eingeschaltet, mindestens 30 s zwischen zwei Fixes. Spart Akku; das Intervall gilt in diesem Modus nicht.</string>
 </resources>

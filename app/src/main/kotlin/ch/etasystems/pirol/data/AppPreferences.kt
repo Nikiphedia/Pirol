@@ -8,6 +8,10 @@ import ch.etasystems.pirol.ml.InferenceConfig
  * SharedPreferences-Wrapper fuer persistente App-Einstellungen.
  * Keys mit Prefix pirol_ um Kollisionen zu vermeiden.
  */
+/** T152: GPS-Modus-Werte (Persistenz in pirol_gps_mode). */
+const val GPS_MODE_CONTINUOUS = "continuous"
+const val GPS_MODE_ON_DETECTION = "on_detection"
+
 class AppPreferences(context: Context) {
 
     private val prefs = context.getSharedPreferences("pirol_prefs", Context.MODE_PRIVATE)
@@ -103,6 +107,13 @@ class AppPreferences(context: Context) {
     var gpsIntervalSeconds: Int
         get() = prefs.getInt("pirol_gps_interval_sec", 10)
         set(value) = prefs.edit().putInt("pirol_gps_interval_sec", value).apply()
+
+    /** T152: GPS-Modus: "continuous" (Dauernd, Standard) oder "on_detection" (Nur bei Detektion). */
+    var gpsMode: String
+        get() = prefs.getString("pirol_gps_mode", GPS_MODE_CONTINUOUS) ?: GPS_MODE_CONTINUOUS
+        set(value) = prefs.edit().putString("pirol_gps_mode", value).apply()
+
+    val gpsOnDetectionOnly: Boolean get() = gpsMode == GPS_MODE_ON_DETECTION
 
     // --- Sonogramm-Config (T30) ---
     var spectrogramConfigName: String
