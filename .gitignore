@@ -38,3 +38,12 @@ keystore.properties
 # Archiv-Ordner: bereits versionierte Dateien bleiben, neue werden nicht mehr erfasst
 Historisch/
 Daten/
+
+# Projektsteuerung (nur lokal, nicht auf GitHub) — User-Entscheid 2026-11-19
+Arbeitspaket_*.md
+Backlog_*.md
+Befund_*.md
+Bericht_*.md
+Handover_Master_*.md
+master-briefing.md
+Prompt_Nachfolger.md

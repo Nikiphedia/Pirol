@@ -2,7 +2,7 @@
 
 Das Skript wandelt ein TensorFlow-SavedModel, Keras-Modell (`.keras`, `.h5`) oder TFLite-Modell
 nach ONNX um, schreibt das PIROL-Profil (`<id>.pirol.json`, Format `pirol-model/1`, siehe
-`Arbeitspaket_T151.md`) und prueft, dass das ONNX dasselbe rechnet wie das Original.
+`MODEL_PROFILE_FORMAT.md`) und prueft, dass das ONNX dasselbe rechnet wie das Original.
 
 ## Installation
 
@@ -63,7 +63,7 @@ Protobuf-Modell (`BirdNET_v2.4_protobuf.zip`, Zenodo 15050749) nehmen; es hat di
   --transform sigmoid --labels labels\en_us.txt --labels-format birdnet24 --test-audio ausschnitt.wav
 ```
 
-Ausfuehrliche Angaben: `Bericht_T147_BirdNET24.md`.
+Ausfuehrliche Angaben: Bericht T147 (lokal beim Projekt-Master).
 
 ## Ausgabe
 
