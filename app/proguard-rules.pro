@@ -17,3 +17,15 @@
 -keepclasseswithmembers class ch.etasystems.pirol.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# T142: Release-Build (R8) — SMB-Bibliothek smbj (T125)
+# Kerberos (org.ietf.jgss) und Expression Language (javax.el) gibt es auf Android nicht;
+# PIROL nutzt nur NTLM-Anmeldung, die betroffenen Pfade werden nie aufgerufen.
+-dontwarn javax.el.**
+-dontwarn org.ietf.jgss.**
+# smbj und der Event-Bus mbassador arbeiten mit Reflection
+-keep class com.hierynomus.** { *; }
+-keep class net.engio.mbassy.** { *; }
+-dontwarn org.slf4j.**
+# ONNX Runtime (JNI ruft Java-Klassen per Namen)
+-keep class ai.onnxruntime.** { *; }
