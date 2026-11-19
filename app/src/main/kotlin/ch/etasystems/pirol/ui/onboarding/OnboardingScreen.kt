@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -85,7 +87,11 @@ fun OnboardingScreen(
     var downloadProgress by remember { mutableFloatStateOf(0f) }
     var importError by remember { mutableStateOf<String?>(null) }
     // T103a: Standard = BirdNET 3.0 final FP16 (E1), erster Katalog-Eintrag
-    var selectedModel by remember { mutableStateOf(ModelProfile.CATALOG.first()) }
+    // T145: Mehrfachwahl, Download nacheinander
+    var selectedIds by remember { mutableStateOf(setOf(ModelProfile.CATALOG.first().id)) }
+    var queueIndex by remember { mutableIntStateOf(0) }
+    var queueTotal by remember { mutableIntStateOf(0) }
+    var queueErrors by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingImport by remember { mutableStateOf<ModelManager.ImportResult.NeedsProfile?>(null) }
 
     // T103a: Ergebnis eines Imports auswerten (Erfolg, Rueckfrage zum Profil, Fehler)
@@ -213,7 +219,14 @@ fun OnboardingScreen(
                     "ch_breeding" to AppStrings.get(R.string.onboarding_schweizer_brutvoegel_180_arten),
                     // T106: ID muss in region_sets.json existieren ("dach" gab es nie → Filter war aus)
                     "central_europe" to AppStrings.get(R.string.onboarding_mitteleuropa_302_arten),
-                    null to AppStrings.get(R.string.onboarding_alle_arten_11_560)
+                    null to AppStrings.get(
+                        R.string.onboarding_alle_arten_n,
+                        ModelSelection.formatSpeciesCount(
+                            if (modelManager.isModelInstalled()) modelManager.getActiveProfile().speciesCount
+                            else (ModelSelection.queue(selectedIds, ModelProfile.CATALOG).firstOrNull()
+                                ?: ModelProfile.CATALOG.first()).speciesCount
+                        )
+                    )
                 )
 
                 Column(modifier = Modifier.selectableGroup()) {
@@ -305,22 +318,26 @@ fun OnboardingScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Column(modifier = Modifier.selectableGroup()) {
+                    Column {
                         ModelProfile.CATALOG.filter { it.downloadUrl != null }.forEach { model ->
+                            val checked = model.id in selectedIds
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .selectable(
-                                        selected = selectedModel == model,
-                                        onClick = { selectedModel = model },
-                                        role = Role.RadioButton
+                                    .toggleable(
+                                        value = checked,
+                                        enabled = !isDownloading && runningDownload == null,
+                                        onValueChange = {
+                                            selectedIds = if (checked) selectedIds - model.id else selectedIds + model.id
+                                        },
+                                        role = Role.Checkbox
                                     )
                                     .padding(vertical = 8.dp, horizontal = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                RadioButton(
-                                    selected = selectedModel == model,
-                                    onClick = null
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = null
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
@@ -347,7 +364,8 @@ fun OnboardingScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = stringResource(R.string.onboarding_wird_heruntergeladen),
+                                text = stringResource(R.string.onboarding_wird_heruntergeladen) +
+                                    if (queueTotal > 1) " " + stringResource(R.string.onboarding_modell_x_von_n, queueIndex, queueTotal) else "",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -386,38 +404,62 @@ fun OnboardingScreen(
                         }
                     } else {
                         // Download-Button
-                        val partialBytes = remember(selectedModel, partialTick, runningDownload) {
-                            modelManager.getPartialBytes(selectedModel)
+                        val queue = ModelSelection.queue(selectedIds, ModelProfile.CATALOG)
+                        val partialBytes = remember(selectedIds, partialTick, runningDownload) {
+                            queue.sumOf { modelManager.getPartialBytes(it) }
                         }
+                        val totalMB = queue.sumOf { it.expectedSizeMB }
                         Button(
+                            enabled = queue.isNotEmpty(),
                             onClick = {
                                 isDownloading = true
                                 importError = null
+                                queueErrors = emptyList()
+                                queueTotal = queue.size
                                 scope.launch {
-                                    val success = modelManager.downloadModel(selectedModel) { progress ->
-                                        downloadProgress = progress
+                                    val succeeded = mutableListOf<ModelProfile>()
+                                    val errors = mutableListOf<String>()
+                                    for ((i, model) in queue.withIndex()) {
+                                        queueIndex = i + 1
+                                        downloadProgress = 0f
+                                        val ok = modelManager.downloadModel(model) { progress ->
+                                            downloadProgress = progress
+                                        }
+                                        if (ok) {
+                                            succeeded += model
+                                        } else if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) {
+                                            // Abbrechen beendet die ganze Warteschlange, Teildatei bleibt (T104)
+                                            errors += AppStrings.get(R.string.onboarding_download_abgebrochen_teil_bleibt_zum)
+                                            break
+                                        } else {
+                                            errors += model.name + ": " + (modelManager.lastDownloadError ?: AppStrings.get(R.string.onboarding_internetverbindung_pruefen))  // T121/T104
+                                        }
                                     }
                                     isDownloading = false
-                                    if (success) {
-                                        isModelInstalled = true
+                                    queueTotal = 0
+                                    queueErrors = errors
+                                    // Aktives Modell: V3.0 final, sonst das erste erfolgreiche
+                                    ModelSelection.pickActive(succeeded, ModelProfile.V3_FINAL_FP16.id)?.let {
+                                        modelManager.setActiveModel(it.fileName)
+                                    }
+                                    isModelInstalled = modelManager.isModelInstalled() || classifier.isModelAvailable()
+                                    partialTick++
+                                    if (succeeded.isNotEmpty()) {
                                         classifier.resetSession()
                                         Toast.makeText(context, AppStrings.get(R.string.onboarding_modell_heruntergeladen), Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        importError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) AppStrings.get(R.string.onboarding_download_abgebrochen_teil_bleibt_zum)
-                                        else AppStrings.get(R.string.onboarding_download_fehlgeschlagen) + (modelManager.lastDownloadError ?: AppStrings.get(R.string.onboarding_internetverbindung_pruefen))  // T121/T104
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                if (partialBytes > 0L) AppStrings.get(R.string.onboarding_fortsetzen_von_mb, partialBytes / 1_000_000, selectedModel.expectedSizeMB)
-                                else AppStrings.get(R.string.onboarding_herunterladen_mb, selectedModel.expectedSizeMB)
+                                if (partialBytes > 0L) AppStrings.get(R.string.onboarding_fortsetzen_von_mb, partialBytes / 1_000_000, totalMB)
+                                else AppStrings.get(R.string.onboarding_herunterladen_mb, totalMB)
                             )
                         }
                         if (partialBytes > 0L) {
                             TextButton(onClick = {
-                                modelManager.discardPartialDownload(selectedModel)
+                                queue.forEach { modelManager.discardPartialDownload(it) }
                                 partialTick++
                             }) {
                                 Text(stringResource(R.string.onboarding_verwerfen))
@@ -435,6 +477,12 @@ fun OnboardingScreen(
                             Text(stringResource(R.string.onboarding_modell_datei_manuell_auswaehlen))
                         }
                     }
+                }
+
+                // T145: Fehler pro Modell
+                queueErrors.forEach {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
 
                 // Fehlermeldung

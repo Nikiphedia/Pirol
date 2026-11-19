@@ -369,7 +369,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Cette zone nécessite %1$s tuiles (zoom %2$s-%3$s). Maximum autorisé : %4$s. Veuillez zoomer davantage.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Oiseaux nicheurs suisses (180 espèces)</string>
     <string name="onboarding_mitteleuropa_302_arten">Europe centrale (302 espèces)</string>
-    <string name="onboarding_alle_arten_11_560">Toutes les espèces (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Téléchargement interrompu, la partie reste disponible pour la reprise</string>
     <string name="onboarding_download_fehlgeschlagen">"Échec du téléchargement : "</string>
     <string name="onboarding_internetverbindung_pruefen">Vérifier la connexion Internet</string>
@@ -463,4 +462,5 @@
     <string name="settings_alarm_testen_5s">Dans 5 s, verrouiller l\'appareil</string>
     <string name="settings_alarm_fullscreen_hinweis">Sur l\'écran de verrouillage, l\'alarme n\'apparaît que comme notification tant que les \"notifications plein écran\" ne sont pas autorisées pour PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Ouvrir l\'autorisation</string>
+    <string name="onboarding_alle_arten_n">Toutes les espèces (11\'560)</string>
 </resources>

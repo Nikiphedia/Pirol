@@ -455,7 +455,14 @@ fun SettingsScreen(
             if (installedModels.isNotEmpty()) {
                 // Aktives Modell anzeigen
                 Text(
-                    text = stringResource(R.string.settings_arten, classifier.modelName, classifier.labelCount),
+                    text = // T145: Name und Artenzahl direkt aus dem aktiven Profil (classifier.labelCount hinkt nach Wechsel hinterher)
+                    stringResource(
+                        R.string.settings_arten,
+                        installedModels.firstOrNull { it.isActive }?.profile?.name ?: classifier.modelName,
+                        ch.etasystems.pirol.ui.onboarding.ModelSelection.formatSpeciesCount(
+                            installedModels.firstOrNull { it.isActive }?.profile?.speciesCount ?: classifier.labelCount
+                        )
+                    ),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))

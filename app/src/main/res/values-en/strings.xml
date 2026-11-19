@@ -368,7 +368,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">This area needs %1$s tiles (zoom %2$s-%3$s). A maximum of %4$s is allowed. Please zoom in further.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Swiss breeding birds (180 species)</string>
     <string name="onboarding_mitteleuropa_302_arten">Central Europe (302 species)</string>
-    <string name="onboarding_alle_arten_11_560">All species (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download cancelled — partial file is kept for resuming</string>
     <string name="onboarding_download_fehlgeschlagen">"Download failed — "</string>
     <string name="onboarding_internetverbindung_pruefen">Check internet connection</string>
@@ -478,4 +477,6 @@
     <string name="mig_result_failed">%1$d moved, %2$d failed. Originals are unchanged. %3$s</string>
     <string name="mig_notif_done_title">Session migration finished</string>
     <string name="mig_notif_result">%1$d moved, %2$d skipped, %3$d failed</string>
+    <string name="onboarding_alle_arten_n">All species (%1$s)</string>
+    <string name="onboarding_modell_x_von_n">(model %1$d of %2$d)</string>
 </resources>

@@ -369,7 +369,6 @@
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Aquesta àrea necessita %1$s rajoles (zoom %2$s-%3$s). El màxim permès és %4$s. Apropeu-vos més.</string>
     <string name="onboarding_schweizer_brutvoegel_180_arten">Ocells nidificants suïssos (180 espècies)</string>
     <string name="onboarding_mitteleuropa_302_arten">Europa central (302 espècies)</string>
-    <string name="onboarding_alle_arten_11_560">Totes les espècies (11\'560)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Descàrrega interrompuda: la part descarregada es conserva per continuar</string>
     <string name="onboarding_download_fehlgeschlagen">"La descàrrega ha fallat: "</string>
     <string name="onboarding_internetverbindung_pruefen">Comproveu la connexió a Internet</string>
@@ -463,4 +462,5 @@
     <string name="settings_alarm_testen_5s">D\'aquí a 5 s, bloqueja el dispositiu</string>
     <string name="settings_alarm_fullscreen_hinweis">A la pantalla de bloqueig, l\'alarma només apareix com a notificació mentre no es permetin les \"notificacions a pantalla completa\" per a PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Obre el permís</string>
+    <string name="onboarding_alle_arten_n">Totes les espècies (11\'560)</string>
 </resources>
