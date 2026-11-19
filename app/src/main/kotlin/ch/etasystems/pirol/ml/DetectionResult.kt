@@ -59,7 +59,10 @@ data class DetectionResult(
     val note: String? = null,               // Freitext-Bemerkung
     val voiceMemoFile: String? = null,       // relativer Pfad zur WAV, z.B. "memos/det_xyz.wav"
     val manualEntry: Boolean = false,        // true = Art manuell hinzugefuegt (Cluster B)
-    val lockSpecies: Boolean = false         // true = nur 1 Meldung (Cluster B)
+    val lockSpecies: Boolean = false,        // true = nur 1 Meldung (Cluster B)
+    // T143: Qualitaet der angehaengten Position (null = unbekannt / alte JSONL)
+    val locationAgeMs: Long? = null,         // Alter des Fixes zum Zeitpunkt der Detektion
+    val locationAccuracyM: Float? = null     // Genauigkeit des Fixes in Metern
 )
 
 /**

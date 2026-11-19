@@ -6,6 +6,9 @@ import android.os.Looper
 import android.util.Log
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.GpsStats
+import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.suspendCancellableCoroutine
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -183,6 +186,44 @@ class LocationProvider(
             }
         } catch (e: SecurityException) {
             Log.w(TAG, "LastKnown ohne Permission nicht verfuegbar")
+        }
+    }
+
+    /**
+     * T143: Frischen High-Accuracy-Fix anfordern (fuer neue Detektionen). Liefert null bei Timeout,
+     * fehlender Permission oder Fehler. Laeuft im Kontext des Aufrufers (Dienst-Pipeline), nicht der UI.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun requestFreshFix(timeoutMs: Long): LocationData? = suspendCancellableCoroutine { cont ->
+        val cts = CancellationTokenSource()
+        cont.invokeOnCancellation { cts.cancel() }
+        try {
+            val request = CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .setDurationMillis(timeoutMs)
+                .setMaxUpdateAgeMillis(0L)
+                .build()
+            fusedClient.getCurrentLocation(request, cts.token)
+                .addOnSuccessListener { loc ->
+                    val data = loc?.let {
+                        LocationData(
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            altitudeM = if (it.hasAltitude()) it.altitude else null,
+                            accuracyM = if (it.hasAccuracy()) it.accuracy else null,
+                            timestampMs = it.time
+                        )
+                    }
+                    if (cont.isActive) cont.resume(data) {}
+                }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "Frischer Fix fehlgeschlagen: ${e.message}")
+                    if (cont.isActive) cont.resume(null) {}
+                }
+                .addOnCanceledListener { if (cont.isActive) cont.resume(null) {} }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Frischer Fix ohne Permission nicht verfuegbar")
+            if (cont.isActive) cont.resume(null) {}
         }
     }
 
