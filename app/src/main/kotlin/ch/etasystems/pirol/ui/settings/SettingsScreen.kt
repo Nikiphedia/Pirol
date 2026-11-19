@@ -101,6 +101,7 @@ import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.font.FontFamily
 import ch.etasystems.pirol.ml.OnnxBenchmark
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -170,6 +171,10 @@ fun SettingsScreen(
     var benchmarkRunning by remember { mutableStateOf(false) }
     var benchmarkProgress by remember { mutableStateOf("") }
     var benchmarkReport by remember { mutableStateOf("") }
+    // T146: Benchmark fuer beliebige ONNX-Datei
+    var genericBenchRunning by remember { mutableStateOf(false) }
+    var genericBenchProgress by remember { mutableStateOf("") }
+    var genericBenchReport by remember { mutableStateOf("") }
 
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
@@ -2038,6 +2043,59 @@ fun SettingsScreen(
                 SelectionContainer {
                     Text(
                         text = benchmarkReport,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+            // T146: Benchmark fuer eine beliebige ONNX-Datei
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.settings_bench_datei_hinweis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            val genericBenchContext = LocalContext.current
+            val genericBenchLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    genericBenchRunning = true
+                    genericBenchReport = ""
+                    scope.launch {
+                        val tmp = File(genericBenchContext.cacheDir, "t146_bench.onnx")
+                        genericBenchReport = try {
+                            genericBenchProgress = AppStrings.get(R.string.settings_bench_datei_kopiere)
+                            val name = withContext(Dispatchers.IO) {
+                                genericBenchContext.contentResolver.openInputStream(uri)!!.use { input ->
+                                    tmp.outputStream().use { input.copyTo(it) }
+                                }
+                                genericBenchContext.contentResolver.query(
+                                    uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
+                                )?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "model.onnx"
+                            }
+                            OnnxBenchmark.runGeneric(tmp, name) { genericBenchProgress = it }
+                        } catch (e: Throwable) {
+                            AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
+                        } finally {
+                            tmp.delete()
+                        }
+                        genericBenchRunning = false
+                    }
+                }
+            }
+            OutlinedButton(
+                enabled = !genericBenchRunning && !benchmarkRunning,
+                onClick = { genericBenchLauncher.launch(arrayOf("*/*")) }
+            ) {
+                Text(if (genericBenchRunning) stringResource(R.string.settings_laeuft, genericBenchProgress) else stringResource(R.string.settings_bench_datei_waehlen))
+            }
+            if (genericBenchReport.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SelectionContainer {
+                    Text(
+                        text = genericBenchReport,
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace
                     )

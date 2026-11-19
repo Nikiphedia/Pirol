@@ -479,4 +479,7 @@
     <string name="mig_result_failed">%1$d verschoben, %2$d fehlgeschlagen. Originale bleiben unverändert. %3$s</string>
     <string name="mig_notif_done_title">Session-Migration beendet</string>
     <string name="mig_notif_result">%1$d verschoben, %2$d übersprungen, %3$d fehlgeschlagen</string>
+    <string name="settings_bench_datei_hinweis">Misst eine beliebige ONNX-Datei (z.B. aus Download) mit Zufallsrauschen, 1/2/4 Threads. Die Datei wird kurz in den Cache kopiert.</string>
+    <string name="settings_bench_datei_waehlen">ONNX-Datei wählen und messen</string>
+    <string name="settings_bench_datei_kopiere">Kopiere Datei</string>
 </resources>
