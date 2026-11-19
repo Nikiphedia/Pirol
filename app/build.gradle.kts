@@ -151,7 +151,6 @@ dependencies {
 
     // NAS-Upload via SMB + verschluesseltes Passwort (T125)
     implementation(libs.smbj)
-    implementation(libs.security.crypto)
 
     // Unit-Tests (T53: AccuracyFilterTest, MedianSmoothingTest)
     testImplementation("junit:junit:4.13.2")
