@@ -4,6 +4,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -47,6 +49,7 @@ fun Modifier.onSpectrogramLongPress(onLongPress: () -> Unit): Modifier =
  * @param onClose Schliessen-Aktion (null = kein "Fertig"-Knopf, z.B. eingebettet in den Settings)
  * @param showWindow Zeitfenster-Regler nur im Live-Tab (Analyse zeigt immer die ganze Session)
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SpectrogramSettingsPanel(
     repository: SpectrogramSettingsRepository,
@@ -71,24 +74,24 @@ fun SpectrogramSettingsPanel(
             modifier = scrollModifier
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                ) {
-                    SpectrogramPreset.entries.forEach { preset ->
-                        FilterChip(
-                            selected = activePreset == preset,
-                            onClick = { repository.applyPreset(preset) },
-                            label = { Text(stringResource(preset.labelRes)) }
-                        )
-                    }
+            // T177: "Fertig" in eigener Zeile oben rechts, Presets als umbrechende Kacheln
+            // (auf schmalen Telefonen wurde "Fertig" neben der Preset-Zeile zerdrueckt)
+            if (onClose != null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
                 }
-                if (onClose != null) TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                SpectrogramPreset.entries.forEach { preset ->
+                    FilterChip(
+                        selected = activePreset == preset,
+                        onClick = { repository.applyPreset(preset) },
+                        label = { Text(stringResource(preset.labelRes)) }
+                    )
+                }
             }
 
             // Helligkeit/Kontrast: Auto-Kontrast + dB-Schwellen
@@ -147,7 +150,7 @@ fun SpectrogramSettingsPanel(
             )
 
             Text(stringResource(R.string.ui_farbpalette), style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {  // T177: Kacheln, umbrechend
                 SpectrogramPalette.entries.forEach { p ->
                     FilterChip(
                         selected = settings.palette == p,
