@@ -519,7 +519,7 @@ class LiveViewModel(
     /**
      * Verifiziert eine Detektion (Bestaetigen/Ablehnen/Korrigieren).
      * Aktualisiert DetectionListState + persistiert in verifications.jsonl.
-     * Zeigt Snackbar mit Undo-Action (T52).
+     * Keine Snackbar (T174): Rueckgaengig direkt auf der Artkarte.
      */
     fun verifyDetection(
         detectionId: String,
@@ -535,22 +535,8 @@ class LiveViewModel(
         // In-Memory aktualisieren
         detectionListState.updateVerification(detectionId, status, correctedSpecies)
 
-        // Snackbar senden (T52)
-        val name = detection?.commonName ?: ""
-        val message = when (status) {
-            VerificationStatus.CONFIRMED  -> AppStrings.get(R.string.live_bestaetigt, name)
-            VerificationStatus.REJECTED   -> AppStrings.get(R.string.live_abgelehnt, name)
-            VerificationStatus.UNCERTAIN  -> AppStrings.get(R.string.live_als_unsicher_markiert, name)
-            VerificationStatus.CORRECTED  -> "\u270E $name \u2192 ${correctedSpecies ?: "?"}"
-            else -> name
-        }
-        viewModelScope.launch {
-            _snackbarChannel.send(SnackbarEvent(
-                message = message,
-                actionLabel = AppStrings.get(R.string.common_undo),
-                onAction = { undoLastVerification() }
-            ))
-        }
+        // T174: keine Undo-Snackbar mehr; Rueckgaengig/Aendern geht direkt auf der Artkarte
+        // (gruener Undo-Knopf bei CONFIRMED, Unsicher/Ablehnen/Bearbeiten immer sichtbar)
 
         // Persistieren (falls Session aktiv)
         if (sessionManager.isActive) {
