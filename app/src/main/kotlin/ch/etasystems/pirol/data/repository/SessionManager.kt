@@ -1177,6 +1177,13 @@ class SessionManager(
             for (v in verifications) {
                 val idx = detections.indexOfFirst { it.id == v.detectionId }
                 if (idx >= 0) {
+                    // T165: POSITION_MOVED setzt nur die Position, nicht den Verifikationsstatus
+                    val moved = ch.etasystems.pirol.ui.map.MapPositionMove.parse(v)
+                    if (moved != null) {
+                        detections[idx] = detections[idx].copy(latitude = moved.first, longitude = moved.second)
+                        continue
+                    }
+                    if (v.actionType == VerificationEvent.ACTION_POSITION_MOVED) continue
                     detections[idx] = detections[idx].copy(
                         verificationStatus = v.status,
                         correctedSpecies = v.correctedSpecies,
@@ -1513,13 +1520,14 @@ class SessionManager(
         sessionId: String,
         detectionId: String,
         newLat: Double,
-        newLon: Double
+        newLon: Double,
+        status: VerificationStatus = VerificationStatus.UNVERIFIED
     ) = withContext(Dispatchers.IO) {
         val dir = listSessions().firstOrNull { loadMetadata(it)?.sessionId == sessionId }
             ?: return@withContext
         val event = VerificationEvent(
             detectionId = detectionId,
-            status = VerificationStatus.UNVERIFIED,
+            status = status,
             verifiedAtMs = System.currentTimeMillis(),
             actionType = VerificationEvent.ACTION_POSITION_MOVED,
             newValue = "$newLat,$newLon"

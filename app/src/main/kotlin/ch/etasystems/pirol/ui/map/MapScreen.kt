@@ -431,7 +431,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     (nearPx.x - e.x).toDouble(),
                                     (nearPx.y - e.y).toDouble()
                                 )
-                                if (dist < 120.0) {   // 120px ~ 40dp - grosszuegiger Tap-Target
+                                // T165: Trefferradius dp-basiert (40 dp), unabhaengig von der Bildschirmdichte
+                                if (dist < 40.0 * mapView.resources.displayMetrics.density) {
                                     if (nearest.items.size > 1) {
                                         viewModel.selectCluster(nearest)
                                     } else {
@@ -528,6 +529,11 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     atlasCode = m.atlasCode, count = m.count
                                 )
                                 marker.title = AppStrings.get(R.string.map_live_2, m.species, (m.confidence * 100).toInt())
+                                // T165: Tap oeffnet das Aktionsmenue (inkl. Position verschieben)
+                                marker.setOnMarkerClickListener { _, _ ->
+                                    viewModel.onMarkerLongPress(m)
+                                    true
+                                }
                             } else {
                                 val isAnchor = m.detectionId == state.linkAnchor?.detectionId
                                 val color = colorRepo.getColor(m.species)
@@ -539,11 +545,11 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 )
                                 marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
                                 marker.snippet = m.sessionId.take(16)
-                                if (state.focusMode) {
-                                    marker.setOnMarkerClickListener { _, _ ->
-                                        viewModel.selectLinkTarget(m)
-                                        true
-                                    }
+                                marker.setOnMarkerClickListener { _, _ ->
+                                    // Fokus: Linkziel waehlen; sonst (T165) Tap oeffnet das Aktionsmenue
+                                    if (state.focusMode) viewModel.selectLinkTarget(m)
+                                    else viewModel.onMarkerLongPress(m)
+                                    true
                                 }
                             }
                         } else {
@@ -665,8 +671,15 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 MapVerifyButtons(
                                     status = m.verificationStatus,
                                     onVerify = { viewModel.verifyMarker(m, it) },
-                                    modifier = Modifier.padding(bottom = 6.dp)
+                                    modifier = Modifier.padding(bottom = 2.dp)
                                 )
+                                // T165: Einzelpunkt aus dem Cluster verschieben
+                                if (!state.focusMode) {
+                                    TextButton(
+                                        onClick = { viewModel.selectMarkerForMove(m) },
+                                        modifier = Modifier.heightIn(min = 48.dp)
+                                    ) { Text(stringResource(R.string.map_position_verschieben)) }
+                                }
                                 HorizontalDivider()
                             }
                         }
@@ -715,14 +728,22 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     viewModel.selectMarkerForEdit(longPressTarget)
                                 }
                             ) { Text(stringResource(R.string.common_edit)) }
+                            // T165: Verschieben auch fuer Live-Punkte (ohne Session nur in der Liste -> Hinweis)
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    viewModel.dismissLongPressMenu()
+                                    viewModel.selectMarkerForMove(longPressTarget)
+                                }
+                            ) { Text(stringResource(R.string.map_position_verschieben)) }
+                            if (longPressTarget.isLive && !viewModel.liveMovePersisted) {
+                                Text(
+                                    stringResource(R.string.map_move_live_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             if (!longPressTarget.isLive) {
-                                OutlinedButton(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = {
-                                        viewModel.dismissLongPressMenu()
-                                        viewModel.selectMarkerForMove(longPressTarget)
-                                    }
-                                ) { Text(stringResource(R.string.map_position_verschieben)) }
                                 Button(
                                     modifier = Modifier.fillMaxWidth(),
                                     onClick = {
@@ -1123,48 +1144,44 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     .size(48.dp)
             )
 
-            // Abbrechen — oben links
-            IconButton(
-                onClick = { viewModel.dismissPositionMove() },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-            ) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel),
-                    tint = MaterialTheme.colorScheme.onSurface)
-            }
-
-            // Speichern — oben rechts
-            IconButton(
-                onClick = {
-                    mapViewRef.value?.let { mv ->
-                        viewModel.confirmPositionMove(
-                            mv.mapCenter.latitude,
-                            mv.mapCenter.longitude
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-            ) {
-                Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.common_save),
-                    tint = MaterialTheme.colorScheme.primary)
-            }
-
-            // Art-Name als Kontext
-            Text(
-                text = state.positionMoveTarget!!.species,
+            // T165: Hinweis-Banner oben
+            Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 16.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        shape = MaterialTheme.shapes.small
-                    )
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.bodyMedium
-            )
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                tonalElevation = 4.dp
+            ) {
+                Text(
+                    text = stringResource(R.string.map_move_banner, state.positionMoveTarget!!.species),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            // T165: grosse Knoepfe unten (56 dp), gut mit dem Daumen erreichbar
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.dismissPositionMove() },
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) { Text(stringResource(R.string.common_cancel)) }
+                Button(
+                    onClick = {
+                        mapViewRef.value?.let { mv ->
+                            viewModel.confirmPositionMove(mv.mapCenter.latitude, mv.mapCenter.longitude)
+                        }
+                    },
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                ) { Text(stringResource(R.string.map_move_apply)) }
+            }
         }
     }
 }

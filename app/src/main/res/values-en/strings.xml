@@ -504,4 +504,8 @@
     <string name="palette_grayscale">Grayscale</string>
     <string name="palette_paper">Paper (light)</string>
     <string name="model_min_confidence">Minimum confidence %1$d%%</string>
+    <string name="map_position_verschoben">%1$s moved</string>
+    <string name="map_move_banner">Move the map so the crosshair sits on the new position of %1$s, then tap Apply.</string>
+    <string name="map_move_apply">Apply</string>
+    <string name="map_move_live_hint">No running session: the new position only lasts until the app is closed.</string>
 </resources>
