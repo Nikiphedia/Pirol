@@ -1131,7 +1131,8 @@ private fun SpectrogramBox(
             .background(if (settings.palette.isLight) Color.White else Color.Black)
             .onSpectrogramLongPress(onLongPress)
     ) {
-        if (uiState.spectrogramState.availableFrames > 0) {
+        // T176: beobachtbarer State statt availableFrames (nicht beobachtbar → Platzhalter blieb stehen)
+        if (uiState.spectrogramState.hasFrames) {
             SpectrogramOverlay(
                 config = uiState.spectrogramConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
                 spectrogramState = uiState.spectrogramState,

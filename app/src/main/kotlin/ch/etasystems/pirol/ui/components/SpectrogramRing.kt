@@ -53,6 +53,17 @@ internal fun rangeNeedsRebuild(lastMin: Float, lastMax: Float, minDb: Float, max
         abs(minDb - lastMin) > RANGE_REBUILD_TOLERANCE_DB || abs(maxDb - lastMax) > RANGE_REBUILD_TOLERANCE_DB
 
 /**
+ * T176: dB-Bereich fuer die Farbabbildung absichern. Nicht-endliche Grenzen (NaN/Inf, z.B. aus einem
+ * vergifteten Auto-Kontrast) wuerden jede Spalte auf den Stille-Index abbilden (Sonogramm schwarz)
+ * und bei NaN jedes Bild einen Neuaufbau ausloesen. Dann gilt [fallbackMinDb]..[fallbackMaxDb].
+ */
+internal fun finiteDbRange(
+    minDb: Float, maxDb: Float, fallbackMinDb: Float = -80f, fallbackMaxDb: Float = 0f
+): Pair<Float, Float> =
+    if (minDb.isFinite() && maxDb.isFinite() && maxDb > minDb) minDb to maxDb
+    else fallbackMinDb to fallbackMaxDb
+
+/**
  * T160: Messwerte fuer die Render-Last. Liefert alle [intervalMs] eine Log-Zeile
  * `T160_RENDER fps=… frame_ms_median=… cols_per_s=…`; null dazwischen.
  * Eine Pause (> 2 s ohne Zeichnen, z.B. Ansicht unsichtbar) startet das Fenster neu.

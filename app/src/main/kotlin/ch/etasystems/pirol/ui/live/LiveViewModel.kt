@@ -1076,14 +1076,15 @@ class LiveViewModel(
                     skipped = false
                     // Ueberlauf = Luecke im Verlauf: alte Frames verwerfen, Mel-Zustand frisch starten.
                     // Sonst schliesst der Ringinhalt lueckenlos an den Mel-Zustand an (keine Doppel-Spalten).
-                    if (hiddenRing.overflowed) {
-                        spectrogramState.clear()
-                        mel.reset()
-                    }
-                    if (hiddenRing.size > 0) {
-                        val backfill = mel.process(hiddenRing.toArray())
-                        if (backfill.isNotEmpty()) spectrogramState.appendFrames(backfill)
-                    }
+                    // T176: erst rechnen, dann atomar ersetzen. Vorher lag der State waehrend der
+                    // ganzen Backfill-Berechnung (bis 30 s Audio) leer; eine Recomposition in diesem
+                    // Fenster zeigte den Platzhalter statt des Sonogramms, bis zufaellig wieder
+                    // eine UI-State-Aenderung kam.
+                    val overflowed = hiddenRing.overflowed
+                    if (overflowed) mel.reset()
+                    val backfill = if (hiddenRing.size > 0) mel.process(hiddenRing.toArray()) else emptyList()
+                    if (overflowed) spectrogramState.replaceAll(backfill)
+                    else spectrogramState.appendFrames(backfill)
                     hiddenRing.clear()
                 }
                 val frames = mel.process(chunk.samples)

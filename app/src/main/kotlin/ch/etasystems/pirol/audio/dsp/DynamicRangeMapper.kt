@@ -31,7 +31,9 @@ class DynamicRangeMapper(
     private val smoothingAlpha: Float = 0.15f,
     /** Fallback-Bereich solange noch zu wenig Daten (< minFramesForCompute). */
     private val fallbackMinDb: Float = -80f,
-    private val fallbackMaxDb: Float = 0f
+    private val fallbackMaxDb: Float = 0f,
+    /** T176: Zeitquelle (ms), in Unit-Tests ersetzbar. */
+    private val clockMs: () -> Long = { SystemClock.elapsedRealtime() }
 ) {
     /** Max. Frames im Rolling-Window (Kapazitaet des Ringpuffers). */
     private val maxFrames: Int = (windowSeconds * framesPerSecond).toInt().coerceAtLeast(64)
@@ -75,7 +77,7 @@ class DynamicRangeMapper(
             writeIdx = (writeIdx + 1) % maxFrames
             if (fillCount < maxFrames) fillCount++
 
-            val now = SystemClock.elapsedRealtime()
+            val now = clockMs()
             if (now - lastRecomputeMs >= recomputeIntervalMs && fillCount >= minFramesForCompute) {
                 lastRecomputeMs = now
                 recomputePercentilesLocked()
@@ -103,7 +105,10 @@ class DynamicRangeMapper(
      */
     fun currentRange(): Pair<Float, Float> {
         synchronized(lock) {
-            if (!hasValidRange) return fallbackMinDb to fallbackMaxDb
+            // T176: nie einen nicht-endlichen Bereich ausgeben (NaN/Inf faerbt das ganze Sonogramm schwarz)
+            if (!hasValidRange || !smoothedP5.isFinite() || !smoothedP95.isFinite()) {
+                return fallbackMinDb to fallbackMaxDb
+            }
             val lo = smoothedP5
             val hi = if (smoothedP95 - lo < minSpanDb) lo + minSpanDb else smoothedP95
             return lo to hi
@@ -140,8 +145,12 @@ class DynamicRangeMapper(
         for (i in 0 until frames) {
             val f = frameBuffer[i] ?: continue
             val n = minOf(binsPerFrame, f.size)
-            System.arraycopy(f, 0, flat, idx, n)
-            idx += n
+            // T176: nur endliche Werte. NaN/-Inf wuerden als Perzentil in die IIR-Glaettung
+            // gelangen und sie dauerhaft vergiften (NaN bleibt NaN, -Inf bleibt -Inf).
+            for (b in 0 until n) {
+                val v = f[b]
+                if (v.isFinite()) flat[idx++] = v
+            }
         }
         val usable = idx
         if (usable < minFramesForCompute) return
@@ -151,7 +160,7 @@ class DynamicRangeMapper(
         val p5Raw  = selectKth(flat, usable, (usable * lowPercentile ).toInt().coerceAtMost(usable - 1))
         val p95Raw = selectKth(flat, usable, (usable * highPercentile).toInt().coerceAtMost(usable - 1))
 
-        if (!hasValidRange) {
+        if (!hasValidRange || !smoothedP5.isFinite() || !smoothedP95.isFinite()) {
             smoothedP5 = p5Raw
             smoothedP95 = p95Raw
             hasValidRange = true
@@ -190,9 +199,12 @@ class DynamicRangeMapper(
             var idx = 0
             for (f in frames) {
                 val n = minOf(binsPerFrame, f.size)
-                System.arraycopy(f, 0, flat, idx, n)
-                idx += n
+                for (b in 0 until n) {  // T176: nur endliche Werte
+                    val v = f[b]
+                    if (v.isFinite()) flat[idx++] = v
+                }
             }
+            if (idx < 64) return fallbackMinDb to fallbackMaxDb
             // Quickselect statt Sortierung (gleiche Werte, O(n)). flat ist bereits eine Kopie.
             val p2  = selectKth(flat, idx, (idx * lowPercentile).toInt().coerceAtMost(idx - 1))
             val p98 = selectKth(flat, idx, (idx * highPercentile).toInt().coerceAtMost(idx - 1))
