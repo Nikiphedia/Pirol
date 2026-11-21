@@ -504,4 +504,8 @@
     <string name="palette_grayscale">Grayscale</string>
     <string name="palette_paper">Paper (light)</string>
     <string name="model_min_confidence">Minimum confidence %1$d%%</string>
+    <string name="analysis_vorkommen">%1$d occurrences</string>
+    <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
+    <string name="analysis_vorkommen_abspielen">Play occurrence</string>
+    <string name="analysis_vorkommen_stop">Stop playback</string>
 </resources>

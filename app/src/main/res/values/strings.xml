@@ -505,4 +505,8 @@
     <string name="palette_grayscale">Graustufen</string>
     <string name="palette_paper">Papier (hell)</string>
     <string name="model_min_confidence">Mindest-Konfidenz %1$d %%</string>
+    <string name="analysis_vorkommen">%1$d Vorkommen</string>
+    <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
+    <string name="analysis_vorkommen_abspielen">Vorkommen abspielen</string>
+    <string name="analysis_vorkommen_stop">Wiedergabe stoppen</string>
 </resources>

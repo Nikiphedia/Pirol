@@ -571,6 +571,9 @@ private fun SessionDetailContent(
                 )
             }
 
+            // T167: aufgeklappte Arten (Einzelvorkommen sichtbar)
+            var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -583,6 +586,7 @@ private fun SessionDetailContent(
                     val speciesKey = detection.scientificName.replace(' ', '_')
                     // T107: abgespielte Detektion hervorheben
                     val isPlaying = state.playingDetectionId == detection.id
+                    Column {
                     Box(
                         modifier = if (isPlaying) {
                             Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
@@ -635,6 +639,23 @@ private fun SessionDetailContent(
                         onSaveAsReference = if (!detection.manualEntry && state.hasRecording) { { viewModel.saveAsReference(detection) } } else null,
                         isReference = detection.id in referencedIds,  // T127
                         onShare = if (!detection.manualEntry && state.hasRecording) { { viewModel.requestShare(detection) } } else null,
+                    )
+                    }
+                    // T167: Einzelvorkommen (Anker + absorbierte Cluster-Fenster)
+                    val occurrences = remember(detection, state.mergeTimestamps) {
+                        DetectionOccurrences.of(detection, state.mergeTimestamps[detection.id].orEmpty())
+                    }
+                    OccurrenceSection(
+                        detection = detection,
+                        occurrences = occurrences,
+                        expanded = detection.id in expandedIds,
+                        onToggle = {
+                            expandedIds = if (detection.id in expandedIds) expandedIds - detection.id
+                            else expandedIds + detection.id
+                        },
+                        playingStartSec = if (isPlaying) state.playingOccurrenceStartSec else null,
+                        playEnabled = state.hasRecording && !detection.manualEntry,
+                        onPlay = { viewModel.playOccurrence(detection, it) }
                     )
                     }
                 }
