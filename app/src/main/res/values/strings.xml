@@ -518,4 +518,18 @@
     <string name="ui_wiedergabe_stoppen">Wiedergabe stoppen</string>
     <string name="ui_mehr_aktionen">Weitere Aktionen</string>
     <string name="live_mic_stumm_wiedergabe">Mikrofon stumm während Wiedergabe</string>
+    <!-- T180: Aufnahmen mehrfach auswaehlen, verschieben, loeschen -->
+    <string name="analysis_batch_n_ausgewaehlt">%1$d ausgewaehlt</string>
+    <string name="analysis_batch_alle">Alle</string>
+    <string name="analysis_batch_verschieben">Verschieben</string>
+    <string name="analysis_batch_loeschen_titel">%1$d Aufnahmen loeschen?</string>
+    <string name="analysis_batch_loeschen_text">Die ausgewaehlten Aufnahmen werden mit allen Dateien geloescht. Das kann nicht rueckgaengig gemacht werden.</string>
+    <string name="analysis_batch_verschiebe">Verschiebe Aufnahmen</string>
+    <string name="analysis_batch_loesche">Loesche Aufnahmen</string>
+    <string name="analysis_batch_fortschritt">Aufnahme %1$d von %2$d: %3$s</string>
+    <string name="analysis_batch_dateien_mb">%1$d / %2$d Dateien, %3$.1f / %4$.1f MB</string>
+    <string name="analysis_batch_verschoben">%1$d verschoben, %2$d Fehler</string>
+    <string name="analysis_batch_geloescht">%1$d geloescht, %2$d Fehler</string>
+    <string name="analysis_batch_abgebrochen">Abgebrochen: %1$d erledigt, %2$d Fehler</string>
+    <string name="analysis_batch_ziel_nicht_schreibbar">Zielordner nicht beschreibbar</string>
 </resources>

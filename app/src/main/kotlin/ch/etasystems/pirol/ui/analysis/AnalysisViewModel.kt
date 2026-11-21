@@ -176,6 +176,138 @@ class AnalysisViewModel(
         }
     }
 
+    // ── T180: Mehrfachauswahl, Verschieben, Loeschen ─────────────────
+
+    private val sessionMover = ch.etasystems.pirol.data.repository.SessionMover(context)
+    private var batchJob: Job? = null
+
+    /** Laufende Aufnahme-Session ist nicht auswaehlbar. */
+    private fun isSelectable(s: SessionSummary) = !sessionManager.isActiveSession(s.sessionDir)
+
+    fun startSelection(summary: SessionSummary) {
+        if (!isSelectable(summary) || _uiState.value.batchRunning) return
+        _uiState.update { it.copy(selectionMode = true, selectedIds = setOf(summary.metadata.sessionId)) }
+    }
+
+    fun toggleSelection(summary: SessionSummary) {
+        if (!isSelectable(summary) || _uiState.value.batchRunning) return
+        _uiState.update {
+            val next = ch.etasystems.pirol.data.repository.SessionBatchLogic.toggle(it.selectedIds, summary.metadata.sessionId)
+            it.copy(selectedIds = next)
+        }
+    }
+
+    fun selectAllSessions() {
+        _uiState.update { st ->
+            st.copy(selectedIds = ch.etasystems.pirol.data.repository.SessionBatchLogic.selectAll(
+                st.sessions.filter { isSelectable(it) }.map { it.metadata.sessionId }
+            ))
+        }
+    }
+
+    fun clearSelection() {
+        if (_uiState.value.batchRunning) return
+        _uiState.update { it.copy(selectionMode = false, selectedIds = emptySet()) }
+    }
+
+    fun consumeBatchMessage() { _uiState.update { it.copy(batchMessage = null) } }
+
+    /** Laufende Verschiebung abbrechen (Teilkopie wird entfernt, Original bleibt). */
+    fun cancelBatch() { batchJob?.cancel() }
+
+    private fun selectedSummaries(): List<SessionSummary> {
+        val st = _uiState.value
+        return st.sessions.filter { it.metadata.sessionId in st.selectedIds && isSelectable(it) }
+    }
+
+    private fun finishBatch(result: ch.etasystems.pirol.data.repository.BatchResult, move: Boolean) {
+        val msg = when {
+            result.cancelled -> AppStrings.get(R.string.analysis_batch_abgebrochen, result.succeeded, result.failed)
+            move -> AppStrings.get(R.string.analysis_batch_verschoben, result.succeeded, result.failed)
+            else -> AppStrings.get(R.string.analysis_batch_geloescht, result.succeeded, result.failed)
+        }
+        _uiState.update {
+            it.copy(batchRunning = false, batchProgress = null, selectionMode = false,
+                selectedIds = emptySet(), batchMessage = msg)
+        }
+        loadSessions()
+    }
+
+    /** Ausgewaehlte Sessions loeschen (Bestaetigung erfolgt in der UI). */
+    fun deleteSelected() {
+        val list = selectedSummaries()
+        if (list.isEmpty() || _uiState.value.batchRunning) return
+        _uiState.update { it.copy(batchRunning = true, batchIsMove = false) }
+        batchJob = viewModelScope.launch(Dispatchers.IO) {
+            var ok = 0
+            val failed = mutableListOf<String>()
+            list.forEachIndexed { i, s ->
+                _uiState.update {
+                    it.copy(batchProgress = ch.etasystems.pirol.data.repository.MoveProgress(
+                        i, list.size, s.sessionDir.name, 0, 0, i, list.size))
+                }
+                if (sessionManager.deleteSession(s.sessionDir)) ok++ else failed += s.sessionDir.name
+            }
+            sessionManager.removeEmptyDayDirs()
+            finishBatch(ch.etasystems.pirol.data.repository.BatchResult(ok, failed.size, failed), move = false)
+        }
+    }
+
+    /** Ausgewaehlte Sessions in den per SAF gewaehlten Ordner [treeUri] verschieben. */
+    fun moveSelected(treeUri: Uri) {
+        val list = selectedSummaries()
+        if (list.isEmpty() || _uiState.value.batchRunning) return
+        val root = sessionMover.targetRoot(treeUri)
+        if (root == null) {
+            _uiState.update { it.copy(batchMessage = AppStrings.get(R.string.analysis_batch_ziel_nicht_schreibbar)) }
+            return
+        }
+        _uiState.update { it.copy(batchRunning = true, batchIsMove = true) }
+        batchJob = viewModelScope.launch(Dispatchers.IO) {
+            var ok = 0
+            val failed = mutableListOf<String>()
+            var cancelled = false
+            // Gesamtumfang vorab ermitteln
+            val sources = list.map { it to sessionMover.sourceFor(it.sessionDir, sessionManager.docFor(it.sessionDir)) }
+            var filesTotal = 0
+            var bytesTotal = 0L
+            sources.forEach { (_, src) -> src?.let { val (f, b) = sessionMover.measure(it); filesTotal += f; bytesTotal += b } }
+            var filesDone = 0
+            var bytesDone = 0L
+            try {
+                for ((i, pair) in sources.withIndex()) {
+                    val (s, src) = pair
+                    val name = s.sessionDir.name
+                    if (src == null) { failed += name; continue }
+                    fun publish() = _uiState.update {
+                        it.copy(batchProgress = ch.etasystems.pirol.data.repository.MoveProgress(
+                            i, list.size, name, bytesDone, bytesTotal, filesDone, filesTotal))
+                    }
+                    publish()
+                    try {
+                        sessionMover.copySession(src, root,
+                            onBytes = { bytesDone += it; publish() },
+                            onFile = { filesDone++ })
+                        // Kopie vollstaendig und groessengeprueft -> Original loeschen
+                        if (sessionManager.deleteSession(s.sessionDir)) ok++ else failed += name
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        cancelled = true
+                        throw e
+                    } catch (e: Exception) {
+                        android.util.Log.w("AnalysisViewModel", "Verschieben fehlgeschlagen: $name", e)
+                        failed += name
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                cancelled = true
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                sessionManager.removeEmptyDayDirs()
+                finishBatch(ch.etasystems.pirol.data.repository.BatchResult(ok, failed.size, failed, cancelled), move = true)
+            }
+        }
+    }
+
     /** Session oeffnen (Detail-Ansicht) */
     fun openSession(summary: SessionSummary) {
         viewModelScope.launch(Dispatchers.IO) {

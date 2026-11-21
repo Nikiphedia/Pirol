@@ -1020,6 +1020,27 @@ class SessionManager(
         }
     }
 
+    /** T180: true, wenn [sessionDir] die gerade laufende Aufnahme-Session ist (nicht loesch-/verschiebbar). */
+    fun isActiveSession(sessionDir: File): Boolean =
+        isActive && (activeSessionDir?.path == sessionDir.path || activeSessionDoc?.name == sessionDir.name)
+
+    /** T180: Entfernt leere Tagesordner (YYYY-MM-DD) in der Basis (SAF und File) nach Verschieben/Loeschen. */
+    suspend fun removeEmptyDayDirs() = withContext(Dispatchers.IO) {
+        try {
+            if (appPreferences.storageBaseUri != null) {
+                resolveBaseDocFile()?.takeIf { it.canRead() }?.listFiles()?.forEach { d ->
+                    val n = d.name ?: return@forEach
+                    if (d.isDirectory && looksLikeDateDir(n) && d.listFiles().isEmpty()) d.delete()
+                }
+            }
+            resolveBaseFile().listFiles()?.forEach { d ->
+                if (d.isDirectory && looksLikeDateDir(d.name) && d.listFiles()?.isEmpty() == true) d.delete()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Leere Tagesordner entfernen fehlgeschlagen", e)
+        }
+    }
+
     /** Loescht eine Session (Ordner + alle Dateien) */
     suspend fun deleteSession(sessionDir: File): Boolean = withContext(Dispatchers.IO) {
         // T131: SAF-Session (gelistet) ueber DocumentFile loeschen

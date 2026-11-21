@@ -26,6 +26,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
@@ -144,6 +147,73 @@ private fun SessionListView(
 ) {
     // Bestaetigungsdialog-State
     var sessionToDelete by remember { mutableStateOf<SessionSummary?>(null) }
+    // T180: Mehrfachauswahl
+    val sessionManager: ch.etasystems.pirol.data.repository.SessionManager = org.koin.compose.koinInject()
+    var showBatchDeleteDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val moveLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { uri -> if (uri != null) viewModel.moveSelected(uri) }  // Berechtigung nur fuer diesen Vorgang, nicht persistiert
+    androidx.activity.compose.BackHandler(enabled = state.selectionMode && !state.batchRunning) {
+        viewModel.clearSelection()
+    }
+    LaunchedEffect(state.batchMessage) {
+        state.batchMessage?.let { msg ->
+            viewModel.consumeBatchMessage()
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+    val selectedCount = state.selectedIds.size
+
+    if (showBatchDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showBatchDeleteDialog = false },
+            title = { Text(stringResource(R.string.analysis_batch_loeschen_titel, selectedCount)) },
+            text = { Text(stringResource(R.string.analysis_batch_loeschen_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBatchDeleteDialog = false
+                    viewModel.deleteSelected()
+                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatchDeleteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
+            }
+        )
+    }
+
+    if (state.batchRunning) {
+        val pr = state.batchProgress
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(if (state.batchIsMove) R.string.analysis_batch_verschiebe else R.string.analysis_batch_loesche)) },
+            text = {
+                Column {
+                    if (pr != null) {
+                        Text(stringResource(R.string.analysis_batch_fortschritt, pr.sessionIndex + 1, pr.sessionCount, pr.currentName))
+                        Spacer(Modifier.height(8.dp))
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { pr.fraction }, modifier = Modifier.fillMaxWidth())
+                        if (state.batchIsMove) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                stringResource(R.string.analysis_batch_dateien_mb, pr.filesDone, pr.filesTotal,
+                                    pr.bytesDone / 1_048_576f, pr.bytesTotal / 1_048_576f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    } else {
+                        androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            },
+            confirmButton = {
+                if (state.batchIsMove) {
+                    TextButton(onClick = { viewModel.cancelBatch() }) { Text(stringResource(R.string.common_cancel)) }
+                }
+            }
+        )
+    }
 
     // Bestaetigungsdialog
     sessionToDelete?.let { session ->
@@ -171,12 +241,51 @@ private fun SessionListView(
         )
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
         // Header
+        if (state.selectionMode) {
+            // T180: Kopfleiste im Auswahlmodus
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewModel.clearSelection() }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
+                }
+                Text(
+                    text = stringResource(R.string.analysis_batch_n_ausgewaehlt, selectedCount),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { viewModel.selectAllSessions() }) {
+                    Text(stringResource(R.string.analysis_batch_alle))
+                }
+                IconButton(
+                    onClick = { moveLauncher.launch(null) },
+                    enabled = selectedCount > 0,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = stringResource(R.string.analysis_batch_verschieben))
+                }
+                IconButton(
+                    onClick = { showBatchDeleteDialog = true },
+                    enabled = selectedCount > 0,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.common_delete),
+                        tint = if (selectedCount > 0) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                }
+            }
+        } else
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -228,15 +337,28 @@ private fun SessionListView(
                         items = state.sessions,
                         key = { it.metadata.sessionId }
                     ) { summary ->
+                        val active = sessionManager.isActiveSession(summary.sessionDir)
                         SessionCard(
                             summary = summary,
-                            onClick = { viewModel.openSession(summary) },
-                            onDelete = { sessionToDelete = summary }
+                            onClick = {
+                                if (state.selectionMode) viewModel.toggleSelection(summary)
+                                else viewModel.openSession(summary)
+                            },
+                            onDelete = { sessionToDelete = summary },
+                            selectionMode = state.selectionMode,
+                            selected = summary.metadata.sessionId in state.selectedIds,
+                            selectable = !active,
+                            onLongClick = { viewModel.startSelection(summary) }
                         )
                     }
                 }
             }
         }
+    }
+    androidx.compose.material3.SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter)
+    )
     }
 }
 

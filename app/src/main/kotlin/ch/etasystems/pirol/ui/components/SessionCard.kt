@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -38,12 +41,18 @@ import ch.etasystems.pirol.ui.AppStrings
  * T52: Regress-Fix — nutzt parseInstantCompat() statt Instant.parse()
  *      damit Stempel mit Offset ("+02:00") korrekt geparst werden.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SessionCard(
     summary: SessionSummary,
     onClick: () -> Unit,
     onDelete: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // T180: Mehrfachauswahl
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    selectable: Boolean = true,
+    onLongClick: (() -> Unit)? = null
 ) {
     val meta = summary.metadata
     val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm", Locale.GERMAN)
@@ -71,13 +80,24 @@ fun SessionCard(
     else null
 
     Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+        if (selectionMode) {
+            // Klick auf die ganze Karte schaltet um; die Checkbox ist nur Anzeige (48 dp Tap-Ziel via Karte)
+            Checkbox(checked = selected, onCheckedChange = null, enabled = selectable,
+                modifier = Modifier.size(48.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
             // Zeile 1: Datum + Uhrzeit + Delete
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -107,7 +127,7 @@ fun SessionCard(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                if (onDelete != null) {
+                if (onDelete != null && !selectionMode) {
                     IconButton(
                         onClick = onDelete,
                         modifier = Modifier.size(32.dp)
@@ -156,6 +176,7 @@ fun SessionCard(
                     )
                 }
             }
+        }
         }
     }
 }

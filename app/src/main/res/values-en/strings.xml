@@ -517,4 +517,18 @@
     <string name="ui_wiedergabe_stoppen">Stop playback</string>
     <string name="ui_mehr_aktionen">More actions</string>
     <string name="live_mic_stumm_wiedergabe">Microphone muted during playback</string>
+    <!-- T180: select, move and delete several recordings -->
+    <string name="analysis_batch_n_ausgewaehlt">%1$d selected</string>
+    <string name="analysis_batch_alle">All</string>
+    <string name="analysis_batch_verschieben">Move</string>
+    <string name="analysis_batch_loeschen_titel">Delete %1$d recordings?</string>
+    <string name="analysis_batch_loeschen_text">The selected recordings will be deleted with all their files. This cannot be undone.</string>
+    <string name="analysis_batch_verschiebe">Moving recordings</string>
+    <string name="analysis_batch_loesche">Deleting recordings</string>
+    <string name="analysis_batch_fortschritt">Recording %1$d of %2$d: %3$s</string>
+    <string name="analysis_batch_dateien_mb">%1$d / %2$d files, %3$.1f / %4$.1f MB</string>
+    <string name="analysis_batch_verschoben">%1$d moved, %2$d errors</string>
+    <string name="analysis_batch_geloescht">%1$d deleted, %2$d errors</string>
+    <string name="analysis_batch_abgebrochen">Cancelled: %1$d done, %2$d errors</string>
+    <string name="analysis_batch_ziel_nicht_schreibbar">Target folder is not writable</string>
 </resources>

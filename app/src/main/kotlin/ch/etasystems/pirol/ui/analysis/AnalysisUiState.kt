@@ -30,6 +30,16 @@ data class AnalysisUiState(
     val sessions: List<SessionSummary> = emptyList(),
     val isLoading: Boolean = false,
 
+    // T180: Mehrfachauswahl (Schluessel = sessionId); selectionMode = Auswahlmodus aktiv
+    val selectionMode: Boolean = false,
+    val selectedIds: Set<String> = emptySet(),
+    /** T180: laufende Stapel-Aktion (Loeschen/Verschieben); null = keine */
+    val batchRunning: Boolean = false,
+    val batchIsMove: Boolean = false,
+    val batchProgress: ch.etasystems.pirol.data.repository.MoveProgress? = null,
+    /** T180: Ergebnis der letzten Stapel-Aktion (einmalig als Snackbar) */
+    val batchMessage: String? = null,
+
     // Ausgewaehlte Session (null = Liste anzeigen)
     val selectedSession: SessionSummary? = null,
     val detections: List<DetectionResult> = emptyList(),
