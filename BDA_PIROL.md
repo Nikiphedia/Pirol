@@ -2,7 +2,7 @@
 
 Akustische Echtzeit-Artenerkennung fuer Android, gedacht fuer die Feldarbeit.
 
-*Gilt ab Version v0.0.9 (Stand 2026-11-19). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.0.10 (Stand 2026-11-21). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
 
 Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**.
 
@@ -15,7 +15,11 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 3. **Modell** herunterladen: Es lassen sich mehrere Modelle auf einmal auswaehlen. Standard ist BirdNET 3.0 FP16 (empfohlen, ca. 170 MB). Der Download laeuft im Hintergrund weiter, kann abgebrochen und spaeter fortgesetzt werden. Alternativ eine Modell-Datei manuell auswaehlen.
 4. **Speicherort** pruefen (Settings > Aufnahme & Speicher). Standard: `Downloads/PIROL/`, per USB sichtbar.
 
-**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 auf v0.0.9 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
+**Installation (APK):** Die Release-APK gibt es pro Prozessor-Architektur. Fuer aktuelle Geraete (Telefone und Tablets) die Datei `Pirol-<Version>-arm64-v8a-release.apk` installieren, nur fuer alte 32-Bit-Geraete die Datei `...-armeabi-v7a-release.apk`. Die APKs sind dadurch deutlich kleiner als frueher die gemeinsame APK. Die App hat ein neues Symbol (gelber Vogel), auch als einfarbiges Symbol fuer Themed Icons.
+
+**Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Aenderungen der Version. Er kann jederzeit in den Einstellungen erneut aufgerufen werden.
+
+**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 und v0.0.9 auf v0.0.10 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
 
 ---
 
@@ -25,11 +29,19 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 
 Aufnahme und Analyse laufen in einem Dienst. Sie gehen weiter, wenn die App in den Hintergrund geht oder der Bildschirm ausgeschaltet wird.
 
+Beim Stoppen erscheint oben der Hinweis "Lang druecken zum Stoppen" (oben, damit der Finger am Knopf ihn nicht verdeckt).
+
 Erkannte Arten erscheinen als Karten unter dem Sonogramm:
 - Artname in der gewaehlten Sprache, wissenschaftlicher Name als Zusatz
-- Konfidenz in Prozent, Zeitstempel, GPS-Position
+- Konfidenz in Prozent (duenner Balken), Zeitstempel, GPS-Position
 - Alternativen (aufklappbar, antippbar)
 - Hinweise "Selten", "Saison-untypisch", Watchlist-Markierung
+- **Abspielen:** Der Play-Knopf auf der Karte spielt den Ausschnitt der Detektion (3 s davor, 5 s danach) ab, auch waehrend der Aufnahme. Ein zweiter Tipp stoppt die Wiedergabe.
+- **Blinken:** Wird eine Art erneut erkannt, blinkt ihre Karte kurz auf. Die Liste springt dabei nicht.
+
+**Kompakte Ansicht auf dem Telefon:** Im Hoch- und im Querformat nutzt der Live-Tab den Platz sparsam: keine Titelzeile, die Navigation besteht nur aus Icons, die Knopfzeile der Karten ist einzeilig. Auf schmalen Karten stehen Teilen, Referenz, Vergleichen und "Alternativen" im Menue "Weitere Aktionen" (Symbol mit drei Punkten); auf dem Tablet bleiben alle Knoepfe sichtbar. Im Querformat liegen links Sonogramm und Knoepfe, rechts die Artkarten. Das Panel "Aehnliche Arten" ist auf dem Telefon eingeklappt und laesst sich aufklappen.
+
+**Mikrofon stumm bei Wiedergabe:** Spielt PIROL waehrend der Aufnahme eine Detektion ueber den Lautsprecher ab, wird das Mikrofon stumm geschaltet, damit die Wiedergabe nicht erneut erkannt oder aufgenommen wird. Im Live-Tab erscheint der Hinweis "Mikrofon stumm waehrend Wiedergabe". Mit angeschlossenen Kopfhoerern (Kabel, USB, Bluetooth) bleibt das Mikrofon aktiv.
 
 | Knopf | Zustand |
 |-------|---------|
@@ -64,7 +76,7 @@ Der Hochpassfilter (200 Hz) filtert Wind und Trittschall, standardmaessig an. Er
 
 Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt wird bis **12 kHz** (Voreinstellung fuer Voegel).
 
-**Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) oeffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Sonogramm. Das Panel gilt fuer Live, Analyse und Settings gemeinsam.
+**Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) oeffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Sonogramm. Das Panel gilt fuer Live, Analyse und Settings gemeinsam. Oben im Panel steht "Fertig" in einer eigenen Zeile; Voreinstellungen und Farbpaletten sind Kacheln, die bei Platzmangel umbrechen.
 
 | Regler | Wirkung |
 |--------|---------|
@@ -74,9 +86,11 @@ Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt
 | Helligkeits-Deckel | begrenzt starke Signale |
 | Farbpalette | Magma, Viridis, Graustufen, **Papier (hell)** |
 | Frequenz | angezeigter Bereich in kHz |
-| Zeitfenster | Sekunden, die sichtbar sind |
+| Zeitfenster | Sekunden, die sichtbar sind (5 bis 30 s) |
 
-**Papier (hell):** helle Palette wie ein klassisches Papier-Sonagramm, gut bei Tageslicht. Ein Tipp auf das Palettensymbol im Live-Tab wechselt die Palette schnell.
+**Papier (hell):** helle Palette wie ein klassisches Papier-Sonagramm, gut bei Tageslicht. Die Palette wird im Panel (Langdruck auf das Sonogramm) gewaehlt; auf dem Telefon gibt es dafuer keinen eigenen Knopf im Live-Tab mehr.
+
+**Tab-Wechsel:** Verlaesst man den Live-Tab oder schaltet den Bildschirm aus, rechnet PIROL das Sonogramm bei der Rueckkehr nach (bis zum eingestellten Zeitfenster), sodass es lueckenlos weiterlaeuft. War man laenger weg als das Zeitfenster, beginnt es neu.
 
 **Modus** (Settings > Sonogramm): Voegel, Fledermaus oder Breitband. Der Fledermaus-Modus nimmt mit 96 kHz auf (Ultraschall); dabei gibt es keinen Preroll.
 
@@ -94,7 +108,7 @@ Pro Detektion stehen diese Aktionen zur Verfuegung (Live-Tab, Analyse-Tab und Ka
 | Korrigieren | Korrigiert | Name durch eigene Eingabe ersetzt |
 | Alternative waehlen | Ersetzt | Original ausgegraut mit rotem Rand, Alternative erscheint als neue Detektion |
 
-Jede Aktion zeigt eine Snackbar mit **Rueckgaengig** (mindestens 5 s). Das gilt auch fuer das Bestaetigen ueber den Watchlist-Alarm. Alle Aktionen werden in `verifications.jsonl` festgehalten; auch abgelehnte und ersetzte Detektionen bleiben im Export (Audit-Trail).
+Im **Live-Tab** gibt es beim Verifizieren keine Snackbar mehr. Nach "Bestaetigen" zeigt die Karte stattdessen einen gruenen Rueckgaengig-Knopf; er setzt die Detektion auf "Unsicher" zurueck. Die Knoepfe Bestaetigen, Unsicher, Ablehnen und Bearbeiten bleiben sichtbar, der Status laesst sich also jederzeit umschalten. Beim Waehlen einer **Alternative**, beim Verschieben auf der Karte und beim Bestaetigen ueber den Watchlist-Alarm erscheint weiterhin eine Snackbar mit **Rueckgaengig** (mindestens 5 s). Alle Aktionen werden in `verifications.jsonl` festgehalten; auch abgelehnte und ersetzte Detektionen bleiben im Export (Audit-Trail).
 
 **Detektion teilen:** Ausschnitt (3 s davor, 5 s danach, Maximallaenge einstellbar) als WAV, M4A (AAC), FLAC (falls das Geraet es kann) oder Sonogramm-PNG mit Beschriftung.
 
@@ -119,7 +133,7 @@ recording.selections.txt  Raven Selection Table (automatisch beim Stopp)
 - **Loeschen** einer Session in der Analyse: mit Bestaetigung.
 
 ### Speicherort wechseln
-Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: interner Speicher, SD-Karte, Cloud-Ordner). Optional mit Tages-Unterordnern. Ist der Ordner nicht erreichbar, speichert PIROL im Fallback-Ordner der App und meldet das.
+Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: interner Speicher, SD-Karte, Cloud-Ordner). Optional mit Tages-Unterordnern. Ist der Ordner nicht erreichbar, speichert PIROL im Fallback-Ordner der App und meldet das. Einzelne Aufnahmen lassen sich auch im Analyse-Tab verschieben (Kapitel 6).
 
 **Sessions verschieben:** Beim Wechsel fragt PIROL, ob bestehende Sessions an den neuen Ort **kopiert** werden sollen ("Kopieren") oder nur der Ort gewechselt wird ("Nur wechseln").
 
@@ -130,9 +144,15 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 - **Session-Liste:** nach Datum, mit Dauer, Groesse und Bemerkung.
 - **Session oeffnen:** Sonogramm und Detektionsliste mit Zeitangabe. Die gerade abgespielte Detektion ist markiert, ein Zeiger zeigt die Position.
 - **Abspielen:** pro Detektion (Ausschnitt mit Zoom) oder die ganze Aufnahme; Segmente werden nahtlos aneinandergereiht. Lange Aufnahmen werden gestreamt.
+- **Mehrere Vorkommen:** Wurde eine Art im Lauf der Aufnahme mehrmals erkannt und zu einer Karte zusammengefasst, zeigt die Karte die Zeile "N Vorkommen", die sich aufklappen laesst. Aufeinanderfolgende Fenster sind zu **Episoden** zusammengefasst ("N Vorkommen in M Episoden"). Jede Episode steht mit Start- und Endzeit, Position in der Aufnahme ("@ m:ss") und Dauer ("N Fenster, M s") in einer Zeile; ihr Play-Knopf spielt die ganze Episode am Stueck ab (auch bei langem Dauersang). Zu einzelnen Fenstern ist nur der Zeitpunkt bekannt, nicht die Konfidenz.
+- **Wiedergabe:** Es spielt immer nur ein Eintrag. Ein zweiter Tipp auf denselben Knopf stoppt, ein Tipp auf einen anderen Eintrag wechselt, und ein Tab-Wechsel beendet die Wiedergabe. Das gilt in der ganzen App (Live, Analyse, Karte, Referenzen, Sprach-Memos).
 - **Verifizieren, korrigieren, Art hinzufuegen:** wie im Live-Tab, auch nachtraeglich.
 - **Vergleich:** Detektion und Referenz nebeneinander, mit synchroner Wiedergabe.
 - **Raven-Datei neu erzeugen**, z.B. nach nachtraeglicher Verifikation.
+
+**Mehrere Aufnahmen auswaehlen:** Langdruck auf eine Aufnahme in der Session-Liste startet den Auswahlmodus; weitere Aufnahmen werden per Tipp gewaehlt. Die Kopfleiste zeigt "N ausgewaehlt" mit den Aktionen "Alle", "Verschieben" und "Loeschen"; das X oder die Zurueck-Taste beendet den Modus. Die gerade laufende Aufnahme ist nicht auswaehlbar.
+- **Verschieben:** Der Zielordner ist frei waehlbar (Ordnerwahl, auch SD-Karte oder USB-Speicher). Jede Session wird mit allen Dateien (Aufnahme-Segmente, Memos) kopiert, die Dateigroessen werden geprueft, danach wird das Original geloescht. Bei einem Fehler oder Abbruch bleibt das Original erhalten und die Teilkopie wird entfernt. Existiert am Ziel schon eine Session mit gleichem Namen, wird `-2`, `-3` usw. angehaengt. Der Fortschritt ist sichtbar und abbrechbar. Als Ziel keinen Ordner innerhalb von `Downloads/PIROL` waehlen, sonst erscheinen die Aufnahmen doppelt in der Liste.
+- **Loeschen:** Nach Rueckfrage ("N Aufnahmen loeschen?"); das kann nicht rueckgaengig gemacht werden. Das Loeschen einzelner Aufnahmen per Papierkorb-Symbol bleibt wie bisher.
 
 ---
 
@@ -153,7 +173,10 @@ Georeferenzierte Detektionen auf einer Karte. Das Menue oeffnet sich per Wisch v
 - **Kartenquelle:** Automatisch (swisstopo in der Schweiz, OpenStreetMap ausserhalb), OpenStreetMap, swisstopo Karte, swisstopo Luftbild.
 - **Offline:** Fuer swisstopo-Karten laesst sich der sichtbare Ausschnitt herunterladen ("Ausschnitt herunterladen", mit Angabe der Kachelzahl und Groesse). Ein Abbruch behaelt bereits geladene Kacheln; ein erneuter Start laedt nur Fehlendes. "Offline-Karten loeschen" entfernt alle gespeicherten Kacheln.
 - **Anzeige:** alle Sessions, "Nur Live" oder "Letzte 3". Abgelehnte Beobachtungen sind ausgeblendet. Ueberlappende Marker werden je nach Zoom gruppiert. Die Karte startet auf dem eigenen Standort.
-- **Verifizieren auf der Karte:** Marker antippen, bestaetigen oder ablehnen (mit Rueckgaengig). Langdruck erlaubt, die Position zu verschieben oder Beobachtungen als Simultanbeobachtung zu verknuepfen.
+- **Punkt antippen:** Ein Tipp auf einen Punkt oeffnet ein Menue mit Verifizieren (Bestaetigen, Unsicher, Ablehnen), "Bearbeiten", "Position verschieben" und Abspielen (Play bzw. "Wiedergabe stoppen"). Ein Langdruck oeffnet dasselbe Menue und erlaubt zusaetzlich, Beobachtungen als Simultanbeobachtung zu verknuepfen. Abgespielt wird der Ausschnitt der Detektion aus der Session-Aufnahme; fehlt sie, erscheint eine Meldung.
+- **Mehrere Punkte uebereinander (Cluster):** Ein Tipp auf einen Cluster zeigt die Liste der Detektionen. Pro Eintrag gibt es Verifizieren, Abspielen und "Position verschieben".
+- **Position verschieben:** Die Karte zeigt oben den Hinweis "Karte verschieben: Fadenkreuz auf die neue Position von ..., dann Uebernehmen." Die Karte so schieben, dass das Fadenkreuz in der Mitte auf der neuen Position liegt, dann unten "Uebernehmen" (oder "Abbrechen"). Danach erscheint eine Snackbar mit **Rueckgaengig**. Das Verschieben geht auch fuer Live-Punkte; laeuft keine Session, gilt die neue Position nur bis zum Schliessen der App.
+- **Standort-Knopf:** Zentriert die Karte auf die eigene Position und zoomt so, dass die sichtbare Kartenhoehe etwa 200 m betraegt.
 
 ---
 
@@ -291,6 +314,7 @@ Die Settings sind in einklappbare Sektionen gegliedert; der Zustand wird gemerkt
 | Aehnliche Arten & Referenzen | Aehnlichkeitssuche, Zeilenzahl, Obergrenze Referenzen |
 | Upload | Ziel (Ordner/NAS), Passwort, Verbindung testen, nur WLAN |
 | Diagnose | Inferenz-Benchmark |
+| Was ist neu | Aenderungen der aktuellen Version (Dialog nach einem Update, hier jederzeit abrufbar) |
 
 **Resampler:** Polyphase (empfohlen) filtert Stoergeraeusche ueber 16 kHz, die sonst als Geistersignale erscheinen koennen. "Linear" ist die alte Methode.
 
@@ -313,4 +337,4 @@ Die Liste der Aenderungen pro Version steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.0.9 — ETA Systems — Stand 2026-11-19*
+*PIROL v0.0.10 — ETA Systems — Stand 2026-11-21*
