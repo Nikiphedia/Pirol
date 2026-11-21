@@ -100,6 +100,7 @@ import ch.etasystems.pirol.ui.AppStrings
 @Composable
 fun LiveScreen(
     widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    compactHeight: Boolean = false,  // T174: Telefon quer (Fensterhoehe < 480 dp)
     viewModel: LiveViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -209,8 +210,18 @@ fun LiveScreen(
                 StorageFallbackBanner()
             }
 
-            when (widthSizeClass) {
-                WindowWidthSizeClass.Expanded -> {
+            when {
+                // T174: Telefon quer (breit, aber niedrig): kompaktes Zweispalten-Layout
+                compactHeight && widthSizeClass != WindowWidthSizeClass.Compact -> {
+                    MediumLiveLayout(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onRequestPermission = { permissionTrigger = true },
+                        onRequestLocationPermission = { locationPermissionTrigger = true },
+                        compact = true
+                    )
+                }
+                widthSizeClass == WindowWidthSizeClass.Expanded -> {
                     // Tablet: Dual-Pane nebeneinander
                     ExpandedLiveLayout(
                         uiState = uiState,
@@ -219,7 +230,7 @@ fun LiveScreen(
                         onRequestLocationPermission = { locationPermissionTrigger = true }
                     )
                 }
-                WindowWidthSizeClass.Medium -> {
+                widthSizeClass == WindowWidthSizeClass.Medium -> {
                     // Phone Landscape / kleines Tablet: gewichtetes Layout
                     MediumLiveLayout(
                         uiState = uiState,
@@ -507,100 +518,33 @@ private fun MediumLiveLayout(
     uiState: LiveUiState,
     viewModel: LiveViewModel,
     onRequestPermission: () -> Unit,
-    onRequestLocationPermission: () -> Unit = {}
+    onRequestLocationPermission: () -> Unit = {},
+    compact: Boolean = false  // T174: niedrige Fensterhoehe (Telefon quer)
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
     var showMemoDialog by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-    ) {
-        // Links: Sonogramm (60%)
-        Column(
-            modifier = Modifier
-                .weight(0.6f)
-                .fillMaxHeight()
-                .padding(end = 8.dp)
-        ) {
-            LiveHeader(uiState = uiState, viewModel = viewModel)
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            ScanStatusRow(uiState = uiState, viewModel = viewModel)
-            if (!uiState.isRecording) SessionNoteField(viewModel)
-
-            LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            SpectrogramWithPanel(
-                uiState = uiState,
-                fixedHeight = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            )
-
-            PrerollIndicator(uiState = uiState)
-        }
-
-        // Rechts: Detektionsliste + Controls (40%)
-        Column(
-            modifier = Modifier
-                .weight(0.4f)
-                .fillMaxHeight()
-                .padding(start = 8.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            DetectionList(
-                detectionState = uiState.detectionListState,
-                isModelAvailable = uiState.isModelAvailable,
-                onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
-                onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
-                onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
-                onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
-                onSaveAsReference = { id -> viewModel.saveAsReference(id) },
-                referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
-                onShare = if (uiState.isRecording || uiState.lastSessionId != null) { id -> viewModel.requestShare(id) } else null,  // T116/T128: auch nach Stopp (letzte Session)
-                onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
-                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
-                atlasCodes = viewModel.atlasCodes,
-                watchlistSpecies = uiState.watchlistSpecies,
-                showTopNCandidates = uiState.showTopNCandidates,
-                // T69: Voice-Memo
-                voiceMemoRecorder = viewModel.voiceMemoRecorder,
-                memoAudioPlayer = viewModel.memoAudioPlayer,
-                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
-                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
-                // T73: Lock-Species
-                onToggleLock = { id -> viewModel.toggleLock(id) },
-                // T164: Ausschnitt anhoeren
-                onPlay = { id -> viewModel.toggleDetectionPlayback(id) },
-                playingDetectionId = viewModel.playingDetectionId.collectAsState().value,
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
-
+    val similarity: @Composable () -> Unit = {
             // Aehnlichkeitssuche (T12b)
             if (uiState.similarMatches.isNotEmpty() || uiState.isEmbeddingAvailable) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (compact) 2.dp else 8.dp))
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
                     similarEnabled = uiState.similarEnabled,
                     similarLines = uiState.similarLines,
                     recentSpecies = uiState.recentSpecies,
+                    collapsible = compact,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-
+    }
+    val fabRow: @Composable () -> Unit = {
             // FAB-Bereich: Memo + +Art (nur bei Recording) + Preroll-Toggle (F5) + Haupt-FAB
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .padding(top = if (compact) 0.dp else 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -669,6 +613,92 @@ private fun MediumLiveLayout(
                     }
                     RecordingFab(uiState = uiState, viewModel = viewModel, onRequestPermission = onRequestPermission)
                 }
+            }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = if (compact) 8.dp else 16.dp, vertical = if (compact) 4.dp else 16.dp)
+    ) {
+        // Links: Sonogramm (60%)
+        Column(
+            modifier = Modifier
+                .weight(if (compact) 0.55f else 0.6f)
+                .fillMaxHeight()
+                .padding(end = 8.dp)
+        ) {
+            // T174: Telefon quer ohne Titelzeile (Laufzeit in Status-Zeile, Palette per Langdruck)
+            if (!compact) {
+                LiveHeader(uiState = uiState, viewModel = viewModel)
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            ScanStatusRow(uiState = uiState, viewModel = viewModel)
+            if (!uiState.isRecording) SessionNoteField(viewModel)
+
+            LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            SpectrogramWithPanel(
+                uiState = uiState,
+                fixedHeight = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
+
+            PrerollIndicator(uiState = uiState)
+
+            // T174: kompakt: Aehnliche Arten (eingeklappt) und Knopfzeile unter dem Sonogramm,
+            // damit die rechte Spalte komplett den Artkarten gehoert
+            if (compact) {
+                similarity()
+                fabRow()
+            }
+        }
+
+        // Rechts: Detektionsliste + Controls (40%)
+        Column(
+            modifier = Modifier
+                .weight(if (compact) 0.45f else 0.4f)
+                .fillMaxHeight()
+                .padding(start = 8.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            DetectionList(
+                detectionState = uiState.detectionListState,
+                isModelAvailable = uiState.isModelAvailable,
+                onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
+                onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
+                onReject = { id -> viewModel.verifyDetection(id, VerificationStatus.REJECTED) },
+                onCorrect = { id, species -> viewModel.verifyDetection(id, VerificationStatus.CORRECTED, species) },
+                onSaveAsReference = { id -> viewModel.saveAsReference(id) },
+                referencedIds = viewModel.referencedDetectionIds.collectAsState().value,  // T127
+                onShare = if (uiState.isRecording || uiState.lastSessionId != null) { id -> viewModel.requestShare(id) } else null,  // T116/T128: auch nach Stopp (letzte Session)
+                onSelectAlternative = { id, candidate -> viewModel.selectAlternative(id, candidate) },
+                onEditDetection = { id, count, atlasCode, note, memoFile -> viewModel.editDetection(id, count, atlasCode, note, memoFile) },
+                atlasCodes = viewModel.atlasCodes,
+                watchlistSpecies = uiState.watchlistSpecies,
+                showTopNCandidates = uiState.showTopNCandidates,
+                // T69: Voice-Memo
+                voiceMemoRecorder = viewModel.voiceMemoRecorder,
+                memoAudioPlayer = viewModel.memoAudioPlayer,
+                onGetMemoTargetFile = { id -> viewModel.getMemoTargetFile(id) },
+                onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
+                // T73: Lock-Species
+                onToggleLock = { id -> viewModel.toggleLock(id) },
+                // T164: Ausschnitt anhoeren
+                onPlay = { id -> viewModel.toggleDetectionPlayback(id) },
+                playingDetectionId = viewModel.playingDetectionId.collectAsState().value,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            )
+
+            if (!compact) {
+                similarity()
+                fabRow()
             }
         }
     }
