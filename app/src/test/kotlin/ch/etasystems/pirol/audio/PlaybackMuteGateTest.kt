@@ -75,4 +75,30 @@ class PlaybackMuteGateTest {
         assertFalse(gate.muteIfNeeded(s))
         assertEquals(7.toShort(), s[0])
     }
+
+    @Test
+    fun `T182 Preroll-Historie wird waehrend Wiedergabe und Nachlauf stumm`() {
+        // 1 kHz Rate: 1 Sample = 1 ms. Fenster 10_000..20_000 ms.
+        val rate = 1000
+        now = 12_000; gate.acquire()
+        now = 14_000; gate.release()      // stumm 12_000..14_500
+        now = 20_000
+        val s = ShortArray(10_000) { 5 }
+        val zeroed = gate.muteHistory(s, rate, endMs = 20_000)
+        assertEquals(2500, zeroed)
+        assertEquals(5.toShort(), s[1999])
+        assertEquals(0.toShort(), s[2000])
+        assertEquals(0.toShort(), s[4499])
+        assertEquals(5.toShort(), s[4500])
+    }
+
+    @Test
+    fun `T182 laufende Wiedergabe mutet bis Fensterende, ohne Wiedergabe nichts`() {
+        val s = ShortArray(1000) { 5 }
+        assertEquals(0, gate.muteHistory(s, 1000, endMs = now))
+        now = 10_000; gate.acquire()
+        now = 10_600
+        assertEquals(600, gate.muteHistory(s, 1000, endMs = now))
+        assertEquals(0.toShort(), s[999])
+    }
 }

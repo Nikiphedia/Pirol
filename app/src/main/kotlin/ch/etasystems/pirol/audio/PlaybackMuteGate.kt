@@ -26,6 +26,9 @@ class PlaybackMuteGate(private val clockMs: () -> Long = { System.nanoTime() / 1
         /** Nachlauf nach Wiedergabe-Ende (Raumhall / Latenz des Mikrofons) */
         const val TAIL_MS = 500L
 
+        /** T182: wie lange Stumm-Intervalle fuer den Preroll gemerkt werden (max. Preroll 300 s + Reserve) */
+        const val HISTORY_MS = 330_000L
+
         /** Prozessweite Instanz (AudioPlayer werden teils ohne DI erzeugt) */
         val shared = PlaybackMuteGate()
     }
@@ -34,12 +37,22 @@ class PlaybackMuteGate(private val clockMs: () -> Long = { System.nanoTime() / 1
     private val lastReleaseMs = AtomicLong(Long.MIN_VALUE / 2)
     private val _playbackActive = MutableStateFlow(false)
 
+    // T182: Stumm-Intervalle (Start, Ende inkl. Nachlauf) fuer den Preroll-Ringpuffer; Ende = Long.MAX_VALUE solange offen
+    private val intervals = ArrayList<LongArray>()
+    private val intervalLock = Any()
+
     /** Laeuft gerade mindestens eine stummschaltende Wiedergabe? (fuer den UI-Hinweis) */
     val playbackActive: StateFlow<Boolean> = _playbackActive.asStateFlow()
 
     /** Wiedergabe ueber Lautsprecher beginnt. */
     fun acquire() {
-        count.incrementAndGet()
+        if (count.incrementAndGet() == 1) {
+            val now = clockMs()
+            synchronized(intervalLock) {
+                intervals.add(longArrayOf(now, Long.MAX_VALUE))
+                intervals.removeAll { it[1] != Long.MAX_VALUE && it[1] < now - HISTORY_MS }
+            }
+        }
         _playbackActive.value = true
     }
 
@@ -49,8 +62,14 @@ class PlaybackMuteGate(private val clockMs: () -> Long = { System.nanoTime() / 1
             val c = count.get()
             if (c <= 0) return
             if (count.compareAndSet(c, c - 1)) {
-                lastReleaseMs.set(clockMs())
-                if (c - 1 == 0) _playbackActive.value = false
+                val now = clockMs()
+                lastReleaseMs.set(now)
+                if (c - 1 == 0) {
+                    synchronized(intervalLock) {
+                        intervals.lastOrNull()?.takeIf { it[1] == Long.MAX_VALUE }?.set(1, now + TAIL_MS)
+                    }
+                    _playbackActive.value = false
+                }
                 return
             }
         }
@@ -65,6 +84,31 @@ class PlaybackMuteGate(private val clockMs: () -> Long = { System.nanoTime() / 1
         if (!isMuted(nowMs)) return false
         samples.fill(0)
         return true
+    }
+
+    /**
+     * T182: Preroll-Samples, die waehrend Wiedergabe (inkl. Nachlauf) in den Ringpuffer liefen,
+     * durch Stille ersetzen. [samples] endet zum Zeitpunkt [endMs] (Gate-Uhr), Beginn = endMs minus Dauer.
+     * Liefert die Anzahl auf 0 gesetzter Samples.
+     */
+    fun muteHistory(samples: ShortArray, sampleRate: Int, endMs: Long = clockMs()): Int {
+        if (samples.isEmpty() || sampleRate <= 0) return 0
+        val startMs = endMs - samples.size * 1000L / sampleRate
+        var zeroed = 0
+        synchronized(intervalLock) {
+            for (iv in intervals) {
+                val from = maxOf(iv[0], startMs)
+                val to = minOf(iv[1], endMs)
+                if (to <= from) continue
+                val i0 = ((from - startMs) * sampleRate / 1000L).toInt().coerceIn(0, samples.size)
+                val i1 = ((to - startMs) * sampleRate / 1000L).toInt().coerceIn(0, samples.size)
+                if (i1 > i0) {
+                    java.util.Arrays.fill(samples, i0, i1, 0.toShort())
+                    zeroed += i1 - i0
+                }
+            }
+        }
+        return zeroed
     }
 }
 

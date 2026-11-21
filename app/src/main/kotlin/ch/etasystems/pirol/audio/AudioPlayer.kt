@@ -335,18 +335,6 @@ class AudioPlayer(
         setState(PlaybackState.PLAYING)
     }
 
-    /** Pause/Resume Toggle (nur fuer MediaPlayer-Wiedergabe) */
-    fun togglePause() {
-        val mp = mediaPlayer ?: return
-        if (mp.isPlaying) {
-            mp.pause()
-            setState(PlaybackState.PAUSED)
-        } else if (_state.value == PlaybackState.PAUSED) {
-            mp.start()
-            setState(PlaybackState.PLAYING)
-        }
-    }
-
     /** Playback stoppen (MediaPlayer und AudioTrack). */
     override fun stop() {
         mediaPlayer?.release()

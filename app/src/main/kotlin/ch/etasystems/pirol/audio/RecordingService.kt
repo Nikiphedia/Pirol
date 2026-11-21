@@ -207,9 +207,13 @@ class RecordingService : Service() {
             n += part.size
         }
         val captureEpochMs = System.currentTimeMillis()
+        // T182: Wiedergabe waehrend des Preroll-Fensters (inkl. Nachlauf) durch Stille ersetzen
+        val result = out.copyOf(n)
+        val muted = PlaybackMuteGate.shared.muteHistory(result, rate)
+        if (muted > 0) Log.i("RecordingService", "T182 Preroll: $muted Samples wegen Wiedergabe stumm")
         Log.i("RecordingService", "T118 Preroll erfasst: $n Samples (angefordert $wanted, dropped=${engine.getDroppedSamples()})")
         if (n == 0) return null
-        return PrerollCapture(out.copyOf(n), rate, captureEpochMs)
+        return PrerollCapture(result, rate, captureEpochMs)
     }
 
     /** T118: Erfassten Preroll genau einmal abholen (fuer Persistenz + Analyse). */
