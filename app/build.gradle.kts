@@ -26,10 +26,6 @@ android {
         versionCode = 9
         versionName = "0.0.9"
 
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
-
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
@@ -64,7 +60,27 @@ android {
         }
     }
 
+    // T159: Release = je eine APK pro ABI (arm64-v8a, armeabi-v7a), kein x86_64, keine universelle APK.
+    // Splits gelten global in AGP und vertragen sich nicht mit ndk.abiFilters. Darum nur aktiv, wenn
+    // ein Release-Task angefordert wird; Debug (Emulator x86_64) baut eine APK mit allen drei ABIs.
+    val releaseRequested = gradle.startParameter.taskNames.any {
+        it.contains("release", ignoreCase = true) || it.contains("bundle", ignoreCase = true)
+    }
+    splits {
+        abi {
+            isEnable = releaseRequested
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
+    }
+
     buildTypes {
+        debug {
+            if (!releaseRequested) {
+                ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+            }
+        }
         release {
             if (!keystoreProps.getProperty("storeFile").isNullOrBlank()) {
                 signingConfig = signingConfigs.getByName("release")
@@ -84,6 +100,15 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    // T159: sprechende Dateinamen, gleicher versionCode fuer beide ABI-APKs
+    applicationVariants.all {
+        outputs.all {
+            val out = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            val abi = out.getFilter("ABI")
+            if (abi != null) out.outputFileName = "Pirol-${versionName}-${abi}-${buildType.name}.apk"
+        }
     }
 
     buildFeatures {
