@@ -188,6 +188,9 @@ class LiveViewModel(
 
     /** Eigener Player fuer Detektions-Ausschnitte (getrennt vom Memo-Player). */
     private val detectionPlayer by lazy { AudioPlayer(context) }
+    /** T168: Mikrofon ist stumm, solange ueber den Lautsprecher abgespielt wird (UI-Hinweis) */
+    val micMutedByPlayback: StateFlow<Boolean> = ch.etasystems.pirol.audio.PlaybackMuteGate.shared.playbackActive
+
     private val _playingDetectionId = MutableStateFlow<String?>(null)
     /** Id der Detektion, deren Ausschnitt gerade spielt (null = keine). */
     val playingDetectionId: StateFlow<String?> = _playingDetectionId.asStateFlow()

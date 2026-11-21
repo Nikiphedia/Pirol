@@ -514,4 +514,5 @@
     <string name="analysis_vorkommen_stop">Stop playback</string>
     <string name="ui_wiedergabe_stoppen">Stop playback</string>
     <string name="ui_mehr_aktionen">More actions</string>
+    <string name="live_mic_stumm_wiedergabe">Microphone muted during playback</string>
 </resources>
