@@ -14,7 +14,7 @@ import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
  * T56: Optionaler [dynamicRangeMapper] wird bei jedem appendFrames()-Aufruf
  * gefuettert, damit Auto-Kontrast-Perzentile live mitlaufen.
  *
- * @param maxFrames Maximale Anzahl gespeicherter Frames (~22s bei 93 fps)
+ * @param maxFrames Maximale Anzahl gespeicherter Frames (~33 s bei 93 fps, Live: 3072)
  */
 class SpectrogramState(
     val maxFrames: Int = 2048
