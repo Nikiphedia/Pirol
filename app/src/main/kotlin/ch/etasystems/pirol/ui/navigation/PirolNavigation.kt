@@ -49,11 +49,14 @@ import org.koin.compose.koinInject
 @Composable
 fun PirolNavHost(
     windowSizeClass: WindowSizeClass,
-    appPreferences: AppPreferences = koinInject()
+    appPreferences: AppPreferences = koinInject(),
+    playback: ch.etasystems.pirol.audio.PlaybackController = koinInject()
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    // T173: Beim Wechsel/Verlassen eines Tabs laeuft keine Wiedergabe weiter
+    androidx.compose.runtime.LaunchedEffect(currentDestination?.route) { playback.stop() }
     val widthSizeClass = windowSizeClass.widthSizeClass
     val useNavigationRail = widthSizeClass >= WindowWidthSizeClass.Medium
 

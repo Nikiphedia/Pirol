@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.PlaybackKeys
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
@@ -405,14 +406,10 @@ private fun SessionDetailContent(
                     Text(stringResource(R.string.analysis_raven_txt))
                 }
                 IconButton(onClick = {
-                    if (state.playbackState == AudioPlayer.PlaybackState.PLAYING) {
-                        viewModel.stopPlayback()
-                    } else {
-                        viewModel.playCurrentChunk()
-                    }
+                    viewModel.playCurrentChunk()  // T173: Start/Stopp-Umschalter
                 }) {
                     Icon(
-                        imageVector = if (state.playbackState == AudioPlayer.PlaybackState.PLAYING)
+                        imageVector = if (state.playingKey == PlaybackKeys.SESSION)
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = stringResource(R.string.common_play)
                     )
@@ -618,6 +615,7 @@ private fun SessionDetailContent(
                         },
                         onCompare = { viewModel.openCompare(detection) },
                         onPlay = { viewModel.playDetection(detection) },
+                        isPlaying = state.playingKey == PlaybackKeys.detection(detection.id),  // T173
                         isPlayEnabled = state.hasRecording,
                         playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),
                         onEditDetection = { count, atlasCode, note, memoFile ->
@@ -807,16 +805,10 @@ private fun CompareView(
             }
             Spacer(modifier = Modifier.weight(1f))
             IconButton(onClick = {
-                if (state.playingSource == PlayingSource.DETECTION &&
-                    state.playbackState == AudioPlayer.PlaybackState.PLAYING) {
-                    viewModel.stopPlayback()
-                } else {
-                    viewModel.playDetection()
-                }
+                viewModel.playDetection()  // T173: Start/Stopp-Umschalter
             }) {
                 Icon(
-                    imageVector = if (state.playingSource == PlayingSource.DETECTION &&
-                        state.playbackState == AudioPlayer.PlaybackState.PLAYING)
+                    imageVector = if (state.playingKey == PlaybackKeys.COMPARE_DETECTION)
                         Icons.Filled.Stop else Icons.Filled.PlayArrow,
                     contentDescription = stringResource(R.string.analysis_detektion_abspielen)
                 )
@@ -883,16 +875,10 @@ private fun CompareView(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = {
-                    if (state.playingSource == PlayingSource.REFERENCE &&
-                        state.playbackState == AudioPlayer.PlaybackState.PLAYING) {
-                        viewModel.stopPlayback()
-                    } else {
-                        viewModel.playReference()
-                    }
+                    viewModel.playReference()  // T173: Start/Stopp-Umschalter
                 }) {
                     Icon(
-                        imageVector = if (state.playingSource == PlayingSource.REFERENCE &&
-                            state.playbackState == AudioPlayer.PlaybackState.PLAYING)
+                        imageVector = if (state.playingKey == PlaybackKeys.COMPARE_REFERENCE)
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = stringResource(R.string.analysis_referenz_abspielen)
                     )

@@ -49,7 +49,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -99,7 +101,9 @@ class LiveViewModel(
     private val atlasCodeRepository: AtlasCodeRepository,
     private val embeddingDbStore: EmbeddingDbStore,  // T94
     private val verificationService: ch.etasystems.pirol.ml.VerificationService,  // T137
-    private val context: android.content.Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
+    private val context: android.content.Context,  // T69: fuer VoiceMemoRecorder SAF
+    private val audioPlayer: AudioPlayer,  // T173: der eine geteilte Player
+    private val playback: ch.etasystems.pirol.audio.PlaybackController  // T173
 ) : ViewModel() {
 
     companion object {
@@ -182,26 +186,24 @@ class LiveViewModel(
     /** Sprach-Memo Recorder — separater AudioRecord, blockiert RecordingService nicht. */
     val voiceMemoRecorder = VoiceMemoRecorder()
 
-    /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
-    val memoAudioPlayer by lazy { AudioPlayer(context) }
+    /** T173: Memo-Wiedergabe nutzt den geteilten Player (Start/Stopp ueber [PlaybackController]). */
+    val memoAudioPlayer: AudioPlayer get() = audioPlayer
 
-    // --- T164: Detektion direkt auf der Artkarte anhoeren ---
+    // --- T164/T173: Detektion direkt auf der Artkarte anhoeren ---
 
-    /** Eigener Player fuer Detektions-Ausschnitte (getrennt vom Memo-Player). */
-    private val detectionPlayer by lazy { AudioPlayer(context) }
     /** T168: Mikrofon ist stumm, solange ueber den Lautsprecher abgespielt wird (UI-Hinweis) */
     val micMutedByPlayback: StateFlow<Boolean> = ch.etasystems.pirol.audio.PlaybackMuteGate.shared.playbackActive
 
-    private val _playingDetectionId = MutableStateFlow<String?>(null)
     /** Id der Detektion, deren Ausschnitt gerade spielt (null = keine). */
-    val playingDetectionId: StateFlow<String?> = _playingDetectionId.asStateFlow()
-    private var playerStateJob: Job? = null
+    val playingDetectionId: StateFlow<String?> = playback.playingKey
+        .map { key -> ch.etasystems.pirol.audio.PlaybackKeys.detectionIdOf(key) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
 
     /** Play/Stopp fuer den Ausschnitt einer Detektion (3 s davor, 5 s danach, wie in der Analyse). */
     fun toggleDetectionPlayback(detectionId: String) {
-        if (_playingDetectionId.value == detectionId) {
-            detectionPlayer.stop()
-            _playingDetectionId.value = null
+        val key = ch.etasystems.pirol.audio.PlaybackKeys.detection(detectionId)
+        if (playback.isPlaying(key)) {
+            playback.stop()
             return
         }
         val detection = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return
@@ -215,16 +217,9 @@ class LiveViewModel(
                 return@launch
             }
             val range = rec.excerptRange(detection, appPreferences.excerptMaxSec.toFloat())
-            detectionPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = DETECTION_PLAYBACK_DBFS)
-            _playingDetectionId.value = detectionId
-            playerStateJob?.cancel()
-            playerStateJob = viewModelScope.launch {
-                // Zustand beobachten: bei IDLE (Ende/Stopp) Anzeige zuruecksetzen
-                detectionPlayer.state.collect { st ->
-                    if (st == AudioPlayer.PlaybackState.IDLE && _playingDetectionId.value == detectionId) {
-                        _playingDetectionId.value = null
-                    }
-                }
+            // T173: startet eine andere Detektion, stoppt die laufende automatisch
+            playback.play(key) {
+                audioPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = DETECTION_PLAYBACK_DBFS)
             }
         }
     }
@@ -1214,8 +1209,7 @@ class LiveViewModel(
         // Service-Unbinding muss vom Screen gemacht werden (braucht Context)
         // T69: Voice-Memo Cleanup
         voiceMemoRecorder.release()
-        memoAudioPlayer.release()
-        detectionPlayer.release()
+        playback.stop()  // T173
     }
 }
 

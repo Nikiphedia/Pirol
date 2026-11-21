@@ -27,7 +27,8 @@ class ReferenceViewModel(
     private val repository: ReferenceRepository,
     private val audioPlayer: AudioPlayer,
     private val speciesNameResolver: SpeciesNameResolver,
-    private val context: Context
+    private val context: Context,
+    private val playback: ch.etasystems.pirol.audio.PlaybackController  // T173
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReferenceUiState())
@@ -42,9 +43,13 @@ class ReferenceViewModel(
         viewModelScope.launch {
             audioPlayer.state.collect { state ->
                 _uiState.update { it.copy(playbackState = state) }
-                if (state == AudioPlayer.PlaybackState.IDLE) {
-                    _uiState.update { it.copy(playingEntryId = null) }
-                }
+            }
+        }
+        // T173: laufende Referenz aus dem Schluessel der zentralen Wiedergabe ableiten
+        viewModelScope.launch {
+            playback.playingKey.collect { key ->
+                val id = key?.takeIf { it.startsWith("ref:") }?.removePrefix("ref:")
+                _uiState.update { it.copy(playingEntryId = id) }
             }
         }
     }
@@ -66,13 +71,13 @@ class ReferenceViewModel(
     /** Referenz-Aufnahme abspielen */
     fun playRecording(entry: ReferenceEntry) {
         val wavFile = repository.getWavFile(entry) ?: return
-        audioPlayer.play(wavFile)
-        _uiState.update { it.copy(playingEntryId = entry.id) }
+        // T173: Start/Stopp-Umschalter; andere Wiedergabe wird verdraengt
+        playback.toggle(ch.etasystems.pirol.audio.PlaybackKeys.reference(entry.id)) { audioPlayer.play(wavFile) }
     }
 
     /** Playback stoppen */
     fun stopPlayback() {
-        audioPlayer.stop()
+        playback.stop()
     }
 
     /** Anzahl Referenzen fuer eine Art aus dem Repository zaehlen */

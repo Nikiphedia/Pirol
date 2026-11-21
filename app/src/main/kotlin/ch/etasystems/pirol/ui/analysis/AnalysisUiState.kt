@@ -60,6 +60,8 @@ data class AnalysisUiState(
     val playingChunkIndex: Int? = null,
     // T107: abgespielte Detektion (Hervorhebung) + Abspielposition in Sekunden (Zeiger im Sonogramm)
     val playingDetectionId: String? = null,
+    /** T173: Schluessel der laufenden Wiedergabe (PlaybackController), null = keine */
+    val playingKey: String? = null,
     val playbackPositionSec: Float? = null,
     // T167: abgespieltes Einzelvorkommen (Startsekunde in der Session), null = Hauptfenster/keines
     val playingOccurrenceStartSec: Float? = null,
