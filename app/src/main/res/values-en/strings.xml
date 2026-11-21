@@ -512,4 +512,6 @@
     <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
     <string name="analysis_vorkommen_abspielen">Play occurrence</string>
     <string name="analysis_vorkommen_stop">Stop playback</string>
+    <string name="ui_wiedergabe_stoppen">Stop playback</string>
+    <string name="ui_mehr_aktionen">More actions</string>
 </resources>

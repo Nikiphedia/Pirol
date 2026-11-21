@@ -15,6 +15,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +27,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,16 +57,20 @@ fun SimilarityPanel(
     similarEnabled: Boolean,
     similarLines: Float,
     recentSpecies: List<String>,
+    collapsible: Boolean = false,  // T164: Telefon: nur Kopfzeile, per Tipp aufklappbar
     modifier: Modifier = Modifier
 ) {
     if (!similarEnabled || similarLines == 0f || !isEmbeddingAvailable) return
 
     val resolver: SpeciesNameResolver = koinInject()
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(!collapsible) }
 
     Column(modifier = modifier) {
         // Header-Zeile: Icon + Titel + Badge
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (collapsible) Modifier.heightIn(min = 48.dp).clickable { expanded = !expanded } else Modifier),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -84,11 +94,19 @@ fun SimilarityPanel(
                     Text(text = "${matches.size}")
                 }
             }
+            if (collapsible) {
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        if (expanded) Spacer(modifier = Modifier.height(8.dp))
 
         when {
+            !expanded -> { /* T164: eingeklappt, nur Kopfzeile */ }
             similarLines == 0.5f -> {
                 // Laufschrift-Mode: letzte 5 Detektionen der Session
                 val marqueeText = recentSpecies.joinToString(" · ").ifEmpty { "—" }
