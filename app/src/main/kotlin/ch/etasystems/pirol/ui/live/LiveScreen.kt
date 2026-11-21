@@ -300,11 +300,8 @@ private fun CompactLiveLayout(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            // Header
-            LiveHeader(uiState = uiState, viewModel = viewModel, compact = true)
-
-            Spacer(modifier = Modifier.height(4.dp))
-
+            // T170: Telefon ohne Titelzeile (Platz). Laufzeit steht in der Status-Zeile,
+            // Palette ist per Langdruck auf das Sonogramm waehlbar.
             // Kompakte Status-Zeile (T30) + Export-Buttons
             ScanStatusRow(uiState = uiState, viewModel = viewModel)
             if (!uiState.isRecording) SessionNoteField(viewModel)
@@ -894,8 +891,7 @@ private fun ExpandedLiveLayout(
 @Composable
 private fun LiveHeader(
     uiState: LiveUiState,
-    viewModel: LiveViewModel,
-    compact: Boolean = false  // T164: Telefon-Hochformat, kleinere Ueberschrift
+    viewModel: LiveViewModel
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -904,7 +900,7 @@ private fun LiveHeader(
     ) {
         Text(
             text = stringResource(R.string.live_live_aufnahme),
-            style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
