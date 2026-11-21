@@ -48,3 +48,6 @@ Handover_Master_*.md
 master-briefing.md
 Prompt_Nachfolger.md
 CLAUDE.md
+
+# Icon-Vorschau (wird von tools/make_app_icon.py erzeugt)
+tools/icon/preview.png
