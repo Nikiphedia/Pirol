@@ -1321,7 +1321,8 @@ private fun RecordingFab(
                         tint = if (fabState == RecordingFabState.CONNECTING) {
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         } else {
-                            Color.White
+                            // T169: Hintergrund ist colorScheme.primary (dynamische Farben koennen fast weiss sein)
+                            MaterialTheme.colorScheme.onPrimary
                         }
                     )
                 }
