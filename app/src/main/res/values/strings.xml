@@ -505,4 +505,8 @@
     <string name="palette_grayscale">Graustufen</string>
     <string name="palette_paper">Papier (hell)</string>
     <string name="model_min_confidence">Mindest-Konfidenz %1$d %%</string>
+    <string name="map_position_verschoben">%1$s verschoben</string>
+    <string name="map_move_banner">Karte verschieben: Fadenkreuz auf die neue Position von %1$s, dann Übernehmen.</string>
+    <string name="map_move_apply">Übernehmen</string>
+    <string name="map_move_live_hint">Keine laufende Session: Die neue Position gilt nur bis zum Schliessen der App.</string>
 </resources>

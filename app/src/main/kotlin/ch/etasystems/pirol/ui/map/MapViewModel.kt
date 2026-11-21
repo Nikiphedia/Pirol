@@ -199,34 +199,79 @@ class MapViewModel(
         _uiState.update { it.copy(longPressTarget = null) }
     }
 
-    /** Position-Verschieben-Dialog oeffnen */
+    /** T165: true, wenn Live-Verschiebungen in detections.jsonl landen (laufende Session); sonst nur in der Liste. */
+    val liveMovePersisted: Boolean get() = sessionManager.isActive
+
+    /** Verschiebe-Modus starten (historisch und live, T165) */
     fun selectMarkerForMove(marker: MapMarker) {
-        if (marker.isLive) return  // Live-Marker haben keine sessionId → kein Position-Move
-        _uiState.update { it.copy(positionMoveTarget = marker) }
+        _uiState.update { it.copy(positionMoveTarget = marker, longPressTarget = null, selectedCluster = null) }
     }
 
-    /** Neue Position bestaetigen → in verifications.jsonl schreiben + Marker in-place aktualisieren */
+    /** Neue Position bestaetigen, speichern und Snackbar mit Undo zeigen (T165) */
     fun confirmPositionMove(newLat: Double, newLon: Double) {
         val target = _uiState.value.positionMoveTarget ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            sessionManager.recordPositionMoved(
-                sessionId = target.sessionId,
-                detectionId = target.detectionId,
-                newLat = newLat,
-                newLon = newLon
-            )
-            _uiState.update { state ->
-                val updated = state.markers.map { m ->
-                    if (m.detectionId == target.detectionId)
-                        m.copy(latitude = newLat, longitude = newLon)
-                    else m
-                }
-                state.copy(markers = updated, positionMoveTarget = null)
+        _uiState.update { it.copy(positionMoveTarget = null) }
+        val oldLat = target.latitude
+        val oldLon = target.longitude
+        viewModelScope.launch {
+            if (!applyPosition(target, newLat, newLon)) {
+                snackbarChannel.trySend(MapSnackbar(AppStrings.get(R.string.common_save_failed)))
+                return@launch
             }
+            snackbarChannel.trySend(
+                MapSnackbar(AppStrings.get(R.string.map_position_verschoben, target.species), AppStrings.get(R.string.common_undo)) {
+                    viewModelScope.launch { applyPosition(target, oldLat, oldLon) }
+                }
+            )
         }
     }
 
-    /** Dialog schliessen ohne Aenderung */
+    /**
+     * Position schreiben: Live -> Liste (+ detections.jsonl und Event bei laufender Session),
+     * historisch -> POSITION_MOVED in die Session-Datei. Marker-State wird in-place aktualisiert.
+     */
+    private suspend fun applyPosition(target: MapMarker, lat: Double, lon: Double): Boolean {
+        val ok = withContext(Dispatchers.IO) {
+            verificationMutex.withLock {
+                runCatching {
+                    if (target.isLive) {
+                        val det = detectionListState.getDetections().firstOrNull { it.id == target.detectionId }
+                            ?: return@runCatching false
+                        detectionListState.updateDetection(det.copy(latitude = lat, longitude = lon))
+                        if (sessionManager.isActive) {
+                            sessionManager.replaceDetection(det.copy(latitude = lat, longitude = lon))
+                            sessionManager.appendVerification(
+                                VerificationEvent(
+                                    detectionId = det.id, status = det.verificationStatus,
+                                    verifiedAtMs = System.currentTimeMillis(),
+                                    actionType = VerificationEvent.ACTION_POSITION_MOVED,
+                                    newValue = "$lat,$lon"
+                                )
+                            )
+                        }
+                    } else {
+                        sessionManager.recordPositionMoved(
+                            sessionId = target.sessionId, detectionId = target.detectionId,
+                            newLat = lat, newLon = lon, status = target.verificationStatus
+                        )
+                    }
+                    true
+                }.getOrDefault(false)
+            }
+        }
+        if (!ok) return false
+        _uiState.update { state ->
+            state.copy(
+                markers = MapPositionMove.applyTo(state.markers, target.detectionId, lat, lon),
+                selectedCluster = state.selectedCluster?.let { c ->
+                    c.copy(items = MapPositionMove.applyTo(c.items, target.detectionId, lat, lon))
+                }
+            )
+        }
+        return true
+    }
+
+    /** Verschiebe-Modus beenden ohne Aenderung */
     fun dismissPositionMove() {
         _uiState.update { it.copy(positionMoveTarget = null) }
     }
