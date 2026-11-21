@@ -31,14 +31,14 @@ import java.io.InputStream
 class AudioPlayer(
     private val context: Context,
     private val muteGate: PlaybackMuteGate = PlaybackMuteGate.shared
-) {
+) : PlaybackEngine {
 
     enum class PlaybackState { IDLE, PLAYING, PAUSED }
 
     private var mediaPlayer: MediaPlayer? = null
     private var audioTrack: AudioTrack? = null
     private val _state = MutableStateFlow(PlaybackState.IDLE)
-    val state: StateFlow<PlaybackState> = _state.asStateFlow()
+    override val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     // T168: haelt dieser Player gerade das Mikrofon-Mute-Gate? (genau ein acquire pro Wiedergabe)
     private var holdsMuteGate = false
@@ -348,7 +348,7 @@ class AudioPlayer(
     }
 
     /** Playback stoppen (MediaPlayer und AudioTrack). */
-    fun stop() {
+    override fun stop() {
         mediaPlayer?.release()
         mediaPlayer = null
         mediaPlayerOffsetSec = 0f

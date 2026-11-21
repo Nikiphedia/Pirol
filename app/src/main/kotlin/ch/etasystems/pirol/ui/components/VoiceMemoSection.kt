@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
@@ -45,6 +44,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.PlaybackController
+import ch.etasystems.pirol.audio.PlaybackKeys
+import org.koin.compose.koinInject
 import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -87,7 +89,10 @@ fun VoiceMemoSection(
     var currentRelPath by remember { mutableStateOf(initialMemoRelPath) }
     val isRecording by recorder.isRecording.collectAsState()
     val amplitude by recorder.amplitude.collectAsState()
-    val playerState by audioPlayer.state.collectAsState()
+    // T173: Memo-Wiedergabe ueber den zentralen Controller (Start/Stopp, nur eine Wiedergabe gleichzeitig)
+    val playback: PlaybackController = koinInject()
+    val playingKey by playback.playingKey.collectAsState()
+    val memoKey = PlaybackKeys.memo(detectionId)
 
     // Timer fuer Aufnahme-Anzeige
     var elapsedSec by remember { mutableIntStateOf(0) }
@@ -110,9 +115,9 @@ fun VoiceMemoSection(
         }
     }
 
-    // Cleanup Player bei Verlassen der Composition
-    DisposableEffect(audioPlayer) {
-        onDispose { audioPlayer.stop() }
+    // Cleanup bei Verlassen der Composition: nur die eigene Memo-Wiedergabe stoppen
+    DisposableEffect(memoKey) {
+        onDispose { if (playback.isPlaying(memoKey)) playback.stop() }
     }
 
     Column(
@@ -166,13 +171,11 @@ fun VoiceMemoSection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Play/Pause
-                    val isPlaying = playerState == AudioPlayer.PlaybackState.PLAYING
+                    // Play/Stopp (T173: statt Pause)
+                    val isPlaying = playingKey == memoKey
                     IconButton(
                         onClick = {
-                            if (isPlaying) {
-                                audioPlayer.togglePause()
-                            } else {
+                            playback.toggle(memoKey) {
                                 if (targetFile != null) {
                                     audioPlayer.play(targetFile)
                                 } else if (targetUri != null) {
@@ -182,8 +185,8 @@ fun VoiceMemoSection(
                         }
                     ) {
                         Icon(
-                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) stringResource(R.string.ui_pausieren) else stringResource(R.string.common_play),
+                            if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                            contentDescription = if (isPlaying) stringResource(R.string.ui_wiedergabe_stoppen) else stringResource(R.string.common_play),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -195,7 +198,7 @@ fun VoiceMemoSection(
                     // Loeschen
                     IconButton(
                         onClick = {
-                            audioPlayer.stop()
+                            if (playback.isPlaying(memoKey)) playback.stop()
                             // Datei loeschen
                             try { targetFile?.delete() } catch (_: Exception) {}
                             currentRelPath = null

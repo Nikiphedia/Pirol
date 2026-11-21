@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.AudioPlayer
+import ch.etasystems.pirol.audio.PlaybackKeys
 import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.audio.export.DetectionExcerpt
 import ch.etasystems.pirol.audio.export.ExcerptWav
@@ -66,7 +67,8 @@ class AnalysisViewModel(
     private val appPreferences: AppPreferences,
     private val atlasCodeRepository: AtlasCodeRepository,
     private val speciesNameResolver: SpeciesNameResolver,  // T72: Artsuche fuer AddManualDetectionDialog
-    private val context: Context  // T69: fuer VoiceMemoRecorder SAF + memoAudioPlayer
+    private val context: Context,  // T69: fuer VoiceMemoRecorder SAF
+    private val playback: ch.etasystems.pirol.audio.PlaybackController  // T173: zentrale Wiedergabe
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -80,8 +82,8 @@ class AnalysisViewModel(
     /** Sprach-Memo Recorder — separater AudioRecord, blockiert RecordingService nicht. */
     val voiceMemoRecorder = VoiceMemoRecorder()
 
-    /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
-    val memoAudioPlayer by lazy { AudioPlayer(context) }
+    /** T173: Memo-Wiedergabe nutzt den geteilten Player (Start/Stopp ueber [PlaybackController]). */
+    val memoAudioPlayer: AudioPlayer get() = audioPlayer
 
     /** T107: Polling-Job fuer die Abspielposition. */
     private var positionJob: Job? = null
@@ -94,6 +96,10 @@ class AnalysisViewModel(
         viewModelScope.launch {
             sessionManager.recoverOrphanSessions()
             loadSessions()
+        }
+        // T173: Schluessel der laufenden Wiedergabe in den UI-State spiegeln
+        viewModelScope.launch {
+            playback.playingKey.collect { key -> _uiState.update { it.copy(playingKey = key) } }
         }
         // Playback-State beobachten
         viewModelScope.launch {
@@ -243,13 +249,15 @@ class AnalysisViewModel(
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
         val rec = recording
-        when {
-            rec != null && rec.parts.size > 1 -> audioPlayer.play(rec)  // T130: Segmente nacheinander
-            uri != null -> audioPlayer.play(uri)
-            f   != null -> audioPlayer.play(f)
+        // T173: Start/Stopp-Umschalten ueber den zentralen Controller
+        val start: () -> Unit = when {
+            rec != null && rec.parts.size > 1 -> { { audioPlayer.play(rec) } }  // T130: Segmente nacheinander
+            uri != null -> { { audioPlayer.play(uri) } }
+            f   != null -> { { audioPlayer.play(f) } }
             else -> return
         }
-        _uiState.update { it.copy(playingChunkIndex = 0, playingDetectionId = null) }
+        if (playback.toggle(PlaybackKeys.SESSION, start)) return
+        _uiState.update { it.copy(playingChunkIndex = 0, playingDetectionId = null, playingOccurrenceStartSec = null) }
     }
 
     /** Aufnahme abspielen (spielt recording.wav) */
@@ -269,7 +277,16 @@ class AnalysisViewModel(
      * Detektion ab chunkStartSec bis chunkEndSec abspielen.
      * T62: bevorzugt Uri-Variante fuer SAF-Kompatibilitaet (AC5).
      */
-    fun playDetection(detection: DetectionResult, maxSec: Float = appPreferences.excerptMaxSec.toFloat()) {
+    fun playDetection(
+        detection: DetectionResult,
+        maxSec: Float = appPreferences.excerptMaxSec.toFloat(),
+        key: String = PlaybackKeys.detection(detection.id)
+    ) {
+        // T173: laeuft genau dieser Ausschnitt, wird er gestoppt; ein anderer Ausschnitt verdraengt den laufenden
+        if (playback.isPlaying(key)) {
+            playback.stop()
+            return
+        }
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
         val rec = recording
@@ -277,13 +294,15 @@ class AnalysisViewModel(
         // T130: auf der Session-Achse ueber alle Segmente
         val range = rec?.excerptRange(detection, maxSec)
             ?: DetectionExcerpt.compute(detection, _uiState.value.recordingDurationSec, maxSec)
-        when {
-            rec != null -> audioPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
-            uri != null -> audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
-            f   != null -> audioPlayer.playFromOffset(f,   startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
+        val start: () -> Unit = when {
+            rec != null -> { { audioPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            uri != null -> { { audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            f   != null -> { { audioPlayer.playFromOffset(f,   startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS) } }
             else -> return
         }
-        _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id) }
+        playback.play(key, start)
+        if (!playback.isPlaying(key)) return
+        _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id, playingOccurrenceStartSec = null) }
         if (rec != null) renderZoomSonogram(range) { rec.readRange(range.startSec, range.endSec) }
         else if (f != null) renderZoomSonogram(range) { ExcerptWav.readRange(f, range.startSec, range.endSec) }
     }
@@ -294,13 +313,6 @@ class AnalysisViewModel(
      * schon, stoppt der Aufruf die Wiedergabe.
      */
     fun playEpisode(detection: DetectionResult, episode: DetectionOccurrences.Episode) {
-        val st = _uiState.value
-        if (st.playingDetectionId == detection.id && st.playingOccurrenceStartSec == episode.startSec &&
-            st.playbackState != AudioPlayer.PlaybackState.IDLE
-        ) {
-            audioPlayer.stop()
-            return
-        }
         playDetection(
             detection.copy(
                 chunkStartSec = episode.startSec,
@@ -308,9 +320,12 @@ class AnalysisViewModel(
                 timestampMs = episode.timestampMs,
                 lastSeenAtMs = episode.lastTimestampMs
             ),
-            maxSec = Float.MAX_VALUE
+            maxSec = Float.MAX_VALUE,
+            key = PlaybackKeys.episode(detection.id, episode.startSec)
         )
-        _uiState.update { it.copy(playingOccurrenceStartSec = episode.startSec) }
+        if (playback.isPlaying(PlaybackKeys.episode(detection.id, episode.startSec))) {
+            _uiState.update { it.copy(playingOccurrenceStartSec = episode.startSec) }
+        }
     }
 
     private var zoomJob: Job? = null
@@ -489,13 +504,14 @@ class AnalysisViewModel(
         val f   = _uiState.value.recordingFile
         val det = _uiState.value.compareDetection ?: return
         val rec = recording
-        when {
+        val start: () -> Unit = when {
             // T130: Session-Achse ueber alle Segmente
-            rec != null -> audioPlayer.playFromOffset(rec, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
-            uri != null -> audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
-            f   != null -> audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS)
+            rec != null -> { { audioPlayer.playFromOffset(rec, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            uri != null -> { { audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            f   != null -> { { audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
             else -> return
         }
+        if (playback.toggle(PlaybackKeys.COMPARE_DETECTION, start)) return  // T173
         _uiState.update { it.copy(playingSource = PlayingSource.DETECTION) }
     }
 
@@ -503,7 +519,7 @@ class AnalysisViewModel(
     fun playReference() {
         val entry = _uiState.value.selectedReference ?: return
         val wavFile = referenceRepository.getWavFile(entry) ?: return
-        audioPlayer.play(wavFile)
+        if (playback.toggle(PlaybackKeys.COMPARE_REFERENCE) { audioPlayer.play(wavFile) }) return  // T173
         _uiState.update { it.copy(playingSource = PlayingSource.REFERENCE) }
     }
 
@@ -1089,6 +1105,5 @@ class AnalysisViewModel(
         audioPlayer.stop()
         // T69: Voice-Memo Cleanup
         voiceMemoRecorder.release()
-        memoAudioPlayer.release()
     }
 }

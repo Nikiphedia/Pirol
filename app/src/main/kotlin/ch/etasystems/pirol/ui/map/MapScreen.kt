@@ -50,6 +50,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import ch.etasystems.pirol.audio.PlaybackKeys
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -290,6 +293,7 @@ private sealed interface OfflineDialog {
 @Composable
 fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsState()
+    val playingKey by viewModel.playingKey.collectAsState()  // T173
     val colorRepo: SpeciesColorRepository = koinInject()
     val atlasCodeRepo: AtlasCodeRepository = koinInject()
     val nameResolver: SpeciesNameResolver = koinInject()
@@ -673,12 +677,18 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     onVerify = { viewModel.verifyMarker(m, it) },
                                     modifier = Modifier.padding(bottom = 2.dp)
                                 )
-                                // T165: Einzelpunkt aus dem Cluster verschieben
+                                // T165: Einzelpunkt aus dem Cluster verschieben; T173: Ausschnitt abspielen/stoppen
                                 if (!state.focusMode) {
-                                    TextButton(
-                                        onClick = { viewModel.selectMarkerForMove(m) },
-                                        modifier = Modifier.heightIn(min = 48.dp)
-                                    ) { Text(stringResource(R.string.map_position_verschieben)) }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        MapPlayButton(
+                                            playing = playingKey == PlaybackKeys.detection(m.detectionId),
+                                            onClick = { viewModel.toggleMarkerPlayback(m) }
+                                        )
+                                        TextButton(
+                                            onClick = { viewModel.selectMarkerForMove(m) },
+                                            modifier = Modifier.heightIn(min = 48.dp)
+                                        ) { Text(stringResource(R.string.map_position_verschieben)) }
+                                    }
                                 }
                                 HorizontalDivider()
                             }
@@ -721,6 +731,19 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     },
                     confirmButton = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // T173: Ausschnitt abspielen/stoppen (Dialog bleibt offen, Icon zeigt Stopp)
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                onClick = { viewModel.toggleMarkerPlayback(longPressTarget) }
+                            ) {
+                                val playing = playingKey == PlaybackKeys.detection(longPressTarget.detectionId)
+                                Icon(
+                                    if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                                    contentDescription = null
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(if (playing) R.string.ui_wiedergabe_stoppen else R.string.common_play))
+                            }
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
@@ -1199,5 +1222,17 @@ private fun buildClusters(
     return groups.map { g ->
         val items = g.map { markers[it] }
         MapViewModel.MarkerCluster(items.sumOf { it.latitude } / items.size, items.sumOf { it.longitude } / items.size, items)
+    }
+}
+
+/** T173: Play/Stopp-Knopf (48 dp) fuer den Detektions-Ausschnitt auf der Karte. */
+@Composable
+private fun MapPlayButton(playing: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(
+            imageVector = if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+            contentDescription = stringResource(if (playing) R.string.ui_wiedergabe_stoppen else R.string.common_play),
+            tint = MaterialTheme.colorScheme.primary
+        )
     }
 }

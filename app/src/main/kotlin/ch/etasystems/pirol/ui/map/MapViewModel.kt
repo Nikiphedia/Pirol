@@ -31,8 +31,45 @@ enum class FilterMode { ALL, LIVE_ONLY, RECENT_3 }
 class MapViewModel(
     private val sessionManager: SessionManager,
     private val detectionListState: DetectionListState,
-    private val locationProvider: LocationProvider
+    private val locationProvider: LocationProvider,
+    private val audioPlayer: ch.etasystems.pirol.audio.AudioPlayer,  // T173
+    private val playback: ch.etasystems.pirol.audio.PlaybackController,  // T173
+    private val appPreferences: ch.etasystems.pirol.data.AppPreferences  // T173: excerptMaxSec
 ) : ViewModel() {
+
+    /** T173: Schluessel der laufenden Wiedergabe (gemeinsam mit Live/Analyse: "det:<id>") */
+    val playingKey: StateFlow<String?> = playback.playingKey
+
+    /**
+     * T173: Ausschnitt der Detektion aus ihrer Session abspielen bzw. stoppen (Umschalter).
+     * Historisch: Session-Ordner ueber die sessionId; live: laufende Session, sonst juengste.
+     */
+    fun toggleMarkerPlayback(marker: MapMarker) {
+        val key = ch.etasystems.pirol.audio.PlaybackKeys.detection(marker.detectionId)
+        if (playback.isPlaying(key)) {
+            playback.stop()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val dir = if (marker.isLive) {
+                sessionManager.currentSessionDir ?: sessionManager.listSessions().firstOrNull()
+            } else findSessionDir(marker.sessionId)
+            val det = if (marker.isLive) {
+                detectionListState.getDetections().firstOrNull { it.id == marker.detectionId }
+            } else dir?.let { d ->
+                sessionManager.loadDetectionsWithVerifications(d).firstOrNull { it.id == marker.detectionId }
+            }
+            val rec = dir?.let { sessionManager.loadRecording(it) }
+            if (det == null || rec == null || rec.durationSec <= 0f) {
+                snackbarChannel.trySend(MapSnackbar(AppStrings.get(R.string.live_aufnahme_nicht_verfuegbar_teilen_in)))
+                return@launch
+            }
+            val range = rec.excerptRange(det, appPreferences.excerptMaxSec.toFloat())
+            playback.play(key) {
+                audioPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = -10f)
+            }
+        }
+    }
 
     val currentLocation: StateFlow<LocationData?> = locationProvider.location
 

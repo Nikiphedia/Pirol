@@ -73,6 +73,9 @@ val appModule = module {
     // T62: Context fuer SAF-URI-Support (ContentResolver / setDataSource(context, uri))
     single { AudioPlayer(androidContext()) }
 
+    // T173: zentrale Wiedergabe (ein Player, Start/Stopp-Schluessel) fuer Live, Analyse, Referenz, Karte, Memo
+    single { ch.etasystems.pirol.audio.PlaybackController(get<AudioPlayer>()) }
+
     // WatchlistManager — Singleton, laedt/verwaltet Watchlist (T20)
     single { PirolFolder(get(), get()) }  // T129: SAF-Ordnerfreigabe
     single { WatchlistManager(get(), get()) }
@@ -123,16 +126,18 @@ val appModule = module {
 
     // LiveViewModel — ueberlebt Configuration Changes, haelt DSP + ML + GPS Pipeline
     // T69: +1 Param (androidContext) fuer VoiceMemoRecorder SAF + memoAudioPlayer (14→15 get())
-    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext()) }  // T94: EmbeddingExtractor -> RecordingPipeline, + EmbeddingDbStore
+    viewModel { LiveViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext(), get<AudioPlayer>(), get()) }  // T173: + AudioPlayer, PlaybackController; T94: EmbeddingExtractor -> RecordingPipeline, + EmbeddingDbStore
 
     // ReferenceViewModel — Referenzbibliothek-UI
-    viewModel { ReferenceViewModel(get(), get(), get(), androidContext()) }
+    viewModel { ReferenceViewModel(get(), get(), get(), androidContext(), get()) }  // T173: + PlaybackController
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
     // T72: +1 Param (SpeciesNameResolver) fuer AddManualDetectionDialog (6→7 get())
-    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext()) }  // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext(), get()) }  // T173: + PlaybackController
+     // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
     // T83: +1 Param (LocationProvider) fuer Home-FAB (2→3 get())
-    viewModel { MapViewModel(get(), get(), get()) }  // SessionManager, DetectionListState, LocationProvider
+    viewModel { MapViewModel(get(), get(), get(), get<AudioPlayer>(), get(), get()) }  // T173: + AudioPlayer, PlaybackController, AppPreferences
+     // SessionManager, DetectionListState, LocationProvider
 }

@@ -567,7 +567,7 @@ private fun RecordingCard(
                     if (isPlaying) {
                         IconButton(
                             onClick = onStop,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Stop,
@@ -584,7 +584,7 @@ private fun RecordingCard(
                     } else {
                         IconButton(
                             onClick = onPlay,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.PlayArrow,
