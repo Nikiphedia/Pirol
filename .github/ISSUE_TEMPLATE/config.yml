@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sicherheitslücke melden
+    url: https://github.com/Nikiphedia/Pirol/security/advisories/new
+    about: Bitte vertraulich melden, nicht als öffentliches Issue.
+  - name: Bedienungsanleitung
+    url: https://github.com/Nikiphedia/Pirol/blob/master/BDA_PIROL.md
+    about: Viele Fragen beantwortet die Anleitung.

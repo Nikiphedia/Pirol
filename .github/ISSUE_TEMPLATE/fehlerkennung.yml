@@ -1,0 +1,34 @@
+name: Fehlerkennung einer Art
+description: Eine Art wurde falsch oder gar nicht erkannt
+labels: ["erkennung"]
+body:
+  - type: input
+    id: erkannt
+    attributes:
+      label: Erkannte Art und Konfidenz
+      placeholder: z.B. Singdrossel, 72 %
+    validations:
+      required: true
+  - type: input
+    id: tatsaechlich
+    attributes:
+      label: Tatsächliche Art
+      placeholder: z.B. Misteldrossel
+    validations:
+      required: true
+  - type: input
+    id: modell
+    attributes:
+      label: Modell und Region
+      description: Steht oben im Live-Tab
+      placeholder: z.B. BirdNET 3.0 FP16 · Voegel · CH+
+  - type: input
+    id: wann
+    attributes:
+      label: Datum und grobe Gegend
+      placeholder: z.B. 21.11.2026, Mittelland
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audioausschnitt
+      description: Wenn möglich einen kurzen Ausschnitt (WAV, als ZIP) anhängen.

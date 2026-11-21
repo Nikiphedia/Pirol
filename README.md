@@ -84,7 +84,13 @@ Die Debug-APK liegt danach unter `app/build/outputs/apk/debug/`. Release-Builds 
 ## Mitmachen
 
 Rückmeldungen aus dem Feld sind das Wertvollste: Fehlerkennungen, Bedienungsprobleme, Wünsche.
-Am besten als [Issue](https://github.com/Nikiphedia/Pirol/issues), gerne mit Screenshot und Version (Einstellungen → Info).
+Am besten als [Issue](https://github.com/Nikiphedia/Pirol/issues/new/choose), gerne mit Screenshot und Version (Einstellungen → Info).
+Code-Beiträge nach Absprache, siehe [CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte vertraulich melden ([SECURITY.md](SECURITY.md)).
+
+## Lizenz
+
+PIROL steht unter der [GNU General Public License v3.0](LICENSE). Die Erkennungsmodelle sind nicht Teil der App und
+haben eigene Lizenzen (siehe oben).
 
 ---
 
