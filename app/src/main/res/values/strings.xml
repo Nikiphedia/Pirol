@@ -551,4 +551,6 @@
         <item>Karte: Punkt antippen zum Verschieben oder Anhören; Standort-Knopf zeigt 200 m Ausschnitt</item>
         <item>Neues App-Symbol, kleinere Installationsdatei</item>
     </string-array>
+    <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts verschoben.</string>
+    <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewaehlte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>
 </resources>

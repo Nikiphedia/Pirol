@@ -648,6 +648,34 @@ class SessionManager(
         safSessions[sessionDir.path]
             ?: activeSessionDoc?.takeIf { it.name == sessionDir.name }
 
+    // ── T181: Dokument-IDs fuer die Pruefung des Verschiebe-Ziels ─────
+
+    /** Dateipfad auf dem primaeren Speicher als SAF-Dokument-ID (`primary:Download/PIROL/...`). */
+    private fun fileToDocId(file: File): String? {
+        val root = Environment.getExternalStorageDirectory().absolutePath.trimEnd('/', '\\')
+        val path = file.absolutePath.replace('\\', '/')
+        if (path != root && !path.startsWith("$root/")) return null
+        return "primary:" + path.removePrefix(root).trimStart('/')
+    }
+
+    /** Dokument-IDs der PIROL-Basis (SAF-Basis und/oder Datei-Basis). */
+    fun baseDocumentIds(): List<String> {
+        val ids = mutableListOf<String>()
+        appPreferences.storageBaseUri?.let { u ->
+            runCatching { DocumentsContract.getTreeDocumentId(Uri.parse(u)) }.getOrNull()?.let { ids += it }
+        }
+        fileToDocId(resolveBaseFile())?.let { ids += it }
+        return ids
+    }
+
+    /** Dokument-ID des Session-Ordners (SAF-Dokument oder Dateipfad), null wenn nicht ermittelbar. */
+    fun sessionDocumentId(sessionDir: File): String? {
+        docFor(sessionDir)?.let { doc ->
+            runCatching { DocumentsContract.getDocumentId(doc.uri) }.getOrNull()?.let { return it }
+        }
+        return fileToDocId(sessionDir)
+    }
+
     /** Dateizugriff passend zum Speichermodus der Session. */
     private fun accessFor(sessionDir: File): SessionFiles =
         docFor(sessionDir)?.let { DocSessionFiles(context, it) } ?: FileSessionFiles(sessionDir)
@@ -1218,18 +1246,18 @@ class SessionManager(
     /**
      * T167: Wanduhr-Zeiten der absorbierten Fenster je Anker-Detektion (aus CLUSTER_MERGED-Events).
      */
-    suspend fun loadMergeTimestamps(sessionDir: File): Map<String, List<Long>> = withContext(Dispatchers.IO) {
+    suspend fun loadMergeTimestamps(sessionDir: File): Map<String, List<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>> = withContext(Dispatchers.IO) {
         val veriText = try { accessFor(sessionDir).readText("verifications.jsonl") } catch (_: Exception) { null }
             ?: return@withContext emptyMap()
-        val map = mutableMapOf<String, MutableList<Long>>()
+        val map = mutableMapOf<String, MutableList<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>>()
         veriText.lineSequence().forEach { line ->
             if (line.isBlank()) return@forEach
             val event = runCatching { jsonLenient.decodeFromString<VerificationEvent>(line) }.getOrNull()
                 ?: return@forEach
             if (event.actionType != VerificationEvent.ACTION_CLUSTER_MERGED) return@forEach
-            val ts = ch.etasystems.pirol.ui.analysis.DetectionOccurrences
-                .parseMergeTimestamp(event.correctedSpecies) ?: return@forEach
-            map.getOrPut(event.detectionId) { mutableListOf() }.add(ts)
+            val info = ch.etasystems.pirol.ui.analysis.DetectionOccurrences
+                .parseMergeInfo(event.correctedSpecies) ?: return@forEach
+            map.getOrPut(event.detectionId) { mutableListOf() }.add(info)
         }
         map
     }

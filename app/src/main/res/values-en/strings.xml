@@ -550,4 +550,6 @@
         <item>Map: tap a point to move or listen to it; location button shows a 200 m view</item>
         <item>New app icon, smaller installation file</item>
     </string-array>
+    <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
+    <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>
 </resources>

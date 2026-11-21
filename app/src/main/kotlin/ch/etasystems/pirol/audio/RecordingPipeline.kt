@@ -436,13 +436,16 @@ class RecordingPipeline(
                     if (session.isActive) {
                         val anchor = result.anchor
                         val absorbedId = result.absorbedId
+                        // T181: Konfidenz/Start des absorbierten Fensters (Punkt als Dezimaltrenner)
+                        val absorbedConf = String.format(java.util.Locale.ROOT, "%.4f", result.absorbedConfidence)
+                        val absorbedStart = String.format(java.util.Locale.ROOT, "%.3f", result.absorbedStartSec)
                         scope.launch(ioDispatcher) {
                             session.replaceDetection(anchor)
                             session.appendVerification(
                                 VerificationEvent(
                                     detectionId = anchor.id,
                                     status = anchor.verificationStatus,
-                                    correctedSpecies = "merged:${absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}",
+                                    correctedSpecies = "merged:${absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}|conf:${absorbedConf}|start:${absorbedStart}",
                                     verifiedAtMs = System.currentTimeMillis(),
                                     actionType = VerificationEvent.ACTION_CLUSTER_MERGED
                                 )

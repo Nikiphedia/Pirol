@@ -16,6 +16,8 @@ class DetectionOccurrencesTest {
         timestampMs = ts, chunkStartSec = start, chunkEndSec = start + 3f, sampleRate = 48000
     )
 
+    private fun mi(vararg ts: Long) = ts.map { DetectionOccurrences.MergeInfo(it) }
+
     @Test
     fun parse_extractsLastSeenAt() {
         assertEquals(
@@ -42,7 +44,7 @@ class DetectionOccurrencesTest {
 
     @Test
     fun merges_mapToSessionOffsetsViaWallClockDelta() {
-        val occ = DetectionOccurrences.of(det(), listOf(1_009_000L, 1_003_000L))
+        val occ = DetectionOccurrences.of(det(), mi(1_009_000L, 1_003_000L))
         assertEquals(3, occ.size)
         assertEquals(listOf(60f, 63f, 69f), occ.map { it.startSec })
         assertFalse(occ[1].isAnchor)
@@ -51,7 +53,7 @@ class DetectionOccurrencesTest {
 
     @Test
     fun duplicatesAndPreAnchorTimestampsAreDropped() {
-        val occ = DetectionOccurrences.of(det(), listOf(999_000L, 1_000_100L, 1_003_000L, 1_003_200L))
+        val occ = DetectionOccurrences.of(det(), mi(999_000L, 1_000_100L, 1_003_000L, 1_003_200L))
         assertEquals(listOf(60f, 63f), occ.map { it.startSec })
     }
 
@@ -105,5 +107,53 @@ class DetectionOccurrencesTest {
     fun implausibleWindow_usesFallback() {
         val d = det().copy(chunkEndSec = 0f)
         assertEquals(63f, DetectionOccurrences.of(d, emptyList())[0].endSec, 0.001f)
+    }
+
+    @Test
+    fun parseMergeInfo_newAndLegacyFormat() {
+        val n = DetectionOccurrences.parseMergeInfo("merged:x|count:3|lastSeenAt:123456|conf:0.8125|start:72.5")!!
+        assertEquals(123456L, n.timestampMs)
+        assertEquals(0.8125f, n.confidence!!, 0.0001f)
+        assertEquals(72.5f, n.startSec!!, 0.0001f)
+        val old = DetectionOccurrences.parseMergeInfo("merged:x|count:3|lastSeenAt:123456")!!
+        assertNull(old.confidence)
+        assertNull(old.startSec)
+        assertNull(DetectionOccurrences.parseMergeInfo("merged:x|conf:0.5|start:3"))
+        assertNull(DetectionOccurrences.parseMergeInfo("merged:x|lastSeenAt:1|conf:abc|start:NaN")!!.confidence)
+        assertNull(DetectionOccurrences.parseMergeInfo("merged:x|lastSeenAt:1|conf:1.7|start:-2")!!.startSec)
+    }
+
+    @Test
+    fun exactStart_winsOverWallClock() {
+        val m = DetectionOccurrences.MergeInfo(1_003_000L, confidence = 0.5f, startSec = 64.2f)
+        val occ = DetectionOccurrences.of(det().copy(confidence = 0.9f), listOf(m))
+        assertEquals(64.2f, occ[1].startSec, 0.001f)
+        assertEquals(67.2f, occ[1].endSec, 0.001f)
+        assertEquals(0.5f, occ[1].confidence!!, 0.001f)
+        // Anker: 0.9 > absorbiert 0.5 -> Anker-Konfidenz bekannt
+        assertEquals(0.9f, occ[0].confidence!!, 0.001f)
+    }
+
+    @Test
+    fun anchorConfidence_unknownWhenAbsorbedReachesMax() {
+        val m = DetectionOccurrences.MergeInfo(1_003_000L, confidence = 0.8f, startSec = 63f)
+        val occ = DetectionOccurrences.of(det(), listOf(m))  // det.confidence = 0.8
+        assertNull(occ[0].confidence)
+        assertEquals(0.8f, occ[1].confidence!!, 0.001f)
+    }
+
+    @Test
+    fun legacy_anchorKeepsMaxAndAbsorbedHaveNone() {
+        val occ = DetectionOccurrences.of(det(), mi(1_003_000L))
+        assertEquals(0.8f, occ[0].confidence!!, 0.001f)
+        assertNull(occ[1].confidence)
+    }
+
+    @Test
+    fun episode_maxConfidenceOverWindows() {
+        fun o(s: Float, c: Float?) = DetectionOccurrences.Occurrence((s * 1000).toLong(), s, s + 3f, false, c)
+        val e = DetectionOccurrences.episodes(listOf(o(10f, 0.4f), o(13f, 0.9f), o(16f, null), o(40f, null)))
+        assertEquals(0.9f, e[0].maxConfidence!!, 0.001f)
+        assertNull(e[1].maxConfidence)
     }
 }
