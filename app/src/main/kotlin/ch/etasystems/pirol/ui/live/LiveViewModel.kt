@@ -184,6 +184,47 @@ class LiveViewModel(
     /** Separater AudioPlayer fuer Memo-Wiedergabe (kein Sharing mit Session-Player). */
     val memoAudioPlayer by lazy { AudioPlayer(context) }
 
+    // --- T164: Detektion direkt auf der Artkarte anhoeren ---
+
+    /** Eigener Player fuer Detektions-Ausschnitte (getrennt vom Memo-Player). */
+    private val detectionPlayer by lazy { AudioPlayer(context) }
+    private val _playingDetectionId = MutableStateFlow<String?>(null)
+    /** Id der Detektion, deren Ausschnitt gerade spielt (null = keine). */
+    val playingDetectionId: StateFlow<String?> = _playingDetectionId.asStateFlow()
+    private var playerStateJob: Job? = null
+
+    /** Play/Stopp fuer den Ausschnitt einer Detektion (3 s davor, 5 s danach, wie in der Analyse). */
+    fun toggleDetectionPlayback(detectionId: String) {
+        if (_playingDetectionId.value == detectionId) {
+            detectionPlayer.stop()
+            _playingDetectionId.value = null
+            return
+        }
+        val detection = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return
+        val lastId = _uiState.value.lastSessionId
+        viewModelScope.launch(Dispatchers.IO) {
+            val dir = sessionManager.currentSessionDir
+                ?: lastId?.let { id -> sessionManager.listSessions().firstOrNull { it.name == id } }
+            val rec = dir?.let { sessionManager.loadRecording(it) }
+            if (rec == null || rec.durationSec <= 0f) {
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_aufnahme_nicht_verfuegbar_teilen_in)))
+                return@launch
+            }
+            val range = rec.excerptRange(detection, appPreferences.excerptMaxSec.toFloat())
+            detectionPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = DETECTION_PLAYBACK_DBFS)
+            _playingDetectionId.value = detectionId
+            playerStateJob?.cancel()
+            playerStateJob = viewModelScope.launch {
+                // Zustand beobachten: bei IDLE (Ende/Stopp) Anzeige zuruecksetzen
+                detectionPlayer.state.collect { st ->
+                    if (st == AudioPlayer.PlaybackState.IDLE && _playingDetectionId.value == detectionId) {
+                        _playingDetectionId.value = null
+                    }
+                }
+            }
+        }
+    }
+
     // FAB-Debounce (T52): verhindert Doppel-Taps innerhalb 500 ms
     private var lastFabTapAt = 0L
 
@@ -1170,5 +1211,9 @@ class LiveViewModel(
         // T69: Voice-Memo Cleanup
         voiceMemoRecorder.release()
         memoAudioPlayer.release()
+        detectionPlayer.release()
     }
 }
+
+/** T164: Zielpegel fuer die Wiedergabe von Detektions-Ausschnitten (wie Analyse). */
+private const val DETECTION_PLAYBACK_DBFS = -10f

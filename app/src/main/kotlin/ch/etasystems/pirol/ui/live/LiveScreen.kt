@@ -296,12 +296,12 @@ private fun CompactLiveLayout(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
             // Header
-            LiveHeader(uiState = uiState, viewModel = viewModel)
+            LiveHeader(uiState = uiState, viewModel = viewModel, compact = true)
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -311,12 +311,12 @@ private fun CompactLiveLayout(
 
             LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Sonogramm (200dp)
+            // Sonogramm (140dp)
             SpectrogramWithPanel(
                 uiState = uiState,
-                fixedHeight = 200.dp,
+                fixedHeight = 140.dp,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -348,18 +348,22 @@ private fun CompactLiveLayout(
                 onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
                 // T73: Lock-Species
                 onToggleLock = { id -> viewModel.toggleLock(id) },
+                // T164: Ausschnitt anhoeren
+                onPlay = { id -> viewModel.toggleDetectionPlayback(id) },
+                playingDetectionId = viewModel.playingDetectionId.collectAsState().value,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
             // Aehnlichkeitssuche (T12b)
             if (uiState.similarMatches.isNotEmpty() || uiState.isEmbeddingAvailable) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 SimilarityPanel(
                     matches = uiState.similarMatches,
                     isEmbeddingAvailable = uiState.isEmbeddingAvailable,
                     similarEnabled = uiState.similarEnabled,
                     similarLines = uiState.similarLines,
                     recentSpecies = uiState.recentSpecies,
+                    collapsible = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -369,7 +373,7 @@ private fun CompactLiveLayout(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(top = 0.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -546,6 +550,9 @@ private fun MediumLiveLayout(
                 onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
                 // T73: Lock-Species
                 onToggleLock = { id -> viewModel.toggleLock(id) },
+                // T164: Ausschnitt anhoeren
+                onPlay = { id -> viewModel.toggleDetectionPlayback(id) },
+                playingDetectionId = viewModel.playingDetectionId.collectAsState().value,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -744,6 +751,9 @@ private fun ExpandedLiveLayout(
                 onGetMemoTargetUri = { id -> viewModel.getMemoTargetUri(id) },
                 // T73: Lock-Species
                 onToggleLock = { id -> viewModel.toggleLock(id) },
+                // T164: Ausschnitt anhoeren
+                onPlay = { id -> viewModel.toggleDetectionPlayback(id) },
+                playingDetectionId = viewModel.playingDetectionId.collectAsState().value,
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
 
@@ -873,7 +883,8 @@ private fun ExpandedLiveLayout(
 @Composable
 private fun LiveHeader(
     uiState: LiveUiState,
-    viewModel: LiveViewModel
+    viewModel: LiveViewModel,
+    compact: Boolean = false  // T164: Telefon-Hochformat, kleinere Ueberschrift
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -882,7 +893,7 @@ private fun LiveHeader(
     ) {
         Text(
             text = stringResource(R.string.live_live_aufnahme),
-            style = MaterialTheme.typography.headlineMedium,
+            style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 

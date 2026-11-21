@@ -81,6 +81,9 @@ fun DetectionList(
     currentMonth: Int = java.time.LocalDate.now().monthValue,
     // T73: Lock-Species
     onToggleLock: ((String) -> Unit)? = null,
+    // T164: Ausschnitt der Detektion anhoeren (Play/Stopp auf der Karte)
+    onPlay: ((String) -> Unit)? = null,
+    playingDetectionId: String? = null,
     modifier: Modifier = Modifier
 ) {
     // T106: version muss tatsaechlich gelesen werden, sonst beobachtet Compose den Zaehler nicht.
@@ -143,7 +146,7 @@ fun DetectionList(
         // Detektionsliste
         LazyColumn(
             modifier = modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)
         ) {
             items(
@@ -168,6 +171,9 @@ fun DetectionList(
                         // T128: manuelle Eintraege ohne Audio-Position koennen nicht geteilt werden
                         onShare = onShare?.takeIf { ch.etasystems.pirol.audio.export.DetectionExcerpt.hasAudioPosition(detection) }
                             ?.let { callback -> { callback(detection.id) } },
+                        onPlay = onPlay?.takeIf { ch.etasystems.pirol.audio.export.DetectionExcerpt.hasAudioPosition(detection) }
+                            ?.let { callback -> { callback(detection.id) } },
+                        isPlaying = playingDetectionId == detection.id,
                         onSelectAlternative = onSelectAlternative?.let { cb ->
                             { candidate -> cb(detection.id, candidate) }
                         },

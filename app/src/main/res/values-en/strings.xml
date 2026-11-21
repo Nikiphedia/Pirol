@@ -504,4 +504,6 @@
     <string name="palette_grayscale">Grayscale</string>
     <string name="palette_paper">Paper (light)</string>
     <string name="model_min_confidence">Minimum confidence %1$d%%</string>
+    <string name="ui_wiedergabe_stoppen">Stop playback</string>
+    <string name="ui_mehr_aktionen">More actions</string>
 </resources>

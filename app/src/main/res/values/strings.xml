@@ -505,4 +505,6 @@
     <string name="palette_grayscale">Graustufen</string>
     <string name="palette_paper">Papier (hell)</string>
     <string name="model_min_confidence">Mindest-Konfidenz %1$d %%</string>
+    <string name="ui_wiedergabe_stoppen">Wiedergabe stoppen</string>
+    <string name="ui_mehr_aktionen">Weitere Aktionen</string>
 </resources>

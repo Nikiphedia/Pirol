@@ -39,6 +39,10 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Badge
@@ -127,6 +131,7 @@ fun SpeciesCard(
     onPlay: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,  // T116: Detektion teilen
     isPlayEnabled: Boolean = true,
+    isPlaying: Boolean = false,  // T164: Play-Knopf wird zum Stopp-Knopf
     playTimeLabel: String? = null,
     onSelectAlternative: ((ch.etasystems.pirol.ml.DetectionCandidate) -> Unit)? = null,
     onEditDetection: ((count: Int, atlasCode: String?, note: String?, voiceMemoFile: String?) -> Unit)? = null,
@@ -223,11 +228,16 @@ fun SpeciesCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         border = effectiveBorder
     ) {
+        // T164: breite Karten (Tablet) zeigen alle Aktionen inline, schmale (Telefon) nutzen das Ueberlauf-Menue
+        BoxWithConstraints {
+        val inline = maxWidth >= INLINE_ACTIONS_MIN_WIDTH
+        val hasActionRow = onConfirm != null || onMarkUncertain != null || onReject != null ||
+            onCorrect != null || onPlay != null || onShare != null
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             // Zeile 1: Artname + Zaehler-Badge + Prozentwert
             Row(
@@ -315,52 +325,33 @@ fun SpeciesCard(
                 )
             }
 
-            // Zeile 2: Wissenschaftlicher Name + Confidence-Bar
+            // Zeile 2 (T164): wiss. Name + Zeit-Offset + Zeitstempel + Status in EINER Zeile
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = detection.scientificName,
                     style = MaterialTheme.typography.bodySmall,
                     fontStyle = FontStyle.Italic,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                LinearProgressIndicator(
-                    progress = { detection.confidence },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(6.dp)
-                        .padding(start = 8.dp),
-                    color = confidenceColor,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            }
-
-            // Zeile 3: Zeitstempel + Zeit-Offset-Label + Status-Badge
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (playTimeLabel != null) {
                     Text(
-                        text = timestamp,
+                        text = playTimeLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    if (playTimeLabel != null) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = playTimeLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
-
+                Text(
+                    text = timestamp,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 // Status-Badge
                 when (detection.verificationStatus) {
                     VerificationStatus.CONFIRMED -> {
@@ -406,18 +397,30 @@ fun SpeciesCard(
                     VerificationStatus.UNVERIFIED -> { /* kein Badge */ }
                 }
             }
+            // Konfidenz-Balken (duenn)
+            LinearProgressIndicator(
+                progress = { detection.confidence },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp),
+                color = confidenceColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
 
-            // Zeile 4: Verifikations-Buttons + Play (nur wenn Callbacks vorhanden)
+            // Zeile 3 (T164): Aktionsleiste in EINER Zeile, 48-dp-Tap-Targets.
+            // Auf schmalen Breiten wandern Referenz/Vergleichen/Teilen/Alternativen ins Ueberlauf-Menue.
             if (onConfirm != null || onMarkUncertain != null || onReject != null || onCorrect != null || onPlay != null || onShare != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                // T112: einheitliche Aktionsleiste (alle 56 dp, gleicher Icon-Stil), umbricht auf schmalen Geraeten
-                val neutralContainer = MaterialTheme.colorScheme.secondaryContainer
-                val neutralContent = MaterialTheme.colorScheme.onSecondaryContainer
+                val neutralContainer = Color.Transparent
+                val neutralContent = MaterialTheme.colorScheme.onSurfaceVariant
                 val status = detection.verificationStatus
-                FlowRow(
+                val showReference = onSaveAsReference != null &&
+                    (status == VerificationStatus.CONFIRMED || status == VerificationStatus.CORRECTED)
+                val hasCandidates = showTopNCandidates && detection.candidates.isNotEmpty()
+                var overflowOpen by remember { mutableStateOf(false) }
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = if (inline) Arrangement.spacedBy(4.dp) else Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Bestaetigen (T78: bei CONFIRMED zu Undo wechseln)
                     if (onConfirm != null) {
@@ -480,21 +483,17 @@ fun SpeciesCard(
                             contentColor = if (hasCustomData) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent
                         )
                     }
-
-                    // "Als Referenz speichern" fuer bestaetigte Detektionen
-                    if (onSaveAsReference != null &&
-                        (status == VerificationStatus.CONFIRMED || status == VerificationStatus.CORRECTED)) {
+                    // Referenz / Vergleichen: inline nur bei breiter Karte, sonst im Menue
+                    if (inline && showReference) {
                         CardActionButton(
-                            onClick = onSaveAsReference,
+                            onClick = onSaveAsReference!!,
                             icon = if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd,
                             description = if (isReference) AppStrings.get(R.string.ui_referenz_entfernen) else AppStrings.get(R.string.ui_als_referenz_speichern),
                             containerColor = if (isReference) MaterialTheme.colorScheme.primary else neutralContainer,
                             contentColor = if (isReference) MaterialTheme.colorScheme.onPrimary else neutralContent
                         )
                     }
-
-                    // Vergleichen (T24)
-                    if (onCompare != null) {
+                    if (inline && onCompare != null) {
                         CardActionButton(
                             onClick = onCompare,
                             icon = Icons.AutoMirrored.Filled.CompareArrows,
@@ -504,19 +503,19 @@ fun SpeciesCard(
                         )
                     }
 
-                    // Play-Button (T48): ab chunkStartSec abspielen
+                    // Play/Stopp (T48/T164): Detektions-Ausschnitt anhoeren
                     if (onPlay != null) {
                         CardActionButton(
                             onClick = onPlay,
-                            icon = Icons.Filled.PlayArrow,
-                            description = AppStrings.get(R.string.common_play),
-                            containerColor = neutralContainer,
-                            contentColor = neutralContent,
+                            icon = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                            description = if (isPlaying) AppStrings.get(R.string.ui_wiedergabe_stoppen) else AppStrings.get(R.string.common_play),
+                            containerColor = if (isPlaying) MaterialTheme.colorScheme.primaryContainer else neutralContainer,
+                            contentColor = if (isPlaying) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent,
                             enabled = isPlayEnabled
                         )
                     }
-                    // T116: Teilen-Button (Formatwahl-Dialog)
-                    if (onShare != null) {
+                    // T116: Teilen (inline nur bei breiter Karte)
+                    if (inline && onShare != null) {
                         CardActionButton(
                             onClick = onShare,
                             icon = Icons.Filled.Share,
@@ -525,22 +524,72 @@ fun SpeciesCard(
                             contentColor = neutralContent
                         )
                     }
-                    // Kein separates Status-Symbol mehr: der Status steht als Text in Zeile 3
+                    // Ueberlauf-Menue (nur schmale Karte, nur wenn es etwas zu zeigen gibt)
+                    if (!inline && (showReference || onCompare != null || onShare != null || hasCandidates)) {
+                        Box {
+                            CardActionButton(
+                                onClick = { overflowOpen = true },
+                                icon = Icons.Filled.MoreVert,
+                                description = AppStrings.get(R.string.ui_mehr_aktionen),
+                                containerColor = if (candidatesExpanded) MaterialTheme.colorScheme.secondaryContainer else neutralContainer,
+                                contentColor = neutralContent
+                            )
+                            DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                                if (showReference) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (isReference) stringResource(R.string.ui_referenz_entfernen) else stringResource(R.string.ui_als_referenz_speichern)) },
+                                        leadingIcon = { Icon(if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd, null) },
+                                        onClick = { overflowOpen = false; onSaveAsReference!!() }
+                                    )
+                                }
+                                if (onCompare != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.ui_vergleichen)) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.CompareArrows, null) },
+                                        onClick = { overflowOpen = false; onCompare() }
+                                    )
+                                }
+                                if (onShare != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.ui_teilen)) },
+                                        leadingIcon = { Icon(Icons.Filled.Share, null) },
+                                        onClick = { overflowOpen = false; onShare() }
+                                    )
+                                }
+                                if (hasCandidates) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
+                                                else if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
+                                                else stringResource(R.string.ui_alternativen, detection.candidates.size)
+                                            )
+                                        },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
+                                        onClick = { overflowOpen = false; candidatesExpanded = !candidatesExpanded }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             // Zeile 5: Aufklappbare Kandidaten-Liste (T27, T52: showTopNCandidates-Guard)
             if (showTopNCandidates && detection.candidates.isNotEmpty()) {
-                TextButton(
-                    onClick = { candidatesExpanded = !candidatesExpanded },
-                    modifier = Modifier.padding(top = 2.dp)
-                ) {
-                    Text(
-                        text = if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
-                               else if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
-                               else stringResource(R.string.ui_alternativen, detection.candidates.size),
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                // Schmal + Aktionsleiste: Umschalter steckt im Ueberlauf-Menue (spart eine Zeile)
+                if (inline || !hasActionRow) {
+                    TextButton(
+                        onClick = { candidatesExpanded = !candidatesExpanded },
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
+                                   else if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
+                                   else stringResource(R.string.ui_alternativen, detection.candidates.size),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
 
                 AnimatedVisibility(visible = candidatesExpanded) {
@@ -607,7 +656,8 @@ fun SpeciesCard(
                         }
                     )
                 }
-            }
+        }
+        }
         }
     }
 
@@ -660,7 +710,13 @@ fun SpeciesCard(
 /** HH:mm:ss Formatter — Thread-safe da nur in Compose-Scope genutzt */
 private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
-/** Einheitlicher Aktions-Button der Karte: 56 dp, tonaler Kreis, 24-dp-Icon (T112). */
+/** Ab dieser Kartenbreite stehen alle Aktionen inline, darunter wandern seltene ins Menue (T164). */
+private val INLINE_ACTIONS_MIN_WIDTH = 460.dp
+
+/**
+ * Aktions-Button der Karte (T164): 48 dp Tap-Target, 24-dp-Icon, ohne Hintergrund (nur aktive
+ * Zustaende sind farbig hinterlegt).
+ */
 @Composable
 private fun CardActionButton(
     onClick: () -> Unit,
@@ -670,11 +726,11 @@ private fun CardActionButton(
     contentColor: Color,
     enabled: Boolean = true
 ) {
-    FilledTonalIconButton(
+    IconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.size(56.dp),
-        colors = IconButtonDefaults.filledTonalIconButtonColors(
+        modifier = Modifier.size(48.dp),
+        colors = IconButtonDefaults.iconButtonColors(
             containerColor = containerColor,
             contentColor = contentColor
         )
