@@ -17,7 +17,7 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 
 **Installation (APK):** Die Release-APK gibt es pro Prozessor-Architektur. Fuer aktuelle Geraete (Telefone und Tablets) die Datei `Pirol-<Version>-arm64-v8a-release.apk` installieren, nur fuer alte 32-Bit-Geraete die Datei `...-armeabi-v7a-release.apk`. Die APKs sind dadurch deutlich kleiner als frueher die gemeinsame APK. Die App hat ein neues Symbol (gelber Vogel), auch als einfarbiges Symbol fuer Themed Icons.
 
-**Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Aenderungen der Version. Er kann jederzeit in den Einstellungen erneut aufgerufen werden.
+**Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Aenderungen der Version. Er kann jederzeit in den Einstellungen unter "Info" erneut aufgerufen werden.
 
 **Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 und v0.0.9 auf v0.0.10 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
 
@@ -151,7 +151,7 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 - **Raven-Datei neu erzeugen**, z.B. nach nachtraeglicher Verifikation.
 
 **Mehrere Aufnahmen auswaehlen:** Langdruck auf eine Aufnahme in der Session-Liste startet den Auswahlmodus; weitere Aufnahmen werden per Tipp gewaehlt. Die Kopfleiste zeigt "N ausgewaehlt" mit den Aktionen "Alle", "Verschieben" und "Loeschen"; das X oder die Zurueck-Taste beendet den Modus. Die gerade laufende Aufnahme ist nicht auswaehlbar.
-- **Verschieben:** Der Zielordner ist frei waehlbar (Ordnerwahl, auch SD-Karte oder USB-Speicher). Jede Session wird mit allen Dateien (Aufnahme-Segmente, Memos) kopiert, die Dateigroessen werden geprueft, danach wird das Original geloescht. Bei einem Fehler oder Abbruch bleibt das Original erhalten und die Teilkopie wird entfernt. Existiert am Ziel schon eine Session mit gleichem Namen, wird `-2`, `-3` usw. angehaengt. Der Fortschritt ist sichtbar und abbrechbar. Als Ziel keinen Ordner innerhalb von `Downloads/PIROL` waehlen, sonst erscheinen die Aufnahmen doppelt in der Liste.
+- **Verschieben:** Der Zielordner ist frei waehlbar (Ordnerwahl, auch SD-Karte oder USB-Speicher). Jede Session wird mit allen Dateien (Aufnahme-Segmente, Memos) kopiert, die Dateigroessen werden geprueft, danach wird das Original geloescht. Bei einem Fehler oder Abbruch bleibt das Original erhalten und die Teilkopie wird entfernt. Existiert am Ziel schon eine Session mit gleichem Namen, wird `-2`, `-3` usw. angehaengt. Der Fortschritt ist sichtbar und abbrechbar. Ein Zielordner innerhalb von `Downloads/PIROL` (oder die Aufnahme selbst) wird abgelehnt; es wird dann nichts verschoben.
 - **Loeschen:** Nach Rueckfrage ("N Aufnahmen loeschen?"); das kann nicht rueckgaengig gemacht werden. Das Loeschen einzelner Aufnahmen per Papierkorb-Symbol bleibt wie bisher.
 
 ---
