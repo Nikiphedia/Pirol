@@ -512,6 +512,8 @@
     <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
     <string name="analysis_vorkommen_abspielen">Play occurrence</string>
     <string name="analysis_vorkommen_stop">Stop playback</string>
+    <string name="analysis_vorkommen_episoden">%1$d occurrences in %2$d episodes</string>
+    <string name="analysis_episode_fenster">%1$d windows, %2$d s</string>
     <string name="ui_wiedergabe_stoppen">Stop playback</string>
     <string name="ui_mehr_aktionen">More actions</string>
     <string name="live_mic_stumm_wiedergabe">Microphone muted during playback</string>

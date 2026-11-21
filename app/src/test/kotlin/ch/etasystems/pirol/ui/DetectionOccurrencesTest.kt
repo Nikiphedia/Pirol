@@ -55,6 +55,52 @@ class DetectionOccurrencesTest {
         assertEquals(listOf(60f, 63f), occ.map { it.startSec })
     }
 
+    private fun occ(start: Float, anchor: Boolean = false) = DetectionOccurrences.Occurrence(
+        timestampMs = (start * 1000).toLong(), startSec = start, endSec = start + 3f, isAnchor = anchor
+    )
+
+    @Test
+    fun episodes_singleWindow() {
+        val e = DetectionOccurrences.episodes(listOf(occ(10f, true)))
+        assertEquals(1, e.size)
+        assertEquals(1, e[0].windowCount)
+        assertTrue(e[0].containsAnchor)
+    }
+
+    @Test
+    fun episodes_consecutiveWindowsMerge() {
+        val e = DetectionOccurrences.episodes(listOf(occ(10f, true), occ(13f), occ(16f)))
+        assertEquals(1, e.size)
+        assertEquals(3, e[0].windowCount)
+        assertEquals(10f, e[0].startSec, 0.001f)
+        assertEquals(19f, e[0].endSec, 0.001f)
+        assertEquals(9f, e[0].durationSec, 0.001f)
+    }
+
+    @Test
+    fun episodes_gapExactlyAtToleranceStaysTogether_beyondSplits() {
+        // Toleranz = Fensterlaenge 3 s + 1 s Jitter = 4 s Startabstand
+        assertEquals(1, DetectionOccurrences.episodes(listOf(occ(10f, true), occ(14f))).size)
+        val split = DetectionOccurrences.episodes(listOf(occ(10f, true), occ(14.1f)))
+        assertEquals(2, split.size)
+        assertFalse(split[1].containsAnchor)
+    }
+
+    @Test
+    fun episodes_jitterOnOverlapHopIsTolerated() {
+        val e = DetectionOccurrences.episodes(listOf(occ(10f, true), occ(11.4f), occ(12.9f), occ(14.6f)))
+        assertEquals(1, e.size)
+        assertEquals(4, e[0].windowCount)
+    }
+
+    @Test
+    fun episodes_unsortedInputAndEmpty() {
+        val e = DetectionOccurrences.episodes(listOf(occ(40f), occ(10f, true), occ(13f)))
+        assertEquals(listOf(10f, 40f), e.map { it.startSec })
+        assertEquals(listOf(2, 1), e.map { it.windowCount })
+        assertTrue(DetectionOccurrences.episodes(emptyList()).isEmpty())
+    }
+
     @Test
     fun implausibleWindow_usesFallback() {
         val d = det().copy(chunkEndSec = 0f)

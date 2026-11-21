@@ -513,6 +513,8 @@
     <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
     <string name="analysis_vorkommen_abspielen">Vorkommen abspielen</string>
     <string name="analysis_vorkommen_stop">Wiedergabe stoppen</string>
+    <string name="analysis_vorkommen_episoden">%1$d Vorkommen in %2$d Episoden</string>
+    <string name="analysis_episode_fenster">%1$d Fenster, %2$d s</string>
     <string name="ui_wiedergabe_stoppen">Wiedergabe stoppen</string>
     <string name="ui_mehr_aktionen">Weitere Aktionen</string>
     <string name="live_mic_stumm_wiedergabe">Mikrofon stumm während Wiedergabe</string>

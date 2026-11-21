@@ -269,14 +269,14 @@ class AnalysisViewModel(
      * Detektion ab chunkStartSec bis chunkEndSec abspielen.
      * T62: bevorzugt Uri-Variante fuer SAF-Kompatibilitaet (AC5).
      */
-    fun playDetection(detection: DetectionResult) {
+    fun playDetection(detection: DetectionResult, maxSec: Float = appPreferences.excerptMaxSec.toFloat()) {
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
         val rec = recording
         // T116: Ausschnitt mit Kontext (3 s davor, 5 s danach, max. excerptMaxSec)
         // T130: auf der Session-Achse ueber alle Segmente
-        val range = rec?.excerptRange(detection, appPreferences.excerptMaxSec.toFloat())
-            ?: DetectionExcerpt.compute(detection, _uiState.value.recordingDurationSec, appPreferences.excerptMaxSec.toFloat())
+        val range = rec?.excerptRange(detection, maxSec)
+            ?: DetectionExcerpt.compute(detection, _uiState.value.recordingDurationSec, maxSec)
         when {
             rec != null -> audioPlayer.playFromOffset(rec, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
             uri != null -> audioPlayer.playFromOffset(uri, startSec = range.startSec, endSec = range.endSec, normalizeDbfs = PLAYBACK_DBFS)
@@ -289,12 +289,13 @@ class AnalysisViewModel(
     }
 
     /**
-     * T167: Einzelvorkommen einer geclusterten Detektion abspielen (Ausschnitt mit Kontext wie bei
-     * [playDetection]); laeuft dieses Vorkommen schon, stoppt der Aufruf die Wiedergabe.
+     * T171: Episode (zusammenhaengende Fenster) einer Detektion am Stueck abspielen, mit dem ueblichen
+     * Vor-/Nachlauf von [playDetection], aber ohne Kappung durch excerptMaxSec. Laeuft diese Episode
+     * schon, stoppt der Aufruf die Wiedergabe.
      */
-    fun playOccurrence(detection: DetectionResult, occurrence: DetectionOccurrences.Occurrence) {
+    fun playEpisode(detection: DetectionResult, episode: DetectionOccurrences.Episode) {
         val st = _uiState.value
-        if (st.playingDetectionId == detection.id && st.playingOccurrenceStartSec == occurrence.startSec &&
+        if (st.playingDetectionId == detection.id && st.playingOccurrenceStartSec == episode.startSec &&
             st.playbackState != AudioPlayer.PlaybackState.IDLE
         ) {
             audioPlayer.stop()
@@ -302,13 +303,14 @@ class AnalysisViewModel(
         }
         playDetection(
             detection.copy(
-                chunkStartSec = occurrence.startSec,
-                chunkEndSec = occurrence.endSec,
-                timestampMs = occurrence.timestampMs,
-                lastSeenAtMs = occurrence.timestampMs
-            )
+                chunkStartSec = episode.startSec,
+                chunkEndSec = episode.startSec + episode.windowSec,
+                timestampMs = episode.timestampMs,
+                lastSeenAtMs = episode.lastTimestampMs
+            ),
+            maxSec = Float.MAX_VALUE
         )
-        _uiState.update { it.copy(playingOccurrenceStartSec = occurrence.startSec) }
+        _uiState.update { it.copy(playingOccurrenceStartSec = episode.startSec) }
     }
 
     private var zoomJob: Job? = null

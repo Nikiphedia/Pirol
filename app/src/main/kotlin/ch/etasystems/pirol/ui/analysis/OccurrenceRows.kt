@@ -52,9 +52,10 @@ fun OccurrenceSection(
     onToggle: () -> Unit,
     playingStartSec: Float?,
     playEnabled: Boolean,
-    onPlay: (DetectionOccurrences.Occurrence) -> Unit
+    onPlay: (DetectionOccurrences.Episode) -> Unit
 ) {
     if (occurrences.size < 2) return
+    val episodes = DetectionOccurrences.episodes(occurrences)
     Column(modifier = Modifier.fillMaxWidth()) {
         TextButton(
             onClick = onToggle,
@@ -66,7 +67,13 @@ fun OccurrenceSection(
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(R.string.analysis_vorkommen, occurrences.size))
+            Text(
+                if (episodes.size < occurrences.size) {
+                    stringResource(R.string.analysis_vorkommen_episoden, occurrences.size, episodes.size)
+                } else {
+                    stringResource(R.string.analysis_vorkommen, occurrences.size)
+                }
+            )
         }
         if (expanded) {
             val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -74,16 +81,23 @@ fun OccurrenceSection(
                 modifier = Modifier.padding(start = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                for (occ in occurrences) {
-                    val isPlaying = playingStartSec == occ.startSec
+                for (ep in episodes) {
+                    val isPlaying = playingStartSec == ep.startSec
                     OccurrenceRow(
-                        timeLabel = timeFmt.format(Date(occ.timestampMs)),
-                        positionLabel = formatMinSec(occ.startSec),
-                        confidence = if (occ.isAnchor) detection.confidence else null,
+                        timeLabel = if (ep.windowCount > 1) {
+                            timeFmt.format(Date(ep.timestampMs)) + " – " +
+                                timeFmt.format(Date(ep.timestampMs + (ep.durationSec * 1000f).toLong()))
+                        } else {
+                            timeFmt.format(Date(ep.timestampMs))
+                        },
+                        positionLabel = formatMinSec(ep.startSec),
+                        windowCount = ep.windowCount,
+                        durationSec = ep.durationSec,
+                        confidence = if (ep.containsAnchor) detection.confidence else null,
                         status = detection.verificationStatus,
                         isPlaying = isPlaying,
                         playEnabled = playEnabled,
-                        onPlay = { onPlay(occ) }
+                        onPlay = { onPlay(ep) }
                     )
                 }
             }
@@ -95,6 +109,8 @@ fun OccurrenceSection(
 private fun OccurrenceRow(
     timeLabel: String,
     positionLabel: String,
+    windowCount: Int,
+    durationSec: Float,
     confidence: Float?,
     status: VerificationStatus,
     isPlaying: Boolean,
@@ -134,6 +150,14 @@ private fun OccurrenceRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (windowCount > 1) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.analysis_episode_fenster, windowCount, durationSec.toInt()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         if (confidence != null) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(
