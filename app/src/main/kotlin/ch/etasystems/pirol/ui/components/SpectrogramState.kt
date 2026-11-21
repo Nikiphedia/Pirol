@@ -33,6 +33,30 @@ class SpectrogramState(
     /** Wird bei jedem clear() erhoeht — erkennt verspaetete Hintergrund-Ergebnisse (T61) */
     private var generation = 0
 
+    /** T160: Anzahl per [appendFrames] angehaengter Frames (monoton, nie zurueckgesetzt). */
+    private var appendedTotal = 0L
+
+    /** T160: erhoeht sich bei clear()/prependFrames(), d.h. wenn der Inhalt nicht nur rechts waechst. */
+    private var structureVersion = 0
+
+    /**
+     * T160: Frames fuer das inkrementelle Rendern. Hat sich die Struktur geaendert, wird [forceFull]
+     * gesetzt oder sind seit [sinceAppended] mindestens [width] Frames dazugekommen, kommen die
+     * letzten [width] Frames (vollstaendiger Neuaufbau). Sonst nur die neuen Frames seit [sinceAppended].
+     */
+    @Synchronized
+    fun snapshotForRender(
+        sinceAppended: Long,
+        sinceStructure: Int,
+        width: Int,
+        forceFull: Boolean
+    ): RenderSnapshot {
+        val fresh = appendedTotal - sinceAppended
+        val full = forceFull || sinceStructure != structureVersion || fresh < 0 || fresh >= width
+        val frames = if (full) getVisibleFrames(width) else getVisibleFrames(fresh.toInt())
+        return RenderSnapshot(appendedTotal, structureVersion, full, frames)
+    }
+
     /** Aktuelle Generation (fuer [prependFrames]) */
     val currentGeneration: Int
         @Synchronized get() = generation
@@ -56,6 +80,7 @@ class SpectrogramState(
             writeIndex = (writeIndex + 1) % maxFrames
             count++
         }
+        appendedTotal += newFrames.size
         // T56: DynamicRangeMapper fuettern (falls gesetzt). Mapper ist selbst thread-safe.
         dynamicRangeMapper?.let { mapper ->
             for (frame in newFrames) mapper.update(frame)
@@ -84,6 +109,7 @@ class SpectrogramState(
         for (i in keep.indices) buffer[i] = keep[i]
         writeIndex = keep.size % maxFrames
         count = keep.size
+        structureVersion++
         // T56: Mapper kennt die Reihenfolge nicht (Perzentile) → einfach nachfuettern
         dynamicRangeMapper?.let { mapper ->
             for (frame in olderFrames) mapper.update(frame)
@@ -127,8 +153,18 @@ class SpectrogramState(
         writeIndex = 0
         count = 0
         generation++
+        structureVersion++
         // T56: Mapper mit Buffer zuruecksetzen — sonst rollt Auto-Kontrast aus alter Session.
         dynamicRangeMapper?.reset()
         frameVersion++
     }
 }
+
+/** T160: Ergebnis von [SpectrogramState.snapshotForRender]. */
+class RenderSnapshot(
+    val appendedTotal: Long,
+    val structureVersion: Int,
+    /** true = [frames] sind die letzten Fensterbreite-Frames (Neuaufbau), false = nur die neuen Frames. */
+    val full: Boolean,
+    val frames: List<FloatArray>
+)
