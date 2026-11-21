@@ -49,7 +49,7 @@ data class DetectionResult(
     val verifiedAtMs: Long? = null,         // Zeitpunkt der Verifikation
     val candidates: List<DetectionCandidate> = emptyList(),  // Top-N Alternativen aus BirdNET
     val detectionCount: Int = 1,             // Wie oft wurde diese Art erkannt (Dedup-Zaehler)
-    val lastDetectedMs: Long = 0L,           // Zeitpunkt der letzten Erkennung (fuer 5s-Highlight, T33)
+    val lastDetectedMs: Long = 0L,           // Zeitpunkt der letzten Erkennung (Dedup-Zeitfenster, T33)
     // Cluster-A-Felder (T70):
     val firstSeenAtMs: Long = timestampMs,   // erste Erfassung im Cluster (= timestampMs falls keine Aggregation)
     val lastSeenAtMs: Long = timestampMs,    // letzte Erfassung im Cluster (= timestampMs wenn keine weiteren)

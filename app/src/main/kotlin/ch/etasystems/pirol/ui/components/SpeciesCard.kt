@@ -1,7 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.drawWithContent
@@ -193,16 +192,6 @@ fun SpeciesCard(
         VerificationStatus.UNVERIFIED -> null
     }
 
-    // T33: 5s-Highlight bei kuerzlicher Erkennung
-    val isRecent = detection.lastDetectedMs > 0 &&
-                   (System.currentTimeMillis() - detection.lastDetectedMs) < 5000L
-    val highlightColor by animateColorAsState(
-        targetValue = if (isRecent) MaterialTheme.colorScheme.primary
-                      else Color.Transparent,
-        animationSpec = tween(durationMillis = 1000),
-        label = "recentHighlight"
-    )
-
     // REJECTED / REPLACED: leicht ausgegraut
     val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED ||
                         detection.verificationStatus == VerificationStatus.REPLACED) 0.6f else 1f
@@ -224,9 +213,8 @@ fun SpeciesCard(
     // Haptisches Feedback (T52: ✎ und Kandidaten-Tap)
     val haptic = LocalHapticFeedback.current
 
-    // T33: Highlight-Border wenn keine Verifikations-Border aktiv
+    // T182: altes 5-s-Highlight (T33) entfernt, Rueckmeldung ueber das Blinken (T178)
     val effectiveBorder = verificationBorder
-        ?: if (isRecent) BorderStroke(2.dp, highlightColor) else null
 
     Card(
         modifier = modifier

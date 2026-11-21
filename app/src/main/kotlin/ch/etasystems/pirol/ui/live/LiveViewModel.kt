@@ -244,8 +244,11 @@ class LiveViewModel(
     private var recordingObserverJob: Job? = null
     private var locationObserverJob: Job? = null
 
-    // DSP-Pipeline (zustandsbehaftet, nicht in UiState)
-    private var melSpectrogram: MelSpectrogram? = null
+    // DSP-Pipeline (zustandsbehaftet, nicht in UiState).
+    // T182: MelSpectrogram ist nicht thread-sicher und gehoert allein dem Collector-Job (Dispatchers.Default).
+    // Andere Threads stellen nur Anforderungen, die der Collector vor dem naechsten process() ausfuehrt.
+    private val melResetRequested = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val melRecreateRequested = java.util.concurrent.atomic.AtomicBoolean(false)
     private var currentSampleRate: Int = 0
 
     // F5: User hat Preroll explizit gestartet
@@ -427,7 +430,7 @@ class LiveViewModel(
             // currentSampleRate setzen damit startCollectionPipeline() den Buffer nicht cleared (T54)
             currentSampleRate = rate
             // T54-Fix: Eigenes MelSpectrogram nur fuer einmalige Preroll-Anzeige verwenden.
-            // Das shared melSpectrogram-Feld NICHT benutzen: observeRecordingState() kann via
+            // Das MelSpectrogram des Collectors NICHT mitbenutzen: observeRecordingState() kann via
             // Dispatchers.Main.immediate bereits waehrend svc.startRecording() feuern und dort
             // startCollectionPipeline() starten, welche mel.process() auf Dispatchers.Default ruft.
             // Zwei concurrent process()-Aufrufe auf demselben Objekt → ArrayIndexOutOfBoundsException.
@@ -849,11 +852,8 @@ class LiveViewModel(
         _uiState.update { it.copy(spectrogramConfig = config) }
         // Buffer leeren — FFT-Parameter aendern sich, alte Frames passen nicht mehr
         spectrogramState.clear()
-        // MelSpectrogram muss mit neuer Config neu erstellt werden
-        val rate = currentSampleRate
-        if (rate > 0) {
-            melSpectrogram = MelSpectrogram(sampleRate = rate, config = config)
-        }
+        // MelSpectrogram muss mit neuer Config neu erstellt werden: Anforderung an den Collector (T182)
+        melRecreateRequested.set(true)
     }
 
     /** Sonogramm leeren (ohne Aufnahme zu stoppen). */
@@ -1026,18 +1026,17 @@ class LiveViewModel(
         val sampleRate = svc.actualSampleRate
         val config = _uiState.value.spectrogramConfig
 
-        // MelSpectrogram erstellen/neu erstellen bei SampleRate-Aenderung
-        if (sampleRate != currentSampleRate || melSpectrogram == null) {
-            if (sampleRate != currentSampleRate) {
-                // SampleRate hat sich geaendert (z.B. USB-Mikrofon) → Buffer resetten
-                spectrogramState.clear()
-            }
-            currentSampleRate = sampleRate
-            melSpectrogram = MelSpectrogram(sampleRate = sampleRate, config = config)
+        if (sampleRate != currentSampleRate) {
+            // SampleRate hat sich geaendert (z.B. USB-Mikrofon) → Buffer resetten
+            spectrogramState.clear()
         }
+        currentSampleRate = sampleRate
 
         collectionJob = viewModelScope.launch(Dispatchers.Default) {
-            val mel = melSpectrogram ?: return@launch
+            // T182: frische Instanz pro Job (Zustand gehoert diesem Job); offene Anforderungen sind damit erledigt
+            var mel = MelSpectrogram(sampleRate = sampleRate, config = config)
+            melResetRequested.set(false)
+            melRecreateRequested.set(false)
             // T107: Messwerte fuer die Empfindlichkeits-Analyse (alle ~2 s ein Log)
             var statsSum = 0.0
             var statsCount = 0L
@@ -1050,6 +1049,13 @@ class LiveViewModel(
                 minOf(30 * sampleRate, spectrogramState.maxFrames * config.hopSize).coerceAtLeast(1)
             )
             svc.audioChunkFlow.collect { chunk ->
+                // T182: Reset/Neuaufbau von anderen Threads hier ausfuehren, nie parallel zu process()
+                if (melRecreateRequested.getAndSet(false)) {
+                    melResetRequested.set(false)
+                    mel = MelSpectrogram(sampleRate = sampleRate, config = _uiState.value.spectrogramConfig)
+                } else if (melResetRequested.getAndSet(false)) {
+                    mel.reset()
+                }
                 // T160b: Sonogramm nur berechnen, solange die Live-Ansicht sichtbar ist.
                 // Aufnahme und Erkennung (RecordingPipeline im Service) laufen davon unabhaengig.
                 if (!screenVisible) {
@@ -1103,9 +1109,9 @@ class LiveViewModel(
         collectionJob = null
     }
 
-    /** MelSpectrogram-Buffer zuruecksetzen. */
+    /** MelSpectrogram-Buffer zuruecksetzen (T182: nur Anforderung, der Collector fuehrt sie aus). */
     private fun resetMelSpectrogram() {
-        melSpectrogram?.reset()
+        melResetRequested.set(true)
     }
 
     // --- T94: Pipeline-Observer ---
