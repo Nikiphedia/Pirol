@@ -508,4 +508,8 @@
     <string name="map_move_banner">Move the map so the crosshair sits on the new position of %1$s, then tap Apply.</string>
     <string name="map_move_apply">Apply</string>
     <string name="map_move_live_hint">No running session: the new position only lasts until the app is closed.</string>
+    <string name="analysis_vorkommen">%1$d occurrences</string>
+    <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
+    <string name="analysis_vorkommen_abspielen">Play occurrence</string>
+    <string name="analysis_vorkommen_stop">Stop playback</string>
 </resources>

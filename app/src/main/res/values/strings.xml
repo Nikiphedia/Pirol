@@ -509,4 +509,8 @@
     <string name="map_move_banner">Karte verschieben: Fadenkreuz auf die neue Position von %1$s, dann Übernehmen.</string>
     <string name="map_move_apply">Übernehmen</string>
     <string name="map_move_live_hint">Keine laufende Session: Die neue Position gilt nur bis zum Schliessen der App.</string>
+    <string name="analysis_vorkommen">%1$d Vorkommen</string>
+    <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
+    <string name="analysis_vorkommen_abspielen">Vorkommen abspielen</string>
+    <string name="analysis_vorkommen_stop">Wiedergabe stoppen</string>
 </resources>

@@ -1195,6 +1195,25 @@ class SessionManager(
         }
 
     /**
+     * T167: Wanduhr-Zeiten der absorbierten Fenster je Anker-Detektion (aus CLUSTER_MERGED-Events).
+     */
+    suspend fun loadMergeTimestamps(sessionDir: File): Map<String, List<Long>> = withContext(Dispatchers.IO) {
+        val veriText = try { accessFor(sessionDir).readText("verifications.jsonl") } catch (_: Exception) { null }
+            ?: return@withContext emptyMap()
+        val map = mutableMapOf<String, MutableList<Long>>()
+        veriText.lineSequence().forEach { line ->
+            if (line.isBlank()) return@forEach
+            val event = runCatching { jsonLenient.decodeFromString<VerificationEvent>(line) }.getOrNull()
+                ?: return@forEach
+            if (event.actionType != VerificationEvent.ACTION_CLUSTER_MERGED) return@forEach
+            val ts = ch.etasystems.pirol.ui.analysis.DetectionOccurrences
+                .parseMergeTimestamp(event.correctedSpecies) ?: return@forEach
+            map.getOrPut(event.detectionId) { mutableListOf() }.add(ts)
+        }
+        map
+    }
+
+    /**
      * T85: Laedt alle Simultanlink-Events aus verifications.jsonl und baut eine
      * Map von DetectionId → SimultaneousLinkSummary (simultaneous / probable / sameIndividual).
      */

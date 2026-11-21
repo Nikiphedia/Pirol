@@ -61,6 +61,10 @@ data class AnalysisUiState(
     // T107: abgespielte Detektion (Hervorhebung) + Abspielposition in Sekunden (Zeiger im Sonogramm)
     val playingDetectionId: String? = null,
     val playbackPositionSec: Float? = null,
+    // T167: abgespieltes Einzelvorkommen (Startsekunde in der Session), null = Hauptfenster/keines
+    val playingOccurrenceStartSec: Float? = null,
+    // T167: Wanduhr-Zeiten absorbierter Fenster je Detektions-ID (aus CLUSTER_MERGED)
+    val mergeTimestamps: Map<String, List<Long>> = emptyMap(),
     // T62: MediaPlayer-Fehler fuer Snackbar/Toast-Feedback (AC7).
     val playerError: String? = null,
 

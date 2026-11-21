@@ -103,7 +103,8 @@ class AnalysisViewModel(
                     _uiState.update {
                         it.copy(
                             playingChunkIndex = null, playingSource = null,
-                            playingDetectionId = null, playbackPositionSec = null
+                            playingDetectionId = null, playbackPositionSec = null,
+                            playingOccurrenceStartSec = null
                         )
                     }
                 }
@@ -181,6 +182,7 @@ class AnalysisViewModel(
             // T130: alle Segmente; Dauer = ganze Session (vorher nur recording.wav)
             val rec = sessionManager.loadRecording(summary.sessionDir)
             recording = rec
+            val mergeTimes = sessionManager.loadMergeTimestamps(summary.sessionDir)  // T167
             // T62: URI aus File ableiten; T131: bei SAF content://-URI des ersten Segments
             val recUri  = recFile?.let { Uri.fromFile(it) }
                 ?: rec?.firstSource?.uriString?.let { Uri.parse(it) }
@@ -189,6 +191,7 @@ class AnalysisViewModel(
                 it.copy(
                     selectedSession = summary,
                     detections = detections,
+                    mergeTimestamps = mergeTimes,
                     recordingFile = recFile,
                     hasRecording = rec != null || recFile != null,
                     recordingUri  = recUri,
@@ -216,6 +219,7 @@ class AnalysisViewModel(
             it.copy(
                 selectedSession = null,
                 detections = emptyList(),
+                mergeTimestamps = emptyMap(),
                 recordingFile = null,
                 hasRecording = false,
                 recordingUri = null,
@@ -282,6 +286,29 @@ class AnalysisViewModel(
         _uiState.update { it.copy(playingChunkIndex = null, playingDetectionId = detection.id) }
         if (rec != null) renderZoomSonogram(range) { rec.readRange(range.startSec, range.endSec) }
         else if (f != null) renderZoomSonogram(range) { ExcerptWav.readRange(f, range.startSec, range.endSec) }
+    }
+
+    /**
+     * T167: Einzelvorkommen einer geclusterten Detektion abspielen (Ausschnitt mit Kontext wie bei
+     * [playDetection]); laeuft dieses Vorkommen schon, stoppt der Aufruf die Wiedergabe.
+     */
+    fun playOccurrence(detection: DetectionResult, occurrence: DetectionOccurrences.Occurrence) {
+        val st = _uiState.value
+        if (st.playingDetectionId == detection.id && st.playingOccurrenceStartSec == occurrence.startSec &&
+            st.playbackState != AudioPlayer.PlaybackState.IDLE
+        ) {
+            audioPlayer.stop()
+            return
+        }
+        playDetection(
+            detection.copy(
+                chunkStartSec = occurrence.startSec,
+                chunkEndSec = occurrence.endSec,
+                timestampMs = occurrence.timestampMs,
+                lastSeenAtMs = occurrence.timestampMs
+            )
+        )
+        _uiState.update { it.copy(playingOccurrenceStartSec = occurrence.startSec) }
     }
 
     private var zoomJob: Job? = null
