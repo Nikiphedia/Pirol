@@ -145,7 +145,9 @@ fun SpectrogramCanvas(
                         ?: (fallbackMinDb to 0f)
                     else -> manualMinDb to manualMaxDb
                 }
-                val (minDbFinal, maxDbUsed) = effectiveDbRange(minDbUsed, maxDbRaw, ceilingDb)
+                val (minDbEff, maxDbEff) = effectiveDbRange(minDbUsed, maxDbRaw, ceilingDb)
+                // T176: nie mit NaN/Inf abbilden (sonst schwarzes Sonogramm bei laufendem Renderer)
+                val (minDbFinal, maxDbUsed) = finiteDbRange(minDbEff, maxDbEff, fallbackMinDb, 0f)
                 val cols = ringRenderer.render(
                     spectrogramState, windowFrames!!, numMelBins, binFirst, minDbFinal, maxDbUsed, lut, gamma
                 )

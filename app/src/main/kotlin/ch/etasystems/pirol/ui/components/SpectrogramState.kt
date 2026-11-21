@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ui.components
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 
@@ -30,6 +31,14 @@ class SpectrogramState(
     var frameVersion by mutableIntStateOf(0)
         private set
 
+    /**
+     * T176: true, solange Frames vorhanden sind. Beobachtbar (Compose-State), damit die Anzeige
+     * zwischen Platzhalter und Sonogramm wechselt, ohne auf eine fremde Recomposition zu warten.
+     * Wird nur bei echtem Wechsel geschrieben (kein Recomposition-Takt pro Chunk).
+     */
+    var hasFrames by mutableStateOf(false)
+        private set
+
     /** Wird bei jedem clear() erhoeht — erkennt verspaetete Hintergrund-Ergebnisse (T61) */
     private var generation = 0
 
@@ -52,7 +61,11 @@ class SpectrogramState(
         forceFull: Boolean
     ): RenderSnapshot {
         val fresh = appendedTotal - sinceAppended
-        val full = forceFull || sinceStructure != structureVersion || fresh < 0 || fresh >= width
+        // T176: auch neu aufbauen, wenn mehr neue Frames gemeldet sind als im Puffer liegen
+        // (sonst wuerde der Ring weniger Spalten schreiben als er weiterschiebt).
+        val available = minOf(count, maxFrames)
+        val full = forceFull || sinceStructure != structureVersion || fresh < 0 || fresh >= width ||
+            fresh > available
         val frames = if (full) getVisibleFrames(width) else getVisibleFrames(fresh.toInt())
         return RenderSnapshot(appendedTotal, structureVersion, full, frames)
     }
@@ -75,6 +88,27 @@ class SpectrogramState(
      */
     @Synchronized
     fun appendFrames(newFrames: List<FloatArray>) {
+        if (newFrames.isEmpty()) return
+        appendLocked(newFrames)
+        syncHasFrames()
+        frameVersion++
+    }
+
+    /**
+     * T176: Inhalt atomar durch [frames] ersetzen (= clear() + appendFrames() ohne leeren
+     * Zwischenzustand). Fuer den Backfill nach Ueberlauf: der Renderer sieht entweder den alten
+     * oder den neuen Inhalt, nie einen leeren Puffer, und die Anzeige faellt nicht auf den
+     * Platzhalter zurueck.
+     */
+    @Synchronized
+    fun replaceAll(frames: List<FloatArray>) {
+        clearLocked()
+        if (frames.isNotEmpty()) appendLocked(frames)
+        syncHasFrames()
+        frameVersion++
+    }
+
+    private fun appendLocked(newFrames: List<FloatArray>) {
         for (frame in newFrames) {
             buffer[writeIndex] = frame
             writeIndex = (writeIndex + 1) % maxFrames
@@ -85,9 +119,6 @@ class SpectrogramState(
         dynamicRangeMapper?.let { mapper ->
             for (frame in newFrames) mapper.update(frame)
         }
-        // Recomposition-Trigger (muss ausserhalb von synchronized in Compose laufen,
-        // aber mutableIntStateOf ist thread-safe fuer primitive Schreibzugriffe)
-        frameVersion++
     }
 
     /**
@@ -114,6 +145,7 @@ class SpectrogramState(
         dynamicRangeMapper?.let { mapper ->
             for (frame in olderFrames) mapper.update(frame)
         }
+        syncHasFrames()
         frameVersion++
     }
 
@@ -149,6 +181,18 @@ class SpectrogramState(
      */
     @Synchronized
     fun clear() {
+        clearLocked()
+        syncHasFrames()
+        frameVersion++
+    }
+
+    /** T176: [hasFrames] nur am Ende einer Aenderung und nur bei Wechsel schreiben (kein Zwischenzustand sichtbar). */
+    private fun syncHasFrames() {
+        val v = count > 0
+        if (hasFrames != v) hasFrames = v
+    }
+
+    private fun clearLocked() {
         buffer.fill(null)
         writeIndex = 0
         count = 0
@@ -156,7 +200,6 @@ class SpectrogramState(
         structureVersion++
         // T56: Mapper mit Buffer zuruecksetzen — sonst rollt Auto-Kontrast aus alter Session.
         dynamicRangeMapper?.reset()
-        frameVersion++
     }
 }
 
