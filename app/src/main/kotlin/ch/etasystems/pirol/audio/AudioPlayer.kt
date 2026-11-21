@@ -28,7 +28,10 @@ import java.io.InputStream
  *      playFromOffset(Uri) liest Samples via ContentResolver.openInputStream().
  * T62: playerError SharedFlow fuer Snackbar-Feedback bei MediaPlayer-Fehlern (AC7).
  */
-class AudioPlayer(private val context: Context) {
+class AudioPlayer(
+    private val context: Context,
+    private val muteGate: PlaybackMuteGate = PlaybackMuteGate.shared
+) {
 
     enum class PlaybackState { IDLE, PLAYING, PAUSED }
 
@@ -36,6 +39,25 @@ class AudioPlayer(private val context: Context) {
     private var audioTrack: AudioTrack? = null
     private val _state = MutableStateFlow(PlaybackState.IDLE)
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
+
+    // T168: haelt dieser Player gerade das Mikrofon-Mute-Gate? (genau ein acquire pro Wiedergabe)
+    private var holdsMuteGate = false
+
+    /** T168: Zustand setzen und Mute-Gate nachfuehren (PLAYING ueber Lautsprecher = stumm). */
+    private fun setState(newState: PlaybackState) {
+        _state.value = newState
+        synchronized(this) {
+            if (newState == PlaybackState.PLAYING && !holdsMuteGate) {
+                if (!OutputRoute.headphonesConnected(context)) {
+                    muteGate.acquire()
+                    holdsMuteGate = true
+                }
+            } else if (newState != PlaybackState.PLAYING && holdsMuteGate) {
+                muteGate.release()
+                holdsMuteGate = false
+            }
+        }
+    }
 
     /** T62: Fehler-Kanal — MediaPlayer-Fehler werden hier emittiert (AC7). */
     private val _playerError = MutableSharedFlow<String>(extraBufferCapacity = 1)
@@ -70,15 +92,15 @@ class AudioPlayer(private val context: Context) {
         mediaPlayer = MediaPlayer().apply {
             setDataSource(file.absolutePath)
             setOnErrorListener { _, what, extra ->
-                _state.value = PlaybackState.IDLE
+                setState(PlaybackState.IDLE)
                 _playerError.tryEmit("Wiedergabe-Fehler (Code $what/$extra)")
                 true
             }
             prepare()
             start()
-            setOnCompletionListener { _state.value = PlaybackState.IDLE }
+            setOnCompletionListener { setState(PlaybackState.IDLE) }
         }
-        _state.value = PlaybackState.PLAYING
+        setState(PlaybackState.PLAYING)
     }
 
     /**
@@ -90,15 +112,15 @@ class AudioPlayer(private val context: Context) {
         mediaPlayer = MediaPlayer().apply {
             setDataSource(context, uri)
             setOnErrorListener { _, what, extra ->
-                _state.value = PlaybackState.IDLE
+                setState(PlaybackState.IDLE)
                 _playerError.tryEmit("Wiedergabe-Fehler (Code $what/$extra)")
                 true
             }
             prepare()
             start()
-            setOnCompletionListener { _state.value = PlaybackState.IDLE }
+            setOnCompletionListener { setState(PlaybackState.IDLE) }
         }
-        _state.value = PlaybackState.PLAYING
+        setState(PlaybackState.PLAYING)
     }
 
     /**
@@ -160,7 +182,7 @@ class AudioPlayer(private val context: Context) {
             mediaPlayer?.release()
             mediaPlayer = null
             mediaPlayerOffsetSec = 0f
-            _state.value = PlaybackState.IDLE
+            setState(PlaybackState.IDLE)
             return
         }
         mediaPlayer?.release()
@@ -172,7 +194,7 @@ class AudioPlayer(private val context: Context) {
             if (partFile != null) mp.setDataSource(partFile.absolutePath)
             else mp.setDataSource(context, Uri.parse(part.source.uriString ?: error("Segment ohne Quelle")))
             mp.setOnErrorListener { _, what, extra ->
-                _state.value = PlaybackState.IDLE
+                setState(PlaybackState.IDLE)
                 _playerError.tryEmit("Wiedergabe-Fehler (Code $what/$extra)")
                 true
             }
@@ -184,11 +206,11 @@ class AudioPlayer(private val context: Context) {
         } catch (e: Exception) {
             mp.release()
             mediaPlayer = null
-            _state.value = PlaybackState.IDLE
+            setState(PlaybackState.IDLE)
             _playerError.tryEmit("Wiedergabe-Fehler (${part.source.name})")
             return
         }
-        _state.value = PlaybackState.PLAYING
+        setState(PlaybackState.PLAYING)
     }
 
     /**
@@ -300,7 +322,7 @@ class AudioPlayer(private val context: Context) {
                 t.release()
                 if (audioTrack === t) {
                     audioTrack = null
-                    _state.value = PlaybackState.IDLE
+                    setState(PlaybackState.IDLE)
                 }
             }
             override fun onPeriodicNotification(t: AudioTrack) {}
@@ -310,7 +332,7 @@ class AudioPlayer(private val context: Context) {
         trackOffsetSec = newOffsetSec
         trackSampleRate = sampleRate
         track.play()
-        _state.value = PlaybackState.PLAYING
+        setState(PlaybackState.PLAYING)
     }
 
     /** Pause/Resume Toggle (nur fuer MediaPlayer-Wiedergabe) */
@@ -318,10 +340,10 @@ class AudioPlayer(private val context: Context) {
         val mp = mediaPlayer ?: return
         if (mp.isPlaying) {
             mp.pause()
-            _state.value = PlaybackState.PAUSED
+            setState(PlaybackState.PAUSED)
         } else if (_state.value == PlaybackState.PAUSED) {
             mp.start()
-            _state.value = PlaybackState.PLAYING
+            setState(PlaybackState.PLAYING)
         }
     }
 
@@ -333,7 +355,7 @@ class AudioPlayer(private val context: Context) {
         try { audioTrack?.stop() } catch (_: Exception) {}
         audioTrack?.release()
         audioTrack = null
-        _state.value = PlaybackState.IDLE
+        setState(PlaybackState.IDLE)
     }
 
     /** Aufraemen (in onCleared aufrufen). */

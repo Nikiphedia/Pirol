@@ -397,6 +397,8 @@ class RecordingService : Service() {
                                 sampleRate = engine.actualSampleRate,
                                 timestampMs = SystemClock.elapsedRealtime()
                             )
+                            // T168: Wiedergabe ueber Lautsprecher -> Stille statt Mikrofon (Zeitachse bleibt lueckenlos)
+                            PlaybackMuteGate.shared.muteIfNeeded(samples)
                             totalEmitted += samples.size
                             _audioChunkFlow.emit(chunk)
                         }

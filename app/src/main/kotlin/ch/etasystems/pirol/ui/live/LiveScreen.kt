@@ -323,6 +323,17 @@ private fun CompactLiveLayout(
             // Preroll-Indikator
             PrerollIndicator(uiState = uiState)
 
+            // T168: dezenter Hinweis, solange das Mikrofon wegen Lautsprecher-Wiedergabe stumm ist
+            val micMuted by viewModel.micMutedByPlayback.collectAsState()
+            if (micMuted && uiState.isRecording) {
+                Text(
+                    text = stringResource(R.string.live_mic_stumm_wiedergabe),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp, start = 4.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Detektionsliste (ersetzt SpeciesPlaceholder)
