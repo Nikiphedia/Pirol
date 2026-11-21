@@ -63,4 +63,70 @@ object DetectionOccurrences {
         }
         return result
     }
+
+    /**
+     * T171: Zusammenhaengende Fenster (Dauersang, Overlap) = eine Episode.
+     *
+     * Luecken-Toleranz: Der Abstand der Startzeiten zweier Folgefenster darf hoechstens
+     * Fensterlaenge + [EPISODE_JITTER_SEC] betragen. Das deckt alle Hops (0 / 50 / 67 % Overlap,
+     * Hop <= Fensterlaenge) ab und faengt Wanduhr-Jitter ab (Zeitstempel sind Wanduhr, die Position
+     * wird daraus abgeleitet). Die Trennung zwischen Karten bleibt die Cluster-Regel (T70).
+     */
+    const val EPISODE_JITTER_SEC = 1.0f
+
+    /**
+     * Eine Episode: lueckenlose Folge von Fenstern.
+     * @param timestampMs Wanduhr des ersten Fensters
+     * @param lastTimestampMs Wanduhr des letzten Fensters
+     * @param startSec Beginn des ersten Fensters in der Session-Aufnahme
+     * @param endSec Ende des letzten Fensters
+     * @param windowSec Laenge eines Fensters
+     */
+    data class Episode(
+        val timestampMs: Long,
+        val lastTimestampMs: Long,
+        val startSec: Float,
+        val endSec: Float,
+        val windowSec: Float,
+        val windowCount: Int,
+        val containsAnchor: Boolean
+    ) {
+        val durationSec: Float get() = endSec - startSec
+    }
+
+    /** Fasst Vorkommen (beliebige Reihenfolge) zu Episoden zusammen, zeitlich aufsteigend. */
+    fun episodes(occurrences: List<Occurrence>): List<Episode> {
+        val result = mutableListOf<Episode>()
+        var cur: MutableList<Occurrence>? = null
+        fun flush() {
+            val c = cur ?: return
+            val first = c.first()
+            val last = c.last()
+            result.add(
+                Episode(
+                    timestampMs = first.timestampMs,
+                    lastTimestampMs = last.timestampMs,
+                    startSec = first.startSec,
+                    endSec = last.endSec,
+                    windowSec = first.endSec - first.startSec,
+                    windowCount = c.size,
+                    containsAnchor = c.any { it.isAnchor }
+                )
+            )
+        }
+        for (occ in occurrences.sortedBy { it.startSec }) {
+            val c = cur
+            val prev = c?.last()
+            if (c != null && prev != null &&
+                occ.startSec - prev.startSec <= (prev.endSec - prev.startSec) + EPISODE_JITTER_SEC
+            ) {
+                c.add(occ)
+            } else {
+                flush()
+                cur = mutableListOf(occ)
+            }
+        }
+        flush()
+        return result
+    }
 }

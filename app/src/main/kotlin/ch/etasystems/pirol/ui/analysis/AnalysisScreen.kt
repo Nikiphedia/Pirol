@@ -655,7 +655,7 @@ private fun SessionDetailContent(
                         },
                         playingStartSec = if (isPlaying) state.playingOccurrenceStartSec else null,
                         playEnabled = state.hasRecording && !detection.manualEntry,
-                        onPlay = { viewModel.playOccurrence(detection, it) }
+                        onPlay = { viewModel.playEpisode(detection, it) }
                     )
                     }
                 }
