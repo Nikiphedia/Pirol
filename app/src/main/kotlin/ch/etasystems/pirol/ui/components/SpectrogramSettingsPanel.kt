@@ -182,7 +182,7 @@ fun SpectrogramSettingsPanel(
                 Slider(
                     value = settings.windowSec,
                     onValueChange = { v -> repository.update { it.copy(windowSec = v) } },
-                    valueRange = 5f..20f
+                    valueRange = 5f..30f
                 )
             }
         }

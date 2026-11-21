@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.RecordingPhase
 import ch.etasystems.pirol.audio.RecordingService
+import ch.etasystems.pirol.audio.SampleRing
 import ch.etasystems.pirol.audio.VoiceMemoRecorder
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
@@ -213,7 +214,7 @@ class LiveViewModel(
 
     // SpectrogramState lebt im ViewModel, wird per Referenz in UiState geteilt.
     // T56: DynamicRangeMapper haengt an den State, wird ueber appendFrames() gefuettert.
-    private val spectrogramState = SpectrogramState(maxFrames = 2048).apply {
+    private val spectrogramState = SpectrogramState(maxFrames = 3072).apply {  // T163: 30 s bei 48 kHz/Hop 512 = 2813 Frames
         dynamicRangeMapper = DynamicRangeMapper()
     }
 
@@ -394,7 +395,7 @@ class LiveViewModel(
             // T61: Ganzer Preroll statt nur 5 s (T54-Fix-2). Der ANR kam vom quadratischen
             // process() (behoben in T61). Berechnung laeuft trotzdem im Hintergrund; die Frames
             // werden per prependFrames() VOR bereits eingetroffene Live-Frames gesetzt.
-            // Begrenzt auf die Kapazitaet des Sonogramm-Buffers (~22 s) — mehr waere unsichtbar.
+            // Begrenzt auf die Kapazitaet des Sonogramm-Buffers (~33 s) — mehr waere unsichtbar.
             val maxDisplaySamples = spectrogramState.maxFrames * config.hopSize + config.fftSize
             val displaySamples = if (prerollSamples.size > maxDisplaySamples) {
                 prerollSamples.copyOfRange(prerollSamples.size - maxDisplaySamples, prerollSamples.size)
@@ -1017,18 +1018,33 @@ class LiveViewModel(
             var statsMax = -200f
             var statsLastMs = android.os.SystemClock.elapsedRealtime()
             var skipped = false
+            // T163: Rohsamples waehrend die Ansicht unsichtbar ist (max. 30 s bzw. Sonogramm-Kapazitaet);
+            // gehoert dem Job, wird also bei Aufnahme-Start/-Stopp automatisch verworfen.
+            val hiddenRing = SampleRing(
+                minOf(30 * sampleRate, spectrogramState.maxFrames * config.hopSize).coerceAtLeast(1)
+            )
             svc.audioChunkFlow.collect { chunk ->
                 // T160b: Sonogramm nur berechnen, solange die Live-Ansicht sichtbar ist.
                 // Aufnahme und Erkennung (RecordingPipeline im Service) laufen davon unabhaengig.
                 if (!screenVisible) {
+                    // T163: nur billig mitschneiden (Ringpuffer-Kopie), Rechnen erst beim Zurueckkehren
+                    hiddenRing.write(chunk.samples)
                     skipped = true
                     return@collect
                 }
                 if (skipped) {
-                    // Luecke im Verlauf: alte Frames verwerfen, Mel-Zustand frisch starten
                     skipped = false
-                    spectrogramState.clear()
-                    mel.reset()
+                    // Ueberlauf = Luecke im Verlauf: alte Frames verwerfen, Mel-Zustand frisch starten.
+                    // Sonst schliesst der Ringinhalt lueckenlos an den Mel-Zustand an (keine Doppel-Spalten).
+                    if (hiddenRing.overflowed) {
+                        spectrogramState.clear()
+                        mel.reset()
+                    }
+                    if (hiddenRing.size > 0) {
+                        val backfill = mel.process(hiddenRing.toArray())
+                        if (backfill.isNotEmpty()) spectrogramState.appendFrames(backfill)
+                    }
+                    hiddenRing.clear()
                 }
                 val frames = mel.process(chunk.samples)
                 if (frames.isNotEmpty()) {

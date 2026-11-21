@@ -4,13 +4,10 @@ import android.os.SystemClock
 import android.widget.Chronometer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -1209,40 +1206,30 @@ private fun RecordingFab(
     val enabled = fabState != RecordingFabState.CONNECTING &&
                   fabState != RecordingFabState.PREROLL_BUFFERING
 
-    // Pulsierender Schatten bei Aufnahme
-    val pulseElevation = if (fabState == RecordingFabState.RECORDING) {
-        val infiniteTransition = rememberInfiniteTransition(label = "fabPulse")
-        val pulse by infiniteTransition.animateFloat(
-            initialValue = 6f,
-            targetValue = 16f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(800),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pulseElevation"
-        )
-        pulse.dp
-    } else {
-        6.dp
-    }
+    // T163: Statische Elevation und langsam umschaltender Ring. Frueher liefen zwei Infinite-Transitions
+    // mit voller Bildrate (Recomposition + Schatten-Neuzeichnen pro Frame, ~100 % CPU-Kern).
+    val pulseElevation = 6.dp
 
-    // Pulsierender Ring bei aktiver Aufnahme (T57-B4: rot)
-    val ringModifier = if (fabState == RecordingFabState.RECORDING) {
-        val infiniteTransition = rememberInfiniteTransition(label = "fabRing")
-        val ringAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.6f,
-            targetValue = 0.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1000),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "ringAlpha"
-        )
-        Modifier.border(
-            width = 3.dp,
-            color = Color(0xFFC62828).copy(alpha = ringAlpha),  // T57-B4: rot wie FAB
-            shape = CircleShape
-        )
+    // Aufnahme-Hinweis (T57-B4: rot): Zustand wechselt nur ca. 1x pro Sekunde und wird erst in der
+    // Draw-Phase gelesen (drawBehind), damit die Komposition nicht invalidiert wird.
+    var ringOn by remember { mutableStateOf(true) }
+    val isRecordingFab = fabState == RecordingFabState.RECORDING
+    LaunchedEffect(isRecordingFab) {
+        ringOn = true
+        while (isRecordingFab) {
+            kotlinx.coroutines.delay(1000L)
+            ringOn = !ringOn
+        }
+    }
+    val ringModifier = if (isRecordingFab) {
+        Modifier.drawBehind {
+            val strokePx = 3.dp.toPx()
+            drawCircle(
+                color = Color(0xFFC62828).copy(alpha = if (ringOn) 0.6f else 0.15f),
+                radius = (size.minDimension - strokePx) / 2f,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePx)
+            )
+        }
     } else {
         Modifier
     }
