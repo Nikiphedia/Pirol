@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import kotlinx.coroutines.launch
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
@@ -175,8 +176,21 @@ fun LiveScreen(
 
     // --- Snackbar-Infrastruktur (T52) ---
     val snackbarHostState = remember { SnackbarHostState() }
+    val topSnackbarHostState = remember { SnackbarHostState() }  // T172: Hinweise oben
     LaunchedEffect(Unit) {
+        val effectScope = this
         viewModel.snackbarEvents.collect { event ->
+            if (event.atTop) {
+                // Kurzer Hinweis oben, blockiert die Undo-Snackbars unten nicht
+                topSnackbarHostState.currentSnackbarData?.dismiss()
+                effectScope.launch {
+                    topSnackbarHostState.showSnackbar(
+                        message = event.message,
+                        duration = SnackbarDuration.Short
+                    )
+                }
+                return@collect
+            }
             snackbarHostState.currentSnackbarData?.dismiss()
             val result = snackbarHostState.showSnackbar(
                 message = event.message,
@@ -239,6 +253,11 @@ fun LiveScreen(
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
+        )
+        // T172: Hinweis "lange druecken" oben, damit der Finger am Stopp-Knopf ihn nicht verdeckt
+        SnackbarHost(
+            hostState = topSnackbarHostState,
+            modifier = Modifier.align(Alignment.TopCenter)
         )
     }
 }

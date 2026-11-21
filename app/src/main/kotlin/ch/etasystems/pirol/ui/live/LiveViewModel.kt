@@ -112,7 +112,8 @@ class LiveViewModel(
     data class SnackbarEvent(
         val message: String,
         val actionLabel: String? = null,
-        val onAction: (() -> Unit)? = null
+        val onAction: (() -> Unit)? = null,
+        val atTop: Boolean = false  // T172: oben anzeigen (z.B. Hinweis, den der Finger am FAB sonst verdeckt)
     )
 
     private data class UndoEntry(
@@ -507,7 +508,7 @@ class LiveViewModel(
     /** Zeigt Hinweis-Snackbar wenn Stop-FAB kurz getippt wird (F7). */
     fun showLongPressHint() {
         viewModelScope.launch {
-            _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.live_lang_druecken_zum_stoppen)))
+            _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.live_lang_druecken_zum_stoppen), atTop = true))
         }
     }
 
