@@ -90,6 +90,8 @@ fun DetectionList(
     // Ein unbenutztes "val version by ..." liest den State nie → Liste aktualisierte erst beim Tab-Wechsel.
     val version = detectionState.version.value
     val detections = remember(version) { detectionState.getDetections() }
+    // T178: pro Karte merken, fuer welchen Treffer schon geblinkt wurde (kein State, loest keine Recomposition aus)
+    val blinkHandled = remember { HashMap<String, Long>() }
 
     if (detections.isEmpty()) {
         // Leerzustand
@@ -197,6 +199,9 @@ fun DetectionList(
                         onSnackbar = onSnackbar,
                         // T73: Lock-Species
                         onToggleLock = onToggleLock?.let { cb -> { cb(detection.id) } },
+                        blinkSignalMs = detectionState.lastHitMs(detection.id),
+                        blinkHandledMs = blinkHandled[detection.id] ?: 0L,
+                        onBlinkPlayed = { blinkHandled[detection.id] = it },
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }

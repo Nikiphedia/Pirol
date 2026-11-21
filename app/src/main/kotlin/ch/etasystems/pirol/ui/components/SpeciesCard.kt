@@ -2,6 +2,9 @@ package ch.etasystems.pirol.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -149,8 +152,26 @@ fun SpeciesCard(
     onGetMemoTargetUri: (() -> Uri?)? = null,
     onSnackbar: (String) -> Unit = {},
     onToggleLock: (() -> Unit)? = null,
+    // T178: Blink-Signal (Zeitpunkt des letzten Treffers), Handled-Marke und Rueckmeldung
+    blinkSignalMs: Long = 0L,
+    blinkHandledMs: Long = 0L,
+    onBlinkPlayed: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // T178: endliches Doppel-Aufblinken (~1.2 s); der Wert wird nur in der Draw-Phase gelesen
+    val blink = remember { Animatable(0f) }
+    LaunchedEffect(blinkSignalMs) {
+        if (DetectionBlink.shouldBlink(blinkSignalMs, blinkHandledMs, System.currentTimeMillis())) {
+            onBlinkPlayed(blinkSignalMs)
+            repeat(2) {
+                blink.animateTo(1f, tween(durationMillis = 200))
+                blink.animateTo(0f, tween(durationMillis = 400))
+            }
+        }
+    }
+    val blinkColor = MaterialTheme.colorScheme.primary
+    val blinkCorner = with(androidx.compose.ui.platform.LocalDensity.current) { 12.dp.toPx() }
+
     val confidencePercent = (detection.confidence * 100).toInt()
     val confidenceColor = when {
         detection.confidence >= 0.8f -> MaterialTheme.colorScheme.primary
@@ -210,6 +231,17 @@ fun SpeciesCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .drawWithContent {
+                drawContent()
+                // Halbtransparente Ueberlagerung: Statusrand und Inhalt bleiben erkennbar
+                val a = blink.value
+                if (a > 0f) {
+                    drawRoundRect(
+                        color = blinkColor.copy(alpha = 0.30f * a),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(blinkCorner)
+                    )
+                }
+            }
             .alpha(cardAlpha)
             .combinedClickable(
                 onClick = {},
