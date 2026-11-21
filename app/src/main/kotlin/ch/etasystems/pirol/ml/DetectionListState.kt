@@ -54,6 +54,14 @@ class DetectionListState(
     private val _version = mutableIntStateOf(0)
     val version: State<Int> = _version
 
+    // T178: Zeitpunkt des letzten Treffers pro Detektions-ID (Blink-Signal der Karte).
+    // Wird nur bei neuer/erneuter automatischer Erkennung gesetzt, nie bei Verifikation, Undo oder Edit.
+    private val hitAtMs = HashMap<String, Long>()
+
+    /** T178: Zeitpunkt des letzten Treffers dieser Karte (0 = nie). */
+    @Synchronized
+    fun lastHitMs(detectionId: String): Long = hitAtMs[detectionId] ?: 0L
+
     // T73: Gesperrte Arten (speciesKey = scientificName.replace(' ', '_'))
     // StateFlow damit LiveViewModel und Inference-Loop thread-safe lesen koennen.
     val lockedSpecies = MutableStateFlow(emptySet<String>())
@@ -127,9 +135,11 @@ class DetectionListState(
                     // Art zuletzt vor < 10s gesehen → Position beibehalten
                     detections[existingIndex] = updatedDetection
                 }
+                hitAtMs[existing.id] = now  // T178
             } else {
                 // Neue Art → vorne einfuegen (T33: lastDetectedMs setzen)
                 detections.add(0, detection.copy(lastDetectedMs = System.currentTimeMillis()))
+                hitAtMs[detection.id] = System.currentTimeMillis()  // T178
                 // Max-Limit einhalten
                 while (detections.size > maxDetections) {
                     detections.removeAt(detections.lastIndex)
@@ -164,6 +174,7 @@ class DetectionListState(
     @Synchronized
     fun clear() {
         detections.clear()
+        hitAtMs.clear()  // T178
         _version.intValue++
     }
 
@@ -329,11 +340,13 @@ class DetectionListState(
                 confidence = maxOf(existing.confidence, detection.confidence)
             )
             detections[matchIndex] = updated
+            hitAtMs[updated.id] = nowMs  // T178
             _version.intValue++
             ClusterResult.Merged(anchor = updated, absorbedId = detection.id)
         } else {
             // Neue Detection: firstSeenAtMs = lastSeenAtMs = timestampMs (Defaults in DetectionResult)
             detections.add(0, detection.copy(lastDetectedMs = nowMs))
+            hitAtMs[detection.id] = nowMs  // T178
             while (detections.size > maxDetections) detections.removeAt(detections.lastIndex)
             _version.intValue++
             ClusterResult.New(detection)
