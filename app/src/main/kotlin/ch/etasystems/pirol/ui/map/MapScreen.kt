@@ -833,11 +833,18 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 onClick = {
                     val loc = locationState
                     if (loc != null) {
-                        mapViewRef.value?.controller?.animateTo(
-                            GeoPoint(loc.latitude, loc.longitude),
-                            15.0,
-                            500L
-                        )
+                        val mv = mapViewRef.value
+                        if (mv != null) {
+                            // T175: sichtbare Kartenhoehe ca. 200 m
+                            val zoom = LocateZoom.zoomForHeight(
+                                loc.latitude, mv.height, mv.maxZoomLevel
+                            )
+                            mv.controller.animateTo(
+                                GeoPoint(loc.latitude, loc.longitude),
+                                zoom,
+                                500L
+                            )
+                        }
                     }
                 },
                 modifier = Modifier
