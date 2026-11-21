@@ -531,4 +531,6 @@
     <string name="analysis_batch_geloescht">%1$d deleted, %2$d errors</string>
     <string name="analysis_batch_abgebrochen">Cancelled: %1$d done, %2$d errors</string>
     <string name="analysis_batch_ziel_nicht_schreibbar">Target folder is not writable</string>
+    <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
+    <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>
 </resources>

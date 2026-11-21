@@ -76,7 +76,7 @@ data class AnalysisUiState(
     // T167: abgespieltes Einzelvorkommen (Startsekunde in der Session), null = Hauptfenster/keines
     val playingOccurrenceStartSec: Float? = null,
     // T167: Wanduhr-Zeiten absorbierter Fenster je Detektions-ID (aus CLUSTER_MERGED)
-    val mergeTimestamps: Map<String, List<Long>> = emptyMap(),
+    val mergeTimestamps: Map<String, List<DetectionOccurrences.MergeInfo>> = emptyMap(),
     // T62: MediaPlayer-Fehler fuer Snackbar/Toast-Feedback (AC7).
     val playerError: String? = null,
 

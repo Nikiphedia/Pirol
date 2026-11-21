@@ -7,8 +7,9 @@ import ch.etasystems.pirol.ml.DetectionResult
  *
  * Beim Cluster-Merge (T70) bleibt nur der Anker in detections.jsonl; absorbierte Fenster
  * leben nur als CLUSTER_MERGED-Event in verifications.jsonl weiter
- * (`correctedSpecies = "merged:<id>|count:<n>|lastSeenAt:<Wanduhr-ms>"`).
- * Aus der Wanduhr-Zeit ergibt sich die Position in der Aufnahme ueber die Differenz zum Anker
+ * (`correctedSpecies = "merged:<id>|count:<n>|lastSeenAt:<Wanduhr-ms>[|conf:<0..1>|start:<sec>]"`;
+ * `conf`/`start` ab T181, bei aelteren Sessions nicht vorhanden).
+ * Ohne `start` ergibt sich die Position in der Aufnahme aus der Wanduhr-Differenz zum Anker
  * (gleiche Regel wie [ch.etasystems.pirol.audio.export.DetectionExcerpt.compute]).
  *
  * Reine Funktionen ohne Android-Abhaengigkeit (unit-testbar).
@@ -29,7 +30,16 @@ object DetectionOccurrences {
         val timestampMs: Long,
         val startSec: Float,
         val endSec: Float,
-        val isAnchor: Boolean
+        val isAnchor: Boolean,
+        /** T181: Konfidenz dieses Fensters, null = unbekannt */
+        val confidence: Float? = null
+    )
+
+    /** T181: Angaben zu einem absorbierten Fenster; conf/start null bei alten Sessions. */
+    data class MergeInfo(
+        val timestampMs: Long,
+        val confidence: Float? = null,
+        val startSec: Float? = null
     )
 
     /** Liest `lastSeenAt:<ms>` aus dem correctedSpecies-Feld eines CLUSTER_MERGED-Events. */
@@ -42,24 +52,43 @@ object DetectionOccurrences {
             ?.toLongOrNull()
     }
 
+    /** T181: Liest lastSeenAt sowie optional conf und start; null, wenn lastSeenAt fehlt. */
+    fun parseMergeInfo(correctedSpecies: String?): MergeInfo? {
+        val ts = parseMergeTimestamp(correctedSpecies) ?: return null
+        fun field(name: String): Float? = correctedSpecies!!.split('|')
+            .firstOrNull { it.startsWith("$name:") }
+            ?.removePrefix("$name:")?.trim()?.toFloatOrNull()
+            ?.takeIf { it.isFinite() }
+        return MergeInfo(
+            timestampMs = ts,
+            confidence = field("conf")?.takeIf { it in 0f..1f },
+            startSec = field("start")?.takeIf { it >= 0f }
+        )
+    }
+
     /**
      * Vorkommen einer Detektion, zeitlich aufsteigend. Der Anker kommt immer vor.
      * Zeitpunkte vor dem Anker (unplausibel) und Duplikate werden verworfen.
      *
-     * @param mergeTimestampsMs Wanduhr-Zeiten der absorbierten Fenster (aus CLUSTER_MERGED)
+     * @param merges absorbierte Fenster (aus CLUSTER_MERGED); mit `start` exakte Position, sonst Wanduhr-Naeherung
      */
-    fun of(detection: DetectionResult, mergeTimestampsMs: List<Long>): List<Occurrence> {
+    fun of(detection: DetectionResult, merges: List<MergeInfo>): List<Occurrence> {
         val window = (detection.chunkEndSec - detection.chunkStartSec)
             .takeIf { it in 0.1f..30f } ?: FALLBACK_WINDOW_SEC
         val firstStart = detection.chunkStartSec.coerceAtLeast(0f)
+        // Anker-Konfidenz: detection.confidence ist das Maximum ueber alle Fenster. Nur wenn kein
+        // absorbiertes Fenster diesen Wert erreicht, stammt er sicher vom Anker; sonst unbekannt.
+        val absorbedMax = merges.mapNotNull { it.confidence }.maxOrNull()
+        val anchorConf = if (absorbedMax == null || detection.confidence > absorbedMax) detection.confidence else null
         val result = mutableListOf(
-            Occurrence(detection.timestampMs, firstStart, firstStart + window, isAnchor = true)
+            Occurrence(detection.timestampMs, firstStart, firstStart + window, isAnchor = true, confidence = anchorConf)
         )
-        for (ts in mergeTimestampsMs.sorted()) {
+        for (m in merges.sortedBy { it.timestampMs }) {
+            val ts = m.timestampMs
             if (ts - detection.timestampMs < DEDUP_TOLERANCE_MS) continue
             if (ts - result.last().timestampMs < DEDUP_TOLERANCE_MS) continue
-            val start = firstStart + (ts - detection.timestampMs) / 1000f
-            result.add(Occurrence(ts, start, start + window, isAnchor = false))
+            val start = m.startSec ?: (firstStart + (ts - detection.timestampMs) / 1000f)
+            result.add(Occurrence(ts, start, start + window, isAnchor = false, confidence = m.confidence))
         }
         return result
     }
@@ -89,7 +118,9 @@ object DetectionOccurrences {
         val endSec: Float,
         val windowSec: Float,
         val windowCount: Int,
-        val containsAnchor: Boolean
+        val containsAnchor: Boolean,
+        /** T181: Maximum der bekannten Fenster-Konfidenzen, null = keine bekannt */
+        val maxConfidence: Float? = null
     ) {
         val durationSec: Float get() = endSec - startSec
     }
@@ -110,7 +141,8 @@ object DetectionOccurrences {
                     endSec = last.endSec,
                     windowSec = first.endSec - first.startSec,
                     windowCount = c.size,
-                    containsAnchor = c.any { it.isAnchor }
+                    containsAnchor = c.any { it.isAnchor },
+                    maxConfidence = c.mapNotNull { it.confidence }.maxOrNull()
                 )
             )
         }

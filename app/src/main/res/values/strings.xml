@@ -532,4 +532,6 @@
     <string name="analysis_batch_geloescht">%1$d geloescht, %2$d Fehler</string>
     <string name="analysis_batch_abgebrochen">Abgebrochen: %1$d erledigt, %2$d Fehler</string>
     <string name="analysis_batch_ziel_nicht_schreibbar">Zielordner nicht beschreibbar</string>
+    <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts verschoben.</string>
+    <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewaehlte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>
 </resources>

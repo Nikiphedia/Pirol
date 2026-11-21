@@ -257,6 +257,22 @@ class AnalysisViewModel(
     fun moveSelected(treeUri: Uri) {
         val list = selectedSummaries()
         if (list.isEmpty() || _uiState.value.batchRunning) return
+        // T181: Ziel in der PIROL-Basis oder gleich Quellordner -> nichts verschieben
+        val targetId = runCatching { android.provider.DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()
+        if (targetId != null) {
+            val verdict = ch.etasystems.pirol.data.repository.MoveTargetGuard.check(
+                targetId, sessionManager.baseDocumentIds(), list.mapNotNull { sessionManager.sessionDocumentId(it.sessionDir) }
+            )
+            val msgRes = when (verdict) {
+                ch.etasystems.pirol.data.repository.MoveTargetGuard.Verdict.INSIDE_BASE -> R.string.analysis_batch_ziel_in_basis
+                ch.etasystems.pirol.data.repository.MoveTargetGuard.Verdict.SAME_AS_SOURCE -> R.string.analysis_batch_ziel_gleich_quelle
+                else -> null
+            }
+            if (msgRes != null) {
+                _uiState.update { it.copy(batchMessage = AppStrings.get(msgRes)) }
+                return
+            }
+        }
         val root = sessionMover.targetRoot(treeUri)
         if (root == null) {
             _uiState.update { it.copy(batchMessage = AppStrings.get(R.string.analysis_batch_ziel_nicht_schreibbar)) }

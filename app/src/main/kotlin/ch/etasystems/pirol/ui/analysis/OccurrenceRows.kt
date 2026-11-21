@@ -93,7 +93,7 @@ fun OccurrenceSection(
                         positionLabel = formatMinSec(ep.startSec),
                         windowCount = ep.windowCount,
                         durationSec = ep.durationSec,
-                        confidence = if (ep.containsAnchor) detection.confidence else null,
+                        confidence = ep.maxConfidence,
                         status = detection.verificationStatus,
                         isPlaying = isPlaying,
                         playEnabled = playEnabled,

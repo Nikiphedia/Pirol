@@ -17,7 +17,13 @@ import kotlin.math.sqrt
  */
 sealed class ClusterResult {
     data class New(val detection: DetectionResult) : ClusterResult()
-    data class Merged(val anchor: DetectionResult, val absorbedId: String) : ClusterResult()
+    data class Merged(
+        val anchor: DetectionResult,
+        val absorbedId: String,
+        // T181: Konfidenz und Start (session-relativ) des absorbierten Fensters
+        val absorbedConfidence: Float = 0f,
+        val absorbedStartSec: Float = 0f
+    ) : ClusterResult()
 }
 
 /**
@@ -342,7 +348,12 @@ class DetectionListState(
             detections[matchIndex] = updated
             hitAtMs[updated.id] = nowMs  // T178
             _version.intValue++
-            ClusterResult.Merged(anchor = updated, absorbedId = detection.id)
+            ClusterResult.Merged(
+                anchor = updated,
+                absorbedId = detection.id,
+                absorbedConfidence = detection.confidence,
+                absorbedStartSec = detection.chunkStartSec
+            )
         } else {
             // Neue Detection: firstSeenAtMs = lastSeenAtMs = timestampMs (Defaults in DetectionResult)
             detections.add(0, detection.copy(lastDetectedMs = nowMs))
