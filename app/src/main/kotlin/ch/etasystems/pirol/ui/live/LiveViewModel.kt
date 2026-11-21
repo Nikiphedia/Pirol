@@ -125,7 +125,7 @@ class LiveViewModel(
     private var pendingUndo: UndoEntry? = null
 
     // --- T157: Undo nach Bestaetigen ueber den Alarm ---
-    @Volatile private var screenVisible = false
+    @Volatile private var screenVisible = false  // T157; T160b: steuert auch die Sonogramm-Berechnung
 
     init {
         verificationService.alarmUndo.onRecorded = { viewModelScope.launch { offerAlarmUndo() } }
@@ -1016,7 +1016,20 @@ class LiveViewModel(
             var statsCount = 0L
             var statsMax = -200f
             var statsLastMs = android.os.SystemClock.elapsedRealtime()
+            var skipped = false
             svc.audioChunkFlow.collect { chunk ->
+                // T160b: Sonogramm nur berechnen, solange die Live-Ansicht sichtbar ist.
+                // Aufnahme und Erkennung (RecordingPipeline im Service) laufen davon unabhaengig.
+                if (!screenVisible) {
+                    skipped = true
+                    return@collect
+                }
+                if (skipped) {
+                    // Luecke im Verlauf: alte Frames verwerfen, Mel-Zustand frisch starten
+                    skipped = false
+                    spectrogramState.clear()
+                    mel.reset()
+                }
                 val frames = mel.process(chunk.samples)
                 if (frames.isNotEmpty()) {
                     spectrogramState.appendFrames(frames)

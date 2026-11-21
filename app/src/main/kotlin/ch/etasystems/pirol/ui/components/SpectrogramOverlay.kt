@@ -135,12 +135,13 @@ private fun TimeAxis(
     modifier: Modifier = Modifier
 ) {
     val textColor = (if (lightBackground) Color.Black else Color.White).copy(alpha = 0.85f)
-    // Lese frameVersion fuer Recomposition
-    @Suppress("UNUSED_VARIABLE")
-    val version = spectrogramState.frameVersion
-
-    // T107: bei festem Zeitfenster ist die Achse immer das volle Fenster
-    val totalFrames = windowFrames ?: spectrogramState.availableFrames
+    // T107: bei festem Zeitfenster ist die Achse immer das volle Fenster.
+    // T160: frameVersion nur ohne festes Fenster lesen — sonst Recomposition bei jedem Frame.
+    val totalFrames = windowFrames ?: run {
+        @Suppress("UNUSED_VARIABLE")
+        val version = spectrogramState.frameVersion
+        spectrogramState.availableFrames
+    }
     val totalSeconds = totalFrames * secondsPerFrame
 
     Box(

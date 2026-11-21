@@ -1,6 +1,17 @@
 package ch.etasystems.pirol.ui.components
 
 import android.graphics.Bitmap
+import android.os.SystemClock
+import android.util.Log
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -91,8 +102,30 @@ fun SpectrogramCanvas(
     // Bitmap-Renderer: verwaltet Off-Screen-Bitmap und Ring-Buffer-Logik
     val renderer = remember { BitmapRenderer() }
 
-    // Recomposition-Trigger: liest frameVersion → Canvas wird bei neuen Frames neu gezeichnet
-    val version = spectrogramState.frameVersion
+    // T160: Zeitfenster-Modus (Live) schreibt nur neue Spalten in eine Ring-Bitmap
+    val ringMode = windowFrames != null && !fitAllFrames
+    val ringRenderer = remember { RingBitmapRenderer() }
+    val stats = remember { RenderStats() }
+
+    // T160: Zeichen-Takt. Hoechstens ~25 fps, nur bei neuen Frames und nur solange die Ansicht
+    // sichtbar (STARTED) ist. Der State wird nur im draw-Lambda gelesen → keine Recomposition.
+    var tick by remember { mutableIntStateOf(0) }
+    if (ringMode) {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(spectrogramState, lifecycleOwner) {
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                var seen = -1
+                while (isActive) {
+                    val v = spectrogramState.frameVersion
+                    if (v != seen) {
+                        seen = v
+                        tick++
+                    }
+                    delay(SPECTROGRAM_RENDER_INTERVAL_MS)
+                }
+            }
+        }
+    }
 
     Box(modifier = modifier) {
         Canvas(
@@ -102,6 +135,31 @@ fun SpectrogramCanvas(
                     if (!fitAllFrames && windowFrames == null) renderer.onSizeChanged(size, numMelBins)
                 }
         ) {
+            if (ringMode) {
+                // Draw-Dependency auf den Takt (nicht auf frameVersion → kein Zeichnen pro Chunk)
+                @Suppress("UNUSED_VARIABLE") val t = tick
+                val startNs = System.nanoTime()
+                val (minDbUsed, maxDbRaw) = when {
+                    manualRangeOverride != null -> manualRangeOverride
+                    autoContrast -> spectrogramState.dynamicRangeMapper?.currentRange()
+                        ?: (fallbackMinDb to 0f)
+                    else -> manualMinDb to manualMaxDb
+                }
+                val (minDbFinal, maxDbUsed) = effectiveDbRange(minDbUsed, maxDbRaw, ceilingDb)
+                val cols = ringRenderer.render(
+                    spectrogramState, windowFrames!!, numMelBins, binFirst, minDbFinal, maxDbUsed, lut, gamma
+                )
+                ringRenderer.draw(this, this.size)
+                val line = stats.record(
+                    SystemClock.elapsedRealtime(), (System.nanoTime() - startNs) / 1e6f, cols
+                )
+                if (line != null) Log.i("SpectrogramRender", line)
+                return@Canvas
+            }
+
+            // version lesen: Draw-Dependency (nur Neuzeichnen, keine Recomposition)
+            @Suppress("UNUSED_VARIABLE") val version = spectrogramState.frameVersion
+
             // Sichtbare Frames holen: Einpass-Modus = alle Frames, Bitmap-Breite = Frame-Anzahl
             // (wird beim Zeichnen auf die Canvas skaliert); Rolling-Modus = max. Bitmap-Breite.
             val frames = if (fitAllFrames) {
@@ -109,10 +167,6 @@ fun SpectrogramCanvas(
                 if (all.isEmpty()) return@Canvas
                 renderer.onSizeChanged(IntSize(all.size, 1), numMelBins)
                 all
-            } else if (windowFrames != null) {
-                // T107: festes Zeitfenster — 1 Frame = 1 Bitmap-Spalte, auf Canvas-Breite skaliert
-                renderer.onSizeChanged(IntSize(windowFrames, 1), numMelBins)
-                spectrogramState.getVisibleFrames(windowFrames)
             } else {
                 val bitmapWidth = renderer.bitmapWidth
                 if (bitmapWidth <= 0) return@Canvas
@@ -138,10 +192,147 @@ fun SpectrogramCanvas(
             renderer.bitmap?.let { bmp ->
                 drawScaledBitmap(bmp, this.size)
             }
+        }
+    }
+}
 
-            // version-Variable lesen damit Compose die Dependency trackt
-            @Suppress("UNUSED_EXPRESSION")
-            version
+/**
+ * T160: Ring-Bitmap fuer das Live-Sonogramm (Zeitfenster-Modus).
+ *
+ * Breite = Anzahl Frames im Fenster, 1 Frame = 1 Spalte. Neue Frames werden nur in ihre Spalten
+ * geschrieben; beim Zeichnen werden zwei Teilbereiche (alt|neu) ausgegeben. Vollstaendiger
+ * Neuaufbau nur bei Groessen-, Palette-, Gamma-, Frequenz-/dB-Bereichs- oder Strukturwechsel.
+ */
+internal class RingBitmapRenderer {
+    private var bitmap: Bitmap? = null
+    private var image: androidx.compose.ui.graphics.ImageBitmap? = null
+    private var ring: ColumnRing? = null
+    private var width = 0
+    private var height = 0
+    private var pixels = IntArray(0)
+
+    private var lastAppended = 0L
+    private var lastStructure = -1
+    private var lastMin = Float.NaN
+    private var lastMax = Float.NaN
+    private var lastGamma = Float.NaN
+    private var lastLut: IntArray? = null
+    private var lastBinFirst = -1
+    private var needsFull = true
+    private val gammaColorLut = IntArray(256)
+
+    private fun updateLut(gamma: Float, colorLut: IntArray) {
+        if (gamma == 1f) {
+            colorLut.copyInto(gammaColorLut)
+        } else {
+            for (i in 0..255) {
+                val compressed = (i / 255f).pow(gamma)
+                gammaColorLut[i] = colorLut[(compressed * 255f).toInt().coerceIn(0, 255)]
+            }
+        }
+    }
+
+    /** Rendert neue Frames ins Bitmap. Rueckgabe: Anzahl geschriebener Spalten (Neuaufbau = Fensterbreite). */
+    fun render(
+        state: SpectrogramState,
+        windowFrames: Int,
+        numBins: Int,
+        binFirst: Int,
+        minDb: Float,
+        maxDb: Float,
+        colorLut: IntArray,
+        gamma: Float
+    ): Int {
+        if (windowFrames <= 0 || numBins <= 0) return 0
+        if (windowFrames != width || numBins != height || bitmap == null) {
+            bitmap?.recycle()
+            val bmp = Bitmap.createBitmap(windowFrames, numBins, Bitmap.Config.ARGB_8888)
+            bitmap = bmp
+            image = bmp.asImageBitmap()
+            ring = ColumnRing(windowFrames)
+            width = windowFrames
+            height = numBins
+            pixels = IntArray(windowFrames * numBins)
+            needsFull = true
+        }
+        val lutChanged = gamma != lastGamma || colorLut !== lastLut
+        if (lutChanged) {
+            updateLut(gamma, colorLut)
+            lastGamma = gamma
+            lastLut = colorLut
+        }
+        val full = needsFull || lutChanged || binFirst != lastBinFirst ||
+            rangeNeedsRebuild(lastMin, lastMax, minDb, maxDb)
+
+        val snap = state.snapshotForRender(lastAppended, lastStructure, width, full)
+        val invRange = 1f / (maxDb - minDb).coerceAtLeast(1f)
+        val ring = ring ?: return 0
+        val bmp = bitmap ?: return 0
+        var written = 0
+        if (snap.full) {
+            // Stille-Farbe (T144) links, Frames rechtsbuendig, aeltester Frame bei head = 0
+            pixels.fill(gammaColorLut[0])
+            ring.reset()
+            val k = snap.frames.size
+            writeColumns(snap.frames, 0, k, width - k, width, minDb, invRange, binFirst)
+            bmp.setPixels(pixels, 0, width, 0, 0, width, height)
+            lastMin = minDb
+            lastMax = maxDb
+            lastBinFirst = binFirst
+            needsFull = false
+            written = width
+        } else if (snap.frames.isNotEmpty()) {
+            var idx = 0
+            for (run in ring.write(snap.frames.size)) {
+                val len = run[1]
+                writeColumns(snap.frames, idx, len, 0, len, minDb, invRange, binFirst)
+                bmp.setPixels(pixels, 0, len, run[0], 0, len, height)
+                idx += len
+            }
+            written = snap.frames.size
+        }
+        lastAppended = snap.appendedTotal
+        lastStructure = snap.structureVersion
+        return written
+    }
+
+    /** Schreibt [count] Frames ab [from] in den Pixelpuffer (Zeilen-Stride [stride]) ab Spalte [col0]. */
+    private fun writeColumns(
+        frames: List<FloatArray>, from: Int, count: Int, col0: Int, stride: Int,
+        minDb: Float, invRange: Float, binFirst: Int
+    ) {
+        for (i in 0 until count) {
+            val frame = frames[from + i]
+            val x = col0 + i
+            for (bin in 0 until height) {
+                val srcBin = binFirst + bin
+                if (srcBin >= frame.size) break
+                val normalized = ((frame[srcBin] - minDb) * invRange).coerceIn(0f, 1f)
+                val idx = (normalized * 255f).toInt().coerceIn(0, 255)
+                // Y-Achse invertieren: bin 0 (fMin) → unten
+                pixels[(height - 1 - bin) * stride + x] = gammaColorLut[idx]
+            }
+        }
+    }
+
+    /** Zeichnet das Ring-Bitmap als zwei Teilbereiche (alt|neu), skaliert auf die Canvas. */
+    fun draw(scope: DrawScope, target: androidx.compose.ui.geometry.Size) {
+        val img = image ?: return
+        val ring = ring ?: return
+        val dstW = target.width.toInt()
+        val dstH = target.height.toInt()
+        var srcDone = 0
+        for (seg in ring.drawSegments()) {
+            val x0 = (dstW.toLong() * srcDone / width).toInt()
+            val x1 = (dstW.toLong() * (srcDone + seg[1]) / width).toInt()
+            scope.drawImage(
+                image = img,
+                srcOffset = androidx.compose.ui.unit.IntOffset(seg[0], 0),
+                srcSize = IntSize(seg[1], height),
+                dstOffset = androidx.compose.ui.unit.IntOffset(x0, 0),
+                dstSize = IntSize(x1 - x0, dstH)
+            )
+            srcDone += seg[1]
         }
     }
 }
