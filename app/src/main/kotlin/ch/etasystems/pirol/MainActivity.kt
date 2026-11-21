@@ -10,6 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -41,9 +43,33 @@ class MainActivity : AppCompatActivity() {
                     Box(modifier = Modifier.fillMaxSize()) {
                         PirolNavHost(windowSizeClass = windowSizeClass)
                         AlarmOverlay()  // T124: Watchlist-Alarm ueber allen Tabs
+                        WhatsNewHost()
                     }
                 }
             }
+        }
+    }
+
+    /** T183: Changelog genau einmal nach einem Update; bei Neuinstallation still als gesehen markieren. */
+    @androidx.compose.runtime.Composable
+    private fun WhatsNewHost() {
+        val prefs: ch.etasystems.pirol.data.AppPreferences = get()
+        val action = androidx.compose.runtime.remember {
+            val code = ch.etasystems.pirol.ui.components.currentVersionCode(this)
+            val a = ch.etasystems.pirol.ui.components.decideWhatsNew(
+                prefs.lastSeenChangelogVersionCode, code, prefs.onboardingCompleted
+            )
+            if (a == ch.etasystems.pirol.ui.components.WhatsNewAction.MARK_SEEN) prefs.lastSeenChangelogVersionCode = code
+            a
+        }
+        var show by androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf(action == ch.etasystems.pirol.ui.components.WhatsNewAction.SHOW)
+        }
+        if (show) {
+            ch.etasystems.pirol.ui.components.WhatsNewDialog(onDismiss = {
+                prefs.lastSeenChangelogVersionCode = ch.etasystems.pirol.ui.components.currentVersionCode(this)
+                show = false
+            })
         }
     }
 }

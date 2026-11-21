@@ -136,6 +136,7 @@ fun SettingsScreen(
 
     // Watchlist-Editor State (T21)
     var showAddDialog by remember { mutableStateOf(false) }
+    var showWhatsNew by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     // Alarm-Cooldown State (T58)
@@ -2189,6 +2190,28 @@ fun SettingsScreen(
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+        // T183: Info-Sektion mit Changelog
+        SettingsSection(
+            sectionKey = "info",
+            title = stringResource(R.string.settings_info_section),
+            appPreferences = appPreferences,
+            defaultExpanded = false
+        ) {
+            Text(
+                text = stringResource(R.string.settings_info_version, ch.etasystems.pirol.ui.components.currentVersionName(context)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(onClick = { showWhatsNew = true }) {
+                Text(stringResource(R.string.settings_whats_new_button))
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+
+    if (showWhatsNew) {
+        ch.etasystems.pirol.ui.components.WhatsNewDialog(onDismiss = { showWhatsNew = false })
     }
 
     // --- Art-Hinzufuegen-Dialog (AP-4) ---

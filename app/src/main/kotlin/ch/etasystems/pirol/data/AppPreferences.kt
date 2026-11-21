@@ -21,6 +21,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_onboarding_completed", false)
         set(value) = prefs.edit().putBoolean("pirol_onboarding_completed", value).apply()
 
+    /** T183: zuletzt gesehene Changelog-Version (versionCode); null = nie gespeichert. */
+    var lastSeenChangelogVersionCode: Int?
+        get() = if (prefs.contains("pirol_last_seen_changelog")) prefs.getInt("pirol_last_seen_changelog", 0) else null
+        set(value) { if (value != null) prefs.edit().putInt("pirol_last_seen_changelog", value).apply() }
+
     // --- InferenceConfig ---
     var confidenceThreshold: Float
         get() = prefs.getFloat("pirol_confidence_threshold", 0.5f)

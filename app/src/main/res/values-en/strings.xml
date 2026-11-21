@@ -531,4 +531,23 @@
     <string name="analysis_batch_geloescht">%1$d deleted, %2$d errors</string>
     <string name="analysis_batch_abgebrochen">Cancelled: %1$d done, %2$d errors</string>
     <string name="analysis_batch_ziel_nicht_schreibbar">Target folder is not writable</string>
+
+    <!-- T183: Was ist neu (bei neuer Version nur whats_new_items tauschen) -->
+    <string name="whats_new_title">What\'s new in version %1$s</string>
+    <string name="whats_new_ok">OK</string>
+    <string name="settings_info_section">About</string>
+    <string name="settings_whats_new_button">What\'s new</string>
+    <string name="settings_info_version">Version %1$s</string>
+    <string-array name="whats_new_items">
+        <item>Live view more compact on phones, portrait and landscape: buttons on one row, slim navigation, more species visible</item>
+        <item>Listen to a detection right on the species card (Play); a second tap stops, a new one stops the old one</item>
+        <item>Microphone is muted while playing through the speaker (no self-detection); stays on with headphones</item>
+        <item>Species detected again: the card flashes briefly</item>
+        <item>Confirm/reject without popup, undo right on the card</item>
+        <item>Spectrogram: time window up to 30 s, recalculated immediately after switching tabs, much less battery with the screen on; settings as tiles</item>
+        <item>Analysis: species detected several times can be expanded, connected calls can be played as one episode</item>
+        <item>Select several recordings (long press), move or delete them</item>
+        <item>Map: tap a point to move or listen to it; location button shows a 200 m view</item>
+        <item>New app icon, smaller installation file</item>
+    </string-array>
 </resources>
