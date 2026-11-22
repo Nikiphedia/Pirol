@@ -8,6 +8,7 @@ import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.GpsStats
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -224,16 +225,16 @@ class LocationProvider(
                         )
                     }
                     if (data != null && detectionOnly) registerDetectionFix(data)
-                    if (cont.isActive) cont.resume(data) {}
+                    if (cont.isActive) cont.resume(data)
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "Frischer Fix fehlgeschlagen: ${e.message}")
-                    if (cont.isActive) cont.resume(null) {}
+                    if (cont.isActive) cont.resume(null)
                 }
-                .addOnCanceledListener { if (cont.isActive) cont.resume(null) {} }
+                .addOnCanceledListener { if (cont.isActive) cont.resume(null) }
         } catch (e: SecurityException) {
             Log.w(TAG, "Frischer Fix ohne Permission nicht verfuegbar")
-            if (cont.isActive) cont.resume(null) {}
+            if (cont.isActive) cont.resume(null)
         }
     }
 
