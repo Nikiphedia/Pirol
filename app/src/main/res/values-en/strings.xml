@@ -555,4 +555,6 @@
     <string name="settings_track_recording">Record route</string>
     <string name="settings_track_recording_hint">Saves the GPS track during recording (track.jsonl, track.gpx on stop) and shows it on the map. Applies from the next recording.</string>
     <string name="settings_track_recording_on_detection_hint">In \"On detection only\" mode, GPS is not switched on continuously for the route. The track consists only of the detection fixes, has gaps and is drawn dashed on the map.</string>
+    <string name="settings_artkarte_kompakt">Compact species card</string>
+    <string name="settings_artkarte_kompakt_hinweis">One line per species with confirm, reject and a plus menu for all other actions</string>
 </resources>

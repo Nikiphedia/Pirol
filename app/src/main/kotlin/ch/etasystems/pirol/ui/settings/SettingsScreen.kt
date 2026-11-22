@@ -815,6 +815,30 @@ fun SettingsScreen(
                 )
             }
 
+            // T192: kompakte Artkarte
+            Spacer(modifier = Modifier.height(12.dp))
+            var compactCard by remember { mutableStateOf(appPreferences.compactSpeciesCard) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_artkarte_kompakt))
+                    Text(
+                        AppStrings.get(R.string.settings_artkarte_kompakt_hinweis),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = compactCard,
+                    onCheckedChange = {
+                        compactCard = it
+                        appPreferences.compactSpeciesCard = it
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))

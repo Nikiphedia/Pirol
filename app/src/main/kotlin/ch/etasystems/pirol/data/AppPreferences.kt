@@ -97,6 +97,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_show_top_n_candidates", true)
         set(value) = prefs.edit().putBoolean("pirol_show_top_n_candidates", value).apply()
 
+    // --- Kompakte Artkarte (T192) ---
+    /** true = Artkarte als Einzeiler mit [Bestaetigen][Ablehnen][+]; false = Vollkarte (Default). */
+    var compactSpeciesCard: Boolean
+        get() = prefs.getBoolean("pirol_compact_species_card", false)
+        set(value) = prefs.edit().putBoolean("pirol_compact_species_card", value).apply()
+
     // --- GPS (T53) ---
     /** Maximale akzeptierte GPS-Ungenauigkeit in Metern. Fixes schlechter als dieser Wert werden verworfen. */
     var gpsMaxAccuracyMeters: Float

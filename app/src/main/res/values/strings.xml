@@ -556,4 +556,6 @@
     <string name="settings_track_recording">Route aufzeichnen</string>
     <string name="settings_track_recording_hint">Speichert waehrend der Aufnahme die GPS-Spur (track.jsonl, beim Stopp track.gpx) und zeigt sie auf der Karte. Wirkt ab naechster Aufnahme.</string>
     <string name="settings_track_recording_on_detection_hint">Im Modus \"Nur bei Detektion\" wird fuer die Route kein Dauer-GPS eingeschaltet. Die Spur besteht nur aus den Fixes der Detektionen, ist lueckenhaft und wird auf der Karte gestrichelt gezeichnet.</string>
+    <string name="settings_artkarte_kompakt">Artkarte kompakt</string>
+    <string name="settings_artkarte_kompakt_hinweis">Eine Zeile pro Art mit Bestaetigen, Ablehnen und Plus-Menue fuer alle weiteren Aktionen</string>
 </resources>

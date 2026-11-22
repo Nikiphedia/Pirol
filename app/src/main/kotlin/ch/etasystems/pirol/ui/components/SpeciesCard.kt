@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
@@ -155,6 +156,8 @@ fun SpeciesCard(
     blinkSignalMs: Long = 0L,
     blinkHandledMs: Long = 0L,
     onBlinkPlayed: (Long) -> Unit = {},
+    // T192: kompakte Einzeiler-Darstellung (Default folgt der Einstellung)
+    compact: Boolean = rememberCompactCardSetting(),
     modifier: Modifier = Modifier
 ) {
     // T178: endliches Doppel-Aufblinken (~1.2 s); der Wert wird nur in der Draw-Phase gelesen
@@ -240,7 +243,9 @@ fun SpeciesCard(
             ),
         colors = CardDefaults.cardColors(
             // T73: surfaceVariant-Hintergrund fuer gesperrte Arten (AC2)
-            containerColor = if (detection.lockSpecies)
+            containerColor = if (compact && isPlaying)
+                MaterialTheme.colorScheme.primaryContainer
+            else if (detection.lockSpecies)
                 MaterialTheme.colorScheme.surfaceVariant
             else
                 MaterialTheme.colorScheme.surface
@@ -259,6 +264,34 @@ fun SpeciesCard(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
+            if (compact) {
+                CompactRow(
+                    detection = detection,
+                    inline = inline,
+                    confidencePercent = confidencePercent,
+                    confidenceColor = confidenceColor,
+                    timestamp = timestamp,
+                    isWatchlisted = isWatchlisted,
+                    isReference = isReference,
+                    isPlaying = isPlaying,
+                    isPlayEnabled = isPlayEnabled,
+                    hasCandidates = showTopNCandidates && detection.candidates.isNotEmpty(),
+                    candidatesExpanded = candidatesExpanded,
+                    onConfirm = onConfirm,
+                    onReject = onReject,
+                    onMarkUncertain = onMarkUncertain,
+                    onCorrect = onCorrect?.let { { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showCorrectionDialog = true } },
+                    onEditDetection = onEditDetection?.let { { showEditDialog = true } },
+                    onPlay = onPlay,
+                    onSaveAsReference = onSaveAsReference,
+                    onCompare = onCompare,
+                    onShare = onShare,
+                    onToggleLock = onToggleLock,
+                    onToggleCandidates = { candidatesExpanded = !candidatesExpanded },
+                    hasCustomData = hasCustomData,
+                    selectAlternativeEnabled = onSelectAlternative != null
+                )
+            } else {
             // Zeile 1: Artname + Zaehler-Badge + Prozentwert
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -595,10 +628,12 @@ fun SpeciesCard(
                 }
             }
 
+            } // Ende Vollkarte (T192)
+
             // Zeile 5: Aufklappbare Kandidaten-Liste (T27, T52: showTopNCandidates-Guard)
             if (showTopNCandidates && detection.candidates.isNotEmpty()) {
                 // Schmal + Aktionsleiste: Umschalter steckt im Ueberlauf-Menue (spart eine Zeile)
-                if (inline || !hasActionRow) {
+                if (!compact && (inline || !hasActionRow)) {
                     TextButton(
                         onClick = { candidatesExpanded = !candidatesExpanded },
                         modifier = Modifier.padding(top = 2.dp)
@@ -724,6 +759,183 @@ fun SpeciesCard(
                 TextButton(onClick = { showCorrectionDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
+    }
+}
+
+/** T192: liest die Einstellung "kompakte Artkarte" (bei jedem Betreten des Tabs frisch). */
+@Composable
+private fun rememberCompactCardSetting(): Boolean {
+    val prefs: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
+    return prefs.compactSpeciesCard
+}
+
+/**
+ * T192: Kompakt-Zeile: Name (+ Zaehler/Badges), Konfidenz, Zeit (nur breit), [Bestaetigen] [Ablehnen] [+].
+ * Das "+" oeffnet ein DropdownMenu direkt am Knopf. Begruendung: das Menue erscheint neben dem
+ * Daumen, bleibt im Kontext der Karte (Liste/Spektrogramm sichtbar) und braucht keinen
+ * zusaetzlichen Wisch; ein BottomSheet waere fuer 5-9 kurze Eintraege zu schwer.
+ */
+@Composable
+private fun CompactRow(
+    detection: DetectionResult,
+    inline: Boolean,
+    confidencePercent: Int,
+    confidenceColor: Color,
+    timestamp: String,
+    isWatchlisted: Boolean,
+    isReference: Boolean,
+    isPlaying: Boolean,
+    isPlayEnabled: Boolean,
+    hasCandidates: Boolean,
+    candidatesExpanded: Boolean,
+    onConfirm: (() -> Unit)?,
+    onReject: (() -> Unit)?,
+    onMarkUncertain: (() -> Unit)?,
+    onCorrect: (() -> Unit)?,
+    onEditDetection: (() -> Unit)?,
+    onPlay: (() -> Unit)?,
+    onSaveAsReference: (() -> Unit)?,
+    onCompare: (() -> Unit)?,
+    onShare: (() -> Unit)?,
+    onToggleLock: (() -> Unit)?,
+    onToggleCandidates: () -> Unit,
+    hasCustomData: Boolean,
+    selectAlternativeEnabled: Boolean
+) {
+    val status = detection.verificationStatus
+    val neutralContent = MaterialTheme.colorScheme.onSurfaceVariant
+    val showReference = onSaveAsReference != null &&
+        (status == VerificationStatus.CONFIRMED || status == VerificationStatus.CORRECTED)
+    val entries = CompactCardMenu.entries(
+        hasMarkUncertain = onMarkUncertain != null,
+        hasCorrect = onCorrect != null,
+        hasEditDetection = onEditDetection != null,
+        hasPlay = onPlay != null,
+        hasCandidates = hasCandidates,
+        showReference = showReference,
+        hasCompare = onCompare != null,
+        hasShare = onShare != null,
+        hasToggleLock = onToggleLock != null
+    )
+    var menuOpen by remember { mutableStateOf(false) }
+    val statusColor = when (status) {
+        VerificationStatus.CONFIRMED -> Color(0xFF4CAF50)
+        VerificationStatus.UNCERTAIN -> Color(0xFFFF9800)
+        VerificationStatus.CORRECTED -> Color(0xFF2196F3)
+        VerificationStatus.REJECTED, VerificationStatus.REPLACED -> MaterialTheme.colorScheme.error
+        VerificationStatus.UNVERIFIED -> null
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (status == VerificationStatus.CORRECTED && detection.correctedSpecies != null)
+                        detection.correctedSpecies!! else detection.commonName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor ?: MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (detection.detectionCount > 1) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) { Text("${detection.detectionCount}×") }
+                }
+                if (isWatchlisted) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Filled.NotificationsActive, stringResource(R.string.ui_watchlist),
+                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                }
+                if (detection.lockSpecies) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Filled.Lock, stringResource(R.string.ui_gesperrt),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                }
+                if (isPlaying) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Filled.PlayArrow, null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                }
+            }
+            // Kleine Zusatzzeile: Konfidenz, bei breiter Karte auch die Zeit
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("$confidencePercent%", style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold, color = confidenceColor)
+                if (inline) {
+                    Text(timestamp, style = MaterialTheme.typography.labelSmall, color = neutralContent)
+                }
+            }
+        }
+        if (onConfirm != null) {
+            val isConfirmed = status == VerificationStatus.CONFIRMED
+            CardActionButton(
+                onClick = onConfirm,
+                icon = Icons.Filled.Check,
+                description = AppStrings.get(R.string.ui_bestaetigen),
+                containerColor = if (isConfirmed) Color(0xFF4CAF50) else Color.Transparent,
+                contentColor = if (isConfirmed) Color.White else neutralContent
+            )
+        }
+        if (onReject != null) {
+            val active = status == VerificationStatus.REJECTED
+            CardActionButton(
+                onClick = onReject,
+                icon = Icons.Filled.Close,
+                description = AppStrings.get(R.string.ui_ablehnen),
+                containerColor = if (active) MaterialTheme.colorScheme.error else Color.Transparent,
+                contentColor = if (active) MaterialTheme.colorScheme.onError else neutralContent
+            )
+        }
+        if (entries.isNotEmpty()) {
+            Box {
+                CardActionButton(
+                    onClick = { menuOpen = true },
+                    icon = Icons.Filled.Add,
+                    description = AppStrings.get(R.string.ui_mehr_aktionen),
+                    containerColor = if (hasCustomData || candidatesExpanded) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    contentColor = neutralContent
+                )
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    entries.forEach { entry ->
+                        val (label, icon, action) = when (entry) {
+                            CompactMenuEntry.PLAY_TOGGLE -> Triple(
+                                if (isPlaying) stringResource(R.string.ui_wiedergabe_stoppen) else stringResource(R.string.common_play),
+                                if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow, onPlay)
+                            CompactMenuEntry.UNCERTAIN -> Triple(stringResource(R.string.ui_unsicher), Icons.AutoMirrored.Filled.Help, onMarkUncertain)
+                            CompactMenuEntry.CORRECT -> Triple(stringResource(R.string.ui_korrigieren), Icons.Filled.Edit, onCorrect)
+                            CompactMenuEntry.DETAILS -> Triple(stringResource(R.string.ui_detail_eingaben), Icons.AutoMirrored.Filled.List, onEditDetection)
+                            CompactMenuEntry.ALTERNATIVES -> Triple(
+                                if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
+                                else if (selectAlternativeEnabled) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
+                                else stringResource(R.string.ui_alternativen, detection.candidates.size),
+                                Icons.AutoMirrored.Filled.CompareArrows, onToggleCandidates)
+                            CompactMenuEntry.REFERENCE -> Triple(
+                                if (isReference) stringResource(R.string.ui_referenz_entfernen) else stringResource(R.string.ui_als_referenz_speichern),
+                                if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd, onSaveAsReference)
+                            CompactMenuEntry.COMPARE -> Triple(stringResource(R.string.ui_vergleichen), Icons.AutoMirrored.Filled.CompareArrows, onCompare)
+                            CompactMenuEntry.SHARE -> Triple(stringResource(R.string.ui_teilen), Icons.Filled.Share, onShare)
+                            CompactMenuEntry.LOCK -> Triple(
+                                if (detection.lockSpecies) stringResource(R.string.ui_entsperren) else stringResource(R.string.ui_sperren),
+                                if (detection.lockSpecies) Icons.Filled.LockOpen else Icons.Filled.Lock, onToggleLock)
+                        }
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            leadingIcon = { Icon(icon, null) },
+                            enabled = entry != CompactMenuEntry.PLAY_TOGGLE || isPlayEnabled,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            onClick = { menuOpen = false; action?.invoke() }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
