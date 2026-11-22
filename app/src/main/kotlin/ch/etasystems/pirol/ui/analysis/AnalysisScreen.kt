@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Card
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -395,7 +397,6 @@ private fun SessionDetailContent(
     val session = state.selectedSession ?: return
     val context = LocalContext.current
     var showAddManualDialog by remember { mutableStateOf(false) }
-    var showRavenPreviewDialog by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
 
     // T74: Phenology
@@ -434,7 +435,7 @@ private fun SessionDetailContent(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
             }
             Spacer(modifier = Modifier.width(4.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = session.metadata.startedAt.take(10), // Kurzform Datum
                     style = MaterialTheme.typography.titleMedium
@@ -445,6 +446,21 @@ private fun SessionDetailContent(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            // T194: Raven-Tabelle + Upload in der Kopfzeile (Icon-Buttons, 48 dp)
+            val uploadStatus by viewModel.uploadStatus.collectAsState()
+            IconButton(onClick = { viewModel.openRavenTable() }) {
+                Icon(Icons.Filled.TableChart, contentDescription = stringResource(R.string.analysis_raven_oeffnen))
+            }
+            IconButton(
+                onClick = { viewModel.uploadSession() },
+                enabled = !(uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress)
+            ) {
+                if (uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.Upload, contentDescription = stringResource(R.string.analysis_session_hochladen))
+                }
             }
         }
 
@@ -521,12 +537,6 @@ private fun SessionDetailContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Spacer(modifier = Modifier.weight(1f))
-                Button(
-                    onClick = { viewModel.exportRavenTable() },
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text(stringResource(R.string.analysis_raven_txt))
-                }
                 IconButton(onClick = {
                     viewModel.playCurrentChunk()  // T173: Start/Stopp-Umschalter
                 }) {
@@ -535,18 +545,6 @@ private fun SessionDetailContent(
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = stringResource(R.string.common_play)
                     )
-                }
-            }
-
-            // T78: Raven-Datei-Link — klickbar wenn recording.selections.txt existiert
-            val ravenFile = remember(session.sessionDir) {
-                java.io.File(session.sessionDir, "recording.selections.txt")
-            }
-            if (ravenFile.exists()) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { showRavenPreviewDialog = true }) {
-                        Text(stringResource(R.string.analysis_raven_datei_anzeigen))
-                    }
                 }
             }
 
@@ -627,6 +625,19 @@ private fun SessionDetailContent(
                     }
                 }
             }
+            // T194: Uebersichtsleiste ueber die ganze Session (Segmente: Session-Gesamtdauer)
+            Spacer(modifier = Modifier.height(4.dp))
+            val markers = remember(state.detections) {
+                state.detections.filter { !it.manualEntry }.map { it.bestWindowStartSec to it.bestWindowEndSec }
+            }
+            OverviewBar(
+                totalSec = state.recordingDurationSec,
+                viewStartSec = zoom?.startSec,
+                viewEndSec = zoom?.endSec,
+                markers = markers,
+                contentDescription = stringResource(R.string.analysis_uebersichtsleiste),
+                onWindowChange = { start, width -> viewModel.showWindow(start, width) }
+            )
             if (showPanel) {
                 Spacer(modifier = Modifier.height(4.dp))
                 SpectrogramSettingsPanel(
@@ -795,31 +806,12 @@ private fun SessionDetailContent(
         )
     }
 
-    // T78: Raven-Datei Vorschau-Dialog
-    if (showRavenPreviewDialog) {
-        val ravenPreviewFile = java.io.File(session.sessionDir, "recording.selections.txt")
-        val lines = remember(session.sessionDir) {
-            runCatching { ravenPreviewFile.readLines() }.getOrElse { listOf(AppStrings.get(R.string.analysis_fehler_datei_nicht_lesbar)) }
-        }
-        AlertDialog(
-            onDismissRequest = { showRavenPreviewDialog = false },
-            title = { Text("recording.selections.txt") },
-            text = {
-                LazyColumn {
-                    items(lines) { line ->
-                        Text(
-                            text = line,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        HorizontalDivider()
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showRavenPreviewDialog = false }) {
-                    Text(stringResource(R.string.common_close))
-                }
-            }
+    // T194: Raven-Tabelle (ersetzt die Textvorschau aus T78)
+    state.ravenTable?.let { table ->
+        RavenTableDialog(
+            title = "recording.selections.txt",
+            table = table,
+            onDismiss = { viewModel.closeRavenTable() }
         )
     }
 

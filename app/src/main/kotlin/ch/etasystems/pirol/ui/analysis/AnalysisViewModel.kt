@@ -68,7 +68,8 @@ class AnalysisViewModel(
     private val atlasCodeRepository: AtlasCodeRepository,
     private val speciesNameResolver: SpeciesNameResolver,  // T72: Artsuche fuer AddManualDetectionDialog
     private val context: Context,  // T69: fuer VoiceMemoRecorder SAF
-    private val playback: ch.etasystems.pirol.audio.PlaybackController  // T173: zentrale Wiedergabe
+    private val playback: ch.etasystems.pirol.audio.PlaybackController,  // T173: zentrale Wiedergabe
+    private val uploadManager: ch.etasystems.pirol.data.sync.UploadManager  // T194: Upload aus der Session-Kopfzeile
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -962,14 +963,54 @@ class AnalysisViewModel(
         _uiState.update { it.copy(saveErrorMessage = null) }
     }
 
-    /** Raven Selection Table exportieren (T78: Felder-Selektion via AppPreferences) */
-    fun exportRavenTable() {
+    /**
+     * T194: Raven-Tabelle der Session oeffnen. Die Datei wird dafuer frisch erzeugt (wie beim Session-Stopp),
+     * damit spaetere Verifikationen/Bemerkungen enthalten sind; scheitert das (z.B. keine Aufnahme), wird
+     * eine vorhandene Datei gelesen. Gibt es keine, kommt ein Hinweis.
+     */
+    fun openRavenTable() {
         val dir = _uiState.value.selectedSession?.sessionDir ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val file = sessionManager.exportRavenSelectionTable(dir, appPreferences)
-            val msg = if (file != null) AppStrings.get(R.string.analysis_raven_tabelle_gespeichert, file.name)
-                      else AppStrings.get(R.string.analysis_kein_recording_wav_export_nicht)
-            _uiState.update { it.copy(ravenExportMessage = msg) }
+            runCatching { sessionManager.exportRavenSelectionTable(dir, appPreferences) }
+            val table = sessionManager.readRavenText(dir)?.let { RavenTable.parse(it) }
+            if (table == null) {
+                _uiState.update { it.copy(ravenExportMessage = AppStrings.get(R.string.analysis_raven_keine_datei)) }
+            } else {
+                _uiState.update { it.copy(ravenTable = table) }
+            }
+        }
+    }
+
+    fun closeRavenTable() {
+        _uiState.update { it.copy(ravenTable = null) }
+    }
+
+    /** T194: Upload-Status fuer den Knopf in der Kopfzeile. */
+    val uploadStatus get() = uploadManager.status
+
+    /** T194: geoeffnete Session zum Upload einreihen (gleiche Einstellungen wie im Live-Tab). */
+    fun uploadSession() {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        uploadManager.wifiOnly = appPreferences.wifiOnly
+        uploadManager.autoUpload = appPreferences.autoUpload
+        uploadManager.enqueue(dir)
+        reportError(AppStrings.get(R.string.analysis_upload_eingereiht))
+    }
+
+    /**
+     * T194: Ausschnitt auf der Session-Achse verschieben/setzen (Uebersichtsleiste).
+     * Rendert nur den Ausschnitt neu (wie der Detektions-Zoom).
+     */
+    fun showWindow(startSec: Float, widthSec: Float) {
+        val total = _uiState.value.recordingDurationSec
+        if (total <= 0f || widthSec <= 0f) return
+        val start = startSec.coerceIn(0f, (total - widthSec).coerceAtLeast(0f))
+        val range = DetectionExcerpt.Range(start, start + widthSec, start)
+        val f = _uiState.value.recordingFile
+        val rec = recording
+        when {
+            rec != null -> renderZoomSonogram(range) { rec.readRange(range.startSec, range.endSec) }
+            f != null -> renderZoomSonogram(range) { ExcerptWav.readRange(f, range.startSec, range.endSec) }
         }
     }
 

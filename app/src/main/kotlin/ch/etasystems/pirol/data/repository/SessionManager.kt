@@ -1429,6 +1429,11 @@ class SessionManager(
         outputFile
     }
 
+    /** T194: Text der Raven-Datei der Session (auch bei SAF-Sessions); null = Datei fehlt. */
+    suspend fun readRavenText(sessionDir: File): String? = withContext(Dispatchers.IO) {
+        runCatching { accessFor(sessionDir).readText("recording.selections.txt") }.getOrNull()
+    }
+
     // ── Migrations-Methoden (T41, erweitert T51) ──────────────────────
 
     // ── Migrations-Methoden (T41, T51, neu T141) ──────────────────────
