@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.location.LocationData
 import ch.etasystems.pirol.location.LocationProvider
+import ch.etasystems.pirol.location.SessionTrack
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
@@ -34,7 +35,8 @@ class MapViewModel(
     private val locationProvider: LocationProvider,
     private val audioPlayer: ch.etasystems.pirol.audio.AudioPlayer,  // T173
     private val playback: ch.etasystems.pirol.audio.PlaybackController,  // T173
-    private val appPreferences: ch.etasystems.pirol.data.AppPreferences  // T173: excerptMaxSec
+    private val appPreferences: ch.etasystems.pirol.data.AppPreferences,  // T173: excerptMaxSec
+    private val trackRecorder: ch.etasystems.pirol.location.TrackRecorder  // T191: Live-Route
 ) : ViewModel() {
 
     /** T173: Schluessel der laufenden Wiedergabe (gemeinsam mit Live/Analyse: "det:<id>") */
@@ -124,8 +126,20 @@ class MapViewModel(
         val focusSpecies: String? = null,
         val linkAnchor: MapMarker? = null,
         val linkTarget: MapMarker? = null,
-        val simultaneousLinks: List<SimultaneousLink> = emptyList()
-    )
+        val simultaneousLinks: List<SimultaneousLink> = emptyList(),
+        /** T191: Routen der geladenen Sessions (ohne Live-Session) */
+        val tracks: List<SessionTrack> = emptyList(),
+        /** T191: Route der laufenden Aufnahme, live fortgeschrieben */
+        val liveTrack: SessionTrack? = null
+    ) {
+        /** T191: anzuzeigende Routen; die laufende Session nur einmal (live statt Datei) */
+        fun visibleTracks(): List<SessionTrack> {
+            val live = liveTrack?.takeIf { it.points.size >= 2 }
+            val hist = if (filterMode == FilterMode.LIVE_ONLY) emptyList()
+                else tracks.filter { it.sessionId != liveTrack?.sessionId }
+            return hist + listOfNotNull(live)
+        }
+    }
 
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
@@ -155,6 +169,10 @@ class MapViewModel(
                 _uiState.update { it.copy(liveMarkers = live) }
             }
         }
+        // T191: Live-Route der laufenden Aufnahme
+        viewModelScope.launch {
+            trackRecorder.liveTrack.collect { live -> _uiState.update { it.copy(liveTrack = live) } }
+        }
         // Lock-Arm: gesperrte Arten beobachten
         viewModelScope.launch {
             detectionListState.lockedSpecies.collect { locked ->
@@ -168,7 +186,7 @@ class MapViewModel(
     fun setFilter(mode: FilterMode) {
         _uiState.update { it.copy(filterMode = mode) }
         if (mode == FilterMode.LIVE_ONLY) {
-            _uiState.update { it.copy(markers = emptyList(), isLoading = false) }
+            _uiState.update { it.copy(markers = emptyList(), tracks = emptyList(), isLoading = false) }
         } else {
             loadHistoricalDetections(mode)
         }
@@ -179,12 +197,16 @@ class MapViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isLoading = true) }
             val allMarkers = mutableListOf<MapMarker>()
+            val tracks = mutableListOf<SessionTrack>()
             val sessions = sessionManager.listSessions()
             val filtered = if (mode == FilterMode.RECENT_3) sessions.take(3) else sessions
 
             for (dir in filtered) {
                 val meta = sessionManager.loadMetadata(dir) ?: continue
                 val detections = sessionManager.loadDetectionsWithVerifications(dir)
+                // T191: Route (fehlt bei Sessions ohne track.jsonl → leer, kein Fehler)
+                val track = sessionManager.loadTrack(dir)
+                if (track.size >= 2) tracks.add(SessionTrack(meta.sessionId, track))
                 for (det in detections) {
                     if (det.latitude != null && det.longitude != null && isVisibleOnMap(det.verificationStatus)) {
                         allMarkers.add(
@@ -211,6 +233,7 @@ class MapViewModel(
             _uiState.update {
                 it.copy(
                     markers = allMarkers,
+                    tracks = tracks,
                     centerLat = center?.latitude ?: 47.38,
                     centerLon = center?.longitude ?: 8.54,
                     isLoading = false

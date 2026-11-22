@@ -8,7 +8,10 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.export.GpxExporter
 import ch.etasystems.pirol.data.export.RavenExporter
+import ch.etasystems.pirol.location.TrackLogic
+import ch.etasystems.pirol.location.TrackPoint
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
@@ -63,6 +66,7 @@ data class MigrationResult(
  * [base]/PIROL/YYYY-MM-DD/{sessionId}/
  *   session.json, detections.jsonl, verifications.jsonl,
  *   recording.wav, recording.selections.txt
+ *   track.jsonl, track.gpx (T191: Route, nur mit GPS-Spur)
  *
  * Kein audio/-Unterordner.
  *
@@ -728,6 +732,22 @@ class SessionManager(
         }
     }
 
+    /** T191: Fertige Zeile an track.jsonl der aktiven Session anhaengen (no-op ohne Session). */
+    suspend fun appendTrackLine(line: String) = withContext(Dispatchers.IO) {
+        fileMutex.withLock {
+            val doc = activeSessionDoc
+            if (doc != null) DocSessionFiles(context, doc).append(TrackLogic.TRACK_FILE, line)
+            else activeSessionDir?.let { File(it, TrackLogic.TRACK_FILE).appendText(line) }
+        }
+        Unit
+    }
+
+    /** T191: Route einer Session aus track.jsonl (leer, wenn keine Spur oder unlesbar). */
+    suspend fun loadTrack(sessionDir: File): List<TrackPoint> = withContext(Dispatchers.IO) {
+        val text = try { accessFor(sessionDir).readText(TrackLogic.TRACK_FILE) } catch (_: Exception) { null }
+        text?.let { TrackLogic.parseLines(it) } ?: emptyList()
+    }
+
     /** T131: Sprach-Memo einer Detektion loeschen (File oder SAF). */
     suspend fun deleteMemo(sessionDir: File, detectionId: String) = withContext(Dispatchers.IO) {
         val doc = docFor(sessionDir)
@@ -880,6 +900,15 @@ class SessionManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
             }
+        }
+
+        // T191: Route als track.gpx (aus track.jsonl, nur wenn Punkte vorhanden)
+        try {
+            val access: SessionFiles? = doc?.let { DocSessionFiles(context, it) } ?: dir?.let { FileSessionFiles(it) }
+            val n = access?.let { GpxExporter.exportFrom(it, metadata.sessionId) } ?: 0
+            if (n > 0) Log.i(TAG, "GPX-Export: ${GpxExporter.GPX_FILE} ($n Punkte)")
+        } catch (e: Exception) {
+            Log.e(TAG, "GPX-Export fehlgeschlagen", e)
         }
 
         // Auto-Delete kurzer leerer Sessions (T60)

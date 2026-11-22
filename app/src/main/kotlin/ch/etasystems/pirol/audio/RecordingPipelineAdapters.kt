@@ -149,7 +149,8 @@ class AndroidPipelineHooks(
     private val embeddingDbStore: EmbeddingDbStore,
     private val uploadManager: UploadManager,
     private val sessionManager: SessionManager,
-    private val regionalFilter: ch.etasystems.pirol.ml.RegionalSpeciesFilter  // T157
+    private val regionalFilter: ch.etasystems.pirol.ml.RegionalSpeciesFilter,  // T157
+    private val trackRecorder: ch.etasystems.pirol.location.TrackRecorder  // T191
 ) : PipelineHooks {
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
@@ -198,4 +199,11 @@ class AndroidPipelineHooks(
             sessionManager.listSessions().firstOrNull()?.let { uploadManager.enqueue(it) }
         }
     }
+
+    // T191: Route aus den vorhandenen Fixes (kein eigenes GNSS, auch nicht im Modus "Nur bei Detektion")
+    override fun startTrack(sessionId: String) {
+        if (appPreferences.trackRecordingEnabled) trackRecorder.start(sessionId, appPreferences.gpsOnDetectionOnly)
+    }
+
+    override suspend fun stopTrack() = trackRecorder.stop()
 }

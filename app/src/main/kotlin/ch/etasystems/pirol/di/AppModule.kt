@@ -57,6 +57,12 @@ val appModule = module {
     // GPS-Location-Provider — Singleton, Context + AppPreferences via Koin (T53)
     single { LocationProvider(get(), get()) }
 
+    // T191: Routenaufzeichnung aus dem Positions-Flow, schreibt track.jsonl der aktiven Session
+    single {
+        val sm = get<SessionManager>()
+        ch.etasystems.pirol.location.TrackRecorder(get<LocationProvider>().location, { line -> sm.appendTrackLine(line) })
+    }
+
     // StorageManager — Singleton, ermittelt verfuegbare Speicherorte (T38)
     single { StorageManager(get()) }
 
@@ -119,7 +125,7 @@ val appModule = module {
             detectionListState = get(),
             session = ch.etasystems.pirol.audio.SessionManagerPipelineSession(get()),
             hooks = ch.etasystems.pirol.audio.AndroidPipelineHooks(
-                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()
+                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()  // T191: + TrackRecorder
             )
         )
     }
@@ -138,6 +144,6 @@ val appModule = module {
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)
     // T83: +1 Param (LocationProvider) fuer Home-FAB (2→3 get())
-    viewModel { MapViewModel(get(), get(), get(), get<AudioPlayer>(), get(), get()) }  // T173: + AudioPlayer, PlaybackController, AppPreferences
+    viewModel { MapViewModel(get(), get(), get(), get<AudioPlayer>(), get(), get(), get()) }  // T173: + AudioPlayer, PlaybackController, AppPreferences; T191: + TrackRecorder
      // SessionManager, DetectionListState, LocationProvider
 }
