@@ -555,4 +555,12 @@
     <string name="settings_track_recording">Record route</string>
     <string name="settings_track_recording_hint">Saves the GPS track during recording (track.jsonl, track.gpx on stop) and shows it on the map. Applies from the next recording.</string>
     <string name="settings_track_recording_on_detection_hint">In \"On detection only\" mode, GPS is not switched on continuously for the route. The track consists only of the detection fixes, has gaps and is drawn dashed on the map.</string>
+    <string name="ui_gemeinde_einfuegen">Insert municipality</string>
+    <string name="ui_gemeinde_text">Municipality: %1$s</string>
+    <string name="ui_gemeinde_nicht_ermittelbar">Municipality could not be determined</string>
+    <string name="ui_gemeinde_keine_position">No position available</string>
+    <string name="settings_section_display">Display</string>
+    <string name="settings_fullscreen">Fullscreen</string>
+    <string name="settings_fullscreen_hint">Hides the status and navigation bars. Swipe from the screen edge to show them briefly.</string>
+    <string name="settings_info_sources">Municipal boundaries: © swisstopo (swissBOUNDARIES3D)</string>
 </resources>

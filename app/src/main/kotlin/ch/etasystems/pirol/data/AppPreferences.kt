@@ -26,6 +26,16 @@ class AppPreferences(context: Context) {
         get() = if (prefs.contains("pirol_last_seen_changelog")) prefs.getInt("pirol_last_seen_changelog", 0) else null
         set(value) { if (value != null) prefs.edit().putInt("pirol_last_seen_changelog", value).apply() }
 
+    /** T195: Vollbild (Systemleisten ausblenden); als Flow, damit die Activity live umschaltet. */
+    private val _fullscreen = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("pirol_fullscreen", false))
+    val fullscreenFlow: kotlinx.coroutines.flow.StateFlow<Boolean> = _fullscreen
+    var fullscreen: Boolean
+        get() = _fullscreen.value
+        set(value) {
+            prefs.edit().putBoolean("pirol_fullscreen", value).apply()
+            _fullscreen.value = value
+        }
+
     // --- InferenceConfig ---
     var confidenceThreshold: Float
         get() = prefs.getFloat("pirol_confidence_threshold", 0.5f)

@@ -556,4 +556,12 @@
     <string name="settings_track_recording">Route aufzeichnen</string>
     <string name="settings_track_recording_hint">Speichert waehrend der Aufnahme die GPS-Spur (track.jsonl, beim Stopp track.gpx) und zeigt sie auf der Karte. Wirkt ab naechster Aufnahme.</string>
     <string name="settings_track_recording_on_detection_hint">Im Modus \"Nur bei Detektion\" wird fuer die Route kein Dauer-GPS eingeschaltet. Die Spur besteht nur aus den Fixes der Detektionen, ist lueckenhaft und wird auf der Karte gestrichelt gezeichnet.</string>
+    <string name="ui_gemeinde_einfuegen">Gemeinde einfügen</string>
+    <string name="ui_gemeinde_text">Gemeinde: %1$s</string>
+    <string name="ui_gemeinde_nicht_ermittelbar">Gemeinde nicht ermittelbar</string>
+    <string name="ui_gemeinde_keine_position">Keine Position verfügbar</string>
+    <string name="settings_section_display">Darstellung</string>
+    <string name="settings_fullscreen">Vollbild</string>
+    <string name="settings_fullscreen_hint">Blendet Status- und Navigationsleiste aus. Mit einer Wischgeste vom Bildschirmrand erscheinen sie kurz wieder.</string>
+    <string name="settings_info_sources">Gemeindegrenzen: © swisstopo (swissBOUNDARIES3D)</string>
 </resources>

@@ -69,6 +69,8 @@ PIROL selbst enthält keine Modelldateien; sie werden beim ersten Start herunter
 | Perch v2 (Google) | Apache 2.0 |
 | Nighthawk | nur nicht-kommerziell (CC BY-NC 4.0) |
 
+Daten: Gemeindegrenzen © swisstopo (swissBOUNDARIES3D), vereinfacht in der App enthalten (`tools/build_municipalities.py`).
+
 Eigene Modelle importieren: siehe [`tools/README_convert_model.md`](tools/README_convert_model.md) und [`tools/MODEL_PROFILE_FORMAT.md`](tools/MODEL_PROFILE_FORMAT.md).
 
 ## Selbst bauen
