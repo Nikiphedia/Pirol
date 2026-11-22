@@ -1007,6 +1007,9 @@ private fun LiveHeader(
 @Composable
 private fun SessionNoteField(viewModel: LiveViewModel) {
     val note by viewModel.sessionNote.collectAsState()
+    val locationProvider: ch.etasystems.pirol.location.LocationProvider = koinInject()
+    // T197: Gemeinde-Knopf neben dem Feld
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
     androidx.compose.material3.OutlinedTextField(
         value = note,
         onValueChange = { viewModel.setSessionNote(it) },
@@ -1021,9 +1024,17 @@ private fun SessionNoteField(viewModel: LiveViewModel) {
             }
         } else null,
         modifier = Modifier
-            .fillMaxWidth()
+            .weight(1f)
             .padding(horizontal = 4.dp, vertical = 2.dp)
     )
+    ch.etasystems.pirol.ui.components.MunicipalityInsertButton(
+        position = { locationProvider.location.value?.let { it.latitude to it.longitude } },
+        note = note,
+        maxLength = 200,
+        onNoteChange = { viewModel.setSessionNote(it) },
+        iconOnly = true,
+    )
+    }
 }
 
 /**
