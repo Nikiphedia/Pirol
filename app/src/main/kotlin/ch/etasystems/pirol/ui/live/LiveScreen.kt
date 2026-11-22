@@ -79,7 +79,10 @@ import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.DetectionList
 import ch.etasystems.pirol.ui.components.SimilarityPanel
+import ch.etasystems.pirol.ui.components.LiveDisplayMode
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
+import ch.etasystems.pirol.ui.components.SpectrumView
+import ch.etasystems.pirol.ui.components.WaveformView
 import ch.etasystems.pirol.ui.components.labelRes
 import ch.etasystems.pirol.ui.components.SpectrogramOverlay
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
@@ -1133,6 +1136,7 @@ private fun SpectrogramWithPanel(
                 settings = settings,
                 config = uiState.spectrogramConfig,
                 showWindow = true,
+                showDisplayMode = true,
                 onClose = { showPanel = false }
             )
         }
@@ -1153,6 +1157,10 @@ private fun SpectrogramBox(
     val sampleRate = if (uiState.actualSampleRate > 0) uiState.actualSampleRate else 48000
     val windowFrames = (settings.windowSec * sampleRate / uiState.spectrogramConfig.hopSize).toInt()
         .coerceIn(64, uiState.spectrogramState.maxFrames)
+    // T193: Oszillogramm-Puffer nur fuellen, solange dieser Modus gewaehlt ist
+    LaunchedEffect(settings.displayMode) {
+        uiState.waveformState.setActive(settings.displayMode == LiveDisplayMode.WAVEFORM)
+    }
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -1160,7 +1168,26 @@ private fun SpectrogramBox(
             .onSpectrogramLongPress(onLongPress)
     ) {
         // T176: beobachtbarer State statt availableFrames (nicht beobachtbar → Platzhalter blieb stehen)
-        if (uiState.spectrogramState.hasFrames) {
+        val modeHasData = when (settings.displayMode) {
+            LiveDisplayMode.WAVEFORM -> uiState.waveformState.hasData
+            else -> uiState.spectrogramState.hasFrames
+        }
+        if (modeHasData && settings.displayMode == LiveDisplayMode.SPECTRUM) {
+            SpectrumView(
+                spectrogramState = uiState.spectrogramState,
+                config = uiState.spectrogramConfig,
+                settings = settings,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (modeHasData && settings.displayMode == LiveDisplayMode.WAVEFORM) {
+            WaveformView(
+                waveformState = uiState.waveformState,
+                windowSec = settings.windowSec,
+                sampleRate = sampleRate,
+                settings = settings,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (modeHasData) {
             SpectrogramOverlay(
                 config = uiState.spectrogramConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
                 spectrogramState = uiState.spectrogramState,

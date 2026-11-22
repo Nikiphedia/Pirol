@@ -429,6 +429,10 @@
     <string name="ui_helligkeits_deckel">Helligkeits-Deckel: %1$s</string>
     <string name="ui_deckel_aus">aus</string>
     <string name="ui_deckel_db">%1$s dB</string>
+    <string name="display_mode_title">Anzeige</string>
+    <string name="display_mode_sonogram">Sonogramm</string>
+    <string name="display_mode_spectrum">Spektrum (FFT)</string>
+    <string name="display_mode_waveform">Oszillogramm</string>
     <string name="spectro_preset_standard">Standard</string>
     <string name="spectro_preset_quiet">Leise Rufe</string>
     <string name="spectro_preset_loud">Laute Umgebung</string>

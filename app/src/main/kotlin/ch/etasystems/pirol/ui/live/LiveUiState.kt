@@ -34,6 +34,7 @@ data class LiveUiState(
     val actualSampleRate: Int = 0,
     val recordingStartElapsedRealtime: Long = 0L,
     val spectrogramState: SpectrogramState = SpectrogramState(),
+    val waveformState: ch.etasystems.pirol.ui.components.WaveformState = ch.etasystems.pirol.ui.components.WaveformState(),  // T193
     val spectrogramConfig: SpectrogramConfig = SpectrogramConfig.BIRDS,
     val permissionGranted: Boolean = false,
     // ML-Pipeline State (T9/T10)

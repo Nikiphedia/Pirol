@@ -428,6 +428,10 @@
     <string name="ui_helligkeits_deckel">Brightness ceiling: %1$s</string>
     <string name="ui_deckel_aus">off</string>
     <string name="ui_deckel_db">%1$s dB</string>
+    <string name="display_mode_title">Display</string>
+    <string name="display_mode_sonogram">Sonogram</string>
+    <string name="display_mode_spectrum">Spectrum (FFT)</string>
+    <string name="display_mode_waveform">Oscillogram</string>
     <string name="spectro_preset_standard">Standard</string>
     <string name="spectro_preset_quiet">Quiet calls</string>
     <string name="spectro_preset_loud">Loud environment</string>

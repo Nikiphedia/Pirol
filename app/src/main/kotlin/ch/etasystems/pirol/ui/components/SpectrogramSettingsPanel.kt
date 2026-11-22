@@ -48,6 +48,7 @@ fun Modifier.onSpectrogramLongPress(onLongPress: () -> Unit): Modifier =
  * @param config bestimmt die Grenzen des Frequenz-Reglers
  * @param onClose Schliessen-Aktion (null = kein "Fertig"-Knopf, z.B. eingebettet in den Settings)
  * @param showWindow Zeitfenster-Regler nur im Live-Tab (Analyse zeigt immer die ganze Session)
+ * @param showDisplayMode T193: Umschalter Sonogramm/Spektrum/Oszillogramm nur im Live-Tab
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -56,6 +57,7 @@ fun SpectrogramSettingsPanel(
     settings: SpectrogramDisplaySettings,
     config: SpectrogramConfig,
     showWindow: Boolean,
+    showDisplayMode: Boolean = false,
     onClose: (() -> Unit)?,
     modifier: Modifier = Modifier,
     maxHeight: Dp = 300.dp
@@ -79,6 +81,21 @@ fun SpectrogramSettingsPanel(
             if (onClose != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
+                }
+            }
+            if (showDisplayMode) {
+                Text(stringResource(R.string.display_mode_title), style = MaterialTheme.typography.bodySmall)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    LiveDisplayMode.entries.forEach { m ->
+                        FilterChip(
+                            selected = settings.displayMode == m,
+                            onClick = { repository.update { it.copy(displayMode = m) } },
+                            label = { Text(stringResource(m.labelRes)) }
+                        )
+                    }
                 }
             }
             FlowRow(
