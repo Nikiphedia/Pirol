@@ -1,0 +1,118 @@
+{
+  "version": 4,
+  "generator": "pirol-list-editor 0.1",
+  "author": "Beispiel Autor",
+  "created": "2026-11-22",
+  "updated": "2026-11-22T15:00:00+01:00",
+  "description": "Beispiel fuer das Artenlisten-Format v4: Brutvoegel mit Saison und eine kleine Heuschrecken-Liste. Saisonangaben sind illustrativ.",
+  "display_language": "de",
+  "license": "CC BY 4.0",
+  "taxonomy": {
+    "aves": { "reference": "IOC", "version": "15.1" },
+    "orthoptera": { "reference": "OSF", "version": "5.0" }
+  },
+  "sets": [
+    {
+      "id": "ch_breeding_sample",
+      "name_de": "Schweizer Brutvoegel (Auswahl)",
+      "name_en": "Swiss breeding birds (sample)",
+      "description_de": "Kleine Auswahl mit Gesangs- und Rufzeiten",
+      "description_en": "Small sample with song and call periods",
+      "taxon_group": "aves",
+      "source": "Beispieldaten, nicht fuer den Feldeinsatz",
+      "species": [
+        "Apus_apus",
+        "Bubo_bubo",
+        "Crex_crex",
+        "Cuculus_canorus",
+        "Erithacus_rubecula",
+        "Luscinia_megarhynchos",
+        "Oriolus_oriolus",
+        "Strix_aluco",
+        "Turdus_merula"
+      ],
+      "species_info": {
+        "Apus_apus": {
+          "common_name": "Mauersegler",
+          "season": [{ "from": "04-15", "to": "08-15" }]
+        },
+        "Bubo_bubo": {
+          "common_name": "Uhu",
+          "season": [{ "from": "10", "to": "11" }, { "from": "01", "to": "04" }]
+        },
+        "Crex_crex": {
+          "common_name": "Wachtelkoenig",
+          "season": [{ "from": "05", "to": "08" }]
+        },
+        "Cuculus_canorus": {
+          "common_name": "Kuckuck",
+          "season": [{ "from": "04", "to": "07" }]
+        },
+        "Erithacus_rubecula": {
+          "common_name": "Rotkehlchen"
+        },
+        "Luscinia_megarhynchos": {
+          "common_name": "Nachtigall",
+          "season": [{ "from": "04-10", "to": "08-31" }]
+        },
+        "Oriolus_oriolus": {
+          "common_name": "Pirol",
+          "season": [{ "from": "04-20", "to": "08-31" }]
+        },
+        "Strix_aluco": {
+          "common_name": "Waldkauz",
+          "season": [{ "from": "10", "to": "04" }]
+        },
+        "Turdus_merula": {
+          "common_name": "Amsel"
+        }
+      }
+    },
+    {
+      "id": "ch_orthoptera_sample",
+      "name_de": "Heuschrecken Mittelland (Auswahl)",
+      "name_en": "Orthoptera Swiss Plateau (sample)",
+      "description_de": "Singende Heuschrecken, Zeitraum der Adulttiere",
+      "taxon_group": "orthoptera",
+      "species": [
+        "Chorthippus_biguttulus",
+        "Gryllus_campestris",
+        "Oecanthus_pellucens",
+        "Pholidoptera_griseoaptera",
+        "Pseudochorthippus_parallelus",
+        "Roeseliana_roeselii",
+        "Tettigonia_viridissima"
+      ],
+      "species_info": {
+        "Chorthippus_biguttulus": {
+          "common_name": "Nachtigall-Grashuepfer",
+          "season": [{ "from": "07", "to": "10" }]
+        },
+        "Gryllus_campestris": {
+          "common_name": "Feldgrille",
+          "season": [{ "from": "04-15", "to": "07-15" }]
+        },
+        "Oecanthus_pellucens": {
+          "common_name": "Weinhaehnchen",
+          "season": [{ "from": "07", "to": "10" }]
+        },
+        "Pholidoptera_griseoaptera": {
+          "common_name": "Gewoehnliche Strauchschrecke",
+          "season": [{ "from": "07", "to": "10" }]
+        },
+        "Pseudochorthippus_parallelus": {
+          "common_name": "Gemeiner Grashuepfer",
+          "season": [{ "from": "06", "to": "10" }]
+        },
+        "Roeseliana_roeselii": {
+          "common_name": "Roesels Beissschrecke",
+          "season": [{ "from": "06", "to": "09" }]
+        },
+        "Tettigonia_viridissima": {
+          "common_name": "Gruenes Heupferd",
+          "season": [{ "from": "07", "to": "10" }]
+        }
+      }
+    }
+  ]
+}
