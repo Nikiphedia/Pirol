@@ -33,7 +33,7 @@ class AudioPlayer(
     private val muteGate: PlaybackMuteGate = PlaybackMuteGate.shared
 ) : PlaybackEngine {
 
-    enum class PlaybackState { IDLE, PLAYING, PAUSED }
+    enum class PlaybackState { IDLE, PLAYING }
 
     private var mediaPlayer: MediaPlayer? = null
     private var audioTrack: AudioTrack? = null
