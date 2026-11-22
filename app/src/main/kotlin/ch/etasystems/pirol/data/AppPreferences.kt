@@ -198,6 +198,36 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_live_display_mode", "SONOGRAM") ?: "SONOGRAM"
         set(value) = prefs.edit().putString("pirol_live_display_mode", value).apply()
 
+    // T198: Live-Spektrum (eigenes Panel)
+    var spectrumFreqMinHz: Float
+        get() = prefs.getFloat("pirol_spectrum_freq_min_hz", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrum_freq_min_hz", value).apply()
+
+    var spectrumFreqMaxHz: Float
+        get() = prefs.getFloat("pirol_spectrum_freq_max_hz", 12000f)
+        set(value) = prefs.edit().putFloat("pirol_spectrum_freq_max_hz", value).apply()
+
+    var spectrumMinDb: Float
+        get() = prefs.getFloat("pirol_spectrum_min_db", -120f)
+        set(value) = prefs.edit().putFloat("pirol_spectrum_min_db", value).apply()
+
+    var spectrumMaxDb: Float
+        get() = prefs.getFloat("pirol_spectrum_max_db", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrum_max_db", value).apply()
+
+    var spectrumFftSize: Int
+        get() = prefs.getInt("pirol_spectrum_fft_size", 2048)
+        set(value) = prefs.edit().putInt("pirol_spectrum_fft_size", value).apply()
+
+    /** Enum-Name von SpectrumAveraging. */
+    var spectrumAveraging: String
+        get() = prefs.getString("pirol_spectrum_averaging", "SHORT") ?: "SHORT"
+        set(value) = prefs.edit().putString("pirol_spectrum_averaging", value).apply()
+
+    var spectrumPeakHold: Boolean
+        get() = prefs.getBoolean("pirol_spectrum_peak_hold", false)
+        set(value) = prefs.edit().putBoolean("pirol_spectrum_peak_hold", value).apply()
+
     /** Zeitfenster des Live-Sonogramms in Sekunden. */
     var spectrogramWindowSec: Float
         get() = prefs.getFloat("pirol_spectrogram_window_sec", 12f)

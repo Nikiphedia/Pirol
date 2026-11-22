@@ -263,6 +263,8 @@ class LiveViewModel(
 
     // T193: Min/Max-Puffer fuers Oszillogramm; wird nur gefuellt, solange dieser Modus angezeigt wird.
     private val waveformState = ch.etasystems.pirol.ui.components.WaveformState(maxBins = 3072, binSize = 512)
+    // T198: FFT-Spektrum aus Rohsamples; wird nur gefuellt, solange der Spektrum-Modus angezeigt wird.
+    private val spectrumState = ch.etasystems.pirol.ui.components.SpectrumState()
 
     init {
         // Modell-Verfuegbarkeit pruefen
@@ -306,6 +308,7 @@ class LiveViewModel(
             it.copy(
                 spectrogramState = spectrogramState,
                 waveformState = waveformState,
+                spectrumState = spectrumState,
                 spectrogramConfig = savedSpecConfig,
                 detectionListState = detectionListState,
                 isModelAvailable = modelAvailable,
@@ -414,6 +417,7 @@ class LiveViewModel(
         // Sonogramm-Buffer leeren fuer Neustart
         spectrogramState.clear()
         waveformState.clear()  // T193
+        spectrumState.clear()  // T198
         resetMelSpectrogram()
 
         // T118: Preroll wird im Service beim Start erfasst (Lese-Cursor direkt dahinter -> lueckenlos).
@@ -1065,9 +1069,12 @@ class LiveViewModel(
                 // Aufnahme und Erkennung (RecordingPipeline im Service) laufen davon unabhaengig.
                 // T193: Oszillogramm-Modus braucht nur Min/Max der Samples; Mel-Berechnung ruht dann
                 // und wird wie bei unsichtbarer Ansicht beim Zurueckwechseln nachgeholt (T163).
+                // T198: Spektrum-Modus rechnet eigene FFT auf den Rohsamples; Mel ruht ebenfalls.
                 val waveformMode = waveformState.active
+                val spectrumMode = spectrumState.active
                 if (screenVisible && waveformMode) waveformState.append(chunk.samples)
-                if (!screenVisible || waveformMode) {
+                if (screenVisible && spectrumMode) spectrumState.append(chunk.samples, chunk.sampleRate)
+                if (!screenVisible || waveformMode || spectrumMode) {
                     // T163: nur billig mitschneiden (Ringpuffer-Kopie), Rechnen erst beim Zurueckkehren
                     hiddenRing.write(chunk.samples)
                     skipped = true

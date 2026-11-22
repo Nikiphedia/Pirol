@@ -82,6 +82,7 @@ import ch.etasystems.pirol.ui.components.SimilarityPanel
 import ch.etasystems.pirol.ui.components.LiveDisplayMode
 import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.ui.components.SpectrumView
+import ch.etasystems.pirol.ui.components.SpectrumSettingsPanel
 import ch.etasystems.pirol.ui.components.WaveformView
 import ch.etasystems.pirol.ui.components.labelRes
 import ch.etasystems.pirol.ui.components.SpectrogramOverlay
@@ -1120,6 +1121,7 @@ private fun SpectrogramWithPanel(
 ) {
     val repo: SpectrogramSettingsRepository = koinInject()
     val settings by repo.settings.collectAsState()
+    val spectrumSettings by repo.spectrum.collectAsState()  // T198
     var showPanel by remember { mutableStateOf(false) }
 
     // Perzentil-Paar/Mindestspanne in den Rolling-Mapper uebernehmen (sofort wirksam)
@@ -1133,6 +1135,7 @@ private fun SpectrogramWithPanel(
         SpectrogramBox(
             uiState = uiState,
             settings = settings,
+            spectrumSettings = spectrumSettings,
             onLongPress = { showPanel = true },
             modifier = if (fixedHeight != null) {
                 Modifier.fillMaxWidth().height(fixedHeight)
@@ -1140,7 +1143,18 @@ private fun SpectrogramWithPanel(
                 Modifier.fillMaxWidth().weight(1f)
             }
         )
-        if (showPanel) {
+        if (showPanel && settings.displayMode == LiveDisplayMode.SPECTRUM) {
+            // T198: eigenes Panel fuer das FFT-Spektrum
+            Spacer(modifier = Modifier.height(4.dp))
+            SpectrumSettingsPanel(
+                repository = repo,
+                displaySettings = settings,
+                settings = spectrumSettings,
+                sampleRate = uiState.spectrumState.sampleRate,
+                onResetPeak = { uiState.spectrumState.resetPeak() },
+                onClose = { showPanel = false }
+            )
+        } else if (showPanel) {
             Spacer(modifier = Modifier.height(4.dp))
             SpectrogramSettingsPanel(
                 repository = repo,
@@ -1161,6 +1175,7 @@ private fun SpectrogramWithPanel(
 private fun SpectrogramBox(
     uiState: LiveUiState,
     settings: SpectrogramDisplaySettings,
+    spectrumSettings: ch.etasystems.pirol.ui.components.SpectrumSettings,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1171,6 +1186,14 @@ private fun SpectrogramBox(
     // T193: Oszillogramm-Puffer nur fuellen, solange dieser Modus gewaehlt ist
     LaunchedEffect(settings.displayMode) {
         uiState.waveformState.setActive(settings.displayMode == LiveDisplayMode.WAVEFORM)
+        uiState.spectrumState.setActive(settings.displayMode == LiveDisplayMode.SPECTRUM)  // T198
+    }
+    // T198: FFT-Groesse/Mittelung uebernehmen; Peak-Hold startet beim Einschalten frisch
+    LaunchedEffect(spectrumSettings.fftSize, spectrumSettings.averaging) {
+        uiState.spectrumState.configure(spectrumSettings.fftSize, spectrumSettings.averaging.tauSec)
+    }
+    LaunchedEffect(spectrumSettings.peakHold) {
+        if (spectrumSettings.peakHold) uiState.spectrumState.resetPeak()
     }
     Box(
         modifier = modifier
@@ -1181,13 +1204,15 @@ private fun SpectrogramBox(
         // T176: beobachtbarer State statt availableFrames (nicht beobachtbar → Platzhalter blieb stehen)
         val modeHasData = when (settings.displayMode) {
             LiveDisplayMode.WAVEFORM -> uiState.waveformState.hasData
+            LiveDisplayMode.SPECTRUM -> uiState.spectrumState.hasData
             else -> uiState.spectrogramState.hasFrames
         }
         if (modeHasData && settings.displayMode == LiveDisplayMode.SPECTRUM) {
             SpectrumView(
-                spectrogramState = uiState.spectrogramState,
-                config = uiState.spectrogramConfig,
-                settings = settings,
+                spectrumState = uiState.spectrumState,
+                settings = spectrumSettings,
+                palette = settings.palette,
+                onLongPress = onLongPress,
                 modifier = Modifier.fillMaxSize()
             )
         } else if (modeHasData && settings.displayMode == LiveDisplayMode.WAVEFORM) {
