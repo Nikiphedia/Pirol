@@ -86,14 +86,29 @@ class EmbeddingDbStore(
         }
         embeddingDatabase.maxEntries = appPreferences.embeddingDbMaxEntries  // T97
         if (file.exists()) {
-            try {
-                embeddingDatabase.load(file)
-                Log.i(TAG, "Embedding-DB geladen: ${embeddingDatabase.size} Eintraege")
-            } catch (e: Exception) {
-                Log.e(TAG, "Embedding-DB laden fehlgeschlagen", e)
-            }
+            loadOrQuarantine(file)
+            Log.i(TAG, "Embedding-DB geladen: ${embeddingDatabase.size} Eintraege")
         }
     }
+
+    /**
+     * T196: Kaputte Datei nach `<name>.corrupt` verschieben und mit leerer DB weiterlaufen —
+     * sonst laedt jeder Start dieselbe Datei erneut (Absturzschleife).
+     */
+    private fun loadOrQuarantine(file: File) {
+        try {
+            embeddingDatabase.load(file)
+        } catch (e: Exception) {
+            embeddingDatabase.clear()
+            val corrupt = File(file.parentFile, file.name + ".corrupt")
+            corrupt.delete()
+            val moved = file.renameTo(corrupt)
+            Log.e(TAG, "Embedding-DB ${file.name} unlesbar — verschoben nach ${corrupt.name}: $moved", e)
+        }
+    }
+
+    /** T196: Gehoert die geladene DB zum aktiven Modell? (Modellwechsel waehrend der Aufnahme) */
+    fun matchesActiveModel(): Boolean = fileName == null || fileName == activeFileName()
 
     /** T103a: Nach Modellwechsel alte DB sichern, DB des aktiven Modells laden. */
     @Synchronized
@@ -112,13 +127,7 @@ class EmbeddingDbStore(
         embeddingDatabase.clear()
         fileName = wanted
         val newFile = File(context.filesDir, "embeddings/$wanted")
-        if (newFile.exists()) {
-            try {
-                embeddingDatabase.load(newFile)
-            } catch (e: Exception) {
-                Log.e(TAG, "Embedding-DB ($wanted) laden fehlgeschlagen", e)
-            }
-        }
+        if (newFile.exists()) loadOrQuarantine(newFile)
         Log.i(TAG, "Embedding-DB gewechselt: $current -> $wanted (${embeddingDatabase.size} Eintraege)")
     }
 
@@ -181,7 +190,12 @@ class AndroidPipelineHooks(
         // T151a: ohne Embedding-Ausgang kein MFCC-Ersatz in die DB (Aehnlichkeitssuche bleibt aus)
         if (!embeddingDbStore.enabled) return null
         val embedding = embeddingExtractor.extract(block.samples, block.sampleRate, precomputed = block.embedding)
-        embeddingDatabase.add(recordingId = top.id, species = top.scientificName, embedding = embedding)
+        // T196: nach Modellwechsel waehrend der Aufnahme gehoert die geladene DB noch zum alten Modell
+        if (embeddingDbStore.matchesActiveModel()) {
+            embeddingDatabase.add(recordingId = top.id, species = top.scientificName, embedding = embedding)
+        } else {
+            Log.w("RecordingPipeline", "Embedding nicht gespeichert: DB gehoert zu einem anderen Modell")
+        }
         return embedding
     }
 

@@ -10,6 +10,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlin.math.sqrt
 
 /**
@@ -37,6 +39,10 @@ class EmbeddingDatabase {
         private const val TAG = "EmbeddingDB"
         private const val MAGIC = "BSED"
         private const val VERSION = 1
+        private const val HEADER_BYTES = 16L
+        /** T196: Obergrenzen beim Laden — groessere Werte bedeuten eine kaputte Datei */
+        private const val MAX_DIM = 65_536
+        private const val MAX_STRING_BYTES = 4_096
     }
 
     /** Einzelner Eintrag in der Datenbank */
@@ -90,6 +96,12 @@ class EmbeddingDatabase {
     fun add(recordingId: String, species: String, embedding: FloatArray) {
         val entry = EmbeddingEntry(recordingId, species, embedding.copyOf())
         synchronized(lock) {
+            // T196: eine DB enthaelt nur Vektoren einer Laenge (BSED-Header kennt nur eine Dimension)
+            val dim = entries.values.firstOrNull()?.embedding?.size
+            if (dim != null && dim != embedding.size) {
+                Log.w(TAG, "Embedding verworfen: Laenge ${embedding.size}, DB hat $dim ($recordingId)")
+                return
+            }
             entries[recordingId] = entry
             trimLocked()
         }
@@ -173,20 +185,26 @@ class EmbeddingDatabase {
             return
         }
 
-        // Embedding-Dimension aus erstem Eintrag
+        // Embedding-Dimension aus erstem Eintrag; T196: nur Eintraege dieser Laenge schreiben
         val dim = allEntries.first().embedding.size
+        val consistent = allEntries.filter { it.embedding.size == dim }
+        if (consistent.size < allEntries.size) {
+            Log.w(TAG, "${allEntries.size - consistent.size} Eintraege mit abweichender Laenge nicht gespeichert")
+        }
 
+        // T196: erst in <name>.tmp schreiben, dann ersetzen — ein Kill hinterlaesst keine halbe Datei
+        val tmp = File(file.parentFile, file.name + ".tmp")
         // Gepuffert: ohne BufferedOutputStream erzeugt jeder kleine write() einen Syscall
-        FileOutputStream(file).use { fos ->
+        FileOutputStream(tmp).use { fos ->
             DataOutputStream(BufferedOutputStream(fos)).use { dos ->
                 // Header schreiben
                 writeMagic(dos)
                 writeIntLE(dos, VERSION)
                 writeIntLE(dos, dim)
-                writeIntLE(dos, allEntries.size)
+                writeIntLE(dos, consistent.size)
 
                 // Eintraege schreiben
-                for (entry in allEntries) {
+                for (entry in consistent) {
                     // Recording ID
                     val idBytes = entry.recordingId.toByteArray(Charsets.UTF_8)
                     writeIntLE(dos, idBytes.size)
@@ -205,8 +223,9 @@ class EmbeddingDatabase {
                 }
             }
         }
+        Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
 
-        Log.i(TAG, "Datenbank gespeichert: ${allEntries.size} Eintraege, dim=$dim → ${file.name}")
+        Log.i(TAG, "Datenbank gespeichert: ${consistent.size} Eintraege, dim=$dim → ${file.name}")
     }
 
     /**
@@ -214,7 +233,9 @@ class EmbeddingDatabase {
      * Bestehende Eintraege werden NICHT geloescht — neue werden hinzugefuegt/ersetzt.
      *
      * @param file Quelldatei im BSED-Format
-     * @throws IllegalArgumentException bei ungueltigem Format
+     * @throws IllegalArgumentException bei ungueltigem Format (T196: auch unsinnige Laengenfelder,
+     *   Eintragszahl passt nicht zur Dateigroesse) — nie OutOfMemoryError
+     * @throws java.io.EOFException bei abgeschnittener Datei
      */
     fun load(file: File) {
         if (!file.exists()) {
@@ -222,6 +243,7 @@ class EmbeddingDatabase {
             return
         }
 
+        val fileSize = file.length()
         FileInputStream(file).use { fis ->
             DataInputStream(BufferedInputStream(fis)).use { dis ->
                 // Header lesen und validieren
@@ -236,27 +258,47 @@ class EmbeddingDatabase {
                 }
 
                 val dim = readIntLE(dis)
-                require(dim > 0) { "Ungueltige Embedding-Dimension: $dim" }
+                require(dim in 1..MAX_DIM) { "Ungueltige Embedding-Dimension: $dim" }
 
                 val numEntries = readIntLE(dis)
                 require(numEntries >= 0) { "Ungueltige Eintragsanzahl: $numEntries" }
+
+                // T196: jeder Eintrag braucht mindestens 2 Laengenfelder + Vektor
+                var remaining = fileSize - HEADER_BYTES
+                val minEntryBytes = 8L + dim * 4L
+                require(numEntries.toLong() * minEntryBytes <= remaining) {
+                    "Eintragsanzahl $numEntries (dim=$dim) passt nicht zur Dateigroesse $fileSize"
+                }
+
+                // T196: Laengenfeld pruefen, bevor ein Array angelegt wird
+                fun readLen(what: String): Int {
+                    val len = readIntLE(dis)
+                    remaining -= 4
+                    require(len in 0..MAX_STRING_BYTES && len <= remaining) {
+                        "Ungueltige Laenge $what: $len (Rest $remaining Bytes)"
+                    }
+                    remaining -= len
+                    return len
+                }
 
                 // Eintraege lesen (erst lokal sammeln, dann unter Lock uebernehmen)
                 val loaded = LinkedHashMap<String, EmbeddingEntry>(numEntries)
                 for (i in 0 until numEntries) {
                     // Recording ID
-                    val idLen = readIntLE(dis)
+                    val idLen = readLen("recordingId")
                     val idBytes = ByteArray(idLen)
                     dis.readFully(idBytes)
                     val recordingId = String(idBytes, Charsets.UTF_8)
 
                     // Species
-                    val speciesLen = readIntLE(dis)
+                    val speciesLen = readLen("species")
                     val speciesBytes = ByteArray(speciesLen)
                     dis.readFully(speciesBytes)
                     val species = String(speciesBytes, Charsets.UTF_8)
 
                     // Embedding-Vektor
+                    require(dim * 4L <= remaining) { "Vektor $i abgeschnitten (Rest $remaining Bytes)" }
+                    remaining -= dim * 4L
                     val embBytes = ByteArray(dim * 4)
                     dis.readFully(embBytes)
                     val buf = ByteBuffer.wrap(embBytes)
@@ -266,7 +308,14 @@ class EmbeddingDatabase {
 
                     loaded[recordingId] = EmbeddingEntry(recordingId, species, embedding)
                 }
+                require(remaining == 0L) { "$remaining Bytes nach dem letzten Eintrag — Datei inkonsistent" }
                 synchronized(lock) {
+                    // T196: nie Vektoren zweier Laengen mischen
+                    val existingDim = entries.values.firstOrNull()?.embedding?.size
+                    if (existingDim != null && existingDim != dim) {
+                        Log.w(TAG, "Datei ${file.name} (dim=$dim) nicht uebernommen, DB hat dim=$existingDim")
+                        return
+                    }
                     entries.putAll(loaded)
                     trimLocked()  // T97
                 }
