@@ -486,12 +486,26 @@ private fun SessionDetailContent(
                 onDismissRequest = { showNoteDialog = false },
                 title = { Text(stringResource(R.string.analysis_bemerkung_zur_session)) },
                 text = {
-                    androidx.compose.material3.OutlinedTextField(
-                        value = noteText,
-                        onValueChange = { noteText = it.replace('\n', ' ').take(200) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // T197: Session-Position, sonst aktuelles GPS
+                    val locationProvider: ch.etasystems.pirol.location.LocationProvider = org.koin.compose.koinInject()
+                    Column {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = noteText,
+                            onValueChange = { noteText = it.replace('\n', ' ').take(200) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        ch.etasystems.pirol.ui.components.MunicipalityInsertButton(
+                            position = {
+                                val lat = session.metadata.latitude ?: locationProvider.location.value?.latitude
+                                val lon = session.metadata.longitude ?: locationProvider.location.value?.longitude
+                                if (lat != null && lon != null) lat to lon else null
+                            },
+                            note = noteText,
+                            maxLength = 200,
+                            onNoteChange = { noteText = it },
+                        )
+                    }
                 },
                 confirmButton = {
                     TextButton(onClick = {
