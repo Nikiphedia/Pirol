@@ -574,4 +574,16 @@
     <string name="settings_fullscreen">Fullscreen</string>
     <string name="settings_fullscreen_hint">Hides the status and navigation bars. Swipe from the screen edge to show them briefly.</string>
     <string name="settings_info_sources">Municipal boundaries: © swisstopo (swissBOUNDARIES3D)</string>
+    <string name="spectrum_db_range">Level: %1$s to %2$s dBFS</string>
+    <string name="spectrum_fft_size">FFT size (resolution %1$s Hz)</string>
+    <string name="spectrum_averaging">Averaging</string>
+    <string name="spectrum_avg_off">Off</string>
+    <string name="spectrum_avg_short">Short</string>
+    <string name="spectrum_avg_long">Long</string>
+    <string name="spectrum_peak_hold">Peak hold</string>
+    <string name="spectrum_peak_reset">Reset</string>
+    <string name="spectrum_freeze">Freeze</string>
+    <string name="spectrum_unfreeze">Resume</string>
+    <string name="spectrum_peak_label">Max</string>
+    <string name="spectrum_cursor_label">Cursor</string>
 </resources>

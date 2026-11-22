@@ -83,21 +83,7 @@ fun SpectrogramSettingsPanel(
                     TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
                 }
             }
-            if (showDisplayMode) {
-                Text(stringResource(R.string.display_mode_title), style = MaterialTheme.typography.bodySmall)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    LiveDisplayMode.entries.forEach { m ->
-                        FilterChip(
-                            selected = settings.displayMode == m,
-                            onClick = { repository.update { it.copy(displayMode = m) } },
-                            label = { Text(stringResource(m.labelRes)) }
-                        )
-                    }
-                }
-            }
+            if (showDisplayMode) LiveDisplayModeChips(repository, settings)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -205,6 +191,25 @@ fun SpectrogramSettingsPanel(
                     valueRange = 5f..30f
                 )
             }
+        }
+    }
+}
+
+/** T193/T198: Moduswahl Sonogramm/Spektrum/Oszillogramm (auch im Spektrum-Panel). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LiveDisplayModeChips(repository: SpectrogramSettingsRepository, settings: SpectrogramDisplaySettings) {
+    Text(stringResource(R.string.display_mode_title), style = MaterialTheme.typography.bodySmall)
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        LiveDisplayMode.entries.forEach { m ->
+            FilterChip(
+                selected = settings.displayMode == m,
+                onClick = { repository.update { it.copy(displayMode = m) } },
+                label = { Text(stringResource(m.labelRes)) }
+            )
         }
     }
 }

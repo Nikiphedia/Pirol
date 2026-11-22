@@ -575,4 +575,16 @@
     <string name="settings_fullscreen">Vollbild</string>
     <string name="settings_fullscreen_hint">Blendet Status- und Navigationsleiste aus. Mit einer Wischgeste vom Bildschirmrand erscheinen sie kurz wieder.</string>
     <string name="settings_info_sources">Gemeindegrenzen: © swisstopo (swissBOUNDARIES3D)</string>
+    <string name="spectrum_db_range">Pegel: %1$s bis %2$s dBFS</string>
+    <string name="spectrum_fft_size">FFT-Groesse (Aufloesung %1$s Hz)</string>
+    <string name="spectrum_averaging">Mittelung</string>
+    <string name="spectrum_avg_off">Aus</string>
+    <string name="spectrum_avg_short">Kurz</string>
+    <string name="spectrum_avg_long">Lang</string>
+    <string name="spectrum_peak_hold">Peak-Hold</string>
+    <string name="spectrum_peak_reset">Zuruecksetzen</string>
+    <string name="spectrum_freeze">Einfrieren</string>
+    <string name="spectrum_unfreeze">Weiterlaufen</string>
+    <string name="spectrum_peak_label">Max</string>
+    <string name="spectrum_cursor_label">Cursor</string>
 </resources>

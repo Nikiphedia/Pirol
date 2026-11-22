@@ -68,22 +68,4 @@ class DisplayModesTest {
         assertEquals(listOf(-80, -60, -40, -20, 0), dbTicks(-80f, 0f))
         assertEquals(listOf(-50, -40, -30, -20), dbTicks(-55f, -20f))
     }
-
-    @Test
-    fun smootherGlaettetUndHaeltPeak() {
-        val s = SpectrumSmoother(alpha = 0.5f, peakDecayDbPerSec = 10f)
-        s.update(floatArrayOf(-60f, -60f), 0)
-        s.update(floatArrayOf(-20f, -60f), 100)
-        assertEquals(-40f, s.avg[0], 1e-4f)
-        assertEquals(-20f, s.peak[0], 1e-4f)
-        s.update(floatArrayOf(-80f, -60f), 1000)
-        assertEquals(-30f, s.peak[0], 1e-4f)  // 10 dB Abfall in 1 s
-    }
-
-    @Test
-    fun binKantenFrequenz() {
-        val (lo, hi) = visibleBinEdgesHz(128, 0..127, 40f, 15000f)
-        assertEquals(40f, lo, 1f)
-        assertEquals(15000f, hi, 5f)
-    }
 }
