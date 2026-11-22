@@ -555,4 +555,9 @@
     <string name="settings_track_recording">Record route</string>
     <string name="settings_track_recording_hint">Saves the GPS track during recording (track.jsonl, track.gpx on stop) and shows it on the map. Applies from the next recording.</string>
     <string name="settings_track_recording_on_detection_hint">In \"On detection only\" mode, GPS is not switched on continuously for the route. The track consists only of the detection fixes, has gaps and is drawn dashed on the map.</string>
+    <string name="analysis_raven_oeffnen">Show Raven table</string>
+    <string name="analysis_session_hochladen">Upload session</string>
+    <string name="analysis_upload_eingereiht">Upload queued</string>
+    <string name="analysis_raven_keine_datei">No Raven file available (session without recording or detections)</string>
+    <string name="analysis_uebersichtsleiste">Overview bar: move the visible section</string>
 </resources>

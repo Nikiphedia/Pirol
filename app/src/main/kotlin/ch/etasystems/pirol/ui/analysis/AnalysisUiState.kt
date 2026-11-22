@@ -92,6 +92,8 @@ data class AnalysisUiState(
 
     // Raven-Export Feedback
     val ravenExportMessage: String? = null,
+    // T194: geparste Raven-Tabelle (null = Dialog zu)
+    val ravenTable: RavenTable? = null,
 
     // IO-Fehler bei Verifikations-Persistierung (AC5)
     val saveErrorMessage: String? = null

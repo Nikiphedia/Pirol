@@ -556,4 +556,9 @@
     <string name="settings_track_recording">Route aufzeichnen</string>
     <string name="settings_track_recording_hint">Speichert waehrend der Aufnahme die GPS-Spur (track.jsonl, beim Stopp track.gpx) und zeigt sie auf der Karte. Wirkt ab naechster Aufnahme.</string>
     <string name="settings_track_recording_on_detection_hint">Im Modus \"Nur bei Detektion\" wird fuer die Route kein Dauer-GPS eingeschaltet. Die Spur besteht nur aus den Fixes der Detektionen, ist lueckenhaft und wird auf der Karte gestrichelt gezeichnet.</string>
+    <string name="analysis_raven_oeffnen">Raven-Tabelle anzeigen</string>
+    <string name="analysis_session_hochladen">Session hochladen</string>
+    <string name="analysis_upload_eingereiht">Upload eingereiht</string>
+    <string name="analysis_raven_keine_datei">Keine Raven-Datei vorhanden (Session ohne Aufnahme oder Detektionen)</string>
+    <string name="analysis_uebersichtsleiste">Uebersichtsleiste: Ausschnitt verschieben</string>
 </resources>
