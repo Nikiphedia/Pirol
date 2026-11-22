@@ -1308,6 +1308,39 @@ fun SettingsScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // T191: Route aufzeichnen
+            var trackRecordingEnabled by remember { mutableStateOf(appPreferences.trackRecordingEnabled) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_track_recording), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.settings_track_recording_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = trackRecordingEnabled,
+                    onCheckedChange = {
+                        trackRecordingEnabled = it
+                        appPreferences.trackRecordingEnabled = it
+                    }
+                )
+            }
+            if (trackRecordingEnabled && gpsOnDetection) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.settings_track_recording_on_detection_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))

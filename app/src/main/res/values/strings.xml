@@ -553,4 +553,7 @@
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts verschoben.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewaehlte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>
+    <string name="settings_track_recording">Route aufzeichnen</string>
+    <string name="settings_track_recording_hint">Speichert waehrend der Aufnahme die GPS-Spur (track.jsonl, beim Stopp track.gpx) und zeigt sie auf der Karte. Wirkt ab naechster Aufnahme.</string>
+    <string name="settings_track_recording_on_detection_hint">Im Modus \"Nur bei Detektion\" wird fuer die Route kein Dauer-GPS eingeschaltet. Die Spur besteht nur aus den Fixes der Detektionen, ist lueckenhaft und wird auf der Karte gestrichelt gezeichnet.</string>
 </resources>

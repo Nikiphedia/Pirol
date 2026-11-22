@@ -89,6 +89,10 @@ interface PipelineHooks {
     fun beforeSessionStart()
     /** Nach endSession auf dem Session-Dispatcher (T97 Embedding-DB, Alarm-Cooldowns, Auto-Upload) */
     suspend fun afterSessionEnd()
+    /** T191: Routenaufzeichnung starten (nach startSession; Setting "Route aufzeichnen" prueft der Hook) */
+    fun startTrack(sessionId: String) {}
+    /** T191: Routenaufzeichnung beenden, VOR endSession (alle Punkte in track.jsonl, dann GPX-Export) */
+    suspend fun stopTrack() {}
 }
 
 /** T94: Embedding einer Detektion fuer die Aehnlichkeitssuche im Live-UI */
@@ -240,6 +244,9 @@ class RecordingPipeline(
                         modelId = classifier.modelId  // T103a
                     )
                     _storageFallback.value = session.lastStartUsedFallback
+                    currentSessionId?.let { id ->
+                        try { hooks.startTrack(id) } catch (e: Exception) { Log.w(TAG, "Routenaufzeichnung nicht gestartet", e) }  // T191
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Session-Start fehlgeschlagen", e)
                 } finally {
@@ -323,7 +330,12 @@ class RecordingPipeline(
             val finishedSessionId = currentSessionId
             currentSessionId = null
             try {
-                session.endSession(gpsStats)  // inkl. Raven-Export
+                hooks.stopTrack()  // T191: vor endSession (GPX-Export liest track.jsonl)
+            } catch (e: Exception) {
+                Log.e(TAG, "Routenaufzeichnung beenden fehlgeschlagen", e)
+            }
+            try {
+                session.endSession(gpsStats)  // inkl. Raven- und GPX-Export
             } catch (e: Exception) {
                 Log.e(TAG, "Session-Ende fehlgeschlagen", e)
             }

@@ -287,6 +287,36 @@ private sealed interface OfflineDialog {
     data object ConfirmDelete : OfflineDialog
 }
 
+// ── T191: Route als Polyline ──────────────────────────────────────────────────
+
+private const val TRACK_COLOR = "#8E24AA"       // historische Route (violett)
+private const val TRACK_LIVE_COLOR = "#1976D2"  // laufende Aufnahme (Live-Blau wie Marker)
+private const val TRACK_ALPHA = 170
+private const val TRACK_WIDTH_PX = 6f
+
+/**
+ * Route unter die Marker legen. Spur nur aus Detektions-Fixes (Modus "Nur bei Detektion")
+ * wird gestrichelt gezeichnet: die Linie verbindet nur wenige Fixes, nicht den echten Weg.
+ */
+private fun addTrackOverlay(mapView: MapView, track: ch.etasystems.pirol.location.SessionTrack, isLive: Boolean) {
+    if (track.points.size < 2) return
+    val line = org.osmdroid.views.overlay.Polyline(mapView)
+    line.setPoints(track.points.map { GeoPoint(it.lat, it.lon) })
+    line.outlinePaint.apply {
+        color = android.graphics.Color.parseColor(if (isLive) TRACK_LIVE_COLOR else TRACK_COLOR)
+        alpha = TRACK_ALPHA
+        strokeWidth = TRACK_WIDTH_PX * mapView.resources.displayMetrics.density / 2f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+        strokeJoin = android.graphics.Paint.Join.ROUND
+        isAntiAlias = true
+        if (track.sparse) pathEffect = android.graphics.DashPathEffect(floatArrayOf(18f, 14f), 0f)
+    }
+    // Tap auf die Route nicht abfangen (kein leeres Info-Fenster, Marker bleiben bedienbar)
+    line.infoWindow = null
+    line.setOnClickListener { _, _, _ -> false }
+    mapView.overlays.add(line)
+}
+
 // ── Haupt-Composable ──────────────────────────────────────────────────────────
 
 @OptIn(FlowPreview::class, ExperimentalFoundationApi::class)
@@ -472,10 +502,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 val wanted = tileSourceFor(sourceMode, mapView.zoomLevelDouble.toInt(), centre.latitude, centre.longitude)
                 if (mapView.tileProvider.tileSource != wanted) mapView.setTileSource(wanted)
 
+                // T191: Routen (Live-Session nur einmal)
+                val visibleTracks = state.visibleTracks()
+
                 // T115: Overlays nur neu aufbauen, wenn sich die Eingaben wirklich geaendert haben
                 val overlayKey = listOf(
                     moveTarget, clusters, state.simultaneousLinks, state.linkAnchor?.detectionId,
-                    state.lockedSpecies, state.focusMode, sourceMode
+                    state.lockedSpecies, state.focusMode, sourceMode, visibleTracks
                 )
                 if (lastOverlayKey[0] == overlayKey) return@AndroidView
                 lastOverlayKey[0] = overlayKey
@@ -502,6 +535,9 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 } else {
                     val blueColor = android.graphics.Color.parseColor("#1976D2")
                     val clusterColor = android.graphics.Color.parseColor("#607D8B")
+
+                    // T191: Routen zuunterst (vor Verknuepfungen und Markern)
+                    for (track in visibleTracks) addTrackOverlay(mapView, track, isLive = track === state.liveTrack)
 
                     // Polylinien vor Markern zeichnen
                     for (link in state.simultaneousLinks) {

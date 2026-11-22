@@ -120,6 +120,11 @@ class AppPreferences(context: Context) {
 
     val gpsOnDetectionOnly: Boolean get() = gpsMode == GPS_MODE_ON_DETECTION
 
+    /** T191: GPS-Spur waehrend der Aufnahme aufzeichnen (track.jsonl + track.gpx). Default an. */
+    var trackRecordingEnabled: Boolean
+        get() = prefs.getBoolean("pirol_track_recording_enabled", true)
+        set(value) = prefs.edit().putBoolean("pirol_track_recording_enabled", value).apply()
+
     // --- Sonogramm-Config (T30) ---
     var spectrogramConfigName: String
         get() = prefs.getString("pirol_spectrogram_config", "BIRDS") ?: "BIRDS"
