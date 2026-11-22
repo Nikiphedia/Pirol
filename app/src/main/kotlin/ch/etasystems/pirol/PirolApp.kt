@@ -42,5 +42,13 @@ class PirolApp : Application() {
             ch.etasystems.pirol.audio.dsp.AudioResampler.Mode.parse(
                 ch.etasystems.pirol.data.AppPreferences(this).resamplerMode
             )
+
+        // T187: Modell im Hintergrund freigeben (nur ohne Aufnahme)
+        registerActivityLifecycleCallbacks(
+            ch.etasystems.pirol.ml.ModelReleaseObserver(
+                isRecording = { org.koin.core.context.GlobalContext.get().get<ch.etasystems.pirol.audio.RecordingPipeline>().isRunning },
+                release = { org.koin.core.context.GlobalContext.get().get<ch.etasystems.pirol.ml.AudioClassifier>().releaseIfIdle() }
+            )
+        )
     }
 }

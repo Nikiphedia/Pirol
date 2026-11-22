@@ -34,6 +34,9 @@ interface AudioClassifier {
     /** Session zuruecksetzen (nach Modell-Wechsel) */
     fun resetSession()
 
+    /** T187: Modell-Session freigeben, falls keine Inferenz laeuft (Standard: nichts zu tun). */
+    fun releaseIfIdle(): Boolean = false
+
     /** Anzahl Labels */
     val labelCount: Int
 
