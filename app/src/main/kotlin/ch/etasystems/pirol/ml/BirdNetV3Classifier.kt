@@ -107,6 +107,8 @@ class BirdNetV3Classifier(
     // Lazy-initialisiert beim ersten classify()-Aufruf
     private var ortSession: OrtSession? = null
     private var sessionFailed = false
+    // T187: laufende Inferenzen (geschuetzt durch this); verhindert close() waehrend run()
+    private var activeRuns = 0
     private var labels: List<Pair<String, String>> = emptyList() // (scientific, common)
     @Volatile private var labelNameSet: Set<String> = emptySet()
 
@@ -179,7 +181,7 @@ class BirdNetV3Classifier(
         val empty = AudioClassifier.ClassificationOutput(emptyList(), null)
         if (samples.isEmpty()) return empty
 
-        val session = ensureSession()
+        val session = acquireSession()
         if (session == null) {
             Log.w(TAG, "ONNX Session nicht verfuegbar — Modell fehlt oder Ladefehler")
             return empty
@@ -212,6 +214,8 @@ class BirdNetV3Classifier(
         } catch (e: Exception) {
             Log.e(TAG, "Klassifizierung fehlgeschlagen", e)
             empty
+        } finally {
+            endRun()
         }
     }
 
@@ -227,7 +231,7 @@ class BirdNetV3Classifier(
     override fun extractEmbedding(samples: FloatArray, sampleRate: Int): FloatArray? {
         if (samples.isEmpty()) return null
 
-        val session = ensureSession() ?: run {
+        val session = acquireSession() ?: run {
             Log.w(TAG, "ONNX Session nicht verfuegbar fuer Embedding-Extraktion")
             return null
         }
@@ -253,6 +257,8 @@ class BirdNetV3Classifier(
         } catch (e: Exception) {
             Log.e(TAG, "Embedding-Extraktion fehlgeschlagen", e)
             null
+        } finally {
+            endRun()
         }
     }
 
@@ -260,6 +266,31 @@ class BirdNetV3Classifier(
     fun getLabels(): List<Pair<String, String>> {
         ensureSession() // Stellt sicher, dass Labels geladen sind
         return labels
+    }
+
+    /**
+     * T187: Session freigeben (RAM), aber nur wenn gerade keine Inferenz laeuft.
+     * Die Session wird beim naechsten classify() lazy neu geladen. Labels bleiben erhalten.
+     * @return true, wenn eine Session geschlossen wurde
+     */
+    @Synchronized
+    override fun releaseIfIdle(): Boolean {
+        if (activeRuns > 0 || ortSession == null) return false
+        close()
+        return true
+    }
+
+    /** T187: Session holen und Lauf zaehlen (atomar zu releaseIfIdle) */
+    @Synchronized
+    private fun acquireSession(): OrtSession? {
+        val s = ensureSession()
+        if (s != null) activeRuns++
+        return s
+    }
+
+    @Synchronized
+    private fun endRun() {
+        if (activeRuns > 0) activeRuns--
     }
 
     /** ONNX Session und Ressourcen freigeben */
