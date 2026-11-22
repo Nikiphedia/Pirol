@@ -340,10 +340,14 @@ class DetectionListState(
         return if (matchIndex >= 0) {
             // Cluster-Merge: Anker aktualisieren
             val existing = detections[matchIndex]
+            // T186: Anker repraesentiert das beste Fenster (strikt hoehere Konfidenz ersetzt)
+            val betterWindow = detection.confidence > existing.confidence
             val updated = existing.copy(
                 lastSeenAtMs = detection.timestampMs,
                 detectionCount = existing.detectionCount + 1,
-                confidence = maxOf(existing.confidence, detection.confidence)
+                confidence = maxOf(existing.confidence, detection.confidence),
+                bestStartSec = if (betterWindow) detection.chunkStartSec else existing.bestStartSec,
+                bestEndSec = if (betterWindow) detection.chunkEndSec else existing.bestEndSec
             )
             detections[matchIndex] = updated
             hitAtMs[updated.id] = nowMs  // T178

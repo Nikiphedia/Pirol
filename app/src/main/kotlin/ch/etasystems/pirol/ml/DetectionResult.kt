@@ -62,8 +62,18 @@ data class DetectionResult(
     val lockSpecies: Boolean = false,        // true = nur 1 Meldung (Cluster B)
     // T143: Qualitaet der angehaengten Position (null = unbekannt / alte JSONL)
     val locationAgeMs: Long? = null,         // Alter des Fixes zum Zeitpunkt der Detektion
-    val locationAccuracyM: Float? = null     // Genauigkeit des Fixes in Metern
-)
+    val locationAccuracyM: Float? = null,    // Genauigkeit des Fixes in Metern
+    // T186: bestes Fenster eines Clusters (hoechste Konfidenz); null = erstes Fenster ist das beste.
+    // chunkStartSec/chunkEndSec bleiben das ERSTE Fenster (Cluster-Beginn, Basis fuer Episoden/Ausschnitt).
+    val bestStartSec: Float? = null,
+    val bestEndSec: Float? = null
+) {
+    /** T186: Start des repraesentativen (besten) Fensters in der Session-Aufnahme */
+    val bestWindowStartSec: Float get() = bestStartSec ?: chunkStartSec
+
+    /** T186: Ende des repraesentativen (besten) Fensters */
+    val bestWindowEndSec: Float get() = bestEndSec ?: chunkEndSec
+}
 
 /**
  * Verifikations-Event fuer verifications.jsonl.

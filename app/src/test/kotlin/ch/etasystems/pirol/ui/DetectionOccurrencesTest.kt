@@ -156,4 +156,48 @@ class DetectionOccurrencesTest {
         assertEquals(0.9f, e[0].maxConfidence!!, 0.001f)
         assertNull(e[1].maxConfidence)
     }
+
+    // ---- T186 ----
+
+    @Test
+    fun withBestWindow_replayPicksMergeWithMaxConfidence() {
+        val d = det(60f).copy(confidence = 0.9f)
+        val merges = listOf(
+            DetectionOccurrences.MergeInfo(1_010_000L, 0.5f, 70f),
+            DetectionOccurrences.MergeInfo(1_020_000L, 0.9f, 80f)
+        )
+        val r = DetectionOccurrences.withBestWindow(d, merges)
+        assertEquals(80f, r.bestWindowStartSec, 0.001f)
+        assertEquals(83f, r.bestWindowEndSec, 0.001f)
+        assertEquals(60f, r.chunkStartSec, 0.001f)
+    }
+
+    @Test
+    fun withBestWindow_anchorStaysWhenNoMergeReachesMax() {
+        val d = det(60f).copy(confidence = 0.9f)
+        val r = DetectionOccurrences.withBestWindow(d, listOf(DetectionOccurrences.MergeInfo(1_010_000L, 0.5f, 70f)))
+        assertEquals(60f, r.bestWindowStartSec, 0.001f)
+        assertNull(r.bestStartSec)
+    }
+
+    @Test
+    fun withBestWindow_oldEventsWithoutConfLeaveDetectionUntouched() {
+        val d = det(60f)
+        assertEquals(d, DetectionOccurrences.withBestWindow(d, mi(1_010_000L)))
+    }
+
+    @Test
+    fun withBestWindow_keepsStoredBestWindow() {
+        val d = det(60f).copy(bestStartSec = 75f, bestEndSec = 78f)
+        val r = DetectionOccurrences.withBestWindow(d, listOf(DetectionOccurrences.MergeInfo(1_010_000L, 0.8f, 90f)))
+        assertEquals(75f, r.bestWindowStartSec, 0.001f)
+    }
+
+    @Test
+    fun of_bestWindowLaterCarriesClusterConfidence() {
+        val d = det(60f).copy(confidence = 0.9f, bestStartSec = 80f, bestEndSec = 83f)
+        val occ = DetectionOccurrences.of(d, listOf(DetectionOccurrences.MergeInfo(1_020_000L, null, 80f)))
+        assertNull(occ[0].confidence)
+        assertEquals(0.9f, occ[1].confidence!!, 0.001f)
+    }
 }

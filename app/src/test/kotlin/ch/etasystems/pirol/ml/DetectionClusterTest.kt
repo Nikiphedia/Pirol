@@ -224,4 +224,53 @@ class DetectionClusterTest {
         assertTrue("Art 2 ist New (andere Art = kein Merge)", r2 is ClusterResult.New)
         assertEquals("2 Eintraege (verschiedene Arten)", 2, state.size)
     }
+
+    // ---- T186: Anker = bestes Fenster ----------------------------------------
+
+    private fun at(id: String, conf: Float, start: Float, ts: Long) =
+        makeDetection(id = id, confidence = conf, timestampMs = ts).copy(chunkStartSec = start, chunkEndSec = start + 3f)
+
+    @Test
+    fun `T186 besseres absorbiertes Fenster wird Anker-Fenster, erstes bleibt Clusterbeginn`() {
+        val state = DetectionListState()
+        val t0 = System.currentTimeMillis() - 60_000L
+        state.addOrCluster(at("a", 0.5f, 10f, t0), true, 0, 5)
+        val r = state.addOrCluster(at("b", 0.9f, 40f, t0 + 30_000L), true, 0, 5) as ClusterResult.Merged
+        val a = r.anchor
+        assertEquals(0.9f, a.confidence, 0.0001f)
+        assertEquals(40f, a.bestWindowStartSec, 0.0001f)
+        assertEquals(43f, a.bestWindowEndSec, 0.0001f)
+        assertEquals("chunkStartSec = Cluster-Beginn", 10f, a.chunkStartSec, 0.0001f)
+        assertEquals(t0, a.firstSeenAtMs)
+        assertEquals(2, a.detectionCount)
+    }
+
+    @Test
+    fun `T186 schwaecheres oder gleich gutes Fenster aendert das beste Fenster nicht`() {
+        val state = DetectionListState()
+        val t0 = System.currentTimeMillis() - 60_000L
+        state.addOrCluster(at("a", 0.7f, 10f, t0), true, 0, 5)
+        state.addOrCluster(at("b", 0.6f, 20f, t0 + 10_000L), true, 0, 5)
+        val r = state.addOrCluster(at("c", 0.7f, 30f, t0 + 20_000L), true, 0, 5) as ClusterResult.Merged
+        assertEquals(10f, r.anchor.bestWindowStartSec, 0.0001f)
+        assertEquals(0.7f, r.anchor.confidence, 0.0001f)
+    }
+
+    @Test
+    fun `T186 mehrere Merges - das hoechste Fenster gewinnt`() {
+        val state = DetectionListState()
+        val t0 = System.currentTimeMillis() - 60_000L
+        state.addOrCluster(at("a", 0.5f, 10f, t0), true, 0, 5)
+        state.addOrCluster(at("b", 0.8f, 20f, t0 + 10_000L), true, 0, 5)
+        state.addOrCluster(at("c", 0.6f, 30f, t0 + 20_000L), true, 0, 5)
+        val r = state.addOrCluster(at("d", 0.95f, 50f, t0 + 30_000L), true, 0, 5) as ClusterResult.Merged
+        assertEquals(50f, r.anchor.bestWindowStartSec, 0.0001f)
+    }
+
+    @Test
+    fun `T186 ohne Merge ist das beste Fenster das erste (Default)`() {
+        val d = at("a", 0.5f, 10f, 1L)
+        assertEquals(10f, d.bestWindowStartSec, 0.0001f)
+        assertEquals(13f, d.bestWindowEndSec, 0.0001f)
+    }
 }

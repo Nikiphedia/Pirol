@@ -705,9 +705,11 @@ private fun SessionDetailContent(
                     val speciesKey = detection.scientificName.replace(' ', '_')
                     // T107: abgespielte Detektion hervorheben
                     val isPlaying = state.playingDetectionId == detection.id
+                    // T186: laeuft eine Episode, markiert nur deren Zeile (OccurrenceSection), nicht die ganze Artkarte
+                    val isCardPlaying = isPlaying && state.playingOccurrenceStartSec == null
                     Column {
                     Box(
-                        modifier = if (isPlaying) {
+                        modifier = if (isCardPlaying) {
                             Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                         } else Modifier
                     ) {
@@ -739,7 +741,7 @@ private fun SessionDetailContent(
                         onPlay = { viewModel.playDetection(detection) },
                         isPlaying = state.playingKey == PlaybackKeys.detection(detection.id),  // T173
                         isPlayEnabled = state.hasRecording,
-                        playTimeLabel = formatSecondsAsMinSec(detection.chunkStartSec),
+                        playTimeLabel = formatSecondsAsMinSec(detection.bestWindowStartSec),  // T186
                         onEditDetection = { count, atlasCode, note, memoFile ->
                             viewModel.editDetection(detection.id, count, atlasCode, note, memoFile)
                         },
@@ -921,7 +923,7 @@ private fun CompareView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = formatSecondsAsMinSec(det.chunkStartSec),
+                    text = formatSecondsAsMinSec(det.bestWindowStartSec),  // T186
                     style = MaterialTheme.typography.bodySmall
                 )
             }

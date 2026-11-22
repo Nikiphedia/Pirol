@@ -84,13 +84,16 @@ object RavenExporter {
             w.appendLine(header.joinToString("\t"))
 
             detections.forEachIndexed { index, d ->
+                // T186: bestes Fenster des Clusters (identisch mit dem ersten, wenn nie ein besseres kam)
+                val winStart = d.bestWindowStartSec
+                val winEnd = d.bestWindowEndSec
                 val segment = recordingSegments?.firstOrNull {
-                    d.chunkStartSec >= it.startSec && d.chunkStartSec < it.startSec + it.durationSec
+                    winStart >= it.startSec && winStart < it.startSec + it.durationSec
                 }
                 val beginFile  = segment?.fileName ?: "recording.wav"
-                val localStart = if (segment != null) d.chunkStartSec - segment.startSec else d.chunkStartSec
-                val localEnd   = if (segment != null) d.chunkEndSec   - segment.startSec else d.chunkEndSec
-                val detectionTime = sessionStart.plusSeconds(d.chunkStartSec.toLong())
+                val localStart = if (segment != null) winStart - segment.startSec else winStart
+                val localEnd   = if (segment != null) winEnd   - segment.startSec else winEnd
+                val detectionTime = sessionStart.plusSeconds(winStart.toLong())
                 val beginDateTime = detectionTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
                 val row = mutableListOf((index + 1).toString(), VIEW, CHANNEL.toString())
