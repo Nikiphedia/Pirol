@@ -1,6 +1,7 @@
 package ch.etasystems.pirol.ui.analysis
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -130,6 +132,14 @@ private fun OccurrenceRow(
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .alpha(rowAlpha)
+            // T186: laufende Episode nur auf ihrer Zeile hervorheben
+            .then(
+                if (isPlaying) Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                    .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                else Modifier
+            )
             .clickable(enabled = playEnabled, onClick = onPlay),
         verticalAlignment = Alignment.CenterVertically
     ) {

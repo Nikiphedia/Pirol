@@ -79,7 +79,11 @@ object DetectionOccurrences {
         // Anker-Konfidenz: detection.confidence ist das Maximum ueber alle Fenster. Nur wenn kein
         // absorbiertes Fenster diesen Wert erreicht, stammt er sicher vom Anker; sonst unbekannt.
         val absorbedMax = merges.mapNotNull { it.confidence }.maxOrNull()
-        val anchorConf = if (absorbedMax == null || detection.confidence > absorbedMax) detection.confidence else null
+        // T186: liegt das beste Fenster nicht am Anfang, ist die Anker-Konfidenz des ersten Fensters unbekannt
+        val bestStart = detection.bestStartSec
+        val bestIsLater = bestStart != null && kotlin.math.abs(bestStart - firstStart) > BEST_TOLERANCE_SEC
+        val anchorConf = if (bestIsLater) null
+            else if (absorbedMax == null || detection.confidence > absorbedMax) detection.confidence else null
         val result = mutableListOf(
             Occurrence(detection.timestampMs, firstStart, firstStart + window, isAnchor = true, confidence = anchorConf)
         )
@@ -88,9 +92,32 @@ object DetectionOccurrences {
             if (ts - detection.timestampMs < DEDUP_TOLERANCE_MS) continue
             if (ts - result.last().timestampMs < DEDUP_TOLERANCE_MS) continue
             val start = m.startSec ?: (firstStart + (ts - detection.timestampMs) / 1000f)
-            result.add(Occurrence(ts, start, start + window, isAnchor = false, confidence = m.confidence))
+            // T186: das als bestes Fenster gespeicherte Vorkommen traegt die Cluster-Konfidenz
+            val conf = m.confidence
+                ?: if (bestIsLater && bestStart != null && kotlin.math.abs(bestStart - start) <= BEST_TOLERANCE_SEC) detection.confidence else null
+            result.add(Occurrence(ts, start, start + window, isAnchor = false, confidence = conf))
         }
         return result
+    }
+
+    /** Positionen, die weniger weit auseinanderliegen, gelten als dasselbe Fenster (Float-Rundung, %.3f). */
+    private const val BEST_TOLERANCE_SEC = 0.01f
+
+    /**
+     * T186: Replay fuer Sessions ohne gespeichertes bestes Fenster. detection.confidence ist das
+     * Maximum ueber alle Fenster; traegt ein CLUSTER_MERGED-Event (conf/start, T181) genau diesen
+     * Wert, ist dessen Fenster das beste. Sonst (oder bei Gleichstand) bleibt das erste Fenster.
+     */
+    fun withBestWindow(detection: DetectionResult, merges: List<MergeInfo>): DetectionResult {
+        if (detection.bestStartSec != null || detection.manualEntry) return detection
+        val m = merges
+            .filter { it.confidence != null && it.startSec != null }
+            .filter { kotlin.math.abs(it.confidence!! - detection.confidence) <= 0.001f }
+            .minByOrNull { it.timestampMs } ?: return detection
+        val start = m.startSec!!
+        if (kotlin.math.abs(start - detection.chunkStartSec) <= BEST_TOLERANCE_SEC) return detection
+        val window = (detection.chunkEndSec - detection.chunkStartSec).takeIf { it in 0.1f..30f } ?: FALLBACK_WINDOW_SEC
+        return detection.copy(bestStartSec = start, bestEndSec = start + window)
     }
 
     /**

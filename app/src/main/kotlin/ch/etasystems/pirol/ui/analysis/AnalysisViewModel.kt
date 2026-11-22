@@ -344,7 +344,8 @@ class AnalysisViewModel(
             _uiState.update {
                 it.copy(
                     selectedSession = summary,
-                    detections = detections,
+                    // T186: bestes Fenster auch fuer Sessions vor T186 aus den Merge-Events ableiten
+                    detections = detections.map { d -> DetectionOccurrences.withBestWindow(d, mergeTimes[d.id].orEmpty()) },
                     mergeTimestamps = mergeTimes,
                     recordingFile = recFile,
                     hasRecording = rec != null || recFile != null,
@@ -654,9 +655,9 @@ class AnalysisViewModel(
         val rec = recording
         val start: () -> Unit = when {
             // T130: Session-Achse ueber alle Segmente
-            rec != null -> { { audioPlayer.playFromOffset(rec, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
-            uri != null -> { { audioPlayer.playFromOffset(uri, startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
-            f   != null -> { { audioPlayer.playFromOffset(f,   startSec = det.chunkStartSec, endSec = det.chunkEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            rec != null -> { { audioPlayer.playFromOffset(rec, startSec = det.bestWindowStartSec, endSec = det.bestWindowEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            uri != null -> { { audioPlayer.playFromOffset(uri, startSec = det.bestWindowStartSec, endSec = det.bestWindowEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
+            f   != null -> { { audioPlayer.playFromOffset(f,   startSec = det.bestWindowStartSec, endSec = det.bestWindowEndSec, normalizeDbfs = PLAYBACK_DBFS) } }
             else -> return
         }
         if (playback.toggle(PlaybackKeys.COMPARE_DETECTION, start)) return  // T173
@@ -688,8 +689,8 @@ class AnalysisViewModel(
             val samples = readWavSamplesRange(
                 openStream = { rec?.openWavStream() ?: recFile!!.inputStream() },
                 fileLength  = rec?.virtualWavLength ?: recFile!!.length(),
-                startSec    = d.chunkStartSec,
-                endSec      = d.chunkEndSec
+                startSec    = d.bestWindowStartSec,  // T186
+                endSec      = d.bestWindowEndSec
             ) ?: return@launch
             val state  = SpectrogramState(maxFrames = 2048)
             val mel    = MelSpectrogram(sampleRate = 48000)
