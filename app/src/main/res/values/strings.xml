@@ -567,4 +567,12 @@
     <string name="analysis_upload_eingereiht">Upload eingereiht</string>
     <string name="analysis_raven_keine_datei">Keine Raven-Datei vorhanden (Session ohne Aufnahme oder Detektionen)</string>
     <string name="analysis_uebersichtsleiste">Uebersichtsleiste: Ausschnitt verschieben</string>
+    <string name="ui_gemeinde_einfuegen">Gemeinde einfügen</string>
+    <string name="ui_gemeinde_text">Gemeinde: %1$s</string>
+    <string name="ui_gemeinde_nicht_ermittelbar">Gemeinde nicht ermittelbar</string>
+    <string name="ui_gemeinde_keine_position">Keine Position verfügbar</string>
+    <string name="settings_section_display">Darstellung</string>
+    <string name="settings_fullscreen">Vollbild</string>
+    <string name="settings_fullscreen_hint">Blendet Status- und Navigationsleiste aus. Mit einer Wischgeste vom Bildschirmrand erscheinen sie kurz wieder.</string>
+    <string name="settings_info_sources">Gemeindegrenzen: © swisstopo (swissBOUNDARIES3D)</string>
 </resources>

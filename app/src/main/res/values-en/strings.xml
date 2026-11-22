@@ -566,4 +566,12 @@
     <string name="analysis_upload_eingereiht">Upload queued</string>
     <string name="analysis_raven_keine_datei">No Raven file available (session without recording or detections)</string>
     <string name="analysis_uebersichtsleiste">Overview bar: move the visible section</string>
+    <string name="ui_gemeinde_einfuegen">Insert municipality</string>
+    <string name="ui_gemeinde_text">Municipality: %1$s</string>
+    <string name="ui_gemeinde_nicht_ermittelbar">Municipality could not be determined</string>
+    <string name="ui_gemeinde_keine_position">No position available</string>
+    <string name="settings_section_display">Display</string>
+    <string name="settings_fullscreen">Fullscreen</string>
+    <string name="settings_fullscreen_hint">Hides the status and navigation bars. Swipe from the screen edge to show them briefly.</string>
+    <string name="settings_info_sources">Municipal boundaries: © swisstopo (swissBOUNDARIES3D)</string>
 </resources>

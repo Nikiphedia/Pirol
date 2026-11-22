@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -23,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,7 +33,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import ch.etasystems.pirol.location.LocationProvider
+import ch.etasystems.pirol.location.MunicipalityLookup
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -63,6 +73,12 @@ fun EditDetectionDialog(
     var selectedCode by remember { mutableStateOf(detection.atlasCode) }
     var note by remember { mutableStateOf(detection.note ?: "") }
     var dropdownExpanded by remember { mutableStateOf(false) }
+    // T195: Gemeinde aus GPS in die Bemerkung einfuegen
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val locationProvider: LocationProvider = koinInject()
+    val municipalityLookup = remember { MunicipalityLookup(context) }
+    var municipalityBusy by remember { mutableStateOf(false) }
     var currentMemoRelPath by remember { mutableStateOf(detection.voiceMemoFile) }
 
     val hasChanged = count != detection.count ||
@@ -159,6 +175,34 @@ fun EditDetectionDialog(
                         supportingText = { Text("${note.length}/$MAX_NOTE_LENGTH") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedButton(
+                        onClick = {
+                            val lat = detection.latitude ?: locationProvider.location.value?.latitude
+                            val lon = detection.longitude ?: locationProvider.location.value?.longitude
+                            if (lat == null || lon == null) {
+                                onSnackbar(context.getString(R.string.ui_gemeinde_keine_position))
+                                return@OutlinedButton
+                            }
+                            municipalityBusy = true
+                            scope.launch {
+                                val label = municipalityLookup.lookup(lat, lon)
+                                municipalityBusy = false
+                                if (label == null) {
+                                    onSnackbar(context.getString(R.string.ui_gemeinde_nicht_ermittelbar))
+                                } else {
+                                    val text = context.getString(R.string.ui_gemeinde_text, label)
+                                    val joined = if (note.isEmpty()) text else "$note $text"
+                                    note = joined.take(MAX_NOTE_LENGTH)
+                                }
+                            }
+                        },
+                        enabled = !municipalityBusy,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp)
+                    ) {
+                        Icon(Icons.Filled.LocationCity, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.ui_gemeinde_einfuegen))
+                    }
                 }
 
                 // 4. Sprach-Memo (T69)

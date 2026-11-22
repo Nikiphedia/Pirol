@@ -378,6 +378,30 @@ fun SettingsScreen(
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+        // T195: Darstellung (Vollbild)
+        SettingsSection(
+            sectionKey = "display",
+            title = stringResource(R.string.settings_section_display),
+            appPreferences = appPreferences,
+            defaultExpanded = false
+        ) {
+            val fullscreen by appPreferences.fullscreenFlow.collectAsState()
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_fullscreen), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.settings_fullscreen_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = fullscreen, onCheckedChange = { appPreferences.fullscreen = it })
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         SettingsSection(
             sectionKey = "model",
             title = stringResource(R.string.settings_section_model_detection),
@@ -2256,6 +2280,12 @@ fun SettingsScreen(
         ) {
             Text(
                 text = stringResource(R.string.settings_info_version, ch.etasystems.pirol.ui.components.currentVersionName(context)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.settings_info_sources),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -31,10 +31,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** T195: Vollbild-Einstellung anwenden (Systemleisten aus; per Wischen kurz sichtbar). */
+    private fun applyFullscreen(enabled: Boolean) {
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior =
+            androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (enabled) controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        else controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+    }
+
+    // Nach Dialogen/Fokuswechsel koennen die Leisten wieder erscheinen
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            val prefs: ch.etasystems.pirol.data.AppPreferences = get()
+            if (prefs.fullscreen) applyFullscreen(true)
+        }
+    }
+
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val appPrefs: ch.etasystems.pirol.data.AppPreferences = get()
+        applyFullscreen(appPrefs.fullscreen)
+        lifecycleScope.launch {
+            appPrefs.fullscreenFlow.collect { applyFullscreen(it) }
+        }
         setContent {
             PirolTheme {
                 val windowSizeClass = calculateWindowSizeClass(this)
