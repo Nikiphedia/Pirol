@@ -24,6 +24,7 @@ import kotlin.math.floor
  * @param autoLowPct Auto-Kontrast: unteres Perzentil (Rausch-Untergrenze)
  * @param autoHighPct Auto-Kontrast: oberes Perzentil
  * @param autoMinSpanDb Auto-Kontrast: Mindestspanne in dB
+ * @param displayMode T193: Live-Darstellung (Sonogramm, Spektrum, Oszillogramm); Analyse ignoriert das
  */
 data class SpectrogramDisplaySettings(
     val autoContrast: Boolean = true,
@@ -37,7 +38,8 @@ data class SpectrogramDisplaySettings(
     val windowSec: Float = 12f,
     val autoLowPct: Float = 0.02f,
     val autoHighPct: Float = 0.98f,
-    val autoMinSpanDb: Float = 20f
+    val autoMinSpanDb: Float = 20f,
+    val displayMode: LiveDisplayMode = LiveDisplayMode.SONOGRAM
 ) {
     /** Setzt die Preset-Werte; Palette und Zeitfenster bleiben unveraendert. */
     fun withPreset(preset: SpectrogramPreset): SpectrogramDisplaySettings = when (preset) {
@@ -63,6 +65,13 @@ data class SpectrogramDisplaySettings(
     /** Welches Preset passt exakt auf die aktuellen Werte (null = benutzerdefiniert). */
     fun matchingPreset(): SpectrogramPreset? =
         SpectrogramPreset.entries.firstOrNull { withPreset(it) == this }
+}
+
+/** T193: Darstellungsart der Live-Anzeige. */
+enum class LiveDisplayMode(@StringRes val labelRes: Int) {
+    SONOGRAM(R.string.display_mode_sonogram),
+    SPECTRUM(R.string.display_mode_spectrum),
+    WAVEFORM(R.string.display_mode_waveform)
 }
 
 /** Die 3 Presets des Sonogramm-Panels. */

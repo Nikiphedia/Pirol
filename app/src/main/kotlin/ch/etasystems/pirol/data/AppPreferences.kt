@@ -177,6 +177,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("pirol_spectrogram_freq_max_hz_t144", 24000f)
         set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_max_hz_t144", value).apply()
 
+    /** T193: Live-Darstellung (Enum-Name von LiveDisplayMode). */
+    var liveDisplayMode: String
+        get() = prefs.getString("pirol_live_display_mode", "SONOGRAM") ?: "SONOGRAM"
+        set(value) = prefs.edit().putString("pirol_live_display_mode", value).apply()
+
     /** Zeitfenster des Live-Sonogramms in Sekunden. */
     var spectrogramWindowSec: Float
         get() = prefs.getFloat("pirol_spectrogram_window_sec", 12f)

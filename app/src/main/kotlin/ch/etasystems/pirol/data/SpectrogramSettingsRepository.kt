@@ -47,7 +47,12 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
             windowSec = prefs.spectrogramWindowSec,
             autoLowPct = prefs.spectrogramAutoLowPct,
             autoHighPct = prefs.spectrogramAutoHighPct,
-            autoMinSpanDb = prefs.spectrogramAutoMinSpanDb
+            autoMinSpanDb = prefs.spectrogramAutoMinSpanDb,
+            displayMode = try {
+                ch.etasystems.pirol.ui.components.LiveDisplayMode.valueOf(prefs.liveDisplayMode)
+            } catch (_: IllegalArgumentException) {
+                ch.etasystems.pirol.ui.components.LiveDisplayMode.SONOGRAM
+            }
         )
     }
 
@@ -64,5 +69,6 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         prefs.spectrogramAutoLowPct = s.autoLowPct
         prefs.spectrogramAutoHighPct = s.autoHighPct
         prefs.spectrogramAutoMinSpanDb = s.autoMinSpanDb
+        prefs.liveDisplayMode = s.displayMode.name
     }
 }
