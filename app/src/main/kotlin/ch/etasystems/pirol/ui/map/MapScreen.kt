@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -116,7 +117,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.ui.input.pointer.pointerInput
@@ -330,7 +330,6 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val nameResolver: SpeciesNameResolver = koinInject()
     val watchlistManager: ch.etasystems.pirol.ml.WatchlistManager = koinInject()  // T204
     val watched by watchlistManager.watchedSpeciesFlow.collectAsState()
-    var speciesDialog by remember { mutableStateOf(false) }
     // T204: Artfilter auf die Marker anwenden (Routen bleiben unberuehrt)
     val shownMarkers = remember(state.markers, state.hiddenSpecies, state.onlyAlarm, watched) {
         MapSpeciesFilter.filter(state.markers, state.hiddenSpecies, state.onlyAlarm, watched)
@@ -1001,14 +1000,6 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     IconButton(onClick = { panelOpen = true }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_kartenmenue_oeffnen))
                     }
-                    IconButton(onClick = { speciesDialog = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            Icons.Filled.FilterList,
-                            contentDescription = stringResource(R.string.map_arten_filtern),
-                            tint = if (state.hiddenSpecies.isNotEmpty() || state.onlyAlarm) MaterialTheme.colorScheme.primary
-                                else androidx.compose.material3.LocalContentColor.current
-                        )
-                    }
                     Text(
                         when (state.filterMode) {
                             FilterMode.ALL -> AppStrings.get(R.string.common_all)
@@ -1019,64 +1010,6 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         modifier = Modifier.padding(end = 14.dp)
                     )
                 }
-            }
-
-            // T204: Artfilter-Dialog
-            if (speciesDialog) {
-                val entries = remember(state.markers, state.liveMarkers, state.filterMode) {
-                    MapSpeciesFilter.speciesEntries(
-                        if (state.filterMode == FilterMode.LIVE_ONLY) state.liveMarkers else state.markers + state.liveMarkers
-                    )
-                }
-                AlertDialog(
-                    onDismissRequest = { speciesDialog = false },
-                    title = { Text(stringResource(R.string.map_arten_filtern)) },
-                    text = {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                                    .clickable { viewModel.setOnlyAlarm(!state.onlyAlarm) },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                androidx.compose.material3.Checkbox(checked = state.onlyAlarm, onCheckedChange = null)
-                                Spacer(Modifier.width(12.dp))
-                                Text(stringResource(R.string.map_nur_alarmarten), style = MaterialTheme.typography.bodyLarge)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(
-                                    onClick = { viewModel.setSpeciesVisible(entries.map { it.key }, true) },
-                                    modifier = Modifier.heightIn(min = 48.dp)
-                                ) { Text(stringResource(R.string.common_all)) }
-                                TextButton(
-                                    onClick = { viewModel.setSpeciesVisible(entries.map { it.key }, false) },
-                                    modifier = Modifier.heightIn(min = 48.dp)
-                                ) { Text(stringResource(R.string.map_keine)) }
-                            }
-                            HorizontalDivider()
-                            LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                                items(entries, key = { it.key }) { e ->
-                                    val name = if (e.scientificName.isBlank()) e.fallbackName
-                                        else nameResolver.resolve(e.scientificName)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                                            .clickable { viewModel.toggleSpecies(e.key) },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        androidx.compose.material3.Checkbox(checked = e.key !in state.hiddenSpecies, onCheckedChange = null)
-                                        Spacer(Modifier.width(12.dp))
-                                        Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                                        Text("${e.count}", style = MaterialTheme.typography.labelLarge)
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { speciesDialog = false }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text(stringResource(R.string.common_close))
-                        }
-                    }
-                )
             }
 
             // T119: Randzone fuer Wischen von links (schmal, damit Karten-Panning ungestoert bleibt)
@@ -1250,11 +1183,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             }
                         ) { Text(stringResource(R.string.map_offline_karten_mb_loeschen, cacheBytes / 1_000_000)) }
 
-                        // Legende: Artfarben der historischen Marker (max. 12)
-                        val legendSpecies = remember(shownMarkers) {
-                            shownMarkers.map { it.species }.distinct().sorted().take(12)
+                        // Legende = Artfilter (T204b): alle Arten, Checkbox schaltet sie auf der Karte ein/aus
+                        val legendEntries = remember(state.markers, state.liveMarkers, state.filterMode) {
+                            MapSpeciesFilter.speciesEntries(
+                                if (state.filterMode == FilterMode.LIVE_ONLY) state.liveMarkers else state.markers + state.liveMarkers
+                            )
                         }
-                        if (legendSpecies.isNotEmpty()) {
+                        if (legendEntries.isNotEmpty()) {
                             HorizontalDivider()
                             Text(stringResource(R.string.map_legende), style = MaterialTheme.typography.titleSmall)
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1262,11 +1197,42 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 Spacer(Modifier.width(8.dp))
                                 Text(stringResource(R.string.map_live_detektion), style = MaterialTheme.typography.bodyMedium)
                             }
-                            for (sp in legendSpecies) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(14.dp).background(Color(colorRepo.getColor(sp)), CircleShape))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                    .clickable { viewModel.setOnlyAlarm(!state.onlyAlarm) },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.Checkbox(checked = state.onlyAlarm, onCheckedChange = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.map_nur_alarmarten), style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(
+                                    onClick = { viewModel.setSpeciesVisible(legendEntries.map { it.key }, true) },
+                                    modifier = Modifier.heightIn(min = 48.dp)
+                                ) { Text(stringResource(R.string.common_all)) }
+                                TextButton(
+                                    onClick = { viewModel.setSpeciesVisible(legendEntries.map { it.key }, false) },
+                                    modifier = Modifier.heightIn(min = 48.dp)
+                                ) { Text(stringResource(R.string.map_keine)) }
+                            }
+                            // Das Panel scrollt bereits, daher einfache Zeilen statt LazyColumn
+                            for (e in legendEntries) {
+                                val visible = e.key !in state.hiddenSpecies
+                                val name = if (e.scientificName.isBlank()) e.fallbackName.replace('_', ' ')
+                                    else nameResolver.resolve(e.scientificName)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                        .alpha(if (visible) 1f else 0.5f)
+                                        .clickable { viewModel.toggleSpecies(e.key) },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.Checkbox(checked = visible, onCheckedChange = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Box(Modifier.size(14.dp).background(Color(colorRepo.getColor(e.fallbackName)), CircleShape))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(sp.replace('_', ' '), style = MaterialTheme.typography.bodyMedium)
+                                    Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                    Text("${e.count}", style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
