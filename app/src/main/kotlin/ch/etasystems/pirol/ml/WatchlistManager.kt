@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -107,6 +109,9 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         scheduleExpiry()
     }
 
+    // T250/N6: alle Aenderungen (Ablauf-Timer, Alarm setzen/loeschen, Import) nacheinander
+    private val mutex = Mutex()
+
     // T247: Abzeichen verschwindet beim Ablauf eines 24-h-Alarms sofort (ein Job fuer den naechsten Ablauf)
     private val expiryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var expiryJob: Job? = null
@@ -131,7 +136,9 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
 
     /** T244: abgelaufene entfernen und Flows aktualisieren (z.B. beim Anzeigen) */
     suspend fun refreshExpired() {
+        mutex.withLock {
         if (pruneExpired()) { save(); emitFlows() }
+        }
     }
 
     /**
@@ -139,6 +146,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
      * @return Zustand vorher (fuer Undo ueber [restore])
      */
     suspend fun setAlarm(scientificName: String, commonName: String, expiresAtMs: Long?): Watchlist {
+        return mutex.withLock {
         val previous = watchlist
         watchlist = watchlist.copy(
             species = WatchlistMatcher.withAlarm(watchlist.species, scientificName, commonName, expiresAtMs),
@@ -146,11 +154,13 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         )
         save()
         emitFlows()
-        return previous
+        previous
+        }
     }
 
     /** T244: Alarm fuer eine Art entfernen. @return Zustand vorher (Undo) */
     suspend fun clearAlarm(scientificName: String): Watchlist {
+        return mutex.withLock {
         val previous = watchlist
         watchlist = watchlist.copy(
             species = WatchlistMatcher.withoutAlarm(watchlist.species, scientificName),
@@ -158,7 +168,8 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         )
         save()
         emitFlows()
-        return previous
+        previous
+        }
     }
 
     private fun nowIso(): String = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
@@ -170,7 +181,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
      *
      * Wenn externe Datei vorhanden → externe uebernehmen und intern kopieren.
      */
-    suspend fun load() = withContext(Dispatchers.IO) {
+    suspend fun load() = mutex.withLock { withContext(Dispatchers.IO) {
         SpeciesKey.load(context)
         // 0. T129: freigegebener Ordner (SAF) hat Vorrang, umgeht Scoped Storage
         val grantedText = try { pirolFolder?.readText(EXTERNAL_FILE) } catch (e: Exception) { null }
@@ -227,7 +238,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
             Log.i(TAG, "Keine Watchlist gefunden — leer")
         }
         emitFlows()
-    }
+    } }
 
     /** Speichert aktuelle Watchlist intern */
     suspend fun save() = withContext(Dispatchers.IO) {
@@ -247,14 +258,17 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         inputStream.close()
 
         val imported = json.decodeFromString<Watchlist>(content)
-        watchlist = imported
-        save()
-        emitFlows()
-        Log.i(TAG, "Watchlist importiert via SAF: ${watchlist.species.size} Arten")
+        mutex.withLock {
+            watchlist = imported
+            save()
+            emitFlows()
+            Log.i(TAG, "Watchlist importiert via SAF: ${watchlist.species.size} Arten")
+        }
     }
 
     /** Art manuell hinzufuegen */
     suspend fun addSpecies(entry: WatchlistEntry) {
+        mutex.withLock {
         val current = watchlist.species.toMutableList()
         // Duplikat-Check
         if (current.none { it.scientificName == entry.scientificName }) {
@@ -267,6 +281,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
             save()
             emitFlows()
         }
+        }
     }
 
     /**
@@ -278,24 +293,29 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         merge: Boolean,
         commonName: (String) -> String
     ): Watchlist {
+        return mutex.withLock {
         val previous = watchlist
         val now = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
             .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         watchlist = WatchlistFromList.apply(previous, list, merge, commonName, now)
         save()
         emitFlows()
-        return previous
+        previous
+        }
     }
 
     /** T190: Watchlist auf einen frueheren Zustand zuruecksetzen (Undo) */
     suspend fun restore(previous: Watchlist) {
+        mutex.withLock {
         watchlist = previous
         save()
         emitFlows()
+        }
     }
 
     /** Art entfernen */
     suspend fun removeSpecies(scientificName: String) {
+        mutex.withLock {
         val current = watchlist.species.toMutableList()
         current.removeAll { it.scientificName == scientificName }
         watchlist = watchlist.copy(
@@ -305,6 +325,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         )
         save()
         emitFlows()
+        }
     }
 
     /**

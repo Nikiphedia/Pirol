@@ -38,9 +38,15 @@ class AudioRingBuffer(
         // Nur die letzten capacity Samples koennen ueberleben
         val skip = (samples.size - capacity).coerceAtLeast(0)
         end += skip
-        for (i in skip until samples.size) {
-            buf[(end % capacity).toInt()] = samples[i]
-            end++
+        // T250/N9: zwei Blockkopien (bis Pufferende, Rest ab 0) statt Sample fuer Sample mit Modulo
+        var src = skip
+        var pos = (end % capacity).toInt()
+        while (src < samples.size) {
+            val n = minOf(samples.size - src, capacity - pos)
+            System.arraycopy(samples, src, buf, pos, n)
+            src += n
+            pos = (pos + n) % capacity
+            end += n
         }
         _endIndex.value = end
     }
@@ -50,7 +56,14 @@ class AudioRingBuffer(
     fun read(from: Long, to: Long): ShortArray? {
         if (from > to || from < oldestIndex() || to > _endIndex.value) return null
         val out = ShortArray((to - from).toInt())
-        for (i in out.indices) out[i] = buf[((from + i) % capacity).toInt()]
+        var pos = (from % capacity).toInt()
+        var dst = 0
+        while (dst < out.size) {
+            val n = minOf(out.size - dst, capacity - pos)
+            System.arraycopy(buf, pos, out, dst, n)
+            dst += n
+            pos = (pos + n) % capacity
+        }
         return out
     }
 }

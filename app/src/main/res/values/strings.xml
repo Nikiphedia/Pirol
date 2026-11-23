@@ -739,4 +739,17 @@
     <string name="ui_alarm_gesetzt_24h">Alarm für %1$s aktiv (24 h)</string>
     <string name="ui_alarm_entfernt">Alarm für %1$s entfernt</string>
     <string name="settings_alarm_bis">bis %1$s</string>
+    <string name="model_err_unreadable">Datei nicht lesbar</string>
+    <string name="model_err_too_small">Datei zu klein oder ungültig</string>
+    <string name="model_err_not_stored">Datei konnte nicht abgelegt werden</string>
+    <string name="model_err_labels_missing">Labels für %1$s fehlen — Internet prüfen oder Label-CSV ebenfalls importieren</string>
+    <string name="model_err_space">Zu wenig Speicher: %1$d MB frei</string>
+    <string name="model_err_space_needed">Zu wenig Speicher: %1$d MB frei, %2$d MB nötig</string>
+    <string name="model_err_no_download">Kein Download für %1$s hinterlegt</string>
+    <string name="model_err_label_file">Label-Datei nicht verfügbar</string>
+    <string name="model_err_http">Server antwortet HTTP %1$d</string>
+    <string name="model_err_http_429">Server antwortet HTTP 429 (zu viele Anfragen, später erneut versuchen)</string>
+    <string name="model_err_incomplete">Download unvollständig (%1$d MB)</string>
+    <string name="model_err_corrupt">Datei beschädigt (Prüfsumme stimmt nicht)</string>
+    <string name="analysis_rescan_hinweis">Bildschirm bleibt an. App geöffnet lassen, bis die Neu-Analyse fertig ist.</string>
 </resources>

@@ -95,6 +95,7 @@ class AnalysisViewModel(
     @Volatile private var recording: SegmentedRecording? = null
 
     init {
+        observeRescan()  // T250/M4
         // T65: Crash-Recovery vor erstem Session-Laden (verwaiste Sessions reparieren)
         viewModelScope.launch {
             sessionManager.recoverOrphanSessions()
@@ -1397,7 +1398,6 @@ class AnalysisViewModel(
     /** Aufnahme laeuft -> Rescan-Knopf deaktiviert */
     val recordingActive: StateFlow<Boolean> get() = rescanEngine.recording
 
-    private var rescanJob: Job? = null
 
     /** Installierte Modelle fuer den Rescan-Dialog */
     fun rescanModels(): List<ch.etasystems.pirol.ml.ModelManager.InstalledModel> = rescanEngine.models()
@@ -1415,51 +1415,54 @@ class AnalysisViewModel(
     /** Rescan der geoeffneten Session im Hintergrund starten (Fortschritt im UI-State, abbrechbar). */
     fun startRescan(options: ch.etasystems.pirol.rescan.RescanOptions) {
         val dir = _uiState.value.selectedSession?.sessionDir ?: return
-        if (rescanJob?.isActive == true) return
+        if (rescanEngine.active.value != null) return
         if (rescanEngine.recording.value) {
             reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
             return
         }
         playback.stop()
         _uiState.update { it.copy(rescanProgress = 0f, rescanSessionDir = dir) }
-        rescanJob = viewModelScope.launch(Dispatchers.IO) {
-            var lastPct = -1
-            try {
-                val info = rescanEngine.run(dir, options) { p ->
-                    val pct = (p * 100).toInt()
-                    if (pct != lastPct) {
-                        lastPct = pct
-                        _uiState.update { it.copy(rescanProgress = p) }
+        rescanEngine.start(dir, options)  // T250/M4: laeuft im Engine-Scope, ueberlebt das ViewModel
+    }
+
+    /** T250/M4: Zustand und Ende des Rescans aus dem Singleton in den UI-State spiegeln (auch nach neuem ViewModel) */
+    private fun observeRescan() {
+        viewModelScope.launch {
+            rescanEngine.active.collect { a ->
+                _uiState.update { it.copy(rescanProgress = a?.progress, rescanSessionDir = a?.sessionDir) }
+            }
+        }
+        viewModelScope.launch {
+            rescanEngine.outcomes.collect { o ->
+                when (o) {
+                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Done -> {
+                        val info = o.info
+                        if (_uiState.value.selectedSession?.sessionDir == o.sessionDir) {
+                            val variants = rescanEngine.variants(o.sessionDir)
+                            _uiState.update { it.copy(variants = variants) }
+                            loadVariant(o.sessionDir, info.id)
+                        }
+                        reportError(AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications))
+                    }
+                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Cancelled ->
+                        reportError(AppStrings.get(R.string.analysis_rescan_abgebrochen))
+                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Failed -> when (o.error) {
+                        is ch.etasystems.pirol.rescan.RescanAbortedException,
+                        is ch.etasystems.pirol.rescan.RescanEngine.RecordingActiveException ->
+                            reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+                        is ch.etasystems.pirol.rescan.RescanEngine.NoRecordingException ->
+                            reportError(AppStrings.get(R.string.analysis_rescan_keine_aufnahme))
+                        is ch.etasystems.pirol.rescan.RescanEngine.ModelUnavailableException ->
+                            reportError(AppStrings.get(R.string.analysis_rescan_modell_fehlt))
+                        else -> reportError(AppStrings.get(R.string.analysis_rescan_fehler))
                     }
                 }
-                if (_uiState.value.selectedSession?.sessionDir == dir) {
-                    val variants = rescanEngine.variants(dir)
-                    _uiState.update { it.copy(variants = variants) }
-                    loadVariant(dir, info.id)
-                }
-                reportError(AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications))
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                reportError(AppStrings.get(R.string.analysis_rescan_abgebrochen))
-                throw e
-            } catch (e: ch.etasystems.pirol.rescan.RescanAbortedException) {
-                reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
-            } catch (e: ch.etasystems.pirol.rescan.RescanEngine.RecordingActiveException) {
-                reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
-            } catch (e: ch.etasystems.pirol.rescan.RescanEngine.NoRecordingException) {
-                reportError(AppStrings.get(R.string.analysis_rescan_keine_aufnahme))
-            } catch (e: ch.etasystems.pirol.rescan.RescanEngine.ModelUnavailableException) {
-                reportError(AppStrings.get(R.string.analysis_rescan_modell_fehlt))
-            } catch (e: Exception) {
-                Log.e("AnalysisVM", "Rescan fehlgeschlagen", e)
-                reportError(AppStrings.get(R.string.analysis_rescan_fehler))
-            } finally {
-                _uiState.update { it.copy(rescanProgress = null, rescanSessionDir = null) }
             }
         }
     }
 
     /** Laufenden Rescan abbrechen (nichts wird geschrieben). */
-    fun cancelRescan() { rescanJob?.cancel() }
+    fun cancelRescan() { rescanEngine.cancel() }
 
     /** Variante anzeigen: null = Original, sonst Rescan-Kennung. */
     fun selectVariant(id: String?) {

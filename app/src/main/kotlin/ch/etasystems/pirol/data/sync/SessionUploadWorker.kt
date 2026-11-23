@@ -32,6 +32,7 @@ class SessionUploadWorker(
         const val MAX_ATTEMPTS = 5
         /** T234: prozessweites Schloss fuer "Zielname waehlen + merken" (parallele Worker) */
         private val nameLock = Any()
+        private const val CHOOSE_ATTEMPTS = 5
     }
 
     override suspend fun doWork(): Result {
@@ -102,6 +103,7 @@ class SessionUploadWorker(
         val success = error == null
         if (success) {
             Log.i(TAG, "Session exportiert: ${metadata.sessionId}")
+            forgetNames(metadata.sessionId)  // T250/N5
             record(prefs, "Erfolgreich: ${metadata.sessionId}")
             UploadStatusHolder.set(UploadStatus.Success(metadata.sessionId))
             return Result.success()
@@ -109,6 +111,7 @@ class SessionUploadWorker(
         Log.e(TAG, "Export fehlgeschlagen: ${metadata.sessionId}")
         val giveUp = !retryable || runAttemptCount >= MAX_ATTEMPTS - 1
         if (giveUp) {
+            forgetNames(metadata.sessionId)  // T250/N5
             record(prefs, "Fehlgeschlagen: $error")
             UploadStatusHolder.set(UploadStatus.Failed(metadata.sessionId, error ?: "Unbekannter Fehler"))
             return Result.failure()
@@ -125,21 +128,41 @@ class SessionUploadWorker(
     private fun chooseName(target: UploadTarget, metadata: SessionMetadata): String {
         val store = applicationContext.getSharedPreferences("pirol_export_names", Context.MODE_PRIVATE)
         val key = "${metadata.sessionId}|${target.name}"
+        val suffix = "|${target.name}"
+        val base = ExportNames.sessionName(metadata.startedAt, metadata.note, metadata.sessionId)
+        // T250/N5: exists() (bei SMB ein Netzzugriff) laeuft ausserhalb des Schlosses; gesperrt wird nur
+        // "reservierte Namen lesen" und "waehlen + merken". Hat ein anderer Worker den Namen inzwischen
+        // reserviert, wird neu gewaehlt.
+        repeat(CHOOSE_ATTEMPTS) {
+            val (stored, reserved) = synchronized(nameLock) {
+                // Namen anderer Sessions auf demselben Ziel gelten als belegt (auch wenn die Datei noch fehlt)
+                store.getString(key, null) to store.all.entries
+                    .filter { it.key != key && it.key.endsWith(suffix) }
+                    .mapNotNull { it.value as? String }
+                    .toSet()
+            }
+            val name = ExportNames.chooseZipName(stored, base, reserved, target::exists)
+            synchronized(nameLock) {
+                val takenNow = store.all.entries.any { it.key != key && it.key.endsWith(suffix) && it.value == name }
+                if (!takenNow) {
+                    store.edit().putString(key, name).commit()
+                    return name
+                }
+            }
+        }
+        // Dauerkonflikt (praktisch ausgeschlossen): Name mit Session-Kennung, immer eindeutig
+        val fallback = base + "_" + ExportNames.sanitizePart(metadata.sessionId, 40) + ".zip"
+        synchronized(nameLock) { store.edit().putString(key, fallback).commit() }
+        return fallback
+    }
+
+    /** T250/N5: gemerkte Namen der Session entfernen (nach Erfolg/Aufgabe; die Datei im Ziel haelt den Namen belegt) */
+    private fun forgetNames(sessionId: String) {
+        val store = applicationContext.getSharedPreferences("pirol_export_names", Context.MODE_PRIVATE)
         synchronized(nameLock) {
-            // Namen anderer Sessions auf demselben Ziel gelten als belegt (auch wenn die Datei noch fehlt)
-            val suffix = "|${target.name}"
-            val reserved = store.all.entries
-                .filter { it.key != key && it.key.endsWith(suffix) }
-                .mapNotNull { it.value as? String }
-                .toSet()
-            val name = ExportNames.chooseZipName(
-                store.getString(key, null),
-                ExportNames.sessionName(metadata.startedAt, metadata.note, metadata.sessionId),
-                reserved,
-                target::exists
-            )
-            store.edit().putString(key, name).commit()
-            return name
+            val edit = store.edit()
+            store.all.keys.filter { it.startsWith("$sessionId|") }.forEach { edit.remove(it) }
+            edit.commit()
         }
     }
 

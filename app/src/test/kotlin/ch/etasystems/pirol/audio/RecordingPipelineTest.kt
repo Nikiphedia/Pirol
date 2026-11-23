@@ -54,6 +54,7 @@ class RecordingPipelineTest {
         val events: MutableList<String> = Collections.synchronizedList(mutableListOf())
         val detections: MutableList<DetectionResult> = Collections.synchronizedList(mutableListOf())
         @Volatile var samples = 0L
+        @Volatile var endDelayMs = 0L  // T250: langsames endSession (Flush/Export)
         @Volatile var appendDelayMs = 0L  // T137: Rueckstau simulieren
         override val isActive get() = active
         override val lastStartUsedFallback = false
@@ -77,7 +78,7 @@ class RecordingPipelineTest {
             sampleRate: Int, latitude: Double?, longitude: Double?, regionFilter: String?,
             confidenceThreshold: Float, note: String?, modelId: String?, speciesFilter: ch.etasystems.pirol.data.repository.SpeciesFilterInfo?
         ): String { active = true; events += "start"; return "S1" }
-        override suspend fun endSession(gpsStats: GpsStats?) { active = false; events += "end" }
+        override suspend fun endSession(gpsStats: GpsStats?) { if (endDelayMs > 0) Thread.sleep(endDelayMs); active = false; events += "end" }
     }
 
     private class FakeHooks(
@@ -191,6 +192,26 @@ class RecordingPipelineTest {
         assertEquals(1, hooks.afterEndCalls)
         assertEquals("S1", p.lastSessionId.value)
         assertTrue(!p.isRunning)
+    }
+
+    /** T250/H1: Stopp und sofortiger Start bei langsamem endSession: die zweite Aufnahme bekommt eine eigene Session */
+    @Test
+    fun stopThenImmediateStart_startsSecondSessionAfterEnd() = runBlocking {
+        val session = FakeSession().also { it.endDelayMs = 300 }
+        val hooks = FakeHooks()
+        val p = pipeline(session, hooks, DetectionListState(), hit = false)
+        val flow = MutableSharedFlow<AudioChunk>(extraBufferCapacity = 64)
+        p.onRecordingStarted(flow, sr, PrerollCapture(pattern(0, sr), sr, 0L))
+        waitUntil("erste Session steht") { session.active }
+        val endJob = p.onRecordingStopped()!!
+        // sofort wieder starten, solange endSession noch laeuft
+        p.onRecordingStarted(flow, sr, PrerollCapture(pattern(0, sr), sr, 0L))
+        endJob.join()
+        waitUntil("zweite Session gestartet") { session.events.count { it == "start" } == 2 }
+        assertEquals(listOf("start", "end", "start"), session.events.filter { it != "append" }.take(3))
+        assertTrue(session.active)
+        p.onRecordingStopped()?.join()
+        Unit
     }
 
     /** T224: Zweitmodell setzt nur die secondary-Felder (Liste + detections.jsonl) und wird nach Stopp freigegeben */

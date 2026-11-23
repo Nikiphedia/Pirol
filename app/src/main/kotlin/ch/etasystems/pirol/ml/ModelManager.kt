@@ -218,7 +218,7 @@ class ModelManager(
 
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
-                    ?: return@withContext ImportResult.Failed("Datei nicht lesbar")
+                    ?: return@withContext ImportResult.Failed(AppStrings.get(R.string.model_err_unreadable))
 
                 inputStream.use { input ->
                     FileOutputStream(tempFile).use { fos ->
@@ -241,7 +241,7 @@ class ModelManager(
                 if (tempFile.length() < MIN_MODEL_SIZE_BYTES) {
                     Log.e(TAG, "Importierte Datei zu klein: ${tempFile.length()} Bytes")
                     tempFile.delete()
-                    return@withContext ImportResult.Failed("Datei zu klein oder ungueltig")
+                    return@withContext ImportResult.Failed(AppStrings.get(R.string.model_err_too_small))
                 }
 
                 val profile = ModelProfile.bySize(tempFile.length())
@@ -254,7 +254,7 @@ class ModelManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Modell-Import fehlgeschlagen", e)
                 tempFile.delete()
-                ImportResult.Failed("Import fehlgeschlagen: ${e.javaClass.simpleName}")
+                ImportResult.Failed(AppStrings.get(R.string.model_import_err_store, e.javaClass.simpleName))
             }
         }
 
@@ -276,13 +276,11 @@ class ModelManager(
         if (targetFile.exists()) targetFile.delete()
         if (!tempFile.renameTo(targetFile)) {
             tempFile.delete()
-            return ImportResult.Failed("Datei konnte nicht abgelegt werden")
+            return ImportResult.Failed(AppStrings.get(R.string.model_err_not_stored))
         }
         if (!ensureLabels(profile)) {
             // Modell bleibt liegen, wird aber erst aktiv, wenn die Labels da sind
-            return ImportResult.Failed(
-                "Labels fuer ${profile.name} fehlen — Internet pruefen oder Label-CSV ebenfalls importieren"
-            )
+            return ImportResult.Failed(AppStrings.get(R.string.model_err_labels_missing, profile.name))
         }
         appPreferences.activeModelFileName = profile.fileName
         Log.i(TAG, "Modell importiert: ${profile.fileName} als ${profile.id} (${targetFile.length() / 1_000_000} MB)")
@@ -406,7 +404,7 @@ class ModelManager(
         val dir = GeoModelFiles.dir(context)
         dir.mkdirs()
         if (dir.usableSpace < 3 * GeoModelFiles.MODEL_BYTES) {
-            lastDownloadError = "Zu wenig Speicher: ${dir.usableSpace / 1_048_576} MB frei"
+            lastDownloadError = AppStrings.get(R.string.model_err_space, dir.usableSpace / 1_048_576)
             return@withContext false
         }
         val indexOk = GeoModelFiles.indexFile(context).length() == GeoModelFiles.INDEX_BYTES ||
@@ -435,7 +433,7 @@ class ModelManager(
         lastDownloadError = null
         val url = model.downloadUrl
         if (url == null) {
-            lastDownloadError = "Kein Download fuer ${model.name} hinterlegt"
+            lastDownloadError = AppStrings.get(R.string.model_err_no_download, model.name)
             return@withContext false
         }
         val targetDir = File(context.filesDir, MODEL_DIR)
@@ -447,15 +445,14 @@ class ModelManager(
             model.sizeBytes, model.labelSizeBytes, getPartialBytes(model), 50L * 1_048_576L
         )
         if (targetDir.usableSpace < neededBytes) {
-            lastDownloadError = "Zu wenig Speicher: ${targetDir.usableSpace / 1_048_576} MB frei, " +
-                "${neededBytes / 1_048_576} MB noetig"
+            lastDownloadError = AppStrings.get(R.string.model_err_space_needed, targetDir.usableSpace / 1_048_576, neededBytes / 1_048_576)
             Log.e(TAG, lastDownloadError!!)
             return@withContext false
         }
 
         // T103a: zuerst die (kleine) Label-Datei, damit das Modell nie ohne passende Labels aktiv wird
         if (!ensureLabels(model)) {
-            if (lastDownloadError == null) lastDownloadError = "Label-Datei nicht verfuegbar"
+            if (lastDownloadError == null) lastDownloadError = AppStrings.get(R.string.model_err_label_file)
             return@withContext false
         }
 
@@ -524,8 +521,8 @@ class ModelManager(
                             var writeFrom = offset
                             when (decision) {
                                 DownloadResume.Action.REJECT -> {
-                                    lastDownloadError = "Server antwortet HTTP $code" +
-                                        if (code == 429) " (zu viele Anfragen, spaeter erneut versuchen)" else ""
+                                    lastDownloadError = if (code == 429) AppStrings.get(R.string.model_err_http_429)
+                                        else AppStrings.get(R.string.model_err_http, code)
                                     Log.e(TAG, "Download abgelehnt: HTTP $code fuer $url")
                                     return@execute decision
                                 }
@@ -556,7 +553,7 @@ class ModelManager(
                         }
                         when (action) {
                             DownloadResume.Action.REJECT -> {
-                                val code = lastDownloadError?.removePrefix("Server antwortet HTTP ")?.take(3)?.toIntOrNull()
+                                val code = lastDownloadError?.let { Regex("HTTP (\\d{3})").find(it)?.groupValues?.get(1)?.toIntOrNull() }
                                 if (code != null && code in 500..599) throw IOException(lastDownloadError) // voruebergehend
                                 tempFile.delete()
                                 return@withContext false
@@ -564,7 +561,7 @@ class ModelManager(
                             DownloadResume.Action.DISCARD_AND_RETRY -> {
                                 tempFile.delete()
                                 if (discardRetryUsed) {
-                                    lastDownloadError = "Server antwortet HTTP 416"
+                                    lastDownloadError = AppStrings.get(R.string.model_err_http, 416)
                                     return@withContext false
                                 }
                                 discardRetryUsed = true
@@ -578,7 +575,7 @@ class ModelManager(
                     // Groesse verifizieren (zu kurz = Verbindung vorzeitig beendet → Wiederholung)
                     val size = tempFile.length()
                     if (size < minBytes || (expectedBytes != null && size < expectedBytes)) {
-                        lastDownloadError = "Download unvollstaendig (${size / 1_048_576} MB)"
+                        lastDownloadError = AppStrings.get(R.string.model_err_incomplete, size / 1_048_576)
                         Log.e(TAG, "Heruntergeladene Datei zu klein: $size Bytes")
                         throw IOException(lastDownloadError)
                     }
@@ -587,7 +584,7 @@ class ModelManager(
                     if (digest != null && expectedHex != null) {
                         val actual = digest!!.digest().joinToString("") { "%02x".format(it) }
                         if (!actual.equals(expectedHex, ignoreCase = true)) {
-                            lastDownloadError = "Datei beschaedigt (Pruefsumme stimmt nicht)"
+                            lastDownloadError = AppStrings.get(R.string.model_err_corrupt)
                             Log.e(TAG, "Pruefsumme falsch fuer ${target.name}: $actual, erwartet $expectedHex")
                             tempFile.delete()
                             return@withContext false
