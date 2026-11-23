@@ -436,6 +436,23 @@ private fun SessionDetailView(
             snackbarHostState.showSnackbar(msg)
         }
     }
+    // T237: Hinweis mit Undo (Long = ca. 10 s, Feedback-Regel >= 5 s)
+    val undoScope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(state.undoOffer) {
+        state.undoOffer?.let { offer ->
+            viewModel.consumeUndoOffer()
+            snackbarHostState.currentSnackbarData?.dismiss()
+            // eigener Scope: der Effekt endet mit consumeUndoOffer() (Schluessel wird null)
+            undoScope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = offer.message,
+                    actionLabel = offer.actionLabel,
+                    duration = androidx.compose.material3.SnackbarDuration.Long
+                )
+                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) offer.onUndo()
+            }
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         SessionDetailContent(state, viewModel)
         androidx.compose.material3.SnackbarHost(

@@ -92,7 +92,8 @@ data class AnalysisUiState(
     // Vergleichs-Modus (Ebene 3)
     val isCompareMode: Boolean = false,
     val compareDetection: DetectionResult? = null,
-    val compareDetectionChunkIndex: Int? = null,
+    // T237: Startsekunde des Detektionsfensters in der Session-Aufnahme (statt fester 3-s-Chunk-Nummer, Fenster sind modellabhaengig)
+    val compareDetectionStartSec: Float? = null,
     val detectionSpectrogramState: SpectrogramState = SpectrogramState(),
     val referenceEntries: List<ReferenceEntry> = emptyList(),
     val selectedReference: ReferenceEntry? = null,
@@ -106,6 +107,8 @@ data class AnalysisUiState(
 
     // IO-Fehler bei Verifikations-Persistierung (AC5)
     val saveErrorMessage: String? = null,
+    // T237: Hinweis mit Undo-Aktion (z.B. nach "Alternative waehlen"); wird von der UI angezeigt und verbraucht
+    val undoOffer: UndoOffer? = null,
 
     // T221: Rescan-Varianten der geoeffneten Session; activeVariant = angezeigte Variante (null = Original)
     val variants: List<ch.etasystems.pirol.rescan.RescanInfo> = emptyList(),
@@ -114,3 +117,6 @@ data class AnalysisUiState(
     val rescanProgress: Float? = null,
     val rescanSessionDir: File? = null
 )
+
+/** T237: Snackbar-Hinweis mit Rueckgaengig-Knopf (Analyse-Tab). */
+data class UndoOffer(val message: String, val actionLabel: String, val onUndo: () -> Unit)

@@ -155,6 +155,19 @@ class SessionManager(
             } catch (_: Exception) { false }
         }
 
+        private val COMPANION_JSON = Json { ignoreUnknownKeys = true }
+
+        /**
+         * T237: JSONL-Text ohne das letzte Status-Ereignis von [detectionId]; null wenn keines vorhanden.
+         */
+        internal fun removeLastStatusEventText(text: String, detectionId: String): String? {
+            val lines = text.lines().filter { it.isNotBlank() }
+            val idx = indexOfLastStatusEvent(lines, detectionId) { COMPANION_JSON.decodeFromString<VerificationEvent>(it) }
+            if (idx < 0) return null
+            val kept = lines.filterIndexed { i, _ -> i != idx }
+            return if (kept.isEmpty()) "" else kept.joinToString("\n") + "\n"
+        }
+
         fun shouldAutoDelete(
             durationSec: Double,
             detections: Int,
@@ -763,6 +776,20 @@ class SessionManager(
             } else {
                 accessFor(sessionDir).append("detections.jsonl", line)
             }
+        }
+    }
+
+    /**
+     * T237: Letztes Status-Ereignis einer Detektion aus verifications.jsonl der Session (T221: oder Variante)
+     * entfernen (Undo im Analyse-Tab). Schreibt atomar (File: temp + Move, SAF: Schattenkopie).
+     */
+    suspend fun removeLastVerificationIn(sessionDir: File, detectionId: String, variant: String? = null) = withContext(Dispatchers.IO) {
+        fileMutex.withLock {
+            val access = accessFor(sessionDir)
+            val name = RescanFiles.verifications(variant)
+            val text = access.readText(name) ?: return@withLock
+            val out = removeLastStatusEventText(text, detectionId) ?: return@withLock
+            access.writeReplacing(name, out)
         }
     }
 
