@@ -21,6 +21,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_onboarding_completed", false)
         set(value) = prefs.edit().putBoolean("pirol_onboarding_completed", value).apply()
 
+    /** T226: Experten-Modus (Einrichtungsassistent; T227 steuert damit die Settings-Ansicht). */
+    var expertMode: Boolean
+        get() = prefs.getBoolean("pirol_expert_mode", false)
+        set(value) = prefs.edit().putBoolean("pirol_expert_mode", value).apply()
+
     /** T183: zuletzt gesehene Changelog-Version (versionCode); null = nie gespeichert. */
     var lastSeenChangelogVersionCode: Int?
         get() = if (prefs.contains("pirol_last_seen_changelog")) prefs.getInt("pirol_last_seen_changelog", 0) else null

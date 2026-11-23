@@ -52,7 +52,12 @@ import androidx.core.content.ContextCompat
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.ModelManager
+import ch.etasystems.pirol.ml.GeoModelFiles
 import ch.etasystems.pirol.ml.ModelProfile
+import ch.etasystems.pirol.ml.SpeciesNameResolver
+import ch.etasystems.pirol.ui.AppLanguage
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.saveable.rememberSaveable
 import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -60,24 +65,57 @@ import ch.etasystems.pirol.R
 import androidx.compose.ui.res.stringResource
 import ch.etasystems.pirol.ui.AppStrings
 
+private enum class SetupStep { LANGUAGE, LEVEL, PURPOSE, EXPERT, LIST, MODEL, PERMISSIONS, SUMMARY }
+
 /**
- * Onboarding-Screen bei Erststart.
- * Drei Schritte: Region waehlen → Modell herunterladen/importieren → Berechtigungen erteilen.
+ * T226: Einrichtungsassistent (Erststart und ueber Settings).
+ * Sprache, Niveau, Einsatzzweck, (Experte), Artenliste, Modell/Downloads, Berechtigungen, Zusammenfassung.
  */
 @Composable
 fun OnboardingScreen(
     onFinished: () -> Unit,
     appPreferences: AppPreferences = koinInject(),
     modelManager: ModelManager = koinInject(),
-    classifier: AudioClassifier = koinInject()
+    classifier: AudioClassifier = koinInject(),
+    speciesNameResolver: SpeciesNameResolver = koinInject()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var currentStep by remember { mutableIntStateOf(0) }
-
-    // --- Schritt 1: Region ---
-    var selectedRegion by remember { mutableStateOf("ch_breeding") }
+    // T226: Zustand ueberlebt den Activity-Neustart beim Sprachwechsel
+    var currentStep by rememberSaveable { mutableIntStateOf(0) }
+    var expert by rememberSaveable { mutableStateOf(appPreferences.expertMode) }
+    var purposeNames by rememberSaveable { mutableStateOf(SetupPurpose.FIELD_BIRDS.name) }
+    var listName by rememberSaveable { mutableStateOf(SetupList.AUTO.name) }
+    var thresholdOv by rememberSaveable { mutableFloatStateOf(-1f) }
+    var overlapOv by rememberSaveable { mutableIntStateOf(-1) }
+    var secondaryOv by rememberSaveable { mutableIntStateOf(-1) }
+    val purposes = purposeNames.split(',').mapNotNull { n -> SetupPurpose.entries.firstOrNull { it.name == n } }.toSet()
+    val listChoice = SetupList.entries.firstOrNull { it.name == listName } ?: SetupList.AUTO
+    val steps = remember(expert) {
+        listOfNotNull(
+            SetupStep.LANGUAGE, SetupStep.LEVEL, SetupStep.PURPOSE,
+            SetupStep.EXPERT.takeIf { expert }, SetupStep.LIST, SetupStep.MODEL, SetupStep.PERMISSIONS, SetupStep.SUMMARY
+        )
+    }
+    val step = steps[currentStep.coerceIn(0, steps.lastIndex)]
+    fun next() { currentStep = (currentStep + 1).coerceAtMost(steps.lastIndex) }
+    fun prev() { currentStep = (currentStep - 1).coerceAtLeast(0) }
+    // Zweitmodell-Kandidat: ein installiertes Modell, das nicht das aktive ist
+    val secondaryCandidate = remember(currentStep) {
+        modelManager.listInstalledModels().firstOrNull { !it.isActive }?.fileName
+    }
+    val baseChoices = SetupChoices(expert = expert, purposes = purposes, list = listChoice)
+    val profileBase = SetupProfile.resolve(baseChoices, secondaryCandidate)
+    val choices = baseChoices.copy(
+        thresholdOverride = thresholdOv.takeIf { expert && it >= 0f },
+        overlapOverride = overlapOv.takeIf { expert && it >= 0 },
+        secondaryOverride = if (expert && secondaryOv >= 0) secondaryOv == 1 else null
+    )
+    val resolved = SetupProfile.resolve(choices, secondaryCandidate)
+    var geoInstalled by remember { mutableStateOf(GeoModelFiles.isInstalled(context)) }
+    var geoProgress by remember { mutableStateOf<Float?>(null) }
+    var geoError by remember { mutableStateOf<String?>(null) }
 
     // --- Schritt 2: Modell ---
     var isModelInstalled by remember { mutableStateOf(modelManager.isModelInstalled() || classifier.isModelAvailable()) }
@@ -172,6 +210,14 @@ fun OnboardingScreen(
         )
     }
 
+    var notificationsGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+
     // Alle benoetigten Permissions auf einmal anfragen
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -179,6 +225,9 @@ fun OnboardingScreen(
         micGranted = results[Manifest.permission.RECORD_AUDIO] == true
         locationGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationsGranted = results[Manifest.permission.POST_NOTIFICATIONS] == true || notificationsGranted
+        }
     }
 
     Column(
@@ -190,84 +239,61 @@ fun OnboardingScreen(
     ) {
         // Fortschrittsanzeige
         Text(
-            text = stringResource(R.string.onboarding_schritt_von_3, currentStep + 1),
+            text = stringResource(R.string.setup_step, currentStep + 1, steps.size),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         LinearProgressIndicator(
-            progress = { (currentStep + 1) / 3f },
+            progress = { (currentStep + 1) / steps.size.toFloat() },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(32.dp))
 
-        when (currentStep) {
-            // ---- SCHRITT 1: Region waehlen ----
-            0 -> {
-                Text(
-                    text = stringResource(R.string.onboarding_willkommen_bei_pirol),
-                    style = MaterialTheme.typography.headlineMedium
+        when (step) {
+            SetupStep.LANGUAGE -> {
+                SetupLanguagePage(AppLanguage.currentTag()) { tag ->
+                    if (!appPreferences.speciesLanguageExplicit) {
+                        speciesNameResolver.language = AppLanguage.speciesLanguageForTag(tag, AppLanguage.systemLanguage())
+                    }
+                    AppLanguage.apply(tag)  // startet die Activity neu, Schritt bleibt gespeichert
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                SetupNavRow(null, stringResource(R.string.onboarding_weiter)) { next() }
+            }
+            SetupStep.LEVEL -> {
+                SetupLevelPage(expert) { expert = it }
+                Spacer(modifier = Modifier.height(16.dp))
+                SetupNavRow({ prev() }, stringResource(R.string.onboarding_weiter)) { next() }
+            }
+            SetupStep.PURPOSE -> {
+                SetupPurposePage(purposes) { p ->
+                    val n = if (p in purposes) purposes - p else purposes + p
+                    if (n.isNotEmpty()) purposeNames = n.sortedBy { it.ordinal }.joinToString(",") { it.name }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                SetupNavRow({ prev() }, stringResource(R.string.onboarding_weiter)) { next() }
+            }
+            SetupStep.EXPERT -> {
+                SetupExpertPage(
+                    threshold = choices.thresholdOverride ?: profileBase.threshold,
+                    overlap = choices.overlapOverride ?: profileBase.overlapPercent,
+                    secondary = choices.secondaryOverride ?: (profileBase.secondaryModelFileName != null),
+                    secondaryAvailable = secondaryCandidate != null,
+                    onThreshold = { thresholdOv = it }, onOverlap = { overlapOv = it },
+                    onSecondary = { secondaryOv = if (it) 1 else 0 }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.onboarding_waehle_deine_region_fuer_die),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                val regionOptions = listOf(
-                    "ch_breeding" to AppStrings.get(R.string.onboarding_schweizer_brutvoegel_180_arten),
-                    // T106: ID muss in region_sets.json existieren ("dach" gab es nie → Filter war aus)
-                    "central_europe" to AppStrings.get(R.string.onboarding_mitteleuropa_302_arten),
-                    null to AppStrings.get(
-                        R.string.onboarding_alle_arten_n,
-                        ModelSelection.formatSpeciesCount(
-                            if (modelManager.isModelInstalled()) modelManager.getActiveProfile().speciesCount
-                            else (ModelSelection.queue(selectedIds, ModelProfile.CATALOG).firstOrNull()
-                                ?: ModelProfile.CATALOG.first()).speciesCount
-                        )
-                    )
-                )
-
-                Column(modifier = Modifier.selectableGroup()) {
-                    regionOptions.forEach { (regionId, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = selectedRegion == (regionId ?: ""),
-                                    onClick = { selectedRegion = regionId ?: "" },
-                                    role = Role.RadioButton
-                                )
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedRegion == (regionId ?: ""),
-                                onClick = null
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = label, style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Button(
-                    onClick = {
-                        // Region speichern
-                        appPreferences.regionFilter = selectedRegion.ifEmpty { null }
-                        currentStep = 1
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.onboarding_weiter))
-                }
+                SetupNavRow({ prev() }, stringResource(R.string.onboarding_weiter)) { next() }
+            }
+            SetupStep.LIST -> {
+                SetupListPage(listChoice) { listName = it.name }
+                Spacer(modifier = Modifier.height(16.dp))
+                SetupNavRow({ prev() }, stringResource(R.string.onboarding_weiter)) { next() }
             }
 
             // ---- SCHRITT 2: Modell herunterladen / importieren ----
-            1 -> {
+            SetupStep.MODEL -> {
                 Text(
                     text = stringResource(R.string.onboarding_birdnet_v3_0_modell),
                     style = MaterialTheme.typography.headlineMedium
@@ -495,24 +521,58 @@ fun OnboardingScreen(
                     )
                 }
 
+                // T226: Geomodel fuer "Automatisch (Standort und Woche)"
+                if (listChoice == SetupList.AUTO) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    if (geoInstalled) {
+                        Text(stringResource(R.string.settings_geo_installiert), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Text(stringResource(R.string.settings_geo_fehlt), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error)
+                        val gp = geoProgress
+                        if (gp != null) {
+                            LinearProgressIndicator(progress = { gp }, modifier = Modifier.fillMaxWidth())
+                        } else {
+                            OutlinedButton(
+                                onClick = {
+                                    geoError = null
+                                    geoProgress = 0f
+                                    scope.launch {
+                                        val ok = modelManager.downloadGeomodel { geoProgress = it }
+                                        geoProgress = null
+                                        geoInstalled = ok && GeoModelFiles.isInstalled(context)
+                                        if (!ok) geoError = modelManager.lastDownloadError ?: "?"
+                                    }
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp)
+                            ) { Text(stringResource(R.string.settings_geo_laden)) }
+                        }
+                        geoError?.let {
+                            Text(AppStrings.get(R.string.settings_geo_fehler, it), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.weight(1f))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    TextButton(onClick = { currentStep = 0 }) {
+                    TextButton(onClick = { prev() }, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.common_back))
                     }
                     Row {
                         if (!isModelInstalled) {
-                            TextButton(onClick = { currentStep = 2 }) {
+                            TextButton(onClick = { next() }) {
                                 Text(stringResource(R.string.onboarding_ueberspringen))
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         Button(
-                            onClick = { currentStep = 2 },
+                            onClick = { next() },
                             enabled = isModelInstalled
                         ) {
                             Text(stringResource(R.string.onboarding_weiter))
@@ -522,7 +582,7 @@ fun OnboardingScreen(
             }
 
             // ---- SCHRITT 3: Berechtigungen ----
-            2 -> {
+            SetupStep.PERMISSIONS -> {
                 Text(
                     text = stringResource(R.string.onboarding_berechtigungen),
                     style = MaterialTheme.typography.headlineMedium
@@ -546,17 +606,22 @@ fun OnboardingScreen(
                     label = stringResource(R.string.onboarding_gps_beobachtungen_verorten),
                     granted = locationGranted
                 )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PermissionRow(
+                        label = stringResource(R.string.setup_perm_notifications),
+                        granted = notificationsGranted
+                    )
+                }
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (!micGranted || !locationGranted) {
+                if (!micGranted || !locationGranted || !notificationsGranted) {
                     OutlinedButton(
                         onClick = {
                             val perms = mutableListOf<String>()
-                            if (!micGranted) {
-                                perms.add(Manifest.permission.RECORD_AUDIO)
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    perms.add(Manifest.permission.POST_NOTIFICATIONS)
-                                }
+                            if (!micGranted) perms.add(Manifest.permission.RECORD_AUDIO)
+                            if (!notificationsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                perms.add(Manifest.permission.POST_NOTIFICATIONS)
                             }
                             if (!locationGranted) {
                                 perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -576,17 +641,23 @@ fun OnboardingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    TextButton(onClick = { currentStep = 1 }) {
+                    TextButton(onClick = { prev() }, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.common_back))
                     }
-                    Button(
-                        onClick = {
-                            appPreferences.onboardingCompleted = true
-                            onFinished()
-                        }
-                    ) {
-                        Text(stringResource(R.string.ui_fertig))
+                    Button(onClick = { next() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.onboarding_weiter))
                     }
+                }
+            }
+
+            SetupStep.SUMMARY -> {
+                val active = if (modelManager.isModelInstalled()) modelManager.getActiveProfile().name else null
+                SetupSummaryPage(choices, resolved, active)
+                Spacer(modifier = Modifier.height(16.dp))
+                SetupNavRow({ prev() }, stringResource(R.string.ui_fertig)) {
+                    SetupProfile.apply(resolved, expert, appPreferences)
+                    appPreferences.onboardingCompleted = true
+                    onFinished()
                 }
             }
         }

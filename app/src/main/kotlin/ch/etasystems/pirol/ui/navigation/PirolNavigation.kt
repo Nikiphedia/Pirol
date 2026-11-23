@@ -105,7 +105,7 @@ fun PirolNavHost(
             composable(Screen.Analysis.route) { AnalysisScreen() }
             composable(Screen.Reference.route) { ReferenceScreen() }
             composable(Screen.Map.route) { MapScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) { SettingsScreen(onStartSetup = { navController.navigate(ONBOARDING_ROUTE) }) }
         }
     } else if (useNavigationRail) {
         // Tablet: NavigationRail links + Content rechts
@@ -185,7 +185,7 @@ fun PirolNavHost(
                 composable(Screen.Analysis.route) { AnalysisScreen() }
                 composable(Screen.Reference.route) { ReferenceScreen() }
                 composable(Screen.Map.route) { MapScreen() }
-                composable(Screen.Settings.route) { SettingsScreen() }
+                composable(Screen.Settings.route) { SettingsScreen(onStartSetup = { navController.navigate(ONBOARDING_ROUTE) }) }
             }
         }
     } else {
@@ -261,7 +261,7 @@ fun PirolNavHost(
                 composable(Screen.Analysis.route) { AnalysisScreen() }
                 composable(Screen.Reference.route) { ReferenceScreen() }
                 composable(Screen.Map.route) { MapScreen() }
-                composable(Screen.Settings.route) { SettingsScreen() }
+                composable(Screen.Settings.route) { SettingsScreen(onStartSetup = { navController.navigate(ONBOARDING_ROUTE) }) }
             }
         }
     }

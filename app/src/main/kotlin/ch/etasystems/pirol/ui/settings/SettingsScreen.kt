@@ -126,7 +126,8 @@ fun SettingsScreen(
     classifier: AudioClassifier = koinInject(),
     modelManager: ModelManager = koinInject(),
     sessionManager: SessionManager = koinInject(),
-    recordingPipeline: ch.etasystems.pirol.audio.RecordingPipeline = koinInject()
+    recordingPipeline: ch.etasystems.pirol.audio.RecordingPipeline = koinInject(),
+    onStartSetup: () -> Unit = {}  // T226: Einrichtungsassistent erneut starten
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -282,7 +283,12 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onStartSetup,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) { Text(stringResource(R.string.setup_start)) }
+        Spacer(modifier = Modifier.height(12.dp))
 
         SettingsSection(
             sectionKey = "lang",
