@@ -454,12 +454,28 @@ private fun SessionDetailView(
             }
         }
     }
+    // T244: Undo-Snackbar fuer den Alarm-Knopf der Artkarte
+    val alarmUndo: (String, String, () -> Unit) -> Unit = { message, label, onUndo ->
+        undoScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = label,
+                duration = androidx.compose.material3.SnackbarDuration.Long
+            )
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) onUndo()
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        ch.etasystems.pirol.ui.components.LocalUndoSnackbar provides alarmUndo
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         SessionDetailContent(state, viewModel)
         androidx.compose.material3.SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+    }
     }
 }
 

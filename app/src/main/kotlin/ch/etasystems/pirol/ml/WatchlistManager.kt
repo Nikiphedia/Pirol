@@ -41,11 +41,11 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
 
     /** Aktive Watchlist-Arten als Set kanonischer Schluessel (T105: Synonyme aufgeloest, Kleinschreibung) */
     val watchedSpecies: Set<String>
-        get() = watchlist.species.map { SpeciesKey.of(it.scientificName) }.toSet()
+        get() = entries.map { SpeciesKey.of(it.scientificName) }.toSet()
 
-    /** Alle Eintraege */
+    /** Alle aktiven Eintraege (abgelaufene 24-h-Alarme fehlen, T244) */
     val entries: List<WatchlistEntry>
-        get() = watchlist.species
+        get() = WatchlistMatcher.active(watchlist.species, System.currentTimeMillis())
 
     /** Name der Watchlist */
     val name: String
@@ -79,6 +79,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         private const val INTERNAL_FILE = "watchlist.json"
         private const val EXTERNAL_DIR = "PIROL"
         private const val EXTERNAL_FILE = "watchlist.json"
+        private const val EXTERNAL_HASH_FILE = "watchlist.external.hash"
 
         /** Reine Cooldown-Logik — frei von Android-Abhaengigkeiten, direkt unit-testbar. */
         internal fun matchAndCheckCooldown(
@@ -97,8 +98,51 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
     /** Flows nach Aenderung aktualisieren */
     private fun emitFlows() {
         _watchedSpeciesFlow.value = watchedSpecies
-        _entriesFlow.value = watchlist.species
+        _entriesFlow.value = entries
     }
+
+    /** T244: abgelaufene Eintraege dauerhaft entfernen (beim Laden/Pruefen, kein Timer) */
+    private fun pruneExpired(): Boolean {
+        val active = WatchlistMatcher.active(watchlist.species, System.currentTimeMillis())
+        if (active.size == watchlist.species.size) return false
+        watchlist = watchlist.copy(species = active)
+        return true
+    }
+
+    /** T244: abgelaufene entfernen und Flows aktualisieren (z.B. beim Anzeigen) */
+    suspend fun refreshExpired() {
+        if (pruneExpired()) { save(); emitFlows() }
+    }
+
+    /**
+     * T244: Alarm fuer eine Art setzen (expiresAtMs null = dauerhaft).
+     * @return Zustand vorher (fuer Undo ueber [restore])
+     */
+    suspend fun setAlarm(scientificName: String, commonName: String, expiresAtMs: Long?): Watchlist {
+        val previous = watchlist
+        watchlist = watchlist.copy(
+            species = WatchlistMatcher.withAlarm(watchlist.species, scientificName, commonName, expiresAtMs),
+            updatedAt = nowIso()
+        )
+        save()
+        emitFlows()
+        return previous
+    }
+
+    /** T244: Alarm fuer eine Art entfernen. @return Zustand vorher (Undo) */
+    suspend fun clearAlarm(scientificName: String): Watchlist {
+        val previous = watchlist
+        watchlist = watchlist.copy(
+            species = WatchlistMatcher.withoutAlarm(watchlist.species, scientificName),
+            updatedAt = nowIso()
+        )
+        save()
+        emitFlows()
+        return previous
+    }
+
+    private fun nowIso(): String = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
     /**
      * Watchlist laden. Prueft zuerst externe Quelle (Downloads/PIROL/),
@@ -110,10 +154,15 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         SpeciesKey.load(context)
         // 0. T129: freigegebener Ordner (SAF) hat Vorrang, umgeht Scoped Storage
         val grantedText = try { pirolFolder?.readText(EXTERNAL_FILE) } catch (e: Exception) { null }
-        if (grantedText != null) {
+        // T244: externe Datei nur uebernehmen, wenn sie sich seit der letzten Uebernahme geaendert hat
+        val hashFile = File(context.filesDir, EXTERNAL_HASH_FILE)
+        val lastHash = try { hashFile.takeIf { it.exists() }?.readText() } catch (e: Exception) { null }
+        if (grantedText != null && WatchlistMatcher.shouldAdoptExternal(grantedText, lastHash)) {
             try {
                 watchlist = json.decodeFromString<Watchlist>(grantedText)
+                pruneExpired()
                 File(context.filesDir, INTERNAL_FILE).writeText(json.encodeToString(Watchlist.serializer(), watchlist))
+                hashFile.writeText(grantedText.hashCode().toString())
                 Log.i(TAG, "Watchlist aus freigegebenem Ordner geladen: ${watchlist.species.size} Arten")
                 emitFlows()
                 return@withContext
@@ -125,14 +174,18 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         val externalFile = getExternalWatchlistFile()
         val internalFile = File(context.filesDir, INTERNAL_FILE)
 
-        if (externalFile != null && externalFile.exists()) {
+        val externalText = if (grantedText == null && externalFile != null && externalFile.exists())
+            try { externalFile.readText() } catch (e: Exception) { null } else null
+        if (externalText != null && WatchlistMatcher.shouldAdoptExternal(externalText, lastHash)) {
             try {
-                val externalWatchlist = json.decodeFromString<Watchlist>(externalFile.readText())
+                val externalWatchlist = json.decodeFromString<Watchlist>(externalText)
                 watchlist = externalWatchlist
+                pruneExpired()
                 // Intern kopieren (als Backup / fuer naechsten Start ohne SD)
                 internalFile.writeText(json.encodeToString(Watchlist.serializer(), watchlist))
+                hashFile.writeText(externalText.hashCode().toString())
                 Log.i(TAG, "Externe Watchlist geladen: ${watchlist.species.size} Arten " +
-                        "<- ${externalFile.absolutePath}")
+                        "<- ${externalFile?.absolutePath}")
                 emitFlows()
                 return@withContext
             } catch (e: Exception) {
@@ -145,6 +198,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
             try {
                 watchlist = json.decodeFromString<Watchlist>(internalFile.readText())
                 Log.i(TAG, "Interne Watchlist geladen: ${watchlist.species.size} Arten")
+                if (pruneExpired()) internalFile.writeText(json.encodeToString(Watchlist.serializer(), watchlist))
             } catch (e: Exception) {
                 Log.e(TAG, "Interne Watchlist fehlerhaft", e)
                 watchlist = Watchlist()

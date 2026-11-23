@@ -552,6 +552,8 @@ fun SpeciesCard(
                             contentColor = if (hasCustomData) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent
                         )
                     }
+                    // T244: Alarm-Knopf (dauerhaft oder 24 h)
+                    AlarmButton(detection)
                     // Referenz / Vergleichen: inline nur bei breiter Karte, sonst im Menue
                     if (inline && showReference) {
                         CardActionButton(

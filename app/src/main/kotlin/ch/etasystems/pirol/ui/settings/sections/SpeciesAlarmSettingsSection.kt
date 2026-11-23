@@ -131,7 +131,7 @@ internal fun SpeciesAlarmSettingsSection(
         customRegions = regionalFilter.getAvailableRegions().filter { it.isCustom }
         customWarnings = regionalFilter.getCustomWarnings()
     }
-    LaunchedEffect(Unit) { refreshFolder() }
+    LaunchedEffect(Unit) { refreshFolder(); watchlistManager.refreshExpired() }  // T244
     // T136: Auswahl der eigenen Listen auch bei ON_START (Rueckkehr aus Dateimanager) auffrischen
     val settingsLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(settingsLifecycleOwner) {
@@ -403,6 +403,18 @@ internal fun SpeciesAlarmSettingsSection(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f)
                     )
+                    entry.expiresAtMs?.let { until ->
+                        Text(
+                            text = stringResource(
+                                R.string.settings_alarm_bis,
+                                java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+                                    .format(java.util.Date(until))
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                    }
                     Text(
                         text = entry.priority.name,
                         style = MaterialTheme.typography.labelSmall,
