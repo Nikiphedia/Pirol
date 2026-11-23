@@ -112,6 +112,17 @@ class ModelProfileTest {
     }
 
     @Test
+    fun `embedding ausgang akzeptiert alias embeddings`() {
+        val p = ModelProfile.V3_FINAL_FP16
+        assertTrue("embeddings" in p.embeddingOutputAliases)
+        // BirdNET-3.0.1: Ausgang heisst `embeddings`, nicht `embeddings_out` (Index bewusst falsch, Name gewinnt)
+        val names = listOf("embeddings", "predictions")
+        assertEquals(0, BirdNetV3Classifier.selectOutputIndex(names, p.embeddingOutputName, 1, p.embeddingOutputAliases))
+        // Hauptname hat Vorrang vor dem Alias
+        assertEquals(1, BirdNetV3Classifier.selectOutputIndex(listOf("embeddings", "embeddings_out"), "embeddings_out", 0, listOf("embeddings")))
+    }
+
+    @Test
     fun `score umrechnung sigmoid und softmax`() {
         val sig = BirdNetV3Classifier.applyTransform(floatArrayOf(0f), ModelProfile.ScoreTransform.SIGMOID)
         assertEquals(0.5f, sig[0], 1e-6f)

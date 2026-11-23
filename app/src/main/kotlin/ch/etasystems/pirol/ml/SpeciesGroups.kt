@@ -145,6 +145,15 @@ object TaxonGroups {
         return out
     }
 
+    /**
+     * T248: Zuordnung neu einlesen, nachdem eine Label-CSV heruntergeladen oder importiert wurde
+     * (sonst zaehlt sie erst nach einem Neustart). Der alte Stand gilt bis zum Austausch.
+     */
+    fun reload(context: Context) {
+        synchronized(this) { loaded = false }
+        load(context)
+    }
+
     /** Laedt die Zuordnung einmalig (IO, idempotent). */
     fun load(context: Context) {
         if (loaded) return

@@ -71,11 +71,26 @@ class RegionFilterBeforeTopKTest {
     }
 
     @Test
-    fun `Filter nur protokollierend - Classifier-Kappung wie bisher`() {
+    fun `Gruppe auf Aus wird auch ohne Nur-gefilterte-Anzeige nie gemeldet`() {
+        // T248: Grillen = Heuschrecken (Aus) verdraengen und erscheinen nicht, topK*2 = 4 Voegel bleiben
         val config = InferenceConfig(topK = 2, confidenceThreshold = 0.3f, regionFilter = RegionalSpeciesFilter.GROUPS_ID,
             showOnlyFiltered = false, highpassEnabled = false)
         val (dets, topK) = run(config)
-        assertEquals(4, topK)
-        assertEquals(crickets.take(4).map { it.first }, dets.map { it.scientificName })
+        assertEquals(Int.MAX_VALUE, topK)
+        assertEquals((1..4).map { "Bird_$it" }, dets.map { it.scientificName })
+    }
+
+    @Test
+    fun `Art ausserhalb der Liste bleibt bei Nur-gefilterte-Anzeige aus (Gruppe aktiv)`() {
+        // Bird_9 steht nicht in der Liste "birds", die Gruppe Voegel ist aber an: nur Protokoll, wird gemeldet
+        val ranked = listOf("Bird_9" to 0.9f) + birds
+        TaxonGroups.setIndex(ranked.associate { it.first to TaxonGroup.BIRDS })
+        val filter = RegionalSpeciesFilter(ContextWrapper(null), regionSetsText = { json })
+        filter.loadGroups(SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "birds")))
+        val config = InferenceConfig(topK = 1, confidenceThreshold = 0.3f, regionFilter = RegionalSpeciesFilter.GROUPS_ID,
+            showOnlyFiltered = false, highpassEnabled = false)
+        val worker = InferenceWorker(RankedClassifier(ranked), filter, config, onAudioPersist = { null }) { _, _ -> }
+        val dets = worker.analyzeWindowNow(AnalysisWindow(ShortArray(96_000), 32_000, 0L), 0L, 0f)
+        assertEquals("Bird_9", dets.first().scientificName)
     }
 }

@@ -138,6 +138,7 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
     var model by remember { mutableStateOf(defaults.modelFileName) }
     var threshold by remember { mutableFloatStateOf(defaults.confidenceThreshold.coerceIn(0.05f, 0.95f)) }
     var overlap by remember { mutableIntStateOf(defaults.overlapPercent) }
+    var secondary by remember { mutableStateOf(defaults.secondaryModelFileName) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -157,6 +158,22 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     models.forEach { m ->
                         FilterChip(selected = model == m.fileName, onClick = { model = m.fileName }, label = { Text(m.name) })
+                    }
+                }
+                // T248: Zweitmodell (Voreinstellung wie live); nicht das gewaehlte Hauptmodell
+                val secondaryModels = models.filter { it.fileName != model }
+                if (secondaryModels.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.analysis_rescan_zweitmodell), style = MaterialTheme.typography.titleSmall)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = secondaryModels.none { it.fileName == secondary },
+                            onClick = { secondary = null },
+                            label = { Text(stringResource(R.string.analysis_rescan_zweitmodell_aus)) }
+                        )
+                        secondaryModels.forEach { m ->
+                            FilterChip(selected = secondary == m.fileName, onClick = { secondary = m.fileName }, label = { Text(m.name) })
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -187,7 +204,10 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                 enabled = models.any { it.fileName == model },
                 onClick = {
                     onDismiss()
-                    viewModel.startRescan(RescanOptions(model, threshold, overlap, groups))
+                    viewModel.startRescan(RescanOptions(
+                        model, threshold, overlap, groups,
+                        secondaryModelFileName = secondary?.takeIf { s -> s != model && models.any { it.fileName == s } }
+                    ))
                 }
             ) { Text(stringResource(R.string.analysis_rescan_starten)) }
         },

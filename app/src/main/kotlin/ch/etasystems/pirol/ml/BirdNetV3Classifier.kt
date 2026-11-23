@@ -77,9 +77,11 @@ class BirdNetV3Classifier(
          * T103a: Waehlt den Ausgang laut Profil — zuerst ueber den Namen, sonst ueber den Index.
          * Keine Groessen-Heuristik (die hat beim 12K-Modell das Embedding als Scores gelesen).
          */
-        internal fun selectOutputIndex(outputNames: List<String>, name: String?, fallbackIndex: Int): Int {
-            if (name != null) {
-                val byName = outputNames.indexOf(name)
+        internal fun selectOutputIndex(
+            outputNames: List<String>, name: String?, fallbackIndex: Int, aliases: List<String> = emptyList()
+        ): Int {
+            for (n in listOfNotNull(name) + aliases) {
+                val byName = outputNames.indexOf(n)
                 if (byName >= 0) return byName
             }
             return fallbackIndex.coerceIn(0, (outputNames.size - 1).coerceAtLeast(0))
@@ -556,7 +558,7 @@ class BirdNetV3Classifier(
 
     /**
      * Extrahiert den Embedding-Vektor aus dem ONNX-Result (T103a: Ausgang laut Profil).
-     * Preview: Index 0 (1024-dim), 3.0 final: `embeddings_out` (1280-dim).
+     * Preview: Index 0 (1024-dim), 3.0 final: `embeddings_out` bzw. `embeddings` (1280-dim).
      * Vektoren mit NaN (3.0 final liefert bei reiner Stille NaN) werden verworfen.
      */
     private fun extractEmbeddingFromResult(result: OrtSession.Result, session: OrtSession): FloatArray? {
@@ -564,8 +566,9 @@ class BirdNetV3Classifier(
         val outputNames = session.outputNames.toList()
         if (outputNames.isEmpty() || !p.hasEmbedding) return null  // T151a: Modell ohne Embedding
         // T151a: ohne Index-Rueckfall (importierte Profile) muss der Name passen
-        if (p.embeddingOutputIndex < 0 && p.embeddingOutputName !in outputNames) return null
-        var idx = selectOutputIndex(outputNames, p.embeddingOutputName, p.embeddingOutputIndex)
+        if (p.embeddingOutputIndex < 0 &&
+            (listOfNotNull(p.embeddingOutputName) + p.embeddingOutputAliases).none { it in outputNames }) return null
+        var idx = selectOutputIndex(outputNames, p.embeddingOutputName, p.embeddingOutputIndex, p.embeddingOutputAliases)
         // T122: liegt auf dem Index der Score-Vektor, den anderen Ausgang nehmen (nur Katalog)
         if (p.source == ModelProfile.Source.CATALOG && outputNames.size == 2 &&
             flattenOutput(result[idx].value)?.size == labels.size) idx = 1 - idx

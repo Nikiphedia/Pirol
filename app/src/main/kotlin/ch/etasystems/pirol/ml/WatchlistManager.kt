@@ -121,7 +121,7 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         }
     }
 
-    /** T244: abgelaufene Eintraege dauerhaft entfernen (beim Laden/Pruefen, kein Timer) */
+    /** T244: abgelaufene Eintraege dauerhaft entfernen (beim Laden/Pruefen und per Ablauf-Timer, siehe scheduleExpiry) */
     private fun pruneExpired(): Boolean {
         val active = WatchlistMatcher.active(watchlist.species, System.currentTimeMillis())
         if (active.size == watchlist.species.size) return false

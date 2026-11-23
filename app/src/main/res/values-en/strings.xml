@@ -726,6 +726,8 @@
     <string name="settings_species_groups_hint">Off = group is not reported, All = unfiltered, Auto = location + week (geomodel), List = selected species list. Other = remaining insects, reptiles, fish and sounds (wind, dog, engine).</string>
     <string name="settings_species_groups_auto_fallback">Auto without location or geomodel: birds use the fallback list below, grasshoppers and amphibians the Swiss list, mammals all species.</string>
     <string name="analysis_rescan_groups">Species groups</string>
+    <string name="analysis_rescan_zweitmodell">Second model</string>
+    <string name="analysis_rescan_zweitmodell_aus">Off</string>
     <string name="setup_sum_groups">Species groups: %1$s</string>
     <string name="ui_alarm_button">Alarm</string>
     <string name="ui_alarm_dauerhaft">Add to alarm list</string>

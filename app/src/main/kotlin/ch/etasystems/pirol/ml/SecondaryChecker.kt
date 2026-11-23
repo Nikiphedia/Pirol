@@ -50,9 +50,7 @@ class SecondaryChecker(
         /** Fensterstart auf der Session-Achse (= chunkStartSec der Detektionen) */
         val windowStartSec: Float,
         val highpass: Boolean,
-        val targets: List<Target>,
-        /** Persistenz-Jobs dieses Fensters (Append/Merge); Aktualisierung der Zeile erst danach */
-        val persisted: List<kotlinx.coroutines.Job> = emptyList()
+        val targets: List<Target>
     ) {
         /** Detektion in der Live-Liste (id) und ihre Art (Hauptmodell) */
         class Target(val id: String, val scientificName: String)

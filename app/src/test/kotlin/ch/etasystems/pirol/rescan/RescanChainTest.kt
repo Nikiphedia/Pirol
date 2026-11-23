@@ -187,6 +187,53 @@ class RescanChainTest {
         assertTrue(result.mergeEvents.last().correctedSpecies!!.endsWith("|start:9.000"))
     }
 
+    /** Zweitmodell kennt Amsel mit 0.7, Rotkehlchen nicht; Fenster 3 s wie das Hauptmodell */
+    private class FakeSecondary : AudioClassifier {
+        var calls = 0
+        override fun isModelAvailable() = true
+        override fun classify(samples: FloatArray, sampleRate: Int, topK: Int, threshold: Float): List<AudioClassifier.ClassifierResult> {
+            calls++
+            return listOf(AudioClassifier.ClassifierResult("Turdus_merula", "Turdus merula", 0.7f, 0f, 3f))
+        }
+        override fun extractEmbedding(samples: FloatArray, sampleRate: Int): FloatArray? = null
+        override fun resetSession() {}
+        override val labelCount = 1
+        override val modelName = "fake2"
+        override val modelId = "fake_second"
+        override val inputSampleRate = 48000
+        override val labelScientificNames = setOf("Turdus_merula")
+    }
+
+    @Test
+    fun rescan_secondaryModelWritesSecondaryFields() = runBlocking {
+        val dir = session()
+        val rec = SegmentedRecording.forSession(dir)!!
+        val second = FakeSecondary()
+        val checker = ch.etasystems.pirol.ml.SecondaryChecker(second, 0.5f) { _, _ -> }
+        val result = RescanRunner(
+            classifier = FakeClassifier(),
+            regionalFilter = dummyRegionFilter(),
+            config = InferenceConfig(confidenceThreshold = 0.5f, regionFilter = null, highpassEnabled = false),
+            resolveName = { if (it == "Turdus_merula") "Amsel" else it },
+            clusterEnabled = false, clusterRadiusM = 0, clusterTimeWindowMin = 0,
+            secondary = checker, secondaryOverlapPercent = 0
+        ).run(rec, 1_000_000L, { null })
+        assertEquals(4, result.detections.size)
+        assertTrue(second.calls >= 1)
+        // Jede Amsel-Detektion traegt das Ergebnis des Zweitmodells
+        assertTrue(result.detections.all {
+            it.secondaryModelId == "fake_second" && it.secondaryStatus == "CHECKED" && it.secondaryConfidence == 0.7f
+        })
+    }
+
+    @Test
+    fun rescan_withoutSecondaryLeavesFieldsNull() = runBlocking {
+        val dir = session()
+        val rec = SegmentedRecording.forSession(dir)!!
+        val result = runner(cluster = false).run(rec, 1_000_000L, { null })
+        assertTrue(result.detections.all { it.secondaryStatus == null && it.secondaryModelId == null })
+    }
+
     @Test
     fun store_refusesExistingVariant() {
         val dir = session()
