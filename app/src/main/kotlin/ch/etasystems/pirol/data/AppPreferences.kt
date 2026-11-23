@@ -68,8 +68,9 @@ class AppPreferences(context: Context) {
             ch.etasystems.pirol.ml.SpeciesGroupSelection.decode(prefs.getString("pirol_species_groups", null))?.let { return it }
             val companion = geoCompanionRegion
             val m = ch.etasystems.pirol.ml.SpeciesGroupSelection.migrate(regionFilter, geoCombine, companion)
-            // Begleitliste war die Heuschrecken-Liste -> als Ersatzliste fuer Voegel wieder "ch_all"
-            if (m.sourceOf(ch.etasystems.pirol.ml.TaxonGroup.ORTHOPTERA) == companion) geoCompanionRegion = "ch_all"
+            // Begleitliste war die Heuschrecken-Liste (auch ohne Vereinigung) -> Ersatzliste der Voegel wieder "ch_all" (T239)
+            if (m.sourceOf(ch.etasystems.pirol.ml.TaxonGroup.ORTHOPTERA) == companion ||
+                companion == "ch_orthoptera_anura") geoCompanionRegion = "ch_all"
             storeSpeciesGroups(m)
             return m
         }

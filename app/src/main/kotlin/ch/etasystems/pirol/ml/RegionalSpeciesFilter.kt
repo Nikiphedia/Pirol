@@ -41,10 +41,14 @@ class RegionalSpeciesFilter(
 
         /** T232: Ersatzliste einer Auto-Gruppe ohne Position/Geomodel (Voegel: Einstellung, leer = alle) */
         internal fun autoFallbackId(g: TaxonGroup, birdsFallback: String): String = when (g) {
-            TaxonGroup.BIRDS -> birdsFallback
+            TaxonGroup.BIRDS -> birdsFallbackId(birdsFallback)
             TaxonGroup.ORTHOPTERA, TaxonGroup.AMPHIBIANS -> "ch_orthoptera_anura"
             TaxonGroup.MAMMALS, TaxonGroup.OTHER -> "all"
         }
+
+        /** T239: Ersatzliste der Voegel: eine Heuschrecken-/Amphibienliste ist dafuer nie gueltig (Altlast der Migration) -> CH+ */
+        internal fun birdsFallbackId(pref: String?): String =
+            if (pref.isNullOrBlank() || pref == "ch_orthoptera_anura") "ch_all" else pref
 
         /**
          * T232: Plausibel, wenn die Gruppe der Art nicht "Aus" ist und deren Quelle die Art erlaubt.
@@ -171,6 +175,25 @@ class RegionalSpeciesFilter(
         }
     }
 
+    /**
+     * T239: Gruppenregeln aus einer vorgegebenen Wahl (Rescan mit der Gruppenwahl der Session) statt aus den
+     * Einstellungen laden (IO). Maske/Verknuepfung bleiben.
+     */
+    fun loadGroups(selection: SpeciesGroupSelection): Unit = synchronized(lock) {
+        state = buildGroups(state, selection)
+    }
+
+    /**
+     * T239: Kaltstart — wartet, bis ein laufendes Laden fertig ist; ist noch nie eine Region geladen worden,
+     * laedt es die gewaehlte (IO). Danach ist der Filter nie "leer" (= alles plausibel).
+     */
+    fun ensureLoaded(): Unit = synchronized(lock) {
+        if (state.regionId == null) loadRegion(appPreferences?.regionFilter ?: GROUPS_ID)
+    }
+
+    /** T239: ist schon eine Region geladen? (schneller Pfad ohne Sperre) */
+    fun isLoaded(): Boolean = state.regionId != null
+
     /** T218: Ist der Geomodel-Filter aktiv (Region "auto_geo" oder eine Artgruppe auf Auto, T232)? */
     fun isAutoGeo(): Boolean = state.isAutoGeo()
 
@@ -181,10 +204,10 @@ class RegionalSpeciesFilter(
     fun previewGroupSpecies(): Set<String> = synchronized(lock) { buildGroups(state).species }
 
     /** T232: Regeln je Artgruppe aus [AppPreferences.speciesGroups] aufbauen (IO); Maske/Verknuepfung aus [cur]. */
-    private fun buildGroups(cur: FilterState): FilterState {
+    private fun buildGroups(cur: FilterState, selection: SpeciesGroupSelection? = null): FilterState {
         SpeciesKey.load(context)
         TaxonGroups.load(context)
-        val sel = appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT
+        val sel = selection ?: appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT
         val needsCustom = TaxonGroup.entries.any { sel.sourceOf(it).startsWith(CustomSpeciesLists.ID_PREFIX) }
         if (needsCustom && customLists.isEmpty()) readCustomLists()
         val birdsFallback = appPreferences?.geoCompanionRegion ?: "ch_all"

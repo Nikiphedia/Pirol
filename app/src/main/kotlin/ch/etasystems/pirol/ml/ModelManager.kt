@@ -646,6 +646,15 @@ class ModelManager(
         return algo to parts[1]
     }
 
+    // T239: Modelldateien, die gerade von Zweitmodell (Aufnahme) oder Rescan benutzt werden; nicht loeschbar
+    private val inUse = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    fun markInUse(fileName: String) { inUse.merge(fileName, 1, Int::plus) }
+
+    fun unmarkInUse(fileName: String) { inUse.compute(fileName) { _, n -> if (n == null || n <= 1) null else n - 1 } }
+
+    fun isInUse(fileName: String): Boolean = inUse.containsKey(fileName)
+
     /** Installiertes Modell loeschen (T151a: bei importierten Modellen inkl. Profil-JSON und Labels) */
     fun deleteModel(fileName: String): Boolean {
         val dir = File(context.filesDir, MODEL_DIR)
@@ -655,6 +664,11 @@ class ModelManager(
         // Aktives Modell nicht loeschen
         if (fileName == appPreferences.activeModelFileName) {
             Log.w(TAG, "Kann aktives Modell nicht loeschen: $fileName")
+            return false
+        }
+        // T239: Zweitmodell der laufenden Aufnahme bzw. Modell eines laufenden Rescans
+        if (isInUse(fileName)) {
+            Log.w(TAG, "Kann Modell in Benutzung nicht loeschen: $fileName")
             return false
         }
 

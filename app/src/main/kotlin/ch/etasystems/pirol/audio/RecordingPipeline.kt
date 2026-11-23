@@ -90,6 +90,8 @@ interface PipelineHooks {
     fun stopLocation(): GpsStats?
     /** Wartet, bis die Artnamen geladen sind (T95) */
     suspend fun awaitSpeciesNames()
+    /** T239: Wartet, bis der Artenfilter geladen ist (Kaltstart: kein Fenster mit leerem Filter) */
+    suspend fun awaitSpeciesFilter() {}
     fun resolveName(scientificName: String): String
     fun clusterEnabled(): Boolean
     fun clusterRadiusM(): Int
@@ -493,6 +495,7 @@ class RecordingPipeline(
                     sessionReady.await()
                     if (preroll != null && preroll.samples.isNotEmpty()) {
                         hooks.awaitSpeciesNames()
+                        hooks.awaitSpeciesFilter()  // T239
                         feedSecondaryRing(preroll.samples, preroll.sampleRate)  // T231
                         inferenceWorker.processChunk(
                             AudioChunk(preroll.samples, preroll.sampleRate, 0L),
@@ -505,6 +508,7 @@ class RecordingPipeline(
                 .collect { chunk ->
                     // T95: kehrt sofort zurueck, sobald geladen
                     hooks.awaitSpeciesNames()
+                    hooks.awaitSpeciesFilter()  // T239
                     feedSecondaryRing(chunk.samples, chunk.sampleRate)  // T231: vor der Analyse des Fensters
                     inferenceWorker.processChunk(chunk)
                     liveSamplesFed.addAndGet(chunk.samples.size.toLong())

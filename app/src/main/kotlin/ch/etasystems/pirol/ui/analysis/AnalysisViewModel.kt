@@ -1399,14 +1399,18 @@ class AnalysisViewModel(
     /** Installierte Modelle fuer den Rescan-Dialog */
     fun rescanModels(): List<ch.etasystems.pirol.ml.ModelManager.InstalledModel> = rescanEngine.models()
 
-    /** Eigene Listen fuer den Rescan-Dialog */
-    suspend fun rescanCustomRegions(): List<ch.etasystems.pirol.ml.RegionInfo> = rescanEngine.customRegions()
+    /** Listen (Assets und eigene) fuer den Rescan-Dialog */
+    suspend fun rescanRegions(): List<ch.etasystems.pirol.ml.RegionInfo> = rescanEngine.regions()
 
     /** Voreinstellungen: Liste und Schwelle der Session, aktives Modell, Overlap aus den Einstellungen */
     fun rescanDefaults(): ch.etasystems.pirol.rescan.RescanOptions? {
         val meta = _uiState.value.selectedSession?.metadata ?: return null
-        return rescanEngine.defaults(meta.regionFilter, meta.confidenceThreshold)
+        // T239: Gruppenwahl der Session vorbelegen
+        return rescanEngine.defaults(meta.regionFilter, meta.confidenceThreshold, meta.speciesFilter?.groups)
     }
+
+    /** T239: aktuelle Gruppenwahl der Einstellungen (Rueckfall, wenn die Session keine Gruppenwahl traegt) */
+    fun currentSpeciesGroups() = appPreferences.speciesGroups
 
     /** Rescan der geoeffneten Session im Hintergrund starten (Fortschritt im UI-State, abbrechbar). */
     fun startRescan(options: ch.etasystems.pirol.rescan.RescanOptions) {

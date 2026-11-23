@@ -31,7 +31,9 @@ data class RescanOptions(
     val modelFileName: String,
     val regionFilter: String?,
     val confidenceThreshold: Float,
-    val overlapPercent: Int
+    val overlapPercent: Int,
+    /** T239: Gruppenwahl bei Liste "groups" (null = aktuelle Einstellungen); Voreinstellung = Wahl der Session */
+    val groups: ch.etasystems.pirol.ml.SpeciesGroupSelection? = null
 )
 
 /**
@@ -66,21 +68,22 @@ class RescanEngine(
     /** Installierte Modelle (aktives zuerst) */
     fun models(): List<ModelManager.InstalledModel> = modelManager.listInstalledModels()
 
-    /** Eigene Listen (Asset-Regionen zeigt der Dialog fest, wie in den Einstellungen) */
-    suspend fun customRegions(): List<RegionInfo> = withContext(Dispatchers.IO) {
+    /** Asset-Regionen und eigene Listen (T239: auch fuer die Gruppenwahl im Dialog) */
+    suspend fun regions(): List<RegionInfo> = withContext(Dispatchers.IO) {
         val f = RegionalSpeciesFilter(context, pirolFolder, null, appPreferences)
         runCatching { f.refreshCustomLists() }
-        f.getAvailableRegions().filter { it.isCustom }
+        f.getAvailableRegions()
     }
 
     /** Voreinstellung: aktives Modell und Liste der Session, Schwelle der Session, Overlap aus den Einstellungen */
-    fun defaults(regionFilter: String?, threshold: Float?): RescanOptions {
+    fun defaults(regionFilter: String?, threshold: Float?, groups: Map<String, String>? = null): RescanOptions {
         val model = models().firstOrNull { it.isActive } ?: models().firstOrNull()
         return RescanOptions(
             modelFileName = model?.fileName.orEmpty(),
             regionFilter = regionFilter,
             confidenceThreshold = threshold ?: appPreferences.confidenceThreshold,
-            overlapPercent = appPreferences.overlapPercent
+            overlapPercent = appPreferences.overlapPercent,
+            groups = groups?.let { ch.etasystems.pirol.ml.SpeciesGroupSelection.fromMap(it) }
         )
     }
 
@@ -99,6 +102,7 @@ class RescanEngine(
         if (pipeline.isRunning || sessionManager.isActiveSession(sessionDir)) throw RecordingActiveException()
         if (!busy.tryLock()) throw IllegalStateException("Rescan laeuft bereits")
         var classifier: BirdNetV3Classifier? = null
+        modelManager.markInUse(options.modelFileName)  // T239: waehrend des Rescans nicht loeschbar
         try {
             val meta = sessionManager.loadMetadata(sessionDir)
             val recording = sessionManager.loadRecording(sessionDir) ?: throw NoRecordingException()
@@ -131,10 +135,16 @@ class RescanEngine(
             val region = options.regionFilter
             withContext(Dispatchers.IO) {
                 runCatching { filter.refreshCustomLists() }
-                if (region != null) filter.loadRegion(region)
+                // T239: Gruppenwahl der Session (im Dialog aenderbar), nicht die aktuellen Einstellungen
+                if (region == RegionalSpeciesFilter.GROUPS_ID && options.groups != null) filter.loadGroups(options.groups)
+                else if (region != null) filter.loadRegion(region)
             }
             if (region == GeoLogic.REGION_ID || filter.isAutoGeo()) {  // T232: auch Artgruppe auf Auto
-                filterInfo = geoFilter.applyForRescan(filter, sessionPos?.first, sessionPos?.second, epoch0)
+                filterInfo = geoFilter.applyForRescan(filter, sessionPos?.first, sessionPos?.second, epoch0, options.groups)
+            } else if (region == RegionalSpeciesFilter.GROUPS_ID) {
+                filterInfo = ch.etasystems.pirol.data.repository.SpeciesFilterInfo(
+                    source = "list", groups = (options.groups ?: appPreferences.speciesGroups).toMap()
+                )
             }
 
             val config = appPreferences.loadInferenceConfig().copy(
@@ -190,6 +200,7 @@ class RescanEngine(
             return info
         } finally {
             classifier?.close()  // ORT-Session des Rescans sofort freigeben
+            modelManager.unmarkInUse(options.modelFileName)
             busy.unlock()
         }
     }

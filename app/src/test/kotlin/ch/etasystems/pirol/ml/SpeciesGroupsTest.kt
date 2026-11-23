@@ -97,7 +97,9 @@ class SpeciesGroupsTest {
     @Test fun `Regel Auto mit und ohne Maske`() {
         val r = GroupRule.Auto(fallback = setOf("b"))
         assertTrue(r.allows("a", mask)); assertFalse(r.allows("b", mask))
-        assertTrue(r.allows("unbekannt", mask))           // vom Geomodel nicht gekannt -> passiert
+        // T239: vom Geomodel nicht gekannt -> Ersatzliste der Gruppe (nicht "passiert immer")
+        assertFalse(r.allows("unbekannt", mask)); assertTrue(GroupRule.Auto(setOf("unbekannt")).allows("unbekannt", mask))
+        assertTrue(GroupRule.Auto(emptySet()).allows("unbekannt", mask))  // Saeugetiere: Ersatz = alle
         assertTrue(r.allows("b", null)); assertFalse(r.allows("a", null))  // ohne Maske: Ersatzliste
         assertTrue(GroupRule.Auto(emptySet()).allows("a", null))           // leere Ersatzliste = alle
     }
@@ -182,5 +184,19 @@ class SpeciesGroupsTest {
         assertEquals("ch_all", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.BIRDS, "ch_all"))
         assertEquals("ch_orthoptera_anura", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.AMPHIBIANS, "ch_all"))
         assertEquals("all", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.MAMMALS, "ch_all"))
+    }
+
+    @Test fun `T239 Vogel-Ersatzliste ist nie die Heuschrecken-Liste`() {
+        assertEquals("ch_all", RegionalSpeciesFilter.birdsFallbackId("ch_orthoptera_anura"))
+        assertEquals("ch_all", RegionalSpeciesFilter.birdsFallbackId(null))
+        assertEquals("central_europe", RegionalSpeciesFilter.birdsFallbackId("central_europe"))
+        assertEquals("ch_all", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.BIRDS, "ch_orthoptera_anura"))
+    }
+
+    @Test fun `T239 Gruppenwahl aus session json Map`() {
+        val sel = SpeciesGroupSelection.fromMap(mapOf("birds" to "ch_all", "orthoptera" to "auto_geo", "xyz" to "all"))
+        assertEquals("ch_all", sel.sourceOf(TaxonGroup.BIRDS))
+        assertEquals(GroupSource.AUTO, sel.sourceOf(TaxonGroup.ORTHOPTERA))
+        assertEquals(GroupSource.OFF, sel.sourceOf(TaxonGroup.MAMMALS))
     }
 }

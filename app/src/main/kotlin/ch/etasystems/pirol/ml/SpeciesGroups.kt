@@ -228,6 +228,11 @@ data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
         /** Standard bei Neuinstallation (der Einrichtungsassistent ueberschreibt) */
         val DEFAULT = SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to GroupSource.AUTO))
 
+        /** T239: aus der Gruppen-Map einer session.json (Code -> Quelle); unbekannte Codes werden ignoriert */
+        fun fromMap(m: Map<String, String>): SpeciesGroupSelection = SpeciesGroupSelection(
+            m.mapNotNull { (c, v) -> TaxonGroup.ofCode(c)?.let { it to v } }.toMap()
+        )
+
         fun decode(text: String?): SpeciesGroupSelection? {
             if (text.isNullOrBlank()) return null
             val m = text.lineSequence().mapNotNull { line ->
@@ -286,10 +291,14 @@ sealed class GroupRule {
         override fun allows(key: String, mask: GeoMask?) = true
     }
 
-    /** Geomodel; ohne Maske (keine Position/kein Modell) gilt die Ersatzliste (leer = alle). */
+    /**
+     * Geomodel; T239: gilt nur fuer Arten, die das Geomodel kennt. Ohne Maske (keine Position/kein Modell)
+     * und fuer dem Geomodel unbekannte Arten gilt die Ersatzliste der Gruppe (leer = alle).
+     */
     class Auto(val fallback: Set<String>) : GroupRule() {
         override fun allows(key: String, mask: GeoMask?) =
-            mask?.passes(key) ?: (fallback.isEmpty() || key in fallback)
+            if (mask != null && key in mask.known) key in mask.allowed
+            else fallback.isEmpty() || key in fallback
     }
 
     /** Liste (leer bzw. nicht gefunden = kein Filter, wie bisher) */

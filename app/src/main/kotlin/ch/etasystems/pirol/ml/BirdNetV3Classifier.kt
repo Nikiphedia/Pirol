@@ -356,7 +356,8 @@ class BirdNetV3Classifier(
             if (activeFile != null && activeFile.exists()) {
                 Log.i(TAG, "Modell geladen via ModelManager: ${activeFile.absolutePath} " +
                         "(${activeFile.length() / 1_000_000} MB)")
-                val session = env.createSession(activeFile.absolutePath, opts)
+                // T239: SessionOptions nach dem Aufbau schliessen (nativer Rest)
+                val session = try { env.createSession(activeFile.absolutePath, opts) } finally { opts.close() }
                 sessions.install(session)
                 logSessionInfo(session)
                 return session
@@ -366,12 +367,13 @@ class BirdNetV3Classifier(
             if (fixedModelFile != null || !isModelAvailableInAssets()) {
                 Log.w(TAG, "Modell nicht gefunden — weder in filesDir noch in assets")
                 Log.w(TAG, "Bitte Modell via Onboarding importieren oder in assets/ ablegen")
+                opts.close()
                 sessionFailed = true
                 return null
             }
 
             val modelBytes = context.assets.open(ASSETS_MODEL_PATH).use { it.readBytes() }
-            val session = env.createSession(modelBytes, opts)
+            val session = try { env.createSession(modelBytes, opts) } finally { opts.close() }
             sessions.install(session)
             logSessionInfo(session)
             session
