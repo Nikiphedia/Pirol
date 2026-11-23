@@ -144,7 +144,7 @@ class InferenceWorker(
             anchors.clear()
             lastAnalyzedStart = -1L
         }
-        accumulator.hopMs = OverlapFallback.hopMsFor(overlap, windowMs)
+        accumulator.hopMs = config.hopMsFor(overlap, windowMs)
 
         val result = try {
             accumulator.feed(chunk)
@@ -155,7 +155,7 @@ class InferenceWorker(
             accumulator.reset()
             anchors.clear()
             lastAnalyzedStart = -1L
-            accumulator.hopMs = OverlapFallback.hopMsFor(overlap, windowMs)
+            accumulator.hopMs = config.hopMsFor(overlap, windowMs)
             accumulator.feed(chunk)
         }
 
@@ -170,7 +170,7 @@ class InferenceWorker(
         val nowEpoch = nowEpochMs
         for (window in result.windows) {
             val sr = window.sampleRate
-            val hopMs = OverlapFallback.hopMsFor(overlap, accumulator.windowDurationMs)
+            val hopMs = config.hopMsFor(overlap, accumulator.windowDurationMs)
             val intervalMs = config.inferenceIntervalMs
             // T29: Energiesparmodus ueber Aufnahmezeit (Sample-Raster), nicht ueber Wanduhr
             if (intervalMs > CHUNK_DURATION_MS && lastAnalyzedStart >= 0 &&
@@ -259,9 +259,18 @@ class InferenceWorker(
      * und Callback. [recordingOffsetSec] = Fensterstart auf der Session-Achse.
      */
     fun analyzeWindowNow(window: AnalysisWindow, startEpochMs: Long, recordingOffsetSec: Float): List<DetectionResult> {
-        val hopMs = OverlapFallback.hopMsFor(config.overlapPercent, classifier.windowMs)
+        val hopMs = config.hopMsFor(config.overlapPercent, classifier.windowMs)
         val job = WindowJob(window, config.overlapPercent, hopMs, hopMs.toLong(), startEpochMs, recordingOffsetSec, backlog = true)
-        return runWindow(job).detections.orEmpty()
+        val t0 = System.nanoTime()
+        val out = runWindow(job).detections.orEmpty()
+        logLongWindow("rescan", (System.nanoTime() - t0) / 1_000_000, hopMs)
+        return out
+    }
+
+    /** T231: Messlog fuer Modelle mit Fenstern ueber 3 s (Perch 5 s); BirdNET loggt hier nichts */
+    private fun logLongWindow(role: String, ms: Long, hopMs: Int) {
+        if (classifier.windowMs <= CHUNK_DURATION_MS) return
+        Log.i(TAG, "T231_PERCH role=$role ms=$ms hop=$hopMs window=${classifier.windowMs} model=${classifier.modelId}")
     }
 
     private fun runWindow(job: WindowJob): WindowOutput {
@@ -306,6 +315,7 @@ class InferenceWorker(
         val detections = output.detections
         val embedding = output.embedding
         val inferMs = (System.nanoTime() - t0) / 1_000_000
+        logLongWindow("primary", inferMs, job.hopMs)
 
         // T110: Auto-Fallback + Statistik
         analyzedWindows++

@@ -479,7 +479,8 @@ class AppPreferences(context: Context) {
             showOnlyFiltered = showOnlyFiltered,
             inferenceIntervalMs = inferenceIntervalMs,
             highpassEnabled = highpassEnabled,
-            respectListSeason = respectListSeason
+            respectListSeason = respectListSeason,
+            maxHopMs = maxHopMs  // T231: nur laden; saveInferenceConfig schreibt es nicht (Setting wie Overlap)
         )
     }
 
@@ -504,6 +505,11 @@ class AppPreferences(context: Context) {
     var lastSessionNote: String
         get() = prefs.getString("pirol_last_session_note", "") ?: ""
         set(value) = prefs.edit().putString("pirol_last_session_note", value).apply()
+
+    /** T231: groesster Hop in ms fuer lange Modellfenster (Perch 5 s), Default 3000 */
+    var maxHopMs: Int
+        get() = prefs.getInt("pirol_max_hop_ms", InferenceConfig.DEFAULT_MAX_HOP_MS)
+        set(value) = prefs.edit().putInt("pirol_max_hop_ms", value).apply()
 
     /** T110: Ueberlappung der Analysefenster in Prozent (0, 50, 67), Default 0 */
     var overlapPercent: Int

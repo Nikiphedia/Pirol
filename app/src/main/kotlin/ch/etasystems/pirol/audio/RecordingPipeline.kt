@@ -12,6 +12,7 @@ import ch.etasystems.pirol.ml.ClusterResult
 import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
+import ch.etasystems.pirol.ml.AudioRingBuffer
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.InferenceWorker
 import ch.etasystems.pirol.ml.ListSeason
@@ -72,6 +73,8 @@ interface PipelineSession {
 interface PipelineHooks {
     fun loadInferenceConfig(): InferenceConfig
     fun overlapPercent(): Int
+    /** T231: groesster Hop (ms) fuer lange Modellfenster (Perch 5 s), wie Overlap aus den Prefs */
+    fun maxHopMs(): Int = InferenceConfig.DEFAULT_MAX_HOP_MS
     fun sessionNote(): String?
     fun currentLocation(): LocationData?
     /** T143: Frischen High-Accuracy-Fix anfordern (null = Timeout/nicht verfuegbar) */
@@ -148,6 +151,8 @@ class RecordingPipeline(
         private const val STARTUP_FIX_TIMEOUT_MS = 3_000L
         /** T218: Abstand der Pruefung auf Wochen-/Ortswechsel */
         private const val GEO_CHECK_INTERVAL_MS = 60_000L
+        /** T231: Laenge des Ringpuffers fuer das Zweitmodell (s); deckt Warteschlange + Ueberhang gut ab */
+        private const val RING_SECONDS = 30
 
         /**
          * T207/T211: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
@@ -210,6 +215,8 @@ class RecordingPipeline(
     private var secondaryJob: Job? = null
     private var secondaryClose: (() -> Unit)? = null
     @Volatile private var secondaryGate: SecondaryCheck.OverlapGate? = null
+    // T231: Rohaudio der letzten Sekunden fuer laengere Zweitmodell-Fenster (Perch 5 s)
+    @Volatile private var secondaryRing: AudioRingBuffer? = null
     private var geoJob: Job? = null  // T218
     @Volatile private var running = false
     private var currentSessionId: String? = null
@@ -283,7 +290,7 @@ class RecordingPipeline(
 
     /** Inference-Einstellungen live aendern (Settings/LiveScreen). T110: Overlap aus den Prefs. */
     fun setInferenceConfig(config: InferenceConfig) {
-        inferenceWorker.config = config.copy(overlapPercent = hooks.overlapPercent())
+        inferenceWorker.config = config.copy(overlapPercent = hooks.overlapPercent(), maxHopMs = hooks.maxHopMs())
     }
 
     /**
@@ -381,14 +388,20 @@ class RecordingPipeline(
         val model = try { hooks.openSecondaryModel() } catch (e: Exception) {
             Log.w(TAG, "Zweitmodell nicht geoeffnet", e); null
         } ?: return
+        // T231: Ringpuffer nur, wenn das Zweitmodell laengere Fenster als das Hauptmodell hat
+        val ring = if (model.classifier.windowMs > classifier.windowMs && persistSampleRate > 0) {
+            AudioRingBuffer(persistSampleRate, persistSampleRate * RING_SECONDS, persistedSamples.get())
+        } else null
         val checker = SecondaryChecker(
             classifier = model.classifier,
             threshold = model.threshold,
-            isPlausible = { secondaryTopPlausible(it) }
+            isPlausible = { secondaryTopPlausible(it) },
+            ring = ring
         ) { window, results -> applySecondary(window, results) }
         secondary = checker
         secondaryClose = model.close
-        secondaryGate = SecondaryCheck.OverlapGate(checker.windowMs, model.overlapPercent)
+        secondaryRing = ring
+        secondaryGate = SecondaryCheck.OverlapGate(checker.windowMs, model.overlapPercent, inferenceWorker.config.maxHopMs)
         secondaryJob = scope.launch(Dispatchers.Default) { checker.runLoop() }
         Log.i(TAG, "T224 Zweitmodell aktiv: ${checker.modelId} thr=${model.threshold} overlap=${model.overlapPercent}")
     }
@@ -402,6 +415,7 @@ class RecordingPipeline(
         secondaryJob = null
         secondaryClose = null
         secondaryGate = null
+        secondaryRing = null
         checker.clear()
         scope.launch {
             job?.cancelAndJoin()
@@ -461,6 +475,7 @@ class RecordingPipeline(
                     sessionReady.await()
                     if (preroll != null && preroll.samples.isNotEmpty()) {
                         hooks.awaitSpeciesNames()
+                        feedSecondaryRing(preroll.samples, preroll.sampleRate)  // T231
                         inferenceWorker.processChunk(
                             AudioChunk(preroll.samples, preroll.sampleRate, 0L),
                             nowEpochMs = preroll.captureEpochMs,
@@ -472,10 +487,17 @@ class RecordingPipeline(
                 .collect { chunk ->
                     // T95: kehrt sofort zurueck, sobald geladen
                     hooks.awaitSpeciesNames()
+                    feedSecondaryRing(chunk.samples, chunk.sampleRate)  // T231: vor der Analyse des Fensters
                     inferenceWorker.processChunk(chunk)
                     liveSamplesFed.addAndGet(chunk.samples.size.toLong())
                 }
         }
+    }
+
+    /** T231: Rohaudio fuer das Zweitmodell mitschreiben (gleiche Reihenfolge wie Persistenz = Session-Achse) */
+    private fun feedSecondaryRing(samples: ShortArray, sampleRate: Int) {
+        val ring = secondaryRing ?: return
+        if (sampleRate == ring.sampleRate) ring.append(samples)
     }
 
     /**

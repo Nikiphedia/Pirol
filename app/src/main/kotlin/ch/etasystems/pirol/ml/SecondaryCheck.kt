@@ -80,7 +80,8 @@ object SecondaryCheck {
     /**
      * Fenster des Hauptmodells auf die Fensterlaenge des Zweitmodells bringen (gleiche Abtastrate):
      * gleich lang → unveraendert; kuerzer → Mitte ausschneiden; laenger → zentriert mit Stille auffuellen.
-     * (Echte Umgebung statt Stille fuer laengere Fenster, z.B. Perch 5 s, braucht einen Ringpuffer → eigenes AP.)
+     * T231: laengere Fenster (Perch 5 s) holen echtes Umgebungsaudio aus dem Ringpuffer ([contextRange]);
+     * Stille nur noch als Rueckfall (Aufnahme kuerzer als das Fenster, Puffer verpasst).
      */
     fun fitWindow(pcm: ShortArray, targetSamples: Int): ShortArray {
         if (targetSamples <= 0 || pcm.size == targetSamples) return pcm
@@ -93,6 +94,33 @@ object SecondaryCheck {
             out
         }
     }
+
+    /** T231: Audiobereich [from, to) auf der Session-Achse (Samples) */
+    data class SampleRange(val from: Long, val to: Long) {
+        val length: Long get() = to - from
+    }
+
+    /**
+     * T231: Bereich fuer das Zweitmodell, zentriert um das Fenster des Hauptmodells
+     * (Perch 5 s um BirdNET 3 s: 1 s davor, 1 s danach). Am Sessionanfang wird nach rechts geschoben
+     * (beginnt bei [minIndex]), damit keine Stille noetig ist. Das Fenster liegt immer ganz im Bereich.
+     */
+    fun contextRange(windowStart: Long, windowLen: Int, targetLen: Int, minIndex: Long = 0L): SampleRange {
+        val from = maxOf(minIndex, windowStart - (targetLen - windowLen) / 2)
+        return SampleRange(from, from + targetLen)
+    }
+
+    /**
+     * T231: Rueckfall, wenn das Audio nach dem Fenster nicht rechtzeitig kommt (Aufnahme gestoppt):
+     * rechtsbuendig bis [availableEnd], hoechstens [targetLen] lang, nicht vor [minIndex].
+     * Kuerzer als [targetLen] nur, wenn insgesamt zu wenig Audio vorliegt (dann Stille, Hinweis im Log).
+     */
+    fun rightAlignedRange(availableEnd: Long, targetLen: Int, minIndex: Long = 0L): SampleRange =
+        SampleRange(maxOf(minIndex, availableEnd - targetLen), availableEnd)
+
+    /** T231: Fensterstart (s, Session-Achse) → Sample-Index bei [sampleRate] */
+    fun startIndexOf(windowStartSec: Float, sampleRate: Int): Long =
+        Math.round(windowStartSec.toDouble() * sampleRate)
 
     /** Kurzer Modellname fuer die Artkarte ("BirdNET 3.0 FP16 (empfohlen)" → "BirdNET 3.0 FP16"); unbekannt → ID */
     fun modelLabel(modelId: String?): String? {
@@ -110,8 +138,9 @@ object SecondaryCheck {
      * alle Hop-Sekunden ein Fenster geprueft (0 % = ein Fenster pro Fensterlaenge). Neue Arten werden
      * immer geprueft. Nicht thread-safe (nur aus der Analyse-Coroutine aufrufen).
      */
-    class OverlapGate(windowMs: Int, overlapPercent: Int) {
-        private val hopSec = OverlapFallback.hopMsFor(overlapPercent, windowMs) / 1000f
+    class OverlapGate(windowMs: Int, overlapPercent: Int, maxHopMs: Int = Int.MAX_VALUE) {
+        // T231: Hop wie beim Hauptmodell hoechstens maxHopMs (Perch 5 s: pro Art alle 3 s)
+        private val hopSec = OverlapFallback.hopMsFor(overlapPercent, windowMs, maxHopMs) / 1000f
         private val lastStart = HashMap<String, Float>()
 
         /** true = Art in diesem Fenster pruefen (und als geprueft merken) */

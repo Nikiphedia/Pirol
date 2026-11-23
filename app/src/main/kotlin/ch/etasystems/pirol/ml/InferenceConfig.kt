@@ -39,16 +39,34 @@ data class InferenceConfig(
     val overlapPercent: Int = 0,
 
     /** T190: Saison der Artenliste beachten (Default aus) */
-    val respectListSeason: Boolean = false
+    val respectListSeason: Boolean = false,
+
+    /**
+     * T231: groesster Hop in ms (Pref `pirol_max_hop_ms`, Default 3 s). Wirkt nur bei Fenstern ueber
+     * diesem Wert (Perch 5 s: Fenster alle 3 s statt alle 5 s); BirdNET (3 s) bleibt unveraendert.
+     */
+    val maxHopMs: Int = DEFAULT_MAX_HOP_MS
 ) {
+    /** T231: Hop fuer ein Modellfenster bei gegebener Ueberlappung (Overlap relativ zum Fenster, hoechstens [maxHopMs]) */
+    fun hopMsFor(overlap: Int, windowMs: Int): Int = OverlapFallback.hopMsFor(overlap, windowMs, maxHopMs)
+
     companion object {
+        /** T231: Default des groessten Hops (User: "Perch alle drei Sekunden scannen") */
+        const val DEFAULT_MAX_HOP_MS = 3000
+
+        /** T231: waehlbare Werte in den Einstellungen */
+        val MAX_HOP_OPTIONS_MS = listOf(3000, 4000, 5000)
+
         /** T156: wirksame Schwelle = max(globale Schwelle, Mindest-Konfidenz des Modells) */
         fun effectiveThreshold(global: Float, modelMin: Float?): Float =
             if (modelMin != null && modelMin > global) modelMin else global
 
-        /** T225: Classifier-Schwelle = Untergrenze der Alternativen (hoechstens Detektionsschwelle), mind. Modell-Minimum */
+        /** T225: Classifier-Schwelle = Untergrenze der Alternativen (hoechstens wirksame Detektionsschwelle) */
         fun classifierThreshold(confidence: Float, alternativesFloor: Float, modelMin: Float?): Float =
-            effectiveThreshold(minOf(alternativesFloor, confidence), modelMin)
+            // T231: die Modell-Mindestkonfidenz hebt nur die Detektionsschwelle, nicht die Alternativen-Untergrenze.
+            // Bei Softmax (Perch, minConfidence 0.8) teilen sich mehrere Arten die Wahrscheinlichkeit; die
+            // Konkurrenten unter 0.8 sind genau die Alternativen. Ohne minConfidence (BirdNET) unveraendert.
+            minOf(alternativesFloor, effectiveThreshold(confidence, modelMin))
 
         /** Standard-Konfiguration: ausgewogen (TopK=3, Threshold=0.3) */
         val DEFAULT = InferenceConfig()

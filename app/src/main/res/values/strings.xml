@@ -393,6 +393,8 @@
     <string name="settings_fenster_alle_3_s_standard">Fenster alle 3 s (Standard)</string>
     <string name="settings_fenster_alle_1_5_s">Fenster alle 1.5 s</string>
     <string name="settings_fenster_jede_sekunde">Fenster jede Sekunde</string>
+    <string name="settings_max_hop">Hop bei langen Fenstern: hoechstens %1$d s</string>
+    <string name="settings_max_hop_hinweis">Gilt fuer Modelle mit Fenstern ueber 3 s (z.B. Perch 5 s): bei 3 s wird alle 3 s ein 5-s-Fenster gerechnet. BirdNET (3 s) aendert sich nicht.</string>
     <string name="settings_simultanbeobachtungen">Simultanbeobachtungen</string>
     <string name="settings_simultan">Simultan (//)</string>
     <string name="settings_moeglich">Moeglich (?)</string>

@@ -59,11 +59,12 @@ object RescanPlan {
     /**
      * Startframes der Analysefenster ueber die ganze Session (alle Segmente als eine Achse, inkl. Preroll).
      * Raster wie live ([ch.etasystems.pirol.ml.ChunkAccumulator]): 0, hop, 2*hop ...; nur volle Fenster.
+     * T231: [maxHopMs] wie live (Perch 5 s: Hop 3 s).
      */
-    fun windowStarts(totalFrames: Long, sampleRate: Int, windowMs: Int, overlapPercent: Int): List<Long> {
+    fun windowStarts(totalFrames: Long, sampleRate: Int, windowMs: Int, overlapPercent: Int, maxHopMs: Int = Int.MAX_VALUE): List<Long> {
         if (sampleRate <= 0 || windowMs <= 0) return emptyList()
         val windowFrames = sampleRate.toLong() * windowMs / 1000
-        val hopFrames = sampleRate.toLong() * OverlapFallback.hopMsFor(overlapPercent, windowMs) / 1000
+        val hopFrames = sampleRate.toLong() * OverlapFallback.hopMsFor(overlapPercent, windowMs, maxHopMs) / 1000
         if (windowFrames <= 0 || hopFrames <= 0) return emptyList()
         val starts = ArrayList<Long>()
         var s = 0L

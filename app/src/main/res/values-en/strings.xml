@@ -392,6 +392,8 @@
     <string name="settings_fenster_alle_3_s_standard">Window every 3 s (standard)</string>
     <string name="settings_fenster_alle_1_5_s">Window every 1.5 s</string>
     <string name="settings_fenster_jede_sekunde">Window every second</string>
+    <string name="settings_max_hop">Hop for long windows: at most %1$d s</string>
+    <string name="settings_max_hop_hinweis">Applies to models with windows longer than 3 s (e.g. Perch 5 s): at 3 s, a 5 s window is analysed every 3 s. BirdNET (3 s) is unchanged.</string>
     <string name="settings_simultanbeobachtungen">Simultaneous observations</string>
     <string name="settings_simultan">Simultaneous (//)</string>
     <string name="settings_moeglich">Possible (?)</string>

@@ -407,6 +407,9 @@ class RecordingPipelineTest {
     fun alternatives_classifierThreshold_isFloorCappedByDetectionThreshold() {
         assertEquals(0.10f, InferenceConfig.classifierThreshold(0.5f, 0.10f, null), 0f)
         assertEquals(0.5f, InferenceConfig.classifierThreshold(0.5f, 0.8f, null), 0f)
-        assertEquals(0.6f, InferenceConfig.classifierThreshold(0.5f, 0.10f, 0.6f), 0f)
+        // T231: Modell-Minimum hebt nur die Detektionsschwelle, die Alternativen-Untergrenze bleibt (Perch Softmax 0.8)
+        assertEquals(0.10f, InferenceConfig.classifierThreshold(0.5f, 0.10f, 0.6f), 0f)
+        assertEquals(0.10f, InferenceConfig.classifierThreshold(0.5f, 0.10f, 0.8f), 0f)
+        assertEquals(0.8f, InferenceConfig.classifierThreshold(0.5f, 0.9f, 0.8f), 0f)
     }
 }
