@@ -751,7 +751,15 @@ private fun SessionDetailContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(R.string.analysis_detektionen, state.detections.size),
+                text = if (detailSearch.isBlank()) {
+                    stringResource(R.string.analysis_detektionen, state.detections.size)
+                } else {
+                    // T202: bei aktiver Suche gefilterte / gesamte Zahl
+                    val shown = state.detections.count {
+                        SpeciesSearch.matches(detailSearch, detailResolver.resolve(it.scientificName), it.scientificName)
+                    }
+                    stringResource(R.string.analysis_detektionen_gefiltert, shown, state.detections.size)
+                },
                 style = MaterialTheme.typography.titleSmall
             )
             TextButton(onClick = { showAddManualDialog = true }) {
