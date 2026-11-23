@@ -1251,8 +1251,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         ) { Text(stringResource(R.string.map_offline_karten_mb_loeschen, cacheBytes / 1_000_000)) }
 
                         // Legende: Artfarben der historischen Marker (max. 12)
-                        val legendSpecies = remember(state.markers) {
-                            state.markers.map { it.species }.distinct().sorted().take(12)
+                        val legendSpecies = remember(shownMarkers) {
+                            shownMarkers.map { it.species }.distinct().sorted().take(12)
                         }
                         if (legendSpecies.isNotEmpty()) {
                             HorizontalDivider()
