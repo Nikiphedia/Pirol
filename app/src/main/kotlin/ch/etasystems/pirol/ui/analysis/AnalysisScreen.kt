@@ -6,6 +6,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -36,8 +39,6 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
@@ -544,9 +545,19 @@ private fun SessionDetailContent(
                 LaunchedEffect(lat, lon) {
                     municipality = if (lat != null && lon != null) lookup.lookup(lat, lon) else null
                 }
+                // T254: Datum · Gemeinde · Bemerkung (gekuerzt) in einer Zeile, antippbar zum Bearbeiten
+                val noteText0 = session.metadata.note?.takeIf { it.isNotBlank() }
                 Text(
-                    text = session.metadata.startedAt.take(10) + (municipality?.let { " · $it" } ?: ""), // Datum + Gemeinde
-                    style = MaterialTheme.typography.titleMedium
+                    text = session.metadata.startedAt.take(10) + (municipality?.let { " · $it" } ?: "") +
+                        " · " + (noteText0 ?: stringResource(R.string.analysis_keine_bemerkung)),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    color = if (noteText0 == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .clickable(onClickLabel = stringResource(R.string.analysis_bemerkung_bearbeiten)) { showNoteDialog = true }
+                        .heightIn(min = 48.dp)
+                        .wrapContentHeight(Alignment.CenterVertically)
                 )
                 // T107: Session-Kennung (= Ordnername) zur Zuordnung auf dem Geraet
                 Text(
@@ -566,28 +577,34 @@ private fun SessionDetailContent(
             }
             // T202: Kopfzeile: Suche, Raven; Upload im Ueberlaufmenue (je 48 dp). T210: Wiedergabe in eigener Zeile darunter
             val uploadStatus by viewModel.uploadStatus.collectAsState()
-            IconButton(onClick = {
-                detailSearchOpen = !detailSearchOpen
-                if (!detailSearchOpen) detailSearch = ""
-            }) {
-                Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.analysis_suche_art))
-            }
-            // T221: Rescan neben der Lupe; waehrend einer Aufnahme ausgegraut mit Hinweis
-            if (state.hasRecording) {
-                val recordingActive by viewModel.recordingActive.collectAsState()
-                val rescanRunning = state.rescanProgress != null
+            // T254: Kompakt/Gross-Umschalter wie in Live
+            ch.etasystems.pirol.ui.components.CompactCardToggleButton()
+            // T254: schmale Fenster (Telefon hoch): Suche und Rescan ins Ueberlaufmenue, damit der Titel Platz hat
+            val narrowHeader = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
+            if (!narrowHeader) {
                 IconButton(onClick = {
-                    when {
-                        recordingActive -> viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
-                        !rescanRunning -> showRescanDialog = true
-                    }
+                    detailSearchOpen = !detailSearchOpen
+                    if (!detailSearchOpen) detailSearch = ""
                 }) {
-                    Icon(
-                        Icons.Filled.Autorenew,
-                        contentDescription = stringResource(R.string.analysis_rescan),
-                        tint = if (recordingActive || rescanRunning)
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else androidx.compose.material3.LocalContentColor.current
-                    )
+                    Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.analysis_suche_art))
+                }
+                // T221: Rescan neben der Lupe; waehrend einer Aufnahme ausgegraut mit Hinweis
+                if (state.hasRecording) {
+                    val recordingActive by viewModel.recordingActive.collectAsState()
+                    val rescanRunning = state.rescanProgress != null
+                    IconButton(onClick = {
+                        when {
+                            recordingActive -> viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+                            !rescanRunning -> showRescanDialog = true
+                        }
+                    }) {
+                        Icon(
+                            Icons.Filled.Autorenew,
+                            contentDescription = stringResource(R.string.analysis_rescan),
+                            tint = if (recordingActive || rescanRunning)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else androidx.compose.material3.LocalContentColor.current
+                        )
+                    }
                 }
             }
             IconButton(onClick = { viewModel.openRavenTable() }) {
@@ -603,19 +620,30 @@ private fun SessionDetailContent(
                     }
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // T230: Kompakt/Ausfuehrlich im Ueberlaufmenue (Kopfzeile ist voll)
-                    val cardPrefs: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
-                    val cardCompact by cardPrefs.compactCardSetting.flow.collectAsState()
-                    DropdownMenuItem(
-                        text = { Text(stringResource(if (cardCompact) R.string.card_toggle_to_detailed else R.string.card_toggle_to_compact)) },
-                        leadingIcon = {
-                            Icon(
-                                if (cardCompact) Icons.Filled.ViewList else Icons.Filled.ViewAgenda,
-                                contentDescription = null
+                    if (narrowHeader) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.analysis_menu_suche)) },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                detailSearchOpen = !detailSearchOpen
+                                if (!detailSearchOpen) detailSearch = ""
+                            }
+                        )
+                        if (state.hasRecording) {
+                            val recActive by viewModel.recordingActive.collectAsState()
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.analysis_rescan)) },
+                                leadingIcon = { Icon(Icons.Filled.Autorenew, contentDescription = null) },
+                                enabled = state.rescanProgress == null,
+                                onClick = {
+                                    menuOpen = false
+                                    if (recActive) viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+                                    else showRescanDialog = true
+                                }
                             )
-                        },
-                        onClick = { menuOpen = false; cardPrefs.compactCardSetting.toggle() }
-                    )
+                        }
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.analysis_session_hochladen)) },
                         leadingIcon = { Icon(Icons.Filled.Upload, contentDescription = null) },
@@ -667,22 +695,7 @@ private fun SessionDetailContent(
         // T221: Varianten Original | Rescan(s) und Fortschritt
         RescanVariantBar(state, viewModel)
 
-        // T109: Session-Bemerkung (editierbar)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = session.metadata.note?.takeIf { it.isNotBlank() } ?: stringResource(R.string.analysis_keine_bemerkung),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (session.metadata.note.isNullOrBlank())
-                    MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f).padding(start = 12.dp)
-            )
-            IconButton(onClick = { showNoteDialog = true }) {
-                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.analysis_bemerkung_bearbeiten))
-            }
-        }
+        // T109: Session-Bemerkung (editierbar, T254: Bearbeiten ueber die Kopfzeile)
         if (showNoteDialog) {
             var noteText by remember { mutableStateOf(session.metadata.note.orEmpty()) }
             AlertDialog(
