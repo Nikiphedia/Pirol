@@ -502,8 +502,9 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_resampler_mode", "POLYPHASE") ?: "POLYPHASE"
         set(value) {
             prefs.edit().putString("pirol_resampler_mode", value).apply()
-            ch.etasystems.pirol.audio.dsp.AudioResampler.defaultMode =
-                ch.etasystems.pirol.audio.dsp.AudioResampler.Mode.parse(value)
+            val m = ch.etasystems.pirol.audio.dsp.AudioResampler.applyMode(value)
+            // T208: Wechsel nachvollziehbar; wirkt ab dem naechsten Analyse-Fenster
+            android.util.Log.i("AppPreferences", "T208 Resampler-Modus gesetzt: $m")
         }
 
     /** T134: Auf-/Zuklapp-Zustand einer Einstellungs-Sektion */

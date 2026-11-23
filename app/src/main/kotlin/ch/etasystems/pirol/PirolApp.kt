@@ -38,10 +38,9 @@ class PirolApp : Application() {
         }
 
         // T133: gespeicherten Resampler-Modus aktivieren
-        ch.etasystems.pirol.audio.dsp.AudioResampler.defaultMode =
-            ch.etasystems.pirol.audio.dsp.AudioResampler.Mode.parse(
-                ch.etasystems.pirol.data.AppPreferences(this).resamplerMode
-            )
+        ch.etasystems.pirol.audio.dsp.AudioResampler.applyMode(
+            ch.etasystems.pirol.data.AppPreferences(this).resamplerMode
+        )
 
         // T187: Modell im Hintergrund freigeben (nur ohne Aufnahme)
         registerActivityLifecycleCallbacks(
