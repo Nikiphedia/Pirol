@@ -60,4 +60,17 @@ class ExportNamesTest {
         assertEquals("n-3.zip", ExportNames.uniqueName("n", "zip") { it in taken })
         assertEquals("m.zip", ExportNames.uniqueName("m", "zip") { it in taken })
     }
+
+    @Test fun `zwei Sessions gleicher Minute bekommen verschiedene Namen, Retry denselben`() {
+        val base = ExportNames.sessionName("2026-04-20T14:30:10+02:00", null, "a")
+        val remote = mutableSetOf<String>()
+        val first = ExportNames.chooseZipName(null, base) { it in remote }
+        remote += first
+        val second = ExportNames.chooseZipName(null, base) { it in remote }
+        assertEquals("202604201430.zip", first)
+        assertEquals("202604201430-2.zip", second)
+        // Retry der zweiten Session: gemerkter Name, obwohl er schon (teilweise) existiert
+        remote += second
+        assertEquals(second, ExportNames.chooseZipName(second, base) { it in remote })
+    }
 }

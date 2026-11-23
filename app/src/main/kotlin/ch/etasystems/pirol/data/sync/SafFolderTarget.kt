@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import ch.etasystems.pirol.data.repository.SessionMetadata
-import ch.etasystems.pirol.data.export.ExportNames
 import java.io.File
 
 /**
@@ -29,16 +28,17 @@ class SafFolderTarget(
         }
     }
 
+    override fun exists(fileName: String): Boolean =
+        DocumentFile.fromTreeUri(context, treeUri)?.findFile(fileName) != null
+
     override suspend fun upload(
         zipFile: File,
         metadata: SessionMetadata,
+        fileName: String,
         onProgress: (Float) -> Unit
     ): Boolean {
         check()?.let { throw UploadConfigException(it) }
         val dir = DocumentFile.fromTreeUri(context, treeUri)!!
-        val fileName = UploadConfig.sanitizeFileName(
-            ExportNames.sessionZipName(metadata.startedAt, metadata.note, metadata.sessionId)
-        )
         // Bestehende Datei gleichen Namens ersetzen (Wiederholung nach Abbruch)
         dir.findFile(fileName)?.delete()
         val target = dir.createFile("application/zip", fileName)

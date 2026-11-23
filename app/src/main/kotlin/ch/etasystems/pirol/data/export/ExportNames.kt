@@ -82,5 +82,9 @@ object ExportNames {
         return candidate
     }
 
+    /** Gemerkten Namen weiterverwenden (Retry), sonst erster freier Name im Ziel. */
+    fun chooseZipName(stored: String?, baseName: String, exists: (String) -> Boolean): String =
+        stored ?: uniqueName(baseName, "zip", exists)
+
     private fun join(vararg parts: String): String = parts.filter { it.isNotEmpty() }.joinToString("_")
 }
