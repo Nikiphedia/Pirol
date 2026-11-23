@@ -185,7 +185,7 @@ Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Beg
 
 **ZIP-Paket:** die Session als ZIP, fuer manuelles Teilen oder den automatischen Upload (Kapitel 12).
 
-**Dateinamen:** Geteilte Detektionen heissen `YYYYMMDDHHMM_Art_Bemerkung.ext` (z.B. `202604201430_Amsel_Garten_hinten.wav`), ZIP-Pakete `YYYYMMDDHHMM_Bemerkung.zip` (Zeit = Session-Start). Fehlt die Bemerkung, entfaellt der Teil; Leer- und Sonderzeichen werden zu `_`.
+**Dateinamen:** Geteilte Detektionen heissen `YYYYMMDDHHMMSS_Art_Bemerkung.ext` (z.B. `20260420143005_Amsel_Garten_hinten.wav`), ZIP-Pakete `YYYYMMDDHHMMSS_Bemerkung.zip` (Zeit = Session-Start). Fehlt die Bemerkung, entfaellt der Teil; Leer- und Sonderzeichen werden zu `_`.
 
 ---
 
