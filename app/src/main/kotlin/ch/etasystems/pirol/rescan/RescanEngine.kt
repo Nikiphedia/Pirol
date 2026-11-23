@@ -244,6 +244,7 @@ class RescanEngine(
                 runner.run(
                     recording = recording,
                     epochAtZeroMs = epoch0,
+                    wallClockAt = RescanPlan.wallClockAt(meta?.recordingSegments, recording.sampleRate, epoch0),  // T255
                     positionAt = { t -> RescanPlan.positionAt(t, track, sessionPos) },
                     onProgress = onProgress,
                     isAborted = { pipeline.isRunning }

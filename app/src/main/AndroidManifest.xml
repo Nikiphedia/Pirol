@@ -74,6 +74,12 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <!-- T255: Import (ZIP, Ordner, Fremdaudio) als Vordergrund-Dienst (lokale Datenverarbeitung -> dataSync) -->
+        <service
+            android:name=".data.importer.ImportService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
         <!-- T141: WorkManager-Foreground-Service fuer die Session-Migration (dataSync) -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

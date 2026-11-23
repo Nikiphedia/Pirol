@@ -122,11 +122,11 @@ internal class SessionLocator(
         if (base.exists()) {
             val children = base.listFiles()?.toList() ?: emptyList()
             if (appPreferences.storageDailySubfolder || children.any { it.isDirectory && looksLikeDateDir(it.name) }) {
-                children.filter { it.isDirectory }.forEach { dayDir ->
-                    dayDir.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
+                children.filter { it.isDirectory && !isStaging(it.name) }.forEach { dayDir ->
+                    dayDir.listFiles()?.filter { it.isDirectory && !isStaging(it.name) }?.let { results.addAll(it) }
                 }
             }
-            results.addAll(children.filter { it.isDirectory && !looksLikeDateDir(it.name) })
+            results.addAll(children.filter { it.isDirectory && !looksLikeDateDir(it.name) && !isStaging(it.name) })
         }
         // Duplikate: File-Sessions, die schon als SAF-Session gelistet sind, fallen weg
         val (safKeys, fileSessions) = results.partition { safSessions.containsKey(it.path) }
@@ -150,9 +150,9 @@ internal class SessionLocator(
                 if (looksLikeDateDir(childName)) {
                     for (s in child.listFiles()) {
                         val n = s.name ?: continue
-                        if (s.isDirectory) out += SessionFilesLogic.safKey(childName, n) to s
+                        if (s.isDirectory && !isStaging(n)) out += SessionFilesLogic.safKey(childName, n) to s
                     }
-                } else {
+                } else if (!isStaging(childName)) {
                     out += SessionFilesLogic.safKey(null, childName) to child
                 }
             }
@@ -189,8 +189,38 @@ internal class SessionLocator(
         }
     }
 
+    // ── Import (T255) ─────────────────────────────────────────────────
+
+    /** Unsichtbare Import-Arbeitsordner entfernen (Reste nach Kill/Absturz); nur ohne laufenden Import aufrufen. */
+    fun removeStaging() {
+        try {
+            if (appPreferences.storageBaseUri != null) {
+                resolveBaseDocFile()?.takeIf { it.canRead() }?.listFiles()?.forEach { d ->
+                    val n = d.name ?: return@forEach
+                    when {
+                        !d.isDirectory -> Unit
+                        isStaging(n) -> d.delete()
+                        looksLikeDateDir(n) -> d.listFiles().forEach { s -> if (s.isDirectory && isStaging(s.name ?: "")) s.delete() }
+                    }
+                }
+            }
+            resolveBaseFile().listFiles()?.forEach { d ->
+                when {
+                    !d.isDirectory -> Unit
+                    isStaging(d.name) -> d.deleteRecursively()
+                    looksLikeDateDir(d.name) -> d.listFiles()?.forEach { s -> if (s.isDirectory && isStaging(s.name)) s.deleteRecursively() }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Import-Reste entfernen fehlgeschlagen", e)
+        }
+    }
+
     companion object {
         private const val TAG = "SessionManager"
+
+        /** T255: Import-Arbeitsordner (erscheint nie als Session) */
+        fun isStaging(name: String): Boolean = name.startsWith(ImportStaging.PREFIX)
         const val PIROL_DIR = "PIROL"
 
         private val DATE_DIR = Regex("\\d{4}-\\d{2}-\\d{2}")

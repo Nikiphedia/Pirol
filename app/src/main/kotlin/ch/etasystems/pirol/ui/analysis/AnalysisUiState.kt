@@ -115,7 +115,11 @@ data class AnalysisUiState(
     val activeVariant: String? = null,
     /** T221: Fortschritt 0..1 des laufenden Rescans (null = keiner) und dessen Session */
     val rescanProgress: Float? = null,
-    val rescanSessionDir: File? = null
+    val rescanSessionDir: File? = null,
+    // T255: Fremdaudio-Import: Dialog offen, Vorpruefung (null = laeuft), Rescan-Dialog nach dem Import anbieten
+    val audioImportOpen: Boolean = false,
+    val audioImportProbes: List<ch.etasystems.pirol.data.importer.AudioProbe>? = null,
+    val rescanRequest: Boolean = false
 )
 
 /** T237: Snackbar-Hinweis mit Rueckgaengig-Knopf (Analyse-Tab). */

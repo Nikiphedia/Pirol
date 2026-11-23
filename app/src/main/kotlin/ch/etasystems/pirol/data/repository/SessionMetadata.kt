@@ -22,7 +22,28 @@ data class GpsStats(
 data class RecordingSegment(
     val fileName: String,       // "recording.wav", "recording-002.wav", ...
     val startSec: Float,        // Offset zum Session-Start in Sekunden
-    val durationSec: Float      // Laenge dieses Segments in Sekunden
+    val durationSec: Float,     // Laenge dieses Segments in Sekunden
+    /**
+     * T255: Wanduhr des Segmentbeginns (ISO 8601 mit Offset). Nur bei importierten Sessions aus mehreren
+     * Dateien gesetzt (Luecken zwischen den Dateien); null = Segment schliesst luecken-los an (live).
+     */
+    val startedAt: String? = null
+)
+
+/** T255: Herkunft einer importierten Audiodatei (session.json, additiv). */
+@Serializable
+data class ImportedSource(
+    val fileName: String,
+    /** Dateiformat (Endung bzw. MIME), z.B. "wav", "flac", "m4a" */
+    val format: String,
+    /** Abtastrate der Originaldatei */
+    val sampleRate: Int,
+    val channels: Int,
+    val durationSec: Float? = null,
+    /** Aufnahmebeginn dieser Datei (ISO 8601 mit Offset) */
+    val startedAt: String,
+    /** Herkunft der Zeit: guano, audiomoth, bext, metadata, info, filename, modified, manual */
+    val timeSource: String
 )
 
 /**
@@ -45,7 +66,8 @@ data class SessionMetadata(
     val recordingSegments: List<RecordingSegment>? = null,  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
     val note: String? = null,       // T109: Freitext-Bemerkung zur Session (null = keine; alte session.json ohne Feld)
     val modelId: String? = null,    // T103a: Profil-ID des Modells (z.B. "v3_final_fp16")
-    val speciesFilter: SpeciesFilterInfo? = null  // T218/T246: Gruppenwahl und Geomodel-Angaben
+    val speciesFilter: SpeciesFilterInfo? = null,  // T218/T246: Gruppenwahl und Geomodel-Angaben
+    val importedFrom: List<ImportedSource>? = null  // T255: importierte Fremdaudio-Dateien (null = Aufnahme mit PIROL)
 )
 
 /**
