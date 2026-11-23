@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><title>Listen-Editor Selbsttest</title>
+<style>body{font:15px system-ui;padding:12px}.ok{color:#2a7a3b}.fail{color:#b3261e;font-weight:bold}</style></head>
+<body><h1>Selbsttest Kernlogik</h1><div id="o"></div><pre id="ex"></pre>
+<script src="core.js"></script><script src="test.js"></script>
+<script>
+var r = runListTests(ListCore), o = document.getElementById('o'), bad = 0;
+r.results.forEach(function (x) {
+  if (!x.ok) bad++;
+  var d = document.createElement('div');
+  d.className = x.ok ? 'ok' : 'fail';
+  d.textContent = (x.ok ? 'OK ' : 'FAIL ') + x.name + (x.extra ? ' -> ' + x.extra : '');
+  o.appendChild(d);
+});
+document.title = bad ? 'FEHLER' : 'Alle Tests bestanden';
+document.getElementById('ex').textContent = JSON.stringify(r.example, null, 2);
+</script></body></html>
