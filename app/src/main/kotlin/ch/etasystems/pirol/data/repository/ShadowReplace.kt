@@ -33,6 +33,16 @@ object ShadowReplace {
         fun delete(name: String)
     }
 
+    /** T240: Ist [name] eine Schattenkopie bzw. Marke (nie exportieren/hochladen)? */
+    fun isShadowFile(name: String): Boolean = name.endsWith(NEW_SUFFIX) || name.endsWith(OK_SUFFIX)
+
+    /** T240: Zieldatei zu einer Schattenkopie bzw. Marke; null = kein Schattenname */
+    fun originalOf(name: String): String? = when {
+        name.endsWith(OK_SUFFIX) -> name.removeSuffix(OK_SUFFIX)
+        name.endsWith(NEW_SUFFIX) -> name.removeSuffix(NEW_SUFFIX)
+        else -> null
+    }?.takeIf { it.isNotEmpty() }
+
     fun shadowName(name: String) = name + NEW_SUFFIX
     fun markerName(name: String) = name + OK_SUFFIX
 

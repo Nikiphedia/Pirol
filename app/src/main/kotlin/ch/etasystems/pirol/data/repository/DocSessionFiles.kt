@@ -69,6 +69,12 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
         return ShadowReplace.recover(store, fileName)
     }
 
+    /** T240: Alle Reste unterbrochener Ersetzungen im Ordner aufloesen; Anzahl Dateien mit Resten. */
+    fun recoverAll(): Int {
+        val bases = listNames().mapNotNull { ShadowReplace.originalOf(it) }.toSet()
+        return bases.count { recover(it) }
+    }
+
     override fun writeReplacing(fileName: String, content: String) {
         // T236: nie kuerzen ohne vollstaendige Kopie (siehe ShadowReplace)
         ShadowReplace.replace(store, fileName, content)

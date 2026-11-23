@@ -14,9 +14,7 @@
     <string name="analysis_bemerkung_zur_session">Opmerking bij de sessie</string>
     <string name="common_save">Opslaan</string>
     <string name="analysis_diese_session_wurde_im_alten">Deze sessie is opgeslagen in het oude blokformaat. Audioweergave is niet beschikbaar, maar de detectiegegevens blijven zichtbaar.</string>
-    <string name="analysis_raven_txt">Raven (.txt)</string>
     <string name="common_play">Afspelen</string>
-    <string name="analysis_raven_datei_anzeigen">Raven-bestand tonen</string>
     <string name="analysis_sonogramm_wird_berechnet">Sonogram wordt berekend…</string>
     <string name="analysis_gesamte_session">Volledige sessie</string>
     <string name="analysis_detektionen">Detecties (%1$s):</string>
@@ -41,8 +39,6 @@
     <string name="analysis_keine_spektrogramm_frames_berechnet">Geen spectrogramframes berekend</string>
     <string name="analysis_kein_sonogramm">Geen sonogram</string>
     <string name="common_save_failed">Opslaan mislukt</string>
-    <string name="analysis_raven_tabelle_gespeichert">Raven-tabel opgeslagen: %1$s</string>
-    <string name="analysis_kein_recording_wav_export_nicht">Geen recording.wav, export niet mogelijk</string>
     <string name="analysis_bemerkung_konnte_nicht_gespeichert_w">Opmerking kon niet worden opgeslagen</string>
     <string name="ui_art_manuell_hinzufuegen">Soort handmatig toevoegen</string>
     <string name="ui_art">Soort</string>
@@ -94,11 +90,8 @@
     <string name="ui_artname">Soortnaam</string>
     <string name="ui_korrigieren">Corrigeren</string>
     <string name="ui_fertig">Klaar</string>
-    <string name="ui_db_schwelle_automatisch_aus_dem">dB-drempel: automatisch op basis van het signaal</string>
-    <string name="ui_db_schwelle_bis_db">dB-drempel: %1$s tot %2$s dB</string>
     <string name="ui_farbpalette">Kleurenpalet</string>
     <string name="ui_aufnahme_stoppen">Opname stoppen</string>
-    <string name="ui_pausieren">Pauzeren</string>
     <string name="ui_memo_loeschen">Memo verwijderen</string>
     <string name="ui_memo_aufnehmen">Memo opnemen</string>
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Opslaglocatie niet bereikbaar: opname opgeslagen in de noodmap.</string>
@@ -198,14 +191,12 @@
     <string name="settings_watchlist_importiert">Watchlist geïmporteerd</string>
     <string name="settings_import_fehlgeschlagen">Import mislukt: %1$s</string>
     <string name="settings_einstellungen">Instellingen</string>
-    <string name="settings_sonogramm">Sonogram</string>
     <string name="settings_tipp_langdruck_auf_das_sonogramm">Tip: lang indrukken op het sonogram op het tabblad Live of Analyse opent dezelfde schuifregelaars. Automatisch contrast gebruikt afhankelijk van de preset het 2e/98e of het 30e/99,5e percentiel.</string>
     <string name="settings_erkennung">Detectie</string>
     <string name="settings_erkennungs_schwelle_topk">Detectiedrempel (TopK): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. soorten per blok (TopK): %1$s</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: alleen de topsoort (gedrag vóór T71)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: tot %2$s soorten tegelijk</string>
-    <string name="settings_regionaler_filter">Regionaal filter</string>
     <string name="settings_voreinstellungen">Voorinstellingen</string>
     <string name="settings_hochpassfilter_200_hz">Hoogdoorlaatfilter (200 Hz)</string>
     <string name="settings_aenderungen_wirken_nach_neustart_der">Wijzigingen werken na het opnieuw starten van de opname</string>
@@ -251,14 +242,6 @@
     <string name="settings_sessions_kuerzer_als_minimum_dauer">Sessies die korter zijn dan de minimumduur zonder detecties worden verwijderd</string>
     <string name="settings_minimum_dauer_s_0_deaktiviert">Minimumduur: %1$s s  (0 = uit)</string>
     <string name="settings_keine_sessions_vorhanden">Geen sessies aanwezig</string>
-    <string name="settings_bestehende_sessions_verschieben">Bestaande sessies verplaatsen</string>
-    <string name="settings_sessions_werden_kopiert">Sessies worden gekopieerd...</string>
-    <string name="settings_sessions_verschieben">Sessies verplaatsen</string>
-    <string name="settings_sessions_mb_an_neuen_speicherort">%1$s sessies (%2$s MB) naar de nieuwe locatie kopiëren?</string>
-    <string name="settings_sessions_kopiert">%1$s sessies gekopieerd</string>
-    <string name="settings_fehler">Fout: %1$s</string>
-    <string name="settings_kein_zielordner_ausgewaehlt">Geen doelmap gekozen</string>
-    <string name="settings_kopieren">Kopiëren</string>
     <string name="settings_nur_wechseln">Alleen wisselen</string>
     <string name="settings_export">Export</string>
     <string name="settings_nur_bei_wlan_exportieren">Alleen via wifi exporteren</string>
@@ -337,7 +320,6 @@
     <string name="svc_aufnahme">Opname</string>
     <string name="svc_zeigt_an_dass_pirol_audio">Toont dat PIROL audio opneemt</string>
     <string name="svc_aufnahme_laeuft">Opname bezig</string>
-    <string name="analysis_fehler_datei_nicht_lesbar">Fout: bestand niet leesbaar</string>
     <string name="ui_export_fehlgeschlagen">Export mislukt: %1$s</string>
     <string name="ui_detektionen">%1$s detecties</string>
     <string name="ui_bestaetigung_rueckgaengig">Bevestiging ongedaan maken</string>
@@ -423,7 +405,6 @@
     <string name="ui_jetzt">nu</string>
     <string name="ui_helligkeits_deckel">Helderheidsplafond: %1$s</string>
     <string name="ui_deckel_aus">uit</string>
-    <string name="ui_deckel_db">%1$s dB</string>
     <string name="spectro_preset_standard">Standaard</string>
     <string name="spectro_preset_quiet">Zachte roepjes</string>
     <string name="spectro_preset_loud">Luidruchtige omgeving</string>
@@ -435,11 +416,7 @@
     <string name="svc_vorbereitung">Voorbereiden...</string>
     <string name="settings_section_language">Taal</string>
     <string name="settings_section_model_detection">Model &amp; detectie</string>
-    <string name="settings_section_recording_storage">Opname &amp; opslag</string>
-    <string name="settings_section_analysis_export">Analyse &amp; export</string>
-    <string name="settings_section_watchlist_alarm">Watchlist &amp; alarm</string>
     <string name="settings_section_similar_refs">Vergelijkbare soorten &amp; referenties</string>
-    <string name="settings_section_upload">Upload</string>
     <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polyfase (aanbevolen, filtert ruis boven 16 kHz)</string>
     <string name="settings_resampler_linear">Lineair (oud, zoals AMSEL)</string>

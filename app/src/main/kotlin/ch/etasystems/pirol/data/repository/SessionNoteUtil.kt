@@ -30,10 +30,4 @@ object SessionNoteUtil {
             .take(MAX_FILE_NAME_PART)
             .trim('-')
     }
-
-    /** ZIP-Dateiname: `{sessionId}.zip` bzw. `{sessionId}_{Kurzform}.zip` bei Bemerkung. */
-    fun zipFileName(sessionId: String, note: String?): String {
-        val part = sanitizeForFileName(note)
-        return if (part.isEmpty()) "$sessionId.zip" else "${sessionId}_$part.zip"
-    }
 }

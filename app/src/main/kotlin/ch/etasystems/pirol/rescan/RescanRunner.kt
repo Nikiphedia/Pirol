@@ -147,12 +147,18 @@ object RescanStore {
     ) {
         val id = info.id
         require(id !in RescanFiles.idsIn(files.listNames())) { "Variante $id existiert bereits" }
-        files.writeReplacing(RescanFiles.detections(id), detections.joinToString("") { json.encodeToString(it) + "\n" })
-        files.writeReplacing(
-            RescanFiles.verifications(id),
-            (mergeEvents + transferEvents).joinToString("") { json.encodeToString(it) + "\n" }
-        )
-        files.writeReplacing(RescanFiles.meta(id), jsonPretty.encodeToString(info))
+        try {
+            files.writeReplacing(RescanFiles.detections(id), detections.joinToString("") { json.encodeToString(it) + "\n" })
+            files.writeReplacing(
+                RescanFiles.verifications(id),
+                (mergeEvents + transferEvents).joinToString("") { json.encodeToString(it) + "\n" }
+            )
+            files.writeReplacing(RescanFiles.meta(id), jsonPretty.encodeToString(info))
+        } catch (e: Exception) {
+            // T240: halb geschriebene Variante aufraeumen (keine verwaisten Dateien ohne Meta)
+            runCatching { delete(files, id) }
+            throw e
+        }
     }
 
     /** Alle lesbaren Varianten, aelteste zuerst. */

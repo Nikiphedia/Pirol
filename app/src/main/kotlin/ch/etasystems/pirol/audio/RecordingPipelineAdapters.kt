@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.audio
 
+import kotlinx.coroutines.launch
 import android.content.Context
 import android.util.Log
 import ch.etasystems.pirol.data.AppPreferences
@@ -166,10 +167,9 @@ class AndroidPipelineHooks(
     private val context: Context? = null,  // T224: Zweitmodell
     private val modelManager: ch.etasystems.pirol.ml.ModelManager? = null  // T224
 ) : PipelineHooks {
-    private companion object {
-        /** T239: Wartezeit fuer das Nachladen der Label-CSV des Zweitmodells */
-        const val SECONDARY_LABELS_TIMEOUT_MS = 8_000L
-    }
+
+    /** T240: Nachladen der Zweitmodell-Labels ausserhalb des Aufnahmepfads */
+    private val labelScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
@@ -256,16 +256,15 @@ class AndroidPipelineHooks(
             Log.w("RecordingPipeline", "T224 Zweitmodell $fileName nicht vorhanden")
             return null
         }
-        // T239: fehlende Label-CSV eines Katalogmodells nachladen (kleine Datei, begrenzte Wartezeit)
-        mm.getModelFile(fileName)?.let { f ->
+        // T240: fehlende Label-CSV eines Katalogmodells im Hintergrund nachladen, nie auf dem Aufnahmepfad warten.
+        // Bis die Labels da sind, gibt es kein Zweitmodell (naechster Start nimmt es).
+        val f = mm.getModelFile(fileName)
+        if (f != null) {
             val profile = ch.etasystems.pirol.ml.ModelProfile.resolve(f.name, f.length())
             if (profile.labelAssetPath == null && mm.getLabelFile(profile) == null) {
-                val ok = try {
-                    kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-                        kotlinx.coroutines.withTimeoutOrNull(SECONDARY_LABELS_TIMEOUT_MS) { mm.ensureLabels(profile) } ?: false
-                    }
-                } catch (e: Exception) { false }
-                if (!ok) Log.w("RecordingPipeline", "T239 Labels fuer Zweitmodell $fileName nicht verfuegbar")
+                Log.w("RecordingPipeline", "T240 Labels fuer Zweitmodell $fileName fehlen, Nachladen im Hintergrund")
+                labelScope.launch { try { mm.ensureLabels(profile) } catch (e: Exception) { Log.w("RecordingPipeline", "Labels nicht ladbar", e) } }
+                return null
             }
         }
         val cls = ch.etasystems.pirol.ml.BirdNetV3Classifier(ctx, mm, null, fileName)

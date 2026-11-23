@@ -14,9 +14,7 @@
     <string name="analysis_bemerkung_zur_session">Nota sulla sessione</string>
     <string name="common_save">Salva</string>
     <string name="analysis_diese_session_wurde_im_alten">Questa sessione è stata salvata nel vecchio formato a blocchi. Riproduzione audio non disponibile, i dati dei rilevamenti restano visibili.</string>
-    <string name="analysis_raven_txt">Raven (.txt)</string>
     <string name="common_play">Riproduci</string>
-    <string name="analysis_raven_datei_anzeigen">Mostra file Raven</string>
     <string name="analysis_sonogramm_wird_berechnet">Calcolo del sonogramma…</string>
     <string name="analysis_gesamte_session">Intera sessione</string>
     <string name="analysis_detektionen">Rilevamenti (%1$s):</string>
@@ -41,8 +39,6 @@
     <string name="analysis_keine_spektrogramm_frames_berechnet">Nessun frame dello spettrogramma calcolato</string>
     <string name="analysis_kein_sonogramm">Nessun sonogramma</string>
     <string name="common_save_failed">Salvataggio non riuscito</string>
-    <string name="analysis_raven_tabelle_gespeichert">Tabella Raven salvata: %1$s</string>
-    <string name="analysis_kein_recording_wav_export_nicht">Nessun recording.wav, esportazione impossibile</string>
     <string name="analysis_bemerkung_konnte_nicht_gespeichert_w">Impossibile salvare la nota</string>
     <string name="ui_art_manuell_hinzufuegen">Aggiungi specie manualmente</string>
     <string name="ui_art">Specie</string>
@@ -94,11 +90,8 @@
     <string name="ui_artname">Nome della specie</string>
     <string name="ui_korrigieren">Correggi</string>
     <string name="ui_fertig">Fatto</string>
-    <string name="ui_db_schwelle_automatisch_aus_dem">Soglia dB: automatica dal segnale</string>
-    <string name="ui_db_schwelle_bis_db">Soglia dB: da %1$s a %2$s dB</string>
     <string name="ui_farbpalette">Tavolozza colori</string>
     <string name="ui_aufnahme_stoppen">Ferma registrazione</string>
-    <string name="ui_pausieren">Pausa</string>
     <string name="ui_memo_loeschen">Elimina memo</string>
     <string name="ui_memo_aufnehmen">Registra memo</string>
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Posizione di salvataggio non raggiungibile, registrazione salvata nella cartella di emergenza.</string>
@@ -198,14 +191,12 @@
     <string name="settings_watchlist_importiert">Watchlist importata</string>
     <string name="settings_import_fehlgeschlagen">Importazione non riuscita: %1$s</string>
     <string name="settings_einstellungen">Impostazioni</string>
-    <string name="settings_sonogramm">Sonogramma</string>
     <string name="settings_tipp_langdruck_auf_das_sonogramm">Suggerimento: tenere premuto il sonogramma nella scheda Live o Analisi apre gli stessi cursori. Il contrasto automatico usa, secondo il preset, il 2°/98° o il 30°/99,5° percentile.</string>
     <string name="settings_erkennung">Rilevamento</string>
     <string name="settings_erkennungs_schwelle_topk">Soglia di rilevamento (TopK): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. specie per blocco (TopK): %1$s</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: solo la specie principale (comportamento pre-T71)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: fino a %2$s specie contemporaneamente</string>
-    <string name="settings_regionaler_filter">Filtro regionale</string>
     <string name="settings_voreinstellungen">Preimpostazioni</string>
     <string name="settings_hochpassfilter_200_hz">Filtro passa-alto (200 Hz)</string>
     <string name="settings_aenderungen_wirken_nach_neustart_der">Le modifiche hanno effetto al riavvio della registrazione</string>
@@ -251,14 +242,6 @@
     <string name="settings_sessions_kuerzer_als_minimum_dauer">Le sessioni più brevi della durata minima senza rilevamenti vengono eliminate</string>
     <string name="settings_minimum_dauer_s_0_deaktiviert">Durata minima: %1$s s  (0 = disattivato)</string>
     <string name="settings_keine_sessions_vorhanden">Nessuna sessione presente</string>
-    <string name="settings_bestehende_sessions_verschieben">Sposta le sessioni esistenti</string>
-    <string name="settings_sessions_werden_kopiert">Copia delle sessioni...</string>
-    <string name="settings_sessions_verschieben">Sposta sessioni</string>
-    <string name="settings_sessions_mb_an_neuen_speicherort">Copiare %1$s sessioni (%2$s MB) nella nuova posizione?</string>
-    <string name="settings_sessions_kopiert">%1$s sessioni copiate</string>
-    <string name="settings_fehler">Errore: %1$s</string>
-    <string name="settings_kein_zielordner_ausgewaehlt">Nessuna cartella di destinazione selezionata</string>
-    <string name="settings_kopieren">Copia</string>
     <string name="settings_nur_wechseln">Solo cambia</string>
     <string name="settings_export">Esporta</string>
     <string name="settings_nur_bei_wlan_exportieren">Esporta solo con Wi-Fi</string>
@@ -337,7 +320,6 @@
     <string name="svc_aufnahme">Registrazione</string>
     <string name="svc_zeigt_an_dass_pirol_audio">Indica che PIROL sta registrando audio</string>
     <string name="svc_aufnahme_laeuft">Registrazione in corso</string>
-    <string name="analysis_fehler_datei_nicht_lesbar">Errore: file illeggibile</string>
     <string name="ui_export_fehlgeschlagen">Esportazione non riuscita: %1$s</string>
     <string name="ui_detektionen">%1$s rilevamenti</string>
     <string name="ui_bestaetigung_rueckgaengig">Annulla conferma</string>
@@ -423,7 +405,6 @@
     <string name="ui_jetzt">ora</string>
     <string name="ui_helligkeits_deckel">Limite di luminosità: %1$s</string>
     <string name="ui_deckel_aus">off</string>
-    <string name="ui_deckel_db">%1$s dB</string>
     <string name="spectro_preset_standard">Standard</string>
     <string name="spectro_preset_quiet">Richiami deboli</string>
     <string name="spectro_preset_loud">Ambiente rumoroso</string>
@@ -435,11 +416,7 @@
     <string name="svc_vorbereitung">Preparazione...</string>
     <string name="settings_section_language">Lingua</string>
     <string name="settings_section_model_detection">Modello e riconoscimento</string>
-    <string name="settings_section_recording_storage">Registrazione e memoria</string>
-    <string name="settings_section_analysis_export">Analisi ed esportazione</string>
-    <string name="settings_section_watchlist_alarm">Watchlist e allarme</string>
     <string name="settings_section_similar_refs">Specie simili e riferimenti</string>
-    <string name="settings_section_upload">Caricamento</string>
     <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polifase (consigliato, filtra i disturbi sopra 16 kHz)</string>
     <string name="settings_resampler_linear">Lineare (vecchio, come AMSEL)</string>

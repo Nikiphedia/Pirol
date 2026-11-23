@@ -1,10 +1,6 @@
 package ch.etasystems.pirol.audio.export
 
 import ch.etasystems.pirol.ml.DetectionResult
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * T116: Ausschnitt einer Detektion in recording.wav (Wiedergabe, Zoom und Export teilen diese Logik).
@@ -84,23 +80,5 @@ object DetectionExcerpt {
         }
         if (end < start) end = start
         return Range(start, end, detectionStartSec)
-    }
-
-    /**
-     * Dateiname `{yyyy-MM-dd}_{HHmmss}_{Genus_species}` ohne Endung, ASCII.
-     * @param timestampMs Wanduhr der Detektion
-     * @param timeZone Lokale Zeitzone (Standard: Geraete-Zone)
-     */
-    fun baseFileName(
-        scientificName: String,
-        timestampMs: Long,
-        timeZone: TimeZone = TimeZone.getDefault()
-    ): String {
-        val fmt = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.ROOT).apply { this.timeZone = timeZone }
-        val species = scientificName.trim()
-            .replace(Regex("[^A-Za-z0-9]+"), "_")
-            .trim('_')
-            .ifEmpty { "Unbekannt" }
-        return "${fmt.format(Date(timestampMs))}_$species"
     }
 }

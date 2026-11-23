@@ -44,7 +44,6 @@ class ExportNamesTest {
         assertEquals("20260420143000_Begehung_Aare", ExportNames.sessionName(s, "Begehung Aare", "x"))
         assertEquals("20260420143000", ExportNames.sessionName(s, null, "x"))
         assertEquals("20260420143000.zip", ExportNames.sessionZipName(s, "", "x"))
-        assertEquals("20260420143000_A.selections.txt", ExportNames.sessionRavenName(s, "A", "x"))
     }
 
     @Test fun `Session Zeit bleibt Lokalzeit des Offsets`() {

@@ -921,15 +921,6 @@ class LiveViewModel(
         setInferenceConfig(newConfig)
     }
 
-    /** Regionalen Artenfilter setzen oder deaktivieren */
-    fun setRegionFilter(regionId: String?) {
-        if (regionId != null) {
-            loadRegionAsync(regionId)
-        }
-        val newConfig = _uiState.value.inferenceConfig.copy(regionFilter = regionId)
-        setInferenceConfig(newConfig)
-    }
-
     /** Gesamte InferenceConfig setzen (z.B. fuer Presets) */
     fun setInferenceConfig(config: InferenceConfig) {
         // Region laden falls geaendert

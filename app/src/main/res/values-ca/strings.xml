@@ -14,9 +14,7 @@
     <string name="analysis_bemerkung_zur_session">Observació de la sessió</string>
     <string name="common_save">Desa</string>
     <string name="analysis_diese_session_wurde_im_alten">Aquesta sessió es va desar en el format antic per blocs. La reproducció d\'àudio no està disponible, però les dades de detecció continuen visibles.</string>
-    <string name="analysis_raven_txt">Raven (.txt)</string>
     <string name="common_play">Reprodueix</string>
-    <string name="analysis_raven_datei_anzeigen">Mostra el fitxer Raven</string>
     <string name="analysis_sonogramm_wird_berechnet">S\'està calculant el sonograma…</string>
     <string name="analysis_gesamte_session">Sessió completa</string>
     <string name="analysis_detektionen">Deteccions (%1$s):</string>
@@ -41,8 +39,6 @@
     <string name="analysis_keine_spektrogramm_frames_berechnet">No s\'ha calculat cap fotograma d\'espectrograma</string>
     <string name="analysis_kein_sonogramm">Sense sonograma</string>
     <string name="common_save_failed">No s\'ha pogut desar</string>
-    <string name="analysis_raven_tabelle_gespeichert">Taula Raven desada: %1$s</string>
-    <string name="analysis_kein_recording_wav_export_nicht">No hi ha recording.wav; no es pot exportar</string>
     <string name="analysis_bemerkung_konnte_nicht_gespeichert_w">No s\'ha pogut desar l\'observació</string>
     <string name="ui_art_manuell_hinzufuegen">Afegeix una espècie manualment</string>
     <string name="ui_art">Espècie</string>
@@ -94,11 +90,8 @@
     <string name="ui_artname">Nom de l\'espècie</string>
     <string name="ui_korrigieren">Corregeix</string>
     <string name="ui_fertig">Fet</string>
-    <string name="ui_db_schwelle_automatisch_aus_dem">Llindar dB: automàtic segons el senyal</string>
-    <string name="ui_db_schwelle_bis_db">Llindar dB: de %1$s a %2$s dB</string>
     <string name="ui_farbpalette">Paleta de colors</string>
     <string name="ui_aufnahme_stoppen">Atura l\'enregistrament</string>
-    <string name="ui_pausieren">Pausa</string>
     <string name="ui_memo_loeschen">Suprimeix el memo</string>
     <string name="ui_memo_aufnehmen">Grava un memo</string>
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Ubicació no accessible: l\'enregistrament s\'ha desat a la carpeta de reserva.</string>
@@ -198,14 +191,12 @@
     <string name="settings_watchlist_importiert">Watchlist importada</string>
     <string name="settings_import_fehlgeschlagen">Importació fallida: %1$s</string>
     <string name="settings_einstellungen">Configuració</string>
-    <string name="settings_sonogramm">Sonograma</string>
     <string name="settings_tipp_langdruck_auf_das_sonogramm">Consell: mantenir premut el sonograma a la pestanya Live o Anàlisi obre els mateixos controls. El contrast automàtic usa, segons el preajust, el percentil 2/98 o 30/99,5.</string>
     <string name="settings_erkennung">Detecció</string>
     <string name="settings_erkennungs_schwelle_topk">Llindar de detecció (TopK): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Espècies màx. per bloc (TopK): %1$s</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: només l\'espècie principal (comportament anterior a T71)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: fins a %2$s espècies alhora</string>
-    <string name="settings_regionaler_filter">Filtre regional</string>
     <string name="settings_voreinstellungen">Preajustos</string>
     <string name="settings_hochpassfilter_200_hz">Filtre passa-alt (200 Hz)</string>
     <string name="settings_aenderungen_wirken_nach_neustart_der">Els canvis s\'apliquen en reiniciar l\'enregistrament</string>
@@ -251,14 +242,6 @@
     <string name="settings_sessions_kuerzer_als_minimum_dauer">Se suprimeixen les sessions més curtes que la durada mínima sense deteccions</string>
     <string name="settings_minimum_dauer_s_0_deaktiviert">Durada mínima: %1$s s  (0 = desactivat)</string>
     <string name="settings_keine_sessions_vorhanden">No hi ha cap sessió</string>
-    <string name="settings_bestehende_sessions_verschieben">Mou les sessions existents</string>
-    <string name="settings_sessions_werden_kopiert">S\'estan copiant les sessions...</string>
-    <string name="settings_sessions_verschieben">Mou les sessions</string>
-    <string name="settings_sessions_mb_an_neuen_speicherort">Voleu copiar %1$s sessions (%2$s MB) a la nova ubicació?</string>
-    <string name="settings_sessions_kopiert">%1$s sessions copiades</string>
-    <string name="settings_fehler">Error: %1$s</string>
-    <string name="settings_kein_zielordner_ausgewaehlt">No s\'ha triat cap carpeta de destinació</string>
-    <string name="settings_kopieren">Copia</string>
     <string name="settings_nur_wechseln">Només canvia</string>
     <string name="settings_export">Exporta</string>
     <string name="settings_nur_bei_wlan_exportieren">Exporta només amb Wi-Fi</string>
@@ -337,7 +320,6 @@
     <string name="svc_aufnahme">Enregistrament</string>
     <string name="svc_zeigt_an_dass_pirol_audio">Indica que PIROL està enregistrant àudio</string>
     <string name="svc_aufnahme_laeuft">Enregistrament en curs</string>
-    <string name="analysis_fehler_datei_nicht_lesbar">Error: fitxer il·legible</string>
     <string name="ui_export_fehlgeschlagen">L\'exportació ha fallat: %1$s</string>
     <string name="ui_detektionen">%1$s deteccions</string>
     <string name="ui_bestaetigung_rueckgaengig">Desfés la confirmació</string>
@@ -423,7 +405,6 @@
     <string name="ui_jetzt">ara</string>
     <string name="ui_helligkeits_deckel">Límit de lluminositat: %1$s</string>
     <string name="ui_deckel_aus">apagat</string>
-    <string name="ui_deckel_db">%1$s dB</string>
     <string name="spectro_preset_standard">Estàndard</string>
     <string name="spectro_preset_quiet">Crits febles</string>
     <string name="spectro_preset_loud">Entorn sorollós</string>
@@ -435,11 +416,7 @@
     <string name="svc_vorbereitung">Preparació...</string>
     <string name="settings_section_language">Idioma</string>
     <string name="settings_section_model_detection">Model i detecció</string>
-    <string name="settings_section_recording_storage">Enregistrament i emmagatzematge</string>
-    <string name="settings_section_analysis_export">Anàlisi i exportació</string>
-    <string name="settings_section_watchlist_alarm">Llista de seguiment i alarma</string>
     <string name="settings_section_similar_refs">Espècies similars i referències</string>
-    <string name="settings_section_upload">Pujada</string>
     <string name="settings_resampler_title">Remostrejador (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polifàsic (recomanat, filtra el soroll per sobre de 16 kHz)</string>
     <string name="settings_resampler_linear">Lineal (antic, com AMSEL)</string>

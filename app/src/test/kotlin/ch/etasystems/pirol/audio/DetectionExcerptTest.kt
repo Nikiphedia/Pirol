@@ -65,14 +65,6 @@ class DetectionExcerptTest {
         assertEquals(108f, r.endSec, 0.001f)
     }
 
-    @Test fun file_name_is_ascii_and_uses_genus_species() {
-        val tz = TimeZone.getTimeZone("UTC")
-        val name = DetectionExcerpt.baseFileName("Turdus merula", 0L, tz)
-        assertEquals("1970-01-01_000000_Turdus_merula", name)
-        assertEquals("1970-01-01_000000_Parus_major_x", DetectionExcerpt.baseFileName(" Parus  major (x) ", 0L, tz))
-        assertEquals("1970-01-01_000000_Unbekannt", DetectionExcerpt.baseFileName("", 0L, tz))
-    }
-
     @Test fun wav_header_and_byte_count() {
         val h = ExcerptWav.header(numSamples = 1000, sampleRate = 48000)
         assertEquals(44, h.size)

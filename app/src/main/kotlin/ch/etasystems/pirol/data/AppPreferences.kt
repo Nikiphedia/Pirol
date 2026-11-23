@@ -16,6 +16,11 @@ class AppPreferences(context: Context) {
 
     private val prefs = context.getSharedPreferences("pirol_prefs", Context.MODE_PRIVATE)
 
+    init {
+        // T240: Reste entfernter Einstellungen aufraeumen (T225: Top-K-Schwelle)
+        if (prefs.contains("pirol_topk_threshold")) prefs.edit().remove("pirol_topk_threshold").apply()
+    }
+
     // --- Onboarding ---
     var onboardingCompleted: Boolean
         get() = prefs.getBoolean("pirol_onboarding_completed", false)
