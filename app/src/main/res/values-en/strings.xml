@@ -549,16 +549,15 @@
     <string name="settings_whats_new_button">What\'s new</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Live view more compact on phones, portrait and landscape: buttons on one row, slim navigation, more species visible</item>
-        <item>Listen to a detection right on the species card (Play); a second tap stops, a new one stops the old one</item>
-        <item>Microphone is muted while playing through the speaker (no self-detection); stays on with headphones</item>
-        <item>Species detected again: the card flashes briefly</item>
-        <item>Confirm/reject without popup, undo right on the card</item>
-        <item>Spectrogram: time window up to 30 s, recalculated immediately after switching tabs, much less battery with the screen on; settings as tiles</item>
-        <item>Analysis: species detected several times can be expanded, connected calls can be played as one episode</item>
-        <item>Select several recordings (long press), move or delete them</item>
-        <item>Map: tap a point to move or listen to it; location button shows a 200 m view</item>
-        <item>New app icon, smaller installation file</item>
+        <item>Multiple detection: every species in the 3-second window that reaches the confidence threshold is detected. The threshold now applies to all species (default 50 %), please check the slider</item>
+        <item>Live display can be switched: spectrogram, spectrum (FFT with peak hold) or oscillogram (with level, band-pass, red on overload)</item>
+        <item>Analysis: search species, playback bar with Play and jump to previous/next detection, tapping the spectrogram jumps</item>
+        <item>"+ Species" takes the time from the playback position (±10 s); the location can be picked on the map</item>
+        <item>Map: legend filters species, "Alarm species only"; route is recorded (GPX when stopped)</item>
+        <item>GPS position at app start; insert the municipality into the note with one button</item>
+        <item>Settings grouped into 8 sections, rarely used options under "Advanced"</item>
+        <item>Resampler can be switched with a hint; the model is released in the background (less battery)</item>
+        <item>Raven export and time stamps use the best window of a species</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>
