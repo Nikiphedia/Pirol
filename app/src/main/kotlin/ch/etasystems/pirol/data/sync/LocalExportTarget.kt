@@ -3,22 +3,27 @@ package ch.etasystems.pirol.data.sync
 import android.content.Context
 import android.os.Environment
 import ch.etasystems.pirol.data.repository.SessionMetadata
-import ch.etasystems.pirol.data.repository.SessionNoteUtil
 import java.io.File
 
 /**
  * Exportiert Sessions als ZIP in den Downloads-Ordner.
  * Nutzt Environment.DIRECTORY_DOWNLOADS (kein WRITE_EXTERNAL_STORAGE noetig ab API 29).
  *
- * Ergebnis: Downloads/PIROL/{sessionId}.zip
+ * Ergebnis: Downloads/PIROL/YYYYMMDDHHMM[_Bemerkung].zip
  */
 class LocalExportTarget(private val context: Context) : UploadTarget {
 
     override val name = "Lokaler Export"
 
+    override fun exists(fileName: String): Boolean = File(pirolDir(), fileName).exists()
+
+    private fun pirolDir(): File =
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "PIROL")
+
     override suspend fun upload(
         zipFile: File,
         metadata: SessionMetadata,
+        fileName: String,
         onProgress: (Float) -> Unit
     ): Boolean {
         // Zielordner: Downloads/PIROL/
@@ -28,7 +33,7 @@ class LocalExportTarget(private val context: Context) : UploadTarget {
         val pirolDir = File(downloadsDir, "PIROL")
         pirolDir.mkdirs()
 
-        val targetFile = File(pirolDir, SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note))
+        val targetFile = File(pirolDir, fileName)
 
         return try {
             onProgress(0.1f)

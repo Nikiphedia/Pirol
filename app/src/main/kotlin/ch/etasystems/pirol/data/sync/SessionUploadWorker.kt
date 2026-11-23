@@ -11,7 +11,7 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import ch.etasystems.pirol.data.repository.SessionNoteUtil
+import ch.etasystems.pirol.data.export.ExportNames
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -48,7 +48,7 @@ class SessionUploadWorker(
         }
 
         // ZIP erstellen (temporaer)
-        val zipFile = File(applicationContext.cacheDir, SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note))
+        val zipFile = File(applicationContext.cacheDir, ExportNames.sessionZipName(metadata.startedAt, metadata.note, metadata.sessionId))
         try {
             createZip(sessionDir, zipFile)
         } catch (e: Exception) {
@@ -68,7 +68,7 @@ class SessionUploadWorker(
                 val target = UploadTargetFactory.create(
                     applicationContext, prefs, UploadCredentialStore(applicationContext)
                 )!!
-                remoteDone = target.upload(zipFile, metadata) { p ->
+                remoteDone = target.upload(zipFile, metadata, chooseName(target, metadata)) { p ->
                     UploadStatusHolder.set(UploadStatus.InProgress(metadata.sessionId, p))
                 }
                 if (!remoteDone) error = "Upload fehlgeschlagen"
@@ -86,7 +86,8 @@ class SessionUploadWorker(
         var localOk = true
         if (!remoteConfigured || (remoteDone && !prefs.deleteLocalZipAfterUpload)) {
             localOk = try {
-                LocalExportTarget(applicationContext).upload(zipFile, metadata)
+                val local = LocalExportTarget(applicationContext)
+                local.upload(zipFile, metadata, chooseName(local, metadata))
             } catch (e: Exception) {
                 false
             }
@@ -113,6 +114,22 @@ class SessionUploadWorker(
         // Zwischenstand: Retry mit exponentiellem Backoff (WorkManager)
         record(prefs, "Fehler (Versuch ${runAttemptCount + 1}/$MAX_ATTEMPTS), neuer Versuch: $error")
         return Result.retry()
+    }
+
+    /**
+     * T233: Zielname pro Session und Ziel einmal festlegen (kollisionsfrei gegen vorhandene Dateien)
+     * und merken; Wiederholungen derselben Session ersetzen die eigene Datei.
+     */
+    private fun chooseName(target: UploadTarget, metadata: SessionMetadata): String {
+        val store = applicationContext.getSharedPreferences("pirol_export_names", Context.MODE_PRIVATE)
+        val key = "${metadata.sessionId}|${target.name}"
+        val name = ExportNames.chooseZipName(
+            store.getString(key, null),
+            ExportNames.sessionName(metadata.startedAt, metadata.note, metadata.sessionId),
+            target::exists
+        )
+        store.edit().putString(key, name).apply()
+        return name
     }
 
     private fun record(prefs: AppPreferences, text: String) {

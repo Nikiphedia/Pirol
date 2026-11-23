@@ -90,7 +90,7 @@ class DetectionExporter(
         val dir = File(context.cacheDir, "share").apply { mkdirs() }
         // Alte Dateien aufraeumen
         dir.listFiles()?.forEach { it.delete() }
-        val target = File(dir, DetectionExcerpt.baseFileName(det.scientificName, det.timestampMs) + "." + format.extension)
+        val target = File(dir, ExportNames.detectionName(det.timestampMs, nameResolver.resolve(det.scientificName), det.note) + "." + format.extension)
 
         when (format) {
             ShareFormat.WAV -> ExcerptWav.write(target, pcm)

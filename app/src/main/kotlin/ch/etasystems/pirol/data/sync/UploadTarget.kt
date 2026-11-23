@@ -18,12 +18,17 @@ interface UploadTarget {
      *
      * @param zipFile Gepackte Session (ZIP mit session.json, detections.jsonl, audio/)
      * @param metadata Session-Metadaten (fuer Ordnernamen, Beschreibung etc.)
+     * @param fileName Zieldateiname (T233: pro Session einmal kollisionsfrei festgelegt)
      * @param onProgress Fortschritt 0.0-1.0
      * @return true bei Erfolg
      */
+    /** true, wenn im Ziel bereits eine Datei dieses Namens liegt (blockierend, im Worker aufrufen). */
+    fun exists(fileName: String): Boolean
+
     suspend fun upload(
         zipFile: File,
         metadata: SessionMetadata,
+        fileName: String,
         onProgress: (Float) -> Unit = {}
     ): Boolean
 }

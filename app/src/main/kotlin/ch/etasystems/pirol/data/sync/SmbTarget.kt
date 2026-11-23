@@ -1,7 +1,6 @@
 package ch.etasystems.pirol.data.sync
 
 import ch.etasystems.pirol.data.repository.SessionMetadata
-import ch.etasystems.pirol.data.repository.SessionNoteUtil
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2ShareAccess
@@ -64,13 +63,19 @@ class SmbTarget(
         withShare { share -> ensureFolder(share, folder) }
     }
 
+    override fun exists(fileName: String): Boolean {
+        val remote = UploadConfig.buildRemotePath(settings.path, fileName)
+        return withShare { share -> share.fileExists(remote) }
+    }
+
     override suspend fun upload(
         zipFile: File,
         metadata: SessionMetadata,
+        fileName: String,
         onProgress: (Float) -> Unit
     ): Boolean {
         val remote = UploadConfig.buildRemotePath(
-            settings.path, SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note)
+            settings.path, fileName
         )
         val folder = remote.substringBeforeLast('/', "")
         val total = zipFile.length().coerceAtLeast(1L)
