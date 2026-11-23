@@ -753,4 +753,6 @@
     <string name="model_err_corrupt">File corrupt (checksum does not match)</string>
     <string name="analysis_rescan_hinweis">Keeps running in the background, even with the screen off. Cancel also via the notification.</string>
     <string name="svc_rescan_kanal">Re-analysis</string>
+    <string name="memory_warning_secondary">Low memory (under about 6 GB): a second model can exhaust memory, Android then closes other apps.</string>
+    <string name="analysis_menu_suche">Search species</string>
 </resources>

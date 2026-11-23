@@ -209,6 +209,8 @@ fun SetupSummaryPage(choices: SetupChoices, s: SetupSettings, modelName: String?
         }
         if (extras.isNotEmpty()) add(AppStrings.get(R.string.setup_sum_extras, extras.joinToString(", ")))
         if (s.secondaryMissing) add(AppStrings.get(R.string.setup_sum_secondary_missing))
+        // T254: Speicherwarnung bei Zweitmodell auf kleinem Geraet
+        if ((s.secondaryModelFileName != null || s.secondaryMissing) && MemoryWarning.isLowRam(androidx.compose.ui.platform.LocalContext.current)) add(AppStrings.get(R.string.memory_warning_secondary))
         if (SetupPurpose.MONITORING in choices.purposes) add(AppStrings.get(R.string.setup_monitoring_hint))
     }
     lines.forEach {

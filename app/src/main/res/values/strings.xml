@@ -754,4 +754,6 @@
     <string name="model_err_corrupt">Datei beschädigt (Prüfsumme stimmt nicht)</string>
     <string name="analysis_rescan_hinweis">Läuft im Hintergrund weiter, auch bei ausgeschaltetem Bildschirm. Abbrechen auch über die Benachrichtigung.</string>
     <string name="svc_rescan_kanal">Neu-Analyse</string>
+    <string name="memory_warning_secondary">Wenig Arbeitsspeicher (unter ca. 6 GB): Ein Zweitmodell kann den Speicher knapp machen, Android beendet dann andere Apps.</string>
+    <string name="analysis_menu_suche">Art suchen</string>
 </resources>

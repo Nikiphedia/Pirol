@@ -392,6 +392,14 @@ internal fun ModelSettingsSection(
 
             // Einstellungen je Rolle: Sekundaer nur bei gewaehltem Sekundaermodell (Expertenmodus)
             val secondaryModel = installedModels.firstOrNull { it.fileName == secondaryFile }
+            // T254: Speicherwarnung beim Waehlen eines Zweitmodells auf kleinem Geraet
+            if (secondaryModel != null && ch.etasystems.pirol.ui.onboarding.MemoryWarning.isLowRam(androidx.compose.ui.platform.LocalContext.current)) {
+                Text(
+                    stringResource(R.string.memory_warning_secondary),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             if (expert && secondaryModel != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
