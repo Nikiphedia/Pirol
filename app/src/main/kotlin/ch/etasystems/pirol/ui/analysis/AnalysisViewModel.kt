@@ -1376,7 +1376,9 @@ class AnalysisViewModel(
             verificationMutex.withLock {
                 try {
                     sessionManager.replaceDetectionIn(session.sessionDir, restored, variant)
-                    sessionManager.removeLastVerificationIn(session.sessionDir, before.id, variant)
+                    sessionManager.removeLastVerificationIn(
+                        session.sessionDir, before.id, variant, VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED  // T249 (M6)
+                    )
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(saveErrorMessage = AppStrings.get(R.string.common_save_failed)) }
