@@ -23,6 +23,10 @@ MANUAL = {
     # Aeltere eBird-/BirdNET-2.4-Namen, die als Quelle fehlen (in 3.0 final aufgegangen/umbenannt)
     "Accipiter_gentilis": "Astur_gentilis",          # Habicht
     "Acanthis_cabaret": "Acanthis_flammea",          # Alpenbirkenzeisig (3.0 final fuehrt nur Birkenzeisig/Redpoll)
+    # T215: GBIF-Schreibweisen/-Namen fuer Schweizer Brutvoegel (Bericht T214), gegen 3.0-final-Labels geprueft
+    "Phylloscopus_sibillatrix": "Phylloscopus_sibilatrix",  # Waldlaubsaenger (GBIF-Tippfehler-Variante, doppeltes l)
+    "Parus_montanus": "Poecile_montanus",            # Weidenmeise
+    "Ixobrychus_minutus": "Botaurus_minutus",        # Zwergdommel
 }
 
 def stem(k):
