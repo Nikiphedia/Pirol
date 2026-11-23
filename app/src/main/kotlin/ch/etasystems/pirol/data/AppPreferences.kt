@@ -156,9 +156,13 @@ class AppPreferences(context: Context) {
 
     // --- Kompakte Artkarte (T192) ---
     /** true = Artkarte als Einzeiler mit [Bestaetigen][Ablehnen][+]; false = Vollkarte (Default). */
+    /** T229: reaktiv, damit Live, Analyse und Settings sofort synchron sind. */
+    val compactCardSetting = ReactiveBooleanSetting(prefs.getBoolean("pirol_compact_species_card", false)) {
+        prefs.edit().putBoolean("pirol_compact_species_card", it).apply()
+    }
     var compactSpeciesCard: Boolean
-        get() = prefs.getBoolean("pirol_compact_species_card", false)
-        set(value) = prefs.edit().putBoolean("pirol_compact_species_card", value).apply()
+        get() = compactCardSetting.value
+        set(value) = compactCardSetting.set(value)
 
     // --- GPS (T53) ---
     /** Maximale akzeptierte GPS-Ungenauigkeit in Metern. Fixes schlechter als dieser Wert werden verworfen. */

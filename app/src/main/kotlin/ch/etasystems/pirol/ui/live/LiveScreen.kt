@@ -1302,6 +1302,8 @@ private fun SpectrogramBox(
                 )
             }
         }
+        // T229: Schnellknopf Artkarte kompakt/ausfuehrlich
+        ch.etasystems.pirol.ui.components.CompactCardToggleButton(Modifier.align(Alignment.BottomEnd).padding(bottom = 20.dp))
     }
 }
 

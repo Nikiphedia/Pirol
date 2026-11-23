@@ -1945,7 +1945,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
-            var compactCard by remember { mutableStateOf(appPreferences.compactSpeciesCard) }
+            val compactCard by appPreferences.compactCardSetting.flow.collectAsState()
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -1960,10 +1960,7 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = compactCard,
-                    onCheckedChange = {
-                        compactCard = it
-                        appPreferences.compactSpeciesCard = it
-                    }
+                    onCheckedChange = { appPreferences.compactSpeciesCard = it }
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))

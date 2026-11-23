@@ -815,6 +815,8 @@ private fun SessionDetailContent(
                         Text(stringResource(R.string.analysis_gesamte_session), color = Color.White)
                     }
                 }
+                // T229: Schnellknopf Artkarte kompakt/ausfuehrlich (unten rechts, oben sitzt "Gesamte Session")
+                ch.etasystems.pirol.ui.components.CompactCardToggleButton(Modifier.align(Alignment.BottomEnd).padding(bottom = 20.dp))
             }
             // T194: Uebersichtsleiste ueber die ganze Session (Segmente: Session-Gesamtdauer)
             Spacer(modifier = Modifier.height(4.dp))
