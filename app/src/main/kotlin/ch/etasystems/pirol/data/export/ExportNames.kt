@@ -8,8 +8,8 @@ import java.util.TimeZone
 /**
  * T233: Dateinamen beim Teilen/Export/Upload (rein, ohne Android-Abhaengigkeit).
  *
- * - Detektion: `YYYYMMDDHHMM_Art_Bemerkung`
- * - Session (ZIP, Raven): `YYYYMMDDHHMM_Bemerkung`
+ * - Detektion: `YYYYMMDDHHMMSS_Art_Bemerkung`
+ * - Session (ZIP, Raven): `YYYYMMDDHHMMSS_Bemerkung`
  * Fehlende Bemerkung: Teil entfaellt. Dateinamen im Session-Ordner bleiben unveraendert.
  *
  * Umlaute bleiben erhalten (UTF-8): SAF/Drive, SMB und Android-Dateisystem kommen damit zurecht;
@@ -20,7 +20,7 @@ object ExportNames {
     const val MAX_NOTE_LENGTH = 40
     const val MAX_SPECIES_LENGTH = 60
 
-    private val TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmm")
+    private val TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
     private val FORBIDDEN = Regex("""[\\/:*?"<>|\p{Cntrl}\s]+""")
 
     /** Dateisicherer Teil: verbotene Zeichen und Leerzeichen -> '_', zusammengefasst, gekuerzt. */
@@ -34,11 +34,11 @@ object ExportNames {
             .trim('_', '.')
     }
 
-    /** `YYYYMMDDHHMM` in lokaler Zeit. */
+    /** `YYYYMMDDHHMMSS` in lokaler Zeit. */
     fun timePart(timestampMs: Long, timeZone: TimeZone = TimeZone.getDefault()): String =
         TIME_FORMAT.format(java.time.Instant.ofEpochMilli(timestampMs).atZone(timeZone.toZoneId()))
 
-    /** Name ohne Endung: `YYYYMMDDHHMM_Art_Bemerkung`. */
+    /** Name ohne Endung: `YYYYMMDDHHMMSS_Art_Bemerkung`. */
     fun detectionName(
         timestampMs: Long,
         speciesName: String,
@@ -51,7 +51,7 @@ object ExportNames {
     )
 
     /**
-     * Name ohne Endung: `YYYYMMDDHHMM_Bemerkung`. [startedAt] ist ISO 8601 mit Offset (lokale Zeit
+     * Name ohne Endung: `YYYYMMDDHHMMSS_Bemerkung`. [startedAt] ist ISO 8601 mit Offset (lokale Zeit
      * der Aufnahme); ohne lesbare Zeit Rueckfall auf [fallbackId].
      */
     fun sessionName(startedAt: String, note: String?, fallbackId: String): String {
@@ -84,7 +84,15 @@ object ExportNames {
 
     /** Gemerkten Namen weiterverwenden (Retry), sonst erster freier Name im Ziel. */
     fun chooseZipName(stored: String?, baseName: String, exists: (String) -> Boolean): String =
-        stored ?: uniqueName(baseName, "zip", exists)
+        chooseZipName(stored, baseName, emptySet(), exists)
+
+    /** Wie oben; zusaetzlich gelten von anderen Sessions reservierte Namen ([reserved]) als belegt (T234). */
+    fun chooseZipName(
+        stored: String?,
+        baseName: String,
+        reserved: Set<String>,
+        exists: (String) -> Boolean
+    ): String = stored ?: uniqueName(baseName, "zip") { it in reserved || exists(it) }
 
     private fun join(vararg parts: String): String = parts.filter { it.isNotEmpty() }.joinToString("_")
 }

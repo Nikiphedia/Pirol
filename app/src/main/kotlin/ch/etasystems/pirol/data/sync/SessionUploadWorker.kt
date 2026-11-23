@@ -30,6 +30,8 @@ class SessionUploadWorker(
         private const val TAG = "SessionUploadWorker"
         /** Maximale Anzahl Versuche inkl. erstem (danach endgueltig fehlgeschlagen) */
         const val MAX_ATTEMPTS = 5
+        /** T234: prozessweites Schloss fuer "Zielname waehlen + merken" (parallele Worker) */
+        private val nameLock = Any()
     }
 
     override suspend fun doWork(): Result {
@@ -48,7 +50,7 @@ class SessionUploadWorker(
         }
 
         // ZIP erstellen (temporaer)
-        val zipFile = File(applicationContext.cacheDir, ExportNames.sessionZipName(metadata.startedAt, metadata.note, metadata.sessionId))
+        val zipFile = File(applicationContext.cacheDir, "upload_${ExportNames.sanitizePart(metadata.sessionId, 80).ifEmpty { "session" }}.zip")
         try {
             createZip(sessionDir, zipFile)
         } catch (e: Exception) {
@@ -123,13 +125,22 @@ class SessionUploadWorker(
     private fun chooseName(target: UploadTarget, metadata: SessionMetadata): String {
         val store = applicationContext.getSharedPreferences("pirol_export_names", Context.MODE_PRIVATE)
         val key = "${metadata.sessionId}|${target.name}"
-        val name = ExportNames.chooseZipName(
-            store.getString(key, null),
-            ExportNames.sessionName(metadata.startedAt, metadata.note, metadata.sessionId),
-            target::exists
-        )
-        store.edit().putString(key, name).apply()
-        return name
+        synchronized(nameLock) {
+            // Namen anderer Sessions auf demselben Ziel gelten als belegt (auch wenn die Datei noch fehlt)
+            val suffix = "|${target.name}"
+            val reserved = store.all.entries
+                .filter { it.key != key && it.key.endsWith(suffix) }
+                .mapNotNull { it.value as? String }
+                .toSet()
+            val name = ExportNames.chooseZipName(
+                store.getString(key, null),
+                ExportNames.sessionName(metadata.startedAt, metadata.note, metadata.sessionId),
+                reserved,
+                target::exists
+            )
+            store.edit().putString(key, name).commit()
+            return name
+        }
     }
 
     private fun record(prefs: AppPreferences, text: String) {
