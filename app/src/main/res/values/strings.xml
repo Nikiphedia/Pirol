@@ -735,4 +735,6 @@
     <string name="setup_sum_secondary_missing">Zweitmodell gewuenscht, aber keines installiert. Import: Einstellungen, Modell &amp; Erkennung, Import (BirdNET 2.4 nur nicht-kommerziell).</string>
     <string name="setup_list_ortho_note">Automatisch plus mitgelieferte Liste Heuschrecken &amp; Amphibien der Schweiz (73 Arten).</string>
     <string name="settings_info_lists">Artenliste Heuschrecken &amp; Amphibien (CH): Daten von GBIF.org, Lizenz CC0 und CC BY 4.0, Abfrage 2026-11-23. Datensaetze u.a. Swiss National Grasshoppers Databank (doi:10.15468/bcthst), Swiss National Amphibian Databank (doi:10.15468/ggwedn), Swiss National Fauna Databank (doi:10.15468/8s936n), NABU/naturgucker (doi:10.15468/uc1apo); vollstaendige Liste: tools/listen-generator/sources_ch_orthoptera_anura.md. Die Liste steht unter CC BY 4.0.</string>
+    <string name="card_toggle_to_detailed">Artkarte ausfuehrlich anzeigen</string>
+    <string name="card_toggle_to_compact">Artkarte kompakt anzeigen</string>
 </resources>

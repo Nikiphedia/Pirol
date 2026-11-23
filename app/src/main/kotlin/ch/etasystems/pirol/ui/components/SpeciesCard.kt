@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.LaunchedEffect
@@ -757,11 +758,11 @@ fun SpeciesCard(
     }
 }
 
-/** T192: liest die Einstellung "kompakte Artkarte" (bei jedem Betreten des Tabs frisch). */
+/** T192/T229: beobachtet die Einstellung "kompakte Artkarte" (sofort wirksam). */
 @Composable
 private fun rememberCompactCardSetting(): Boolean {
     val prefs: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
-    return prefs.compactSpeciesCard
+    return prefs.compactCardSetting.flow.collectAsState().value
 }
 
 /**
