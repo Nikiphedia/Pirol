@@ -7,6 +7,10 @@ import androidx.work.WorkerParameters
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.SessionMetadata
 import kotlinx.serialization.json.Json
+import ch.etasystems.pirol.data.repository.DetectionUpdateLog
+import ch.etasystems.pirol.data.repository.SessionManager
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -23,7 +27,9 @@ import java.util.zip.ZipOutputStream
 class SessionUploadWorker(
     context: Context,
     params: WorkerParameters
-) : CoroutineWorker(context, params) {
+) : CoroutineWorker(context, params), KoinComponent {
+
+    private val sessionManager: SessionManager by inject()
 
     companion object {
         const val KEY_SESSION_DIR = "session_dir"
@@ -53,7 +59,14 @@ class SessionUploadWorker(
         // ZIP erstellen (temporaer)
         val zipFile = File(applicationContext.cacheDir, "upload_${ExportNames.sanitizePart(metadata.sessionId, 80).ifEmpty { "session" }}.zip")
         try {
-            createZip(sessionDir, zipFile)
+            // T253: zusammengefuehrte Detektionen (Zusatzdatei uebernommen bzw. bei aktiver Session eingerechnet)
+            val detections = try {
+                sessionManager.detectionsForExport(sessionDir)
+            } catch (e: Exception) {
+                Log.w(TAG, "Zusammengefuehrte Detektionen nicht lesbar, Datei wie sie ist", e)
+                null
+            }
+            createZip(sessionDir, zipFile, detections)
         } catch (e: Exception) {
             Log.e(TAG, "ZIP erstellen fehlgeschlagen", e)
             zipFile.delete()
@@ -174,15 +187,22 @@ class SessionUploadWorker(
 
 // Packt einen Session-Ordner als ZIP.
 // Enthaelt: session.json, detections.jsonl, verifications.jsonl (falls vorhanden), audio/*.wav
-private fun createZip(sessionDir: File, zipFile: File) {
+// T253: detections.jsonl kommt aus [detectionsText] (zusammengefuehrter Stand), falls gegeben; die Zusatzdatei
+// der Detektions-Updates kommt nie ins ZIP.
+internal fun createZip(sessionDir: File, zipFile: File, detectionsText: String? = null) {
     ZipOutputStream(BufferedOutputStream(FileOutputStream(zipFile))).use { zos ->
         sessionDir.walkTopDown()
             .filter { it.isFile && !ch.etasystems.pirol.data.repository.ShadowReplace.isShadowFile(it.name) }  // T240
+            .filter { it.name != DetectionUpdateLog.FILE }
             .forEach { file ->
                 val entryName = file.relativeTo(sessionDir).path.replace('\\', '/')
                 zos.putNextEntry(ZipEntry(entryName))
-                FileInputStream(file).use { fis ->
-                    fis.copyTo(zos, bufferSize = 8192)
+                if (detectionsText != null && entryName == "detections.jsonl") {
+                    zos.write(detectionsText.toByteArray(Charsets.UTF_8))
+                } else {
+                    FileInputStream(file).use { fis ->
+                        fis.copyTo(zos, bufferSize = 8192)
+                    }
                 }
                 zos.closeEntry()
             }

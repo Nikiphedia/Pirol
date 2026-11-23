@@ -17,7 +17,8 @@ class RavenSecondaryTest {
         secondaryStatus = if (withSecondary) "DISAGREES" else null,
         secondaryConfidence = if (withSecondary) 0.2f else null,
         secondaryTopSpecies = if (withSecondary) "Parus_major" else null,
-        secondaryTopConfidence = if (withSecondary) 0.71f else null
+        secondaryTopConfidence = if (withSecondary) 0.71f else null,
+        secondaryRank = if (withSecondary) 3 else null
     )
 
     private fun export(dets: List<DetectionResult>, fields: Set<String>?): List<List<String>> {
@@ -43,10 +44,10 @@ class RavenSecondaryTest {
         val h = rows[0]
         val i = h.indexOf("Second Model")
         assertTrue(i > 0)
-        assertEquals(listOf("Second Model", "Second Status", "Second Score", "Second Top Species", "Second Top Score"), h.subList(i, i + 5))
-        assertEquals(listOf("birdnet24_global6k", "DISAGREES", "0.200", "Parus_major", "0.710"), rows[1].subList(i, i + 5))
-        assertEquals(listOf("", "", "", "", ""), rows[2].subList(i, i + 5))
-        assertEquals("Status", h[i + 5])
+        assertEquals(listOf("Second Model", "Second Status", "Second Score", "Second Top Species", "Second Top Score", "Second Rank"), h.subList(i, i + 6))
+        assertEquals(listOf("birdnet24_global6k", "DISAGREES", "0.200", "Parus_major", "0.710", "3"), rows[1].subList(i, i + 6))
+        assertEquals(listOf("", "", "", "", "", ""), rows[2].subList(i, i + 6))
+        assertEquals("Status", h[i + 6])
     }
 
     @Test

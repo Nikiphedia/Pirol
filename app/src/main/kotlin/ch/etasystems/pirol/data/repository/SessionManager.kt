@@ -515,6 +515,27 @@ class SessionManager(
         return if (access is DocSessionFiles) fileMutex.withLock { readMerged(access, name) } else readMerged(access, name)
     }
 
+    /**
+     * T253: Zusammengefuehrte detections.jsonl fuer ZIP-Upload/-Export. Nicht aktive Session: liegengebliebene
+     * Zusatzdatei vorher in detections.jsonl uebernehmen (unter Sperre, wie beim Oeffnen). Aktive Session:
+     * vorher flushen und den zusammengefuehrten Stand liefern, die laufende Datei bleibt unveraendert.
+     * Scheitert das Uebernehmen, liefert das Lesen trotzdem den zusammengefuehrten Stand. null = Datei fehlt.
+     */
+    suspend fun detectionsForExport(sessionDir: File): String? = withContext(Dispatchers.IO) {
+        if (!isActiveDir(sessionDir)) {
+            try {
+                fileMutex.withLock {
+                    if (isActiveDir(sessionDir)) return@withLock
+                    val access = accessFor(sessionDir)
+                    if (access.exists(DetectionUpdateLog.FILE)) DetectionUpdateLog.consolidate(access)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Export: Detektions-Updates nicht uebernommen: ${sessionDir.name}", e)
+            }
+        }
+        readSessionText(sessionDir, DETECTIONS_FILE)
+    }
+
     /** T221: Zugriff auf die Dateien einer Session unter dem fileMutex (Rescan-Varianten schreiben/loeschen). */
     suspend fun <T> withSessionFiles(sessionDir: File, block: (SessionFiles) -> T): T = withContext(Dispatchers.IO) {
         fileMutex.withLock {
