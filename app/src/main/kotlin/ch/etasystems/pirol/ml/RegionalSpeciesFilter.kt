@@ -14,7 +14,9 @@ class RegionalSpeciesFilter(
     private val context: Context,
     private val pirolFolder: PirolFolder? = null,
     /** T190: erhaelt Anzeigenamen aus eigenen Listen (Rueckfall fuer Arten ohne species_master-Eintrag) */
-    private val speciesNames: SpeciesNameResolver? = null
+    private val speciesNames: SpeciesNameResolver? = null,
+    /** T218: Begleitliste und Verknuepfung fuer "auto_geo" */
+    private val appPreferences: ch.etasystems.pirol.data.AppPreferences? = null
 ) {
 
     companion object {
@@ -28,6 +30,14 @@ class RegionalSpeciesFilter(
         internal fun matches(canonicalRegion: Set<String>, scientificName: String): Boolean =
             canonicalRegion.isEmpty() || SpeciesKey.of(scientificName) in canonicalRegion
     }
+
+    // T218: Geomodel-Filter (Region "auto_geo"); die Maske setzt der GeoFilterController
+    @Volatile
+    private var autoGeo = false
+    @Volatile
+    private var geoMask: GeoMask? = null
+    @Volatile
+    private var geoCombine = GeoCombine.GEO_ONLY
 
     private var currentRegionId: String? = null
     private var speciesSet: Set<String> = emptySet()
@@ -88,8 +98,8 @@ class RegionalSpeciesFilter(
             l.commonNames.forEach { (k, v) -> acc.putIfAbsent(k, v) }; acc
         })
         // aktive eigene Liste neu laden, falls sie sich geaendert hat
-        val cur = currentRegionId
-        if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(cur)
+        val cur = if (autoGeo) appPreferences?.geoCompanionRegion else currentRegionId
+        if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(if (autoGeo) GeoLogic.REGION_ID else cur)
     }
 
     fun getCustomWarnings(): List<String> = customWarnings
@@ -104,6 +114,29 @@ class RegionalSpeciesFilter(
      * @param regionId z.B. "ch_breeding", "ch_all", "central_europe", "all"
      */
     fun loadRegion(regionId: String = "ch_breeding") {
+        // T218: "auto_geo" = Begleitliste laden (Ersatz/Verknuepfung), Geomodel-Maske kommt vom Controller
+        val auto = regionId == GeoLogic.REGION_ID
+        autoGeo = auto
+        if (!auto) geoMask = null
+        if (auto) {
+            geoCombine = GeoCombine.parse(appPreferences?.geoCombine)
+            loadRegionInternal(appPreferences?.geoCompanionRegion ?: "ch_all")
+            currentRegionId = GeoLogic.REGION_ID
+        } else {
+            loadRegionInternal(regionId)
+        }
+    }
+
+    /** T218: Ist der Geomodel-Filter aktiv (Region "auto_geo")? */
+    fun isAutoGeo(): Boolean = autoGeo
+
+    /** T218: Geomodel-Maske ersetzen (null = keine Position/Modell → Begleitliste gilt als Ersatz) */
+    fun setGeoMask(mask: GeoMask?, combine: GeoCombine) {
+        geoMask = mask
+        geoCombine = combine
+    }
+
+    private fun loadRegionInternal(regionId: String) {
         SpeciesKey.load(context)
         try {
             // Sets nur einmal parsen
@@ -182,7 +215,10 @@ class RegionalSpeciesFilter(
      */
     fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean {
         // Kein Filter aktiv oder "all" gewaehlt; sonst Vergleich ueber kanonischen Schluessel (T105)
-        if (!matches(canonicalSet, scientificName)) return false
+        val listOk = matches(canonicalSet, scientificName)
+        // T218: mit Geomodel-Maske entscheidet GeoLogic (ohne Maske gilt die Begleitliste als Ersatz)
+        val base = if (autoGeo) GeoLogic.plausible(SpeciesKey.of(scientificName), geoMask, listOk, geoCombine) else listOk
+        if (!base) return false
         val custom = activeCustom
         if (!respectSeason || custom == null) return true
         return ListSeason.isInSeason(custom.seasons[SpeciesKey.of(scientificName)], monthDay)

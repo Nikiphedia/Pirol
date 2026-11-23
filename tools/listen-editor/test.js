@@ -31,6 +31,12 @@
     st.info.Roeseliana_roeselii = { common_name: 'Roesels Beissschrecke', taxon_group: 'orthoptera', season: [{ from: '07-01', to: '10' }], note: '', extra: {} };
     var v = C.validate(st);
     t('Validierung ok', v.errors.length === 0, v.errors.join(';'));
+    // T218: Taxonomie wie das Modell (ohne Version) ist gueltig; leere Referenz bleibt Fehler
+    st.head.taxonomy.aves = { reference: 'model:birdnet_v3', version: '' };
+    t('Taxonomie model:birdnet_v3 ohne Version ok', C.validate(st).errors.length === 0, C.validate(st).errors.join(';'));
+    st.head.taxonomy.aves = { reference: 'IOC', version: '' };
+    t('IOC ohne Version = Fehler', C.validate(st).errors.length === 1);
+    st.head.taxonomy.aves = { reference: 'IOC', version: '15.1' };
     var out = C.buildExport(st, '2026-11-23T12:00:00+01:00');
     var keys = Object.keys(out);
     t('version 4 + generator', out.version === 4 && /^pirol-list-editor/.test(out.generator));

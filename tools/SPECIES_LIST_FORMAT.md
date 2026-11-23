@@ -71,7 +71,7 @@ Annotierte Einzel-Set-Datei (Kommentare nur zur Erklaerung, in echten Dateien ve
 | `updated` | String | nein | - | Letzte Aenderung, Format wie `created`. Writer setzen es bei jeder Aenderung. |
 | `description` | String | nein | - | Beschreibung der Datei, Sprache = `display_language`. |
 | `display_language` | String | nein | `"de"` | BCP-47-Code (`de`, `en`, `fr`, `gsw-CH` ...) fuer `common_name` und `description`. |
-| `taxonomy` | Objekt | v4: ja fuer `aves` | - | Taxonomie-Referenz je Tiergruppe: `{ "<taxon_group>": { "reference": String, "version": String } }`. Fuer Voegel `reference = "IOC"` (IOC World Bird List), `version` z.B. `"15.1"`. |
+| `taxonomy` | Objekt | v4: ja fuer `aves` | - | Taxonomie-Referenz je Tiergruppe: `{ "<taxon_group>": { "reference": String, "version": String } }`. Fuer Voegel `reference = "IOC"` (IOC World Bird List), `version` z.B. `"15.1"`. Alternativ **"Taxonomie wie das Modell"** (T218): `reference = "model:birdnet_v3"` (BirdNET+ V3.0 / Geomodel), `version` entfaellt; ein Freitext in `reference` ist ebenfalls erlaubt. Die Namen werden dann ueber `species_aliases.json` auf das Modell abgebildet. |
 | `license` | String | nein | - | Lizenz der Liste beim Teilen, z.B. `"CC BY 4.0"`. |
 | `sets` | Array | Sammeldatei | - | Liste von Set-Objekten (3.2). Fehlt `sets`, ist die Wurzel selbst das Set. |
 
@@ -157,7 +157,7 @@ Randfaelle:
 
 ## 5. Namensabgleich und Validierung
 
-**Speicherform:** wissenschaftlicher Name im Unterstrich-Format (`Turdus_merula`), gross geschriebene Gattung, nach IOC-Version aus `taxonomy.aves.version` (Voegel) bzw. der Referenz der Tiergruppe.
+**Speicherform:** wissenschaftlicher Name im Unterstrich-Format (`Turdus_merula`), gross geschriebene Gattung, nach IOC-Version aus `taxonomy.aves.version` (Voegel) bzw. der Referenz der Tiergruppe. Mit `reference = "model:<id>"` gilt die Taxonomie des genannten Modells (T218); Abweichungen loest `species_aliases.json` auf.
 
 **Leser (PIROL, AMSEL):**
 

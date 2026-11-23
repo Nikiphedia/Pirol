@@ -5,6 +5,7 @@ import android.util.Log
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.GpsStats
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.data.repository.SpeciesFilterInfo
 import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.data.sync.UploadTargetFactory
 import ch.etasystems.pirol.location.LocationData
@@ -33,8 +34,8 @@ class SessionManagerPipelineSession(private val sm: SessionManager) : PipelineSe
     override suspend fun appendVerification(event: VerificationEvent) { sm.appendVerification(event) }
     override suspend fun startSession(
         sampleRate: Int, latitude: Double?, longitude: Double?, regionFilter: String?,
-        confidenceThreshold: Float, note: String?, modelId: String?
-    ): String = sm.startSession(sampleRate, latitude, longitude, regionFilter, confidenceThreshold, note, modelId)
+        confidenceThreshold: Float, note: String?, modelId: String?, speciesFilter: SpeciesFilterInfo?
+    ): String = sm.startSession(sampleRate, latitude, longitude, regionFilter, confidenceThreshold, note, modelId, speciesFilter)
     override suspend fun endSession(gpsStats: GpsStats?) { sm.endSession(gpsStats) }
 }
 
@@ -159,7 +160,8 @@ class AndroidPipelineHooks(
     private val uploadManager: UploadManager,
     private val sessionManager: SessionManager,
     private val regionalFilter: ch.etasystems.pirol.ml.RegionalSpeciesFilter,  // T157
-    private val trackRecorder: ch.etasystems.pirol.location.TrackRecorder  // T191
+    private val trackRecorder: ch.etasystems.pirol.location.TrackRecorder,  // T191
+    private val geoFilter: ch.etasystems.pirol.ml.GeoFilterController  // T218
 ) : PipelineHooks {
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
@@ -213,6 +215,14 @@ class AndroidPipelineHooks(
             sessionManager.listSessions().firstOrNull()?.let { uploadManager.enqueue(it) }
         }
     }
+
+    // T218: Geomodel-Filter; ohne Position einmal kurz einen frischen Fix versuchen
+    override suspend fun prepareSpeciesFilter(loc: LocationData?, nowMs: Long): SpeciesFilterInfo? {
+        val needsFix = loc == null && appPreferences.regionFilter == ch.etasystems.pirol.ml.GeoLogic.REGION_ID
+        val fix = loc ?: if (needsFix) try { locationProvider.requestFreshFix(3_000L) } catch (e: Exception) { null } else null
+        return geoFilter.prepare(fix, nowMs)
+    }
+    override suspend fun refreshSpeciesFilter(loc: LocationData?, nowMs: Long) = geoFilter.refresh(loc, nowMs)
 
     // T191: Route aus den vorhandenen Fixes (kein eigenes GNSS, auch nicht im Modus "Nur bei Detektion")
     override fun startTrack(sessionId: String) {

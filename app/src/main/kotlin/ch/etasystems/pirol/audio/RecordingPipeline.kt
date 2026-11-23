@@ -2,6 +2,7 @@ package ch.etasystems.pirol.audio
 
 import android.util.Log
 import ch.etasystems.pirol.data.repository.GpsStats
+import ch.etasystems.pirol.data.repository.SpeciesFilterInfo
 import ch.etasystems.pirol.location.DetectionFixGate
 import ch.etasystems.pirol.location.DetectionFixPolicy
 import ch.etasystems.pirol.location.LocationData
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
 
@@ -52,7 +54,8 @@ interface PipelineSession {
         regionFilter: String?,
         confidenceThreshold: Float,
         note: String?,
-        modelId: String?
+        modelId: String?,
+        speciesFilter: SpeciesFilterInfo? = null  // T218
     ): String
     suspend fun endSession(gpsStats: GpsStats?)
 }
@@ -89,6 +92,10 @@ interface PipelineHooks {
     fun beforeSessionStart()
     /** Nach endSession auf dem Session-Dispatcher (T97 Embedding-DB, Alarm-Cooldowns, Auto-Upload) */
     suspend fun afterSessionEnd()
+    /** T218: Geomodel-Filter beim Session-Start berechnen (null = nicht gewaehlt); [loc] = Startposition */
+    suspend fun prepareSpeciesFilter(loc: LocationData?, nowMs: Long): SpeciesFilterInfo? = null
+    /** T218: waehrend der Aufnahme bei Wochen-/Ortswechsel neu berechnen (Aufruf etwa einmal pro Minute) */
+    suspend fun refreshSpeciesFilter(loc: LocationData?, nowMs: Long) {}
     /** T191: Routenaufzeichnung starten (nach startSession; Setting "Route aufzeichnen" prueft der Hook) */
     fun startTrack(sessionId: String) {}
     /** T191: Routenaufzeichnung beenden, VOR endSession (alle Punkte in track.jsonl, dann GPX-Export) */
@@ -122,6 +129,8 @@ class RecordingPipeline(
         private const val TAG = "RecordingPipeline"
         /** T152: Timeout des Startfixes (Audio-Puffer des Service ist begrenzt) */
         private const val STARTUP_FIX_TIMEOUT_MS = 3_000L
+        /** T218: Abstand der Pruefung auf Wochen-/Ortswechsel */
+        private const val GEO_CHECK_INTERVAL_MS = 60_000L
 
         /**
          * T207/T211: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
@@ -147,6 +156,7 @@ class RecordingPipeline(
     private val sessionDispatcher = ioDispatcher.limitedParallelism(1)
 
     private var inferenceJob: Job? = null
+    private var geoJob: Job? = null  // T218
     @Volatile private var running = false
     private var currentSessionId: String? = null
 
@@ -176,6 +186,10 @@ class RecordingPipeline(
     private val _overlapReduced = MutableSharedFlow<Int>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** T110: Auto-Fallback hat die Ueberlappung reduziert (neuer Wert in %) */
     val overlapReduced: SharedFlow<Int> = _overlapReduced.asSharedFlow()
+
+    private val _geoFallback = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** T218: Geomodel-Filter gewaehlt, aber ohne Position/Modell → Ersatzliste (einmal pro Session) */
+    val geoFallback: SharedFlow<Unit> = _geoFallback.asSharedFlow()
 
     private val _embeddingAdded = MutableSharedFlow<EmbeddingAdded>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** Neues Embedding (fuer Aehnlichkeitssuche + Marquee im Live-UI; ohne UI ungenutzt) */
@@ -227,6 +241,16 @@ class RecordingPipeline(
         fixGate = DetectionFixGate()
         hooks.startLocation()
         setInferenceConfig(hooks.loadInferenceConfig())
+        // T218: Wochen-/Ortswechsel pruefen (die Pruefung selbst begrenzt auf 1x/min und rechnet nur bei Aenderung)
+        geoJob?.cancel()
+        geoJob = scope.launch {
+            while (true) {
+                delay(GEO_CHECK_INTERVAL_MS)
+                try { hooks.refreshSpeciesFilter(hooks.currentLocation(), System.currentTimeMillis()) } catch (e: Exception) {
+                    Log.w(TAG, "Geomodel-Aktualisierung fehlgeschlagen", e)
+                }
+            }
+        }
 
         // T118: Session nur starten wenn keine aktive Session. Der InferenceWorker persistiert erst,
         // wenn die Session steht (sessionReady) - sonst wuerde der Preroll-Hop ohne Session verworfen.
@@ -252,6 +276,11 @@ class RecordingPipeline(
                         }
                     }
                     val loc = hooks.currentLocation() ?: fixGate.latestFix()
+                    // T218: Geomodel-Maske nach dem Startfix berechnen (Fehler = Ersatzliste, Session startet trotzdem)
+                    val filterInfo = try { hooks.prepareSpeciesFilter(loc, System.currentTimeMillis()) } catch (e: Exception) {
+                        Log.w(TAG, "Geomodel-Filter nicht vorbereitet", e); null
+                    }
+                    if (filterInfo?.source == "fallback") _geoFallback.tryEmit(Unit)
                     currentSessionId = session.startSession(
                         sampleRate = sampleRate,
                         latitude = loc?.latitude,
@@ -259,7 +288,8 @@ class RecordingPipeline(
                         regionFilter = config.regionFilter,
                         confidenceThreshold = InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence),
                         note = hooks.sessionNote(),  // T109
-                        modelId = classifier.modelId  // T103a
+                        modelId = classifier.modelId,  // T103a
+                        speciesFilter = filterInfo  // T218
                     )
                     _storageFallback.value = session.lastStartUsedFallback
                     currentSessionId?.let { id ->
@@ -331,6 +361,8 @@ class RecordingPipeline(
         val gpsStats = hooks.stopLocation()
         inferenceJob?.cancel()
         inferenceJob = null
+        geoJob?.cancel()
+        geoJob = null
         // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
         // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
         inferenceWorker.flushPendingAudio()

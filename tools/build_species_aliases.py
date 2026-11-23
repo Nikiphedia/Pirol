@@ -27,6 +27,8 @@ MANUAL = {
     "Phylloscopus_sibillatrix": "Phylloscopus_sibilatrix",  # Waldlaubsaenger (GBIF-Tippfehler-Variante, doppeltes l)
     "Parus_montanus": "Poecile_montanus",            # Weidenmeise
     "Ixobrychus_minutus": "Botaurus_minutus",        # Zwergdommel
+    # T218: GBIF-Name (Bericht T217); Geomodel und 3.0 final fuehren Ardea ibis
+    "Bubulcus_ibis": "Ardea_ibis",                   # Kuhreiher
 }
 
 def stem(k):

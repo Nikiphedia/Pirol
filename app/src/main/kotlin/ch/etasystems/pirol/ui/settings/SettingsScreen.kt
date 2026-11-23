@@ -88,6 +88,7 @@ import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.ModelProfile
 import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import ch.etasystems.pirol.ml.PhenologyRepository
+import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.ml.PirolFolder
@@ -1476,6 +1477,7 @@ fun SettingsScreen(
                     "ch_all" to "CH+",
                     "central_europe" to "EU",
                     "all" to AppStrings.get(R.string.common_all),
+                    GeoLogic.REGION_ID to AppStrings.get(R.string.live_region_auto),  // T218
                     null to AppStrings.get(R.string.common_off)
                 ).plus(customRegions.map { it.id to (it.nameDe + " (" + AppStrings.get(R.string.settings_eigene_liste) + ")") })
                 .forEach { (regionId, label) ->
@@ -1492,6 +1494,11 @@ fun SettingsScreen(
                         )
                     )
                 }
+            }
+
+            // T218: Geomodel-Einstellungen nur bei gewaehlter Region "Automatisch"
+            if (selectedRegion == GeoLogic.REGION_ID) {
+                GeoFilterSettings(appPreferences, koinInject<ModelManager>(), regionalFilter.getAvailableRegions())
             }
 
             customWarnings.forEach {
@@ -2235,6 +2242,11 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(R.string.settings_info_sources),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.settings_info_geomodel),  // T218
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

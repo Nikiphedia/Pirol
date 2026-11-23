@@ -381,6 +381,38 @@ class ModelManager(
         }
     }
 
+    /**
+     * T218: Geomodel (ONNX + Indexdatei) von den PIROL-Release-Assets laden (fortsetzbar, SHA-256).
+     * Fehlt das Release oder ist die Verbindung weg, steht der Grund in [lastDownloadError].
+     */
+    suspend fun downloadGeomodel(onProgress: (Float) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
+        lastDownloadError = null
+        if (GeoModelFiles.isInstalled(context)) return@withContext true
+        val dir = GeoModelFiles.dir(context)
+        dir.mkdirs()
+        if (dir.usableSpace < 3 * GeoModelFiles.MODEL_BYTES) {
+            lastDownloadError = "Zu wenig Speicher: ${dir.usableSpace / 1_048_576} MB frei"
+            return@withContext false
+        }
+        val indexOk = GeoModelFiles.indexFile(context).length() == GeoModelFiles.INDEX_BYTES ||
+            downloadFile(
+                GeoModelFiles.BASE_URL + GeoModelFiles.INDEX_NAME, GeoModelFiles.indexFile(context),
+                "sha256:" + GeoModelFiles.INDEX_SHA256, GeoModelFiles.INDEX_BYTES, GeoModelFiles.INDEX_BYTES
+            ) { onProgress(it * 0.05f) }
+        if (!indexOk) return@withContext false
+        val ok = downloadFile(
+            GeoModelFiles.BASE_URL + GeoModelFiles.MODEL_NAME, GeoModelFiles.modelFile(context),
+            "sha256:" + GeoModelFiles.MODEL_SHA256, GeoModelFiles.MODEL_BYTES, GeoModelFiles.MODEL_BYTES
+        ) { onProgress(0.05f + it * 0.95f) }
+        if (ok) onProgress(1f)
+        ok
+    }
+
+    /** T218: Geomodel-Dateien loeschen */
+    fun deleteGeomodel() {
+        GeoModelFiles.dir(context).deleteRecursively()
+    }
+
     private suspend fun runDownload(
         model: ModelProfile,
         onProgress: (Float) -> Unit

@@ -194,7 +194,9 @@
     st.species.forEach(function (n) { var e = st.info[n]; if (e && e.taxon_group) groups[e.taxon_group] = 1; });
     Object.keys(groups).forEach(function (g) {
       if (TAXON_GROUPS.indexOf(g) < 0) warnings.push('Unbekannte Tiergruppe: ' + g);
-      if (g === 'aves' && !(h.taxonomy && h.taxonomy.aves && h.taxonomy.aves.reference && h.taxonomy.aves.version))
+      // T218: "model:<id>" (Taxonomie wie das Modell) braucht keine Version
+      var tx = h.taxonomy && h.taxonomy.aves;
+      if (g === 'aves' && !(tx && tx.reference && (tx.version || /^model:/.test(tx.reference))))
         errors.push('Taxonomie fuer aves (Referenz und Version) fehlt.');
     });
     st.species.forEach(function (n) {

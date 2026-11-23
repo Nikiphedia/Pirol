@@ -71,7 +71,7 @@ class RecordingPipelineTest {
         override suspend fun appendVerification(event: VerificationEvent) {}
         override suspend fun startSession(
             sampleRate: Int, latitude: Double?, longitude: Double?, regionFilter: String?,
-            confidenceThreshold: Float, note: String?, modelId: String?
+            confidenceThreshold: Float, note: String?, modelId: String?, speciesFilter: ch.etasystems.pirol.data.repository.SpeciesFilterInfo?
         ): String { active = true; events += "start"; return "S1" }
         override suspend fun endSession(gpsStats: GpsStats?) { active = false; events += "end" }
     }
