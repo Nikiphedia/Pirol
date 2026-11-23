@@ -1214,6 +1214,9 @@ private fun SpectrogramBox(
     LaunchedEffect(spectrumSettings.fftSize, spectrumSettings.averaging) {
         uiState.spectrumState.configure(spectrumSettings.fftSize, spectrumSettings.averaging.tauSec)
     }
+    LaunchedEffect(spectrumSettings.traceSec) {  // T201
+        uiState.spectrumState.setTraceSeconds(spectrumSettings.traceSec)
+    }
     LaunchedEffect(spectrumSettings.peakHold) {
         if (spectrumSettings.peakHold) uiState.spectrumState.resetPeak()
     }
@@ -1245,6 +1248,7 @@ private fun SpectrogramBox(
                 sampleRate = sampleRate,
                 settings = settings,
                 waveformSettings = waveformSettings,
+                sonoAutoRange = { uiState.spectrogramState.dynamicRangeMapper?.currentRange() },
                 onLongPress = onLongPress,
                 modifier = Modifier.fillMaxSize()
             )

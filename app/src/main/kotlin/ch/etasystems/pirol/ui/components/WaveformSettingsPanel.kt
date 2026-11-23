@@ -59,18 +59,18 @@ fun WaveformSettingsPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Text(stringResource(R.string.waveform_axis), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.waveform_level), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WaveformAxis.entries.forEach { a ->
+                WaveformLevelMode.entries.forEach { a ->
                     FilterChip(
-                        selected = settings.axis == a,
-                        onClick = { repository.updateWaveform { it.copy(axis = a) } },
+                        selected = settings.levelMode == a,
+                        onClick = { repository.updateWaveform { it.copy(levelMode = a) } },
                         label = { Text(stringResource(a.labelRes)) }
                     )
                 }
             }
 
-            // Amplitudenskala gilt fuer die lineare Achse (dBFS-Achse nutzt den gemeinsamen dB-Bereich)
+            // Amplitudenskala gilt nur im Modus %; die dBFS-Modi folgen FFT bzw. Sonogramm
             Text(stringResource(R.string.waveform_amplitude), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WaveformAmplitudeMode.entries.forEach { m ->
@@ -82,7 +82,7 @@ fun WaveformSettingsPanel(
                     } else stringResource(m.labelRes)
                     FilterChip(
                         selected = settings.amplitudeMode == m,
-                        enabled = settings.axis == WaveformAxis.LINEAR,
+                        enabled = settings.levelMode == WaveformLevelMode.PERCENT,
                         onClick = { repository.updateWaveform { it.copy(amplitudeMode = m) } },
                         label = { Text(label) }
                     )

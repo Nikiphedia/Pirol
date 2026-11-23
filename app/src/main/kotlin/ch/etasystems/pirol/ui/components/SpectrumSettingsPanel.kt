@@ -92,6 +92,23 @@ fun SpectrumSettingsPanel(
                 }
             }
 
+            // T201: rollende Peak-Spuren der letzten N Sekunden
+            Text(stringResource(R.string.spectrum_traces), style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SPECTRUM_TRACE_OPTIONS.forEach { t ->
+                    FilterChip(
+                        selected = settings.traceSec == t,
+                        onClick = { repository.updateSpectrum { it.copy(traceSec = t) } },
+                        label = {
+                            Text(
+                                if (t <= 0f) stringResource(R.string.spectrum_traces_off)
+                                else stringResource(R.string.spectrum_traces_seconds, t.toInt())
+                            )
+                        }
+                    )
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

@@ -19,16 +19,21 @@ enum class WaveformAmplitudeMode(@StringRes val labelRes: Int) {
     MAX_LEVEL(R.string.waveform_amp_max_level)
 }
 
-/** T200: Amplitudenachse linear oder in dBFS (Bereich = gemeinsamer minDb..maxDb). */
-enum class WaveformAxis(@StringRes val labelRes: Int) {
-    LINEAR(R.string.waveform_axis_linear),
-    DBFS(R.string.waveform_axis_dbfs)
+/**
+ * T201: Pegelmodus der Amplitudenachse. PERCENT = linear in Prozent (Amplitudenmodus gilt),
+ * FOLLOW_FFT = dBFS im gemeinsamen Bereich (wie die Spektrum-y-Achse), FOLLOW_SONO = dBFS im
+ * Bereich, den das Sonogramm tatsaechlich verwendet (Auto-Kontrast bzw. Ceiling).
+ */
+enum class WaveformLevelMode(@StringRes val labelRes: Int) {
+    PERCENT(R.string.waveform_level_percent),
+    FOLLOW_FFT(R.string.waveform_level_fft),
+    FOLLOW_SONO(R.string.waveform_level_sono)
 }
 
-/** T200: Oszillogramm-eigene Einstellungen (Prefs `pirol_waveform_*`). */
+/** T200: Oszillogramm-eigene Einstellungen (Prefs `pirol_waveform_*`). T201: Pegelmodus statt Achse. */
 data class WaveformSettings(
     val amplitudeMode: WaveformAmplitudeMode = WaveformAmplitudeMode.AUTO,
-    val axis: WaveformAxis = WaveformAxis.LINEAR
+    val levelMode: WaveformLevelMode = WaveformLevelMode.PERCENT
 )
 
 /**
@@ -41,6 +46,30 @@ internal fun waveformFullScale(mode: WaveformAmplitudeMode, peak: Float, maxDb: 
     WaveformAmplitudeMode.FIXED_01 -> 0.1f
     WaveformAmplitudeMode.FIXED_001 -> 0.01f
     WaveformAmplitudeMode.MAX_LEVEL -> 10f.pow(maxDb / 20f).coerceIn(1e-7f, 1f)
+}
+
+/**
+ * T201: dBFS-Bereich (unten, oben) der Oszillogramm-Achse. FOLLOW_FFT = gemeinsamer Bereich
+ * (wie [SpectrumView]), FOLLOW_SONO = Bereich des Sonogramms: bei Auto-Kontrast der Bereich des
+ * [ch.etasystems.pirol.audio.dsp.DynamicRangeMapper] ([autoRange]), sonst der feste; danach wie
+ * dort mit Ceiling und Mindestspanne. PERCENT liefert den gemeinsamen Bereich (nicht benutzt).
+ */
+internal fun waveformDbRange(
+    mode: WaveformLevelMode,
+    settings: SpectrogramDisplaySettings,
+    autoRange: Pair<Float, Float>?
+): Pair<Float, Float> {
+    if (mode != WaveformLevelMode.FOLLOW_SONO) {
+        return settings.minDb to maxOf(settings.maxDb, settings.minDb + SPECTRUM_MIN_SPAN_DB)
+    }
+    val (lo, hi) = when {
+        settings.autoContrast -> autoRange
+            ?: (settings.minDb to ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS)
+        else -> settings.minDb to settings.maxDb
+    }
+    val (eLo, eHi) = effectiveDbRange(lo, hi, settings.ceilingDb)
+    return if (eLo.isFinite() && eHi.isFinite()) eLo to eHi
+    else settings.minDb to maxOf(settings.maxDb, settings.minDb + SPECTRUM_MIN_SPAN_DB)
 }
 
 /**

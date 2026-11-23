@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ch.etasystems.pirol.audio.dsp.SpectrumAnalyzer
 import ch.etasystems.pirol.audio.dsp.SpectrumAverager
+import ch.etasystems.pirol.audio.dsp.SpectrumTraceBuffer
 
 /**
  * T198: Zustand des Live-Spektrums aus Rohsamples (analog [WaveformState]).
@@ -28,6 +29,7 @@ class SpectrumState {
     private var window = FloatArray(analyzer.fftSize)
     private val averager = SpectrumAverager()
     private var tauSec = SpectrumAveraging.SHORT.tauSec
+    private val traces = SpectrumTraceBuffer()  // T201: rollende Peak-Spuren
 
     /** Abtastrate der zuletzt gelieferten Samples. */
     @Volatile var sampleRate: Int = 48000
@@ -66,11 +68,23 @@ class SpectrumState {
             frame = FloatArray(analyzer.numBins)
             window = FloatArray(fftSize)
             averager.reset()
+            traces.clear()
             sinceLast = 0
             hasData = false
             version++
         }
     }
+
+    /** T201: Dauer der Peak-Spuren in Sekunden (0 = aus, leert die Spuren). */
+    @Synchronized
+    fun setTraceSeconds(sec: Float) {
+        traces.setDuration(sec)
+        version++
+    }
+
+    /** T201: Spuren-Schichten (juengste zuerst), leer wenn aus. */
+    @Synchronized
+    fun traceLayers(): List<SpectrumTraceBuffer.Layer> = traces.layers()
 
     @Synchronized
     fun resetPeak() {
@@ -87,6 +101,7 @@ class SpectrumState {
         if (sampleRate != this.sampleRate) {
             this.sampleRate = sampleRate
             averager.reset()
+            traces.clear()
         }
         for (s in samples) {
             history[head] = s / 32768f
@@ -104,6 +119,7 @@ class SpectrumState {
         for (i in 0 until n) window[i] = history[(start + i) % MAX_FFT]
         analyzer.computeDbfs(window, 0, frame)
         averager.update(frame, dtSec, tauSec)
+        traces.add(averager.avg, dtSec)
         if (!hasData) hasData = true
         version++
     }
@@ -129,6 +145,7 @@ class SpectrumState {
         filled = 0
         sinceLast = 0
         averager.reset()
+        traces.clear()
         hasData = false
         frozen = false
         version++

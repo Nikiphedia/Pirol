@@ -595,9 +595,13 @@
     <string name="waveform_amp_01">±0.1</string>
     <string name="waveform_amp_001">±0.01</string>
     <string name="waveform_amp_max_level">Maximalpegel (%1$s)</string>
-    <string name="waveform_axis">Achse</string>
-    <string name="waveform_axis_linear">Linear</string>
-    <string name="waveform_axis_dbfs">dBFS</string>
+    <string name="waveform_level">Pegel</string>
+    <string name="waveform_level_percent">%</string>
+    <string name="waveform_level_fft">wie FFT (dBFS)</string>
+    <string name="waveform_level_sono">wie Sonogramm (dBFS)</string>
+    <string name="spectrum_traces">Spuren (letzte Sekunden)</string>
+    <string name="spectrum_traces_off">Aus</string>
+    <string name="spectrum_traces_seconds">%1$d s</string>
     <string name="waveform_band_hint">Der Frequenzbereich wirkt als Bandpass auf die Wellenform.</string>
     <string name="waveform_peak_label">Peak</string>
     <string name="waveform_clip_label">Uebersteuert</string>
