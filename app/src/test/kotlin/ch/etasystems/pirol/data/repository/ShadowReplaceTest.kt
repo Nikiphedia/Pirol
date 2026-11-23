@@ -118,4 +118,14 @@ class ShadowReplaceTest {
         assertFalse(ShadowReplace.recover(store, name))
         assertEquals(0, store.steps)
     }
+
+    @Test fun `T240 Schattennamen erkennen und ausschliessen`() {
+        assertTrue(ShadowReplace.isShadowFile("detections.jsonl.new"))
+        assertTrue(ShadowReplace.isShadowFile("detections.jsonl.new.ok"))
+        assertFalse(ShadowReplace.isShadowFile("detections.jsonl"))
+        assertFalse(ShadowReplace.isShadowFile("recording.wav"))
+        assertEquals("detections.jsonl", ShadowReplace.originalOf("detections.jsonl.new"))
+        assertEquals("detections.jsonl", ShadowReplace.originalOf("detections.jsonl.new.ok"))
+        assertEquals(null, ShadowReplace.originalOf("session.json"))
+    }
 }

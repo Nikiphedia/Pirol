@@ -35,15 +35,6 @@ class SessionNoteTest {
     }
 
     @Test
-    fun `zipFileName mit und ohne Bemerkung`() {
-        assertEquals("$id.zip", SessionNoteUtil.zipFileName(id, null))
-        assertEquals("$id.zip", SessionNoteUtil.zipFileName(id, "  "))
-        assertEquals("${id}_Begehung-Verein-Aarschaecheli.zip",
-            SessionNoteUtil.zipFileName(id, "Begehung Verein Aarschaecheli"))
-        assertTrue(SessionNoteUtil.zipFileName(id, "日本語 テスト").let { it == "$id.zip" })
-    }
-
-    @Test
     fun `escapeTsv ersetzt Tabs und Zeilenumbrueche`() {
         assertEquals("a b c d", RavenExporter.escapeTsv("a\tb\nc\r\nd".replace("\r\n", " ")))
         assertFalse(RavenExporter.escapeTsv("x\ty\nz").contains('\t'))

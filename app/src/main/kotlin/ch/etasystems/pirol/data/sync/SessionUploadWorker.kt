@@ -154,7 +154,7 @@ class SessionUploadWorker(
 private fun createZip(sessionDir: File, zipFile: File) {
     ZipOutputStream(BufferedOutputStream(FileOutputStream(zipFile))).use { zos ->
         sessionDir.walkTopDown()
-            .filter { it.isFile }
+            .filter { it.isFile && !ch.etasystems.pirol.data.repository.ShadowReplace.isShadowFile(it.name) }  // T240
             .forEach { file ->
                 val entryName = file.relativeTo(sessionDir).path.replace('\\', '/')
                 zos.putNextEntry(ZipEntry(entryName))

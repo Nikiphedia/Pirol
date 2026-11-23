@@ -14,9 +14,7 @@
     <string name="analysis_bemerkung_zur_session">Bemerkig zur Session</string>
     <string name="common_save">Spichere</string>
     <string name="analysis_diese_session_wurde_im_alten">Die Session isch im alte Chunk-Format gspicheret. Ton-Wiedergab nid verfüegbar — d Detektions-Date si aber no sichtbar.</string>
-    <string name="analysis_raven_txt">Raven (.txt)</string>
     <string name="common_play">Abspile</string>
-    <string name="analysis_raven_datei_anzeigen">Raven-Datei aazeige</string>
     <string name="analysis_sonogramm_wird_berechnet">Sonogramm wird ufgrächnet…</string>
     <string name="analysis_gesamte_session">Ganzi Session</string>
     <string name="analysis_detektionen">Detektione (%1$s):</string>
@@ -41,8 +39,6 @@
     <string name="analysis_keine_spektrogramm_frames_berechnet">Kei Spektrogramm-Frames ufgrächnet</string>
     <string name="analysis_kein_sonogramm">Kei Sonogramm</string>
     <string name="common_save_failed">Spichere het nid klappt</string>
-    <string name="analysis_raven_tabelle_gespeichert">Raven-Tabälle gspicheret: %1$s</string>
-    <string name="analysis_kein_recording_wav_export_nicht">Kei recording.wav — Export nid möglich</string>
     <string name="analysis_bemerkung_konnte_nicht_gespeichert_w">Bemerkig het nid chönne gspicheret wärde</string>
     <string name="ui_art_manuell_hinzufuegen">Art vo Hand hinzuefüege</string>
     <string name="ui_art">Art</string>
@@ -94,11 +90,8 @@
     <string name="ui_artname">Artname</string>
     <string name="ui_korrigieren">Korrigiere</string>
     <string name="ui_fertig">Fertig</string>
-    <string name="ui_db_schwelle_automatisch_aus_dem">dB-Schwälle: automatisch us em Signal</string>
-    <string name="ui_db_schwelle_bis_db">dB-Schwälle: %1$s bis %2$s dB</string>
     <string name="ui_farbpalette">Farbpalette</string>
     <string name="ui_aufnahme_stoppen">Ufnahm stoppe</string>
-    <string name="ui_pausieren">Pausiere</string>
     <string name="ui_memo_loeschen">Memo lösche</string>
     <string name="ui_memo_aufnehmen">Memo ufnäh</string>
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Spicherort nid erreichbar — Ufnahm im Fallback-Ordner gspicheret.</string>
@@ -198,14 +191,12 @@
     <string name="settings_watchlist_importiert">Watchlist importiert</string>
     <string name="settings_import_fehlgeschlagen">Import het nid klappt: %1$s</string>
     <string name="settings_einstellungen">Istellige</string>
-    <string name="settings_sonogramm">Sonogramm</string>
     <string name="settings_tipp_langdruck_auf_das_sonogramm">Tipp: Lang drücke uf s Sonogramm im Live- oder Analyse-Tab öffnet di gliiche Rägler. Auto-Kontrast bruucht je nach Preset s 2./98. oder s 30./99.5. Perzentil.</string>
     <string name="settings_erkennung">Erchännig</string>
     <string name="settings_erkennungs_schwelle_topk">Erchännigs-Schwälle (TopK): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. Arte pro Chunk (TopK): %1$s</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: nume Top-Art (Verhalte vor T71)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: bis zu %2$s Arte glychzytig</string>
-    <string name="settings_regionaler_filter">Regionaler Filter</string>
     <string name="settings_voreinstellungen">Voreinstellige</string>
     <string name="settings_hochpassfilter_200_hz">Hochpassfilter (200 Hz)</string>
     <string name="settings_aenderungen_wirken_nach_neustart_der">Ändrige wirke nach em Neustart vo de Ufnahm</string>
@@ -251,14 +242,6 @@
     <string name="settings_sessions_kuerzer_als_minimum_dauer">Sessione churzer als d Minimum-Dauer ohne Detektione wärde gläscht</string>
     <string name="settings_minimum_dauer_s_0_deaktiviert">Minimum-Dauer: %1$ss  (0 = deaktiviert)</string>
     <string name="settings_keine_sessions_vorhanden">Kei Sessione vorhande</string>
-    <string name="settings_bestehende_sessions_verschieben">Bestehendi Sessione verschiebe</string>
-    <string name="settings_sessions_werden_kopiert">Sessione wärde kopiert...</string>
-    <string name="settings_sessions_verschieben">Sessione verschiebe</string>
-    <string name="settings_sessions_mb_an_neuen_speicherort">%1$s Sessione (%2$s MB) a neue Spicherort kopiere?</string>
-    <string name="settings_sessions_kopiert">%1$s Sessione kopiert</string>
-    <string name="settings_fehler">Fähler: %1$s</string>
-    <string name="settings_kein_zielordner_ausgewaehlt">Kei Zielordner gwählt</string>
-    <string name="settings_kopieren">Kopiere</string>
     <string name="settings_nur_wechseln">Nume wächsle</string>
     <string name="settings_export">Export</string>
     <string name="settings_nur_bei_wlan_exportieren">Nume bi WLAN exportiere</string>
@@ -337,7 +320,6 @@
     <string name="svc_aufnahme">Ufnahm</string>
     <string name="svc_zeigt_an_dass_pirol_audio">Zeigt aa, dass PIROL Audio ufnimmt</string>
     <string name="svc_aufnahme_laeuft">Ufnahm lauft</string>
-    <string name="analysis_fehler_datei_nicht_lesbar">Fähler: Datei nid lesbar</string>
     <string name="ui_export_fehlgeschlagen">Export het nid klappt: %1$s</string>
     <string name="ui_detektionen">%1$s Detektione</string>
     <string name="ui_bestaetigung_rueckgaengig">Bstätigung rückgängig</string>
@@ -423,7 +405,6 @@
     <string name="ui_jetzt">jetzt</string>
     <string name="ui_helligkeits_deckel">Helligkeits-Deckel: %1$s</string>
     <string name="ui_deckel_aus">uus</string>
-    <string name="ui_deckel_db">%1$s dB</string>
     <string name="spectro_preset_standard">Standard</string>
     <string name="spectro_preset_quiet">Lisi Rüef</string>
     <string name="spectro_preset_loud">Laut Umgäbig</string>
@@ -435,11 +416,7 @@
     <string name="svc_vorbereitung">Vorbereitig...</string>
     <string name="settings_section_language">Sprach</string>
     <string name="settings_section_model_detection">Modell &amp; Erchennig</string>
-    <string name="settings_section_recording_storage">Ufnahm &amp; Spicher</string>
-    <string name="settings_section_analysis_export">Analyse &amp; Export</string>
-    <string name="settings_section_watchlist_alarm">Watchlist &amp; Alarm</string>
     <string name="settings_section_similar_refs">Ähnligi Arte &amp; Referänze</string>
-    <string name="settings_section_upload">Upload</string>
     <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polyphase (empfohlen, filtered Störgruusch über 16 kHz)</string>
     <string name="settings_resampler_linear">Linear (alt, wie AMSEL)</string>

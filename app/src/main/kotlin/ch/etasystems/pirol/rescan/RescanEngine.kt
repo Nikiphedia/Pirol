@@ -188,12 +188,15 @@ class RescanEngine(
                 detectionCount = result.detections.size,
                 transferredVerifications = transfer.size
             )
-            sessionManager.withSessionFiles(sessionDir) {
-                RescanStore.write(it, info, result.detections, result.mergeEvents, transfer)
+            // T240: ab hier nicht mehr abbrechbar, sonst meldet der Abbruch "abgebrochen" trotz geschriebener Variante
+            withContext(kotlinx.coroutines.NonCancellable) {
+                sessionManager.withSessionFiles(sessionDir) {
+                    RescanStore.write(it, info, result.detections, result.mergeEvents, transfer)
+                }
+                // Raven-Datei der Variante (wie beim Session-Stopp fuer das Original)
+                runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = id) }
+                    .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
             }
-            // Raven-Datei der Variante (wie beim Session-Stopp fuer das Original)
-            runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = id) }
-                .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
             Log.i(TAG, "T221_RESCAN id=$id model=${cls.modelId} region=$region thr=${options.confidenceThreshold} " +
                 "overlap=${options.overlapPercent} hop=${config.hopMsFor(options.overlapPercent, cls.windowMs)} windows=${result.windows} detections=${result.detections.size} " +
                 "merges=${result.mergeEvents.size} transferred=${transfer.size} ms=${now - t0}")

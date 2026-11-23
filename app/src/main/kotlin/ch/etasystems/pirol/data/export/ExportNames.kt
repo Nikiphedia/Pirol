@@ -70,10 +70,6 @@ object ExportNames {
     fun sessionZipName(startedAt: String, note: String?, sessionId: String): String =
         sessionName(startedAt, note, sessionId) + ".zip"
 
-    /** Raven-Datei beim Export/Teilen (nicht die kanonische Datei im Session-Ordner). */
-    fun sessionRavenName(startedAt: String, note: String?, sessionId: String): String =
-        sessionName(startedAt, note, sessionId) + ".selections.txt"
-
     /** Haengt bei Kollision `-2`, `-3` ... vor die Endung. */
     fun uniqueName(baseName: String, extension: String, exists: (String) -> Boolean): String {
         var candidate = "$baseName.$extension"

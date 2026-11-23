@@ -1268,7 +1268,10 @@ class SessionManager(
      */
     suspend fun loadMetadata(sessionDir: File): SessionMetadata? = withContext(Dispatchers.IO) {
         try {
-            val text = accessFor(sessionDir).readText("session.json") ?: return@withContext null
+            val files = accessFor(sessionDir)
+            // T240: Reste unterbrochener Schattenkopien (SAF) beim Laden aufraeumen
+            (files as? DocSessionFiles)?.recoverAll()
+            val text = files.readText("session.json") ?: return@withContext null
             jsonLenient.decodeFromString<SessionMetadata>(text)
         } catch (e: Exception) {
             Log.e(TAG, "session.json parsen fehlgeschlagen: ${sessionDir.name}", e)
@@ -1550,6 +1553,7 @@ class SessionManager(
             fun walk(dir: DocumentFile, prefix: String) {
                 for (child in dir.listFiles()) {
                     val n = child.name ?: continue
+                    if (!child.isDirectory && ShadowReplace.isShadowFile(n)) continue  // T240
                     if (child.isDirectory) walk(child, "$prefix$n/")
                     else out += SrcEntry("$prefix$n", child.length(), {
                         cr.openInputStream(child.uri) ?: throw java.io.IOException("Nicht lesbar: $n")
@@ -1558,7 +1562,7 @@ class SessionManager(
             }
             walk(doc, "")
         } else {
-            sessionDir.walkTopDown().filter { it.isFile }.forEach { f ->
+            sessionDir.walkTopDown().filter { it.isFile && !ShadowReplace.isShadowFile(it.name) }.forEach { f ->
                 out += SrcEntry(f.relativeTo(sessionDir).path.replace('\\', '/'), f.length(), { f.inputStream() })
             }
         }
