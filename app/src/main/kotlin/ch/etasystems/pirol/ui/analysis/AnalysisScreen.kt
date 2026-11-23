@@ -570,6 +570,9 @@ private fun SessionDetailContent(
             // T116: Zoom auf den abgespielten Detektions-Ausschnitt
             val zoom = state.zoomRange
             val zoomRangeDb = rememberStaticRange(state.zoomSpectrogramState, settings)
+            // T200: Achse und Bin-Zuschnitt aus derselben Config wie die Mel-Berechnung (bis Nyquist)
+            val mainState = if (zoom != null) state.zoomSpectrogramState else state.spectrogramState
+            val mainConfig = SpectrogramConfig.BIRDS.resolved(mainState.sampleRate)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -579,8 +582,8 @@ private fun SessionDetailContent(
                     .onSpectrogramLongPress { showPanel = true }
             ) {
                 SpectrogramCanvas(
-                    spectrogramState = if (zoom != null) state.zoomSpectrogramState else state.spectrogramState,
-                    config = SpectrogramConfig.BIRDS,
+                    spectrogramState = mainState,
+                    config = mainConfig,
                     palette = settings.palette,
                     autoContrast = false,
                     manualMinDb = settings.minDb,
@@ -595,7 +598,7 @@ private fun SessionDetailContent(
                 )
                 // T144: Frequenzachse links (1/2/4/8/12 kHz)
                 FrequencyAxis(
-                    config = SpectrogramConfig.BIRDS.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                    config = mainConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
                     lightBackground = settings.palette.isLight,
                     modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
                 )
@@ -657,7 +660,7 @@ private fun SessionDetailContent(
                 SpectrogramSettingsPanel(
                     repository = specRepo,
                     settings = settings,
-                    config = SpectrogramConfig.BIRDS,
+                    config = SpectrogramConfig.BIRDS.resolved(state.spectrogramState.sampleRate),
                     showWindow = false,
                     onClose = { showPanel = false }
                 )
@@ -896,7 +899,7 @@ private fun CompareView(
         ) {
         SpectrogramCanvas(
             spectrogramState = state.detectionSpectrogramState,
-            config = SpectrogramConfig.BIRDS,
+            config = SpectrogramConfig.BIRDS.resolved(state.detectionSpectrogramState.sampleRate),
             palette = settings.palette,
             autoContrast = false,
             manualMinDb = settings.minDb,
@@ -910,7 +913,8 @@ private fun CompareView(
             modifier = Modifier.fillMaxSize()
         )
         FrequencyAxis(
-            config = SpectrogramConfig.BIRDS.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+            config = SpectrogramConfig.BIRDS.resolved(state.detectionSpectrogramState.sampleRate)
+                .forDisplay(settings.freqMinHz, settings.freqMaxHz),
             lightBackground = settings.palette.isLight,
             modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
         )
@@ -968,7 +972,7 @@ private fun CompareView(
             ) {
             SpectrogramCanvas(
                 spectrogramState = state.referenceSpectrogramState,
-                config = SpectrogramConfig.BIRDS,
+                config = SpectrogramConfig.BIRDS.resolved(state.referenceSpectrogramState.sampleRate),
                 palette = settings.palette,
                 autoContrast = false,
                 manualMinDb = settings.minDb,
@@ -982,7 +986,8 @@ private fun CompareView(
                 modifier = Modifier.fillMaxSize()
             )
             FrequencyAxis(
-                config = SpectrogramConfig.BIRDS.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                config = SpectrogramConfig.BIRDS.resolved(state.referenceSpectrogramState.sampleRate)
+                    .forDisplay(settings.freqMinHz, settings.freqMaxHz),
                 lightBackground = settings.palette.isLight,
                 modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
             )

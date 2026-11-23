@@ -1072,7 +1072,7 @@ class LiveViewModel(
                 // T198: Spektrum-Modus rechnet eigene FFT auf den Rohsamples; Mel ruht ebenfalls.
                 val waveformMode = waveformState.active
                 val spectrumMode = spectrumState.active
-                if (screenVisible && waveformMode) waveformState.append(chunk.samples)
+                if (screenVisible && waveformMode) waveformState.append(chunk.samples, chunk.sampleRate)  // T200: Rate fuer Bandpass
                 if (screenVisible && spectrumMode) spectrumState.append(chunk.samples, chunk.sampleRate)
                 if (!screenVisible || waveformMode || spectrumMode) {
                     // T163: nur billig mitschneiden (Ringpuffer-Kopie), Rechnen erst beim Zurueckkehren

@@ -9,8 +9,10 @@ import org.junit.Test
 class SpectrogramAxisPaletteTest {
 
     @Test
-    fun birdsConfig_reaches12kHz() {
-        assertEquals(12000f, SpectrogramConfig.BIRDS.fMax, 0f)
+    fun birdsConfig_reachesNyquist() {
+        // T200: Mel bis Nyquist, Obergrenze haengt von der Abtastrate ab
+        assertEquals(24000f, SpectrogramConfig.BIRDS.maxHz(48000), 0f)
+        assertEquals(22050f, SpectrogramConfig.BIRDS.resolved(44100).fMax, 0f)
     }
 
     @Test

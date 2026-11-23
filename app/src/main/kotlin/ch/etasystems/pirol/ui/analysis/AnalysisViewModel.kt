@@ -15,6 +15,7 @@ import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.data.export.DetectionShareRequest
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
+import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceEntry
@@ -490,15 +491,17 @@ class AnalysisViewModel(
     private fun renderZoomSonogram(range: DetectionExcerpt.Range, read: () -> ExcerptWav.Pcm?) {
         zoomJob?.cancel()
         zoomJob = viewModelScope.launch(Dispatchers.Default) {
-            val frames = try {
+            val result = try {
                 val pcm = read() ?: return@launch
-                MelSpectrogram(sampleRate = pcm.sampleRate).process(pcm.samples)
+                // T200: Anzeige-Config (Mel bis Nyquist), passend zu Achse und Bin-Zuschnitt
+                MelSpectrogram(pcm.sampleRate, SpectrogramConfig.BIRDS).process(pcm.samples) to pcm.sampleRate
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "T116 Zoom-Sonogramm fehlgeschlagen", e)
                 return@launch
             }
+            val (frames, rate) = result
             if (frames.isEmpty() || _uiState.value.selectedSession == null) return@launch
-            val state = SpectrogramState(maxFrames = frames.size)
+            val state = SpectrogramState(maxFrames = frames.size, sampleRate = rate)
             state.appendFrames(frames)
             _uiState.update { it.copy(zoomRange = range, zoomSpectrogramState = state) }
         }
@@ -694,7 +697,7 @@ class AnalysisViewModel(
                 endSec      = d.bestWindowEndSec
             ) ?: return@launch
             val state  = SpectrogramState(maxFrames = 2048)
-            val mel    = MelSpectrogram(sampleRate = 48000)
+            val mel    = MelSpectrogram(48000, SpectrogramConfig.BIRDS)  // T200: wie Achse
             val frames = mel.process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             _uiState.update { it.copy(detectionSpectrogramState = state) }
@@ -712,7 +715,7 @@ class AnalysisViewModel(
                 endSec      = null
             ) ?: return@launch
             val state  = SpectrogramState(maxFrames = 2048)
-            val mel    = MelSpectrogram(sampleRate = 48000)
+            val mel    = MelSpectrogram(48000, SpectrogramConfig.BIRDS)  // T200: wie Achse
             val frames = mel.process(samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             _uiState.update { it.copy(referenceSpectrogramState = state) }
@@ -749,6 +752,7 @@ class AnalysisViewModel(
             var error: String? = null
             var totalSamples = 0L
             var stride = 1
+            var sessionRate = 48000  // T200: fuer Achse/Bin-Zuschnitt der Anzeige
             try {
                 // Pass 1: Header lesen -> sampleRate + totalSamples
                 val header = ByteArray(44)
@@ -773,7 +777,8 @@ class AnalysisViewModel(
                         stride = maxOf(1, (totalFramesEst + TARGET_FRAMES - 1) / TARGET_FRAMES)
 
                         // Pass 2: Chunks streamen, Mel berechnen, Stride filtern
-                        val mel = MelSpectrogram(sampleRate = sampleRate)
+                        sessionRate = sampleRate
+                        val mel = MelSpectrogram(sampleRate, SpectrogramConfig.BIRDS)  // T200: wie Achse
                         var frameCounter = 0
                         try {
                             openStream()?.use { stream ->
@@ -814,7 +819,7 @@ class AnalysisViewModel(
                 return@launch
             }
 
-            val state = SpectrogramState(maxFrames = TARGET_FRAMES)
+            val state = SpectrogramState(maxFrames = TARGET_FRAMES, sampleRate = sessionRate)
             state.appendFrames(limited)
             // Diagnose: Pegelverteilung (ein komplett stummes Audio ergibt ein schwarzes Bild)
             val range = DynamicRangeMapper.computeStatic(limited)

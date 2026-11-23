@@ -20,8 +20,13 @@ data class SpectrogramConfig(
     val minDb: Float = SONOGRAM_DEFAULT_MIN_DBFS
 ) {
     companion object {
-        /** Voegel: 125-12000 Hz, feines Frequenzraster */
-        val BIRDS = SpectrogramConfig(fMin = 125f, fMax = 12000f)
+        /**
+         * Voegel. T200: Mel bis Nyquist (0-24000 Hz bei 48 kHz), die Anzeige schneidet den
+         * gemeinsamen Frequenzbereich zu. 168 statt 128 Baender halten den Mel-Abstand von vorher
+         * (125-12000 Hz / 128 Baender = 23.9 Mel, jetzt 0-24000 Hz / 168 = 23.8 Mel) -> gleiche
+         * Aufloesung im Vogelbereich.
+         */
+        val BIRDS = SpectrogramConfig(numMelBins = 168, fMin = 0f, fMax = -1f)
 
         /** Fledermaeuse: breites Spektrum bis Nyquist */
         val BATS = SpectrogramConfig(fftSize = 1024, hopSize = 256, fMin = 10000f, fMax = -1f)
@@ -29,6 +34,15 @@ data class SpectrogramConfig(
         /** Breitband: gesamtes Spektrum */
         val WIDEBAND = SpectrogramConfig(fMin = 0f, fMax = -1f)
     }
+
+    /** T200: Obergrenze in Hz bei [sampleRate] (fMax <= 0 = Nyquist, nie ueber Nyquist). */
+    fun maxHz(sampleRate: Int): Float {
+        val nyquist = sampleRate / 2f
+        return if (fMax <= 0f) nyquist else fMax.coerceAtMost(nyquist)
+    }
+
+    /** T200: Config mit aufgeloester Obergrenze (fuer Achse, Bin-Zuschnitt und Regler). */
+    fun resolved(sampleRate: Int): SpectrogramConfig = copy(fMax = maxHz(sampleRate))
 }
 
 /**

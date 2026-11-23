@@ -1122,7 +1122,11 @@ private fun SpectrogramWithPanel(
     val repo: SpectrogramSettingsRepository = koinInject()
     val settings by repo.settings.collectAsState()
     val spectrumSettings by repo.spectrum.collectAsState()  // T198
+    val waveformSettings by repo.waveform.collectAsState()  // T200
     var showPanel by remember { mutableStateOf(false) }
+    // T200: Frequenzgrenzen bis Nyquist der tatsaechlichen Abtastrate (Regler, Achse, Bin-Zuschnitt)
+    val liveRate = if (uiState.actualSampleRate > 0) uiState.actualSampleRate else 48000
+    val liveConfig = uiState.spectrogramConfig.resolved(liveRate)
 
     // Perzentil-Paar/Mindestspanne in den Rolling-Mapper uebernehmen (sofort wirksam)
     LaunchedEffect(settings.autoLowPct, settings.autoHighPct, settings.autoMinSpanDb) {
@@ -1136,6 +1140,7 @@ private fun SpectrogramWithPanel(
             uiState = uiState,
             settings = settings,
             spectrumSettings = spectrumSettings,
+            waveformSettings = waveformSettings,
             onLongPress = { showPanel = true },
             modifier = if (fixedHeight != null) {
                 Modifier.fillMaxWidth().height(fixedHeight)
@@ -1150,9 +1155,19 @@ private fun SpectrogramWithPanel(
                 repository = repo,
                 displaySettings = settings,
                 settings = spectrumSettings,
-                config = uiState.spectrogramConfig,
+                config = liveConfig,
                 sampleRate = uiState.spectrumState.sampleRate,
                 onResetPeak = { uiState.spectrumState.resetPeak() },
+                onClose = { showPanel = false }
+            )
+        } else if (showPanel && settings.displayMode == LiveDisplayMode.WAVEFORM) {
+            // T200: eigenes Panel fuer das Oszillogramm
+            Spacer(modifier = Modifier.height(4.dp))
+            ch.etasystems.pirol.ui.components.WaveformSettingsPanel(
+                repository = repo,
+                displaySettings = settings,
+                settings = waveformSettings,
+                config = liveConfig,
                 onClose = { showPanel = false }
             )
         } else if (showPanel) {
@@ -1160,7 +1175,7 @@ private fun SpectrogramWithPanel(
             SpectrogramSettingsPanel(
                 repository = repo,
                 settings = settings,
-                config = uiState.spectrogramConfig,
+                config = liveConfig,
                 showWindow = true,
                 showDisplayMode = true,
                 onClose = { showPanel = false }
@@ -1177,6 +1192,7 @@ private fun SpectrogramBox(
     uiState: LiveUiState,
     settings: SpectrogramDisplaySettings,
     spectrumSettings: ch.etasystems.pirol.ui.components.SpectrumSettings,
+    waveformSettings: ch.etasystems.pirol.ui.components.WaveformSettings,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1184,6 +1200,11 @@ private fun SpectrogramBox(
     val sampleRate = if (uiState.actualSampleRate > 0) uiState.actualSampleRate else 48000
     val windowFrames = (settings.windowSec * sampleRate / uiState.spectrogramConfig.hopSize).toInt()
         .coerceIn(64, uiState.spectrogramState.maxFrames)
+    // T200: Mel-Config mit aufgeloester Obergrenze (Nyquist der tatsaechlichen Rate)
+    val config = uiState.spectrogramConfig.resolved(sampleRate)
+    // T200: gemeinsamer Frequenzbereich wirkt als Bandpass auf das Oszillogramm
+    val (bandLo, bandHi) = ch.etasystems.pirol.ui.components.sharedFreqRange(settings, config, sampleRate)
+    LaunchedEffect(bandLo, bandHi) { uiState.waveformState.setBand(bandLo, bandHi) }
     // T193: Oszillogramm-Puffer nur fuellen, solange dieser Modus gewaehlt ist
     LaunchedEffect(settings.displayMode) {
         uiState.waveformState.setActive(settings.displayMode == LiveDisplayMode.WAVEFORM)
@@ -1213,7 +1234,7 @@ private fun SpectrogramBox(
                 spectrumState = uiState.spectrumState,
                 settings = spectrumSettings,
                 displaySettings = settings,
-                config = uiState.spectrogramConfig,
+                config = config,
                 onLongPress = onLongPress,
                 modifier = Modifier.fillMaxSize()
             )
@@ -1223,11 +1244,13 @@ private fun SpectrogramBox(
                 windowSec = settings.windowSec,
                 sampleRate = sampleRate,
                 settings = settings,
+                waveformSettings = waveformSettings,
+                onLongPress = onLongPress,
                 modifier = Modifier.fillMaxSize()
             )
         } else if (modeHasData) {
             SpectrogramOverlay(
-                config = uiState.spectrogramConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                config = config.forDisplay(settings.freqMinHz, settings.freqMaxHz),
                 spectrogramState = uiState.spectrogramState,
                 sampleRate = sampleRate,
                 windowFrames = windowFrames,
@@ -1235,7 +1258,7 @@ private fun SpectrogramBox(
             ) {
                 SpectrogramCanvas(
                     spectrogramState = uiState.spectrogramState,
-                    config = uiState.spectrogramConfig,
+                    config = config,
                     palette = settings.palette,
                     autoContrast = settings.autoContrast,
                     manualMinDb = settings.minDb,

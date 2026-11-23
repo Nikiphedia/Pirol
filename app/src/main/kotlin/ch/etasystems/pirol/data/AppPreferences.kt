@@ -216,6 +216,17 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_spectrum_peak_hold", false)
         set(value) = prefs.edit().putBoolean("pirol_spectrum_peak_hold", value).apply()
 
+    // T200: Live-Oszillogramm, nur eigene Werte (Frequenz/dB/Palette gemeinsam)
+    /** Enum-Name von WaveformAmplitudeMode. */
+    var waveformAmplitudeMode: String
+        get() = prefs.getString("pirol_waveform_amplitude_mode", "AUTO") ?: "AUTO"
+        set(value) = prefs.edit().putString("pirol_waveform_amplitude_mode", value).apply()
+
+    /** Enum-Name von WaveformAxis. */
+    var waveformAxis: String
+        get() = prefs.getString("pirol_waveform_axis", "LINEAR") ?: "LINEAR"
+        set(value) = prefs.edit().putString("pirol_waveform_axis", value).apply()
+
     /** Zeitfenster des Live-Sonogramms in Sekunden. */
     var spectrogramWindowSec: Float
         get() = prefs.getFloat("pirol_spectrogram_window_sec", 12f)

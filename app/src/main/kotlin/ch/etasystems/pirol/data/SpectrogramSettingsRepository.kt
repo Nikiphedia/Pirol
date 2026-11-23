@@ -6,6 +6,9 @@ import ch.etasystems.pirol.ui.components.SpectrumAveraging
 import ch.etasystems.pirol.ui.components.SpectrumSettings
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import ch.etasystems.pirol.ui.components.SpectrogramPreset
+import ch.etasystems.pirol.ui.components.WaveformAmplitudeMode
+import ch.etasystems.pirol.ui.components.WaveformAxis
+import ch.etasystems.pirol.ui.components.WaveformSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +55,24 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
             ?: SpectrumAveraging.SHORT,
         peakHold = prefs.spectrumPeakHold
     )
+
+    // T200: Live-Oszillogramm, eigene Schluessel `pirol_waveform_*` (Amplitudenmodus, Achse)
+    private val _waveform = MutableStateFlow(
+        WaveformSettings(
+            amplitudeMode = WaveformAmplitudeMode.entries.firstOrNull { it.name == prefs.waveformAmplitudeMode }
+                ?: WaveformAmplitudeMode.AUTO,
+            axis = WaveformAxis.entries.firstOrNull { it.name == prefs.waveformAxis } ?: WaveformAxis.LINEAR
+        )
+    )
+    val waveform: StateFlow<WaveformSettings> = _waveform.asStateFlow()
+
+    fun updateWaveform(transform: (WaveformSettings) -> WaveformSettings) {
+        val new = transform(_waveform.value)
+        if (new == _waveform.value) return
+        _waveform.value = new
+        prefs.waveformAmplitudeMode = new.amplitudeMode.name
+        prefs.waveformAxis = new.axis.name
+    }
 
     private fun load(): SpectrogramDisplaySettings {
         val palette = try {
