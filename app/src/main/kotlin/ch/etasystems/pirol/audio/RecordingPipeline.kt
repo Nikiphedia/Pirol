@@ -124,15 +124,13 @@ class RecordingPipeline(
         private const val STARTUP_FIX_TIMEOUT_MS = 3_000L
 
         /**
-         * T207: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
-         * Detektion (Mehrfachdetektion); die Top-Art bleibt immer (wie bisher, auch unter der Schwelle).
-         * Arten unter der Schwelle haengen als Kandidaten (T27) an der Top-Art.
+         * T207/T211: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
+         * Detektion, auch die Top-Art; liegt keine Art darueber, entsteht keine Detektion.
+         * Arten unter der Schwelle haengen als Kandidaten (T27) an den Detektionen desselben Fensters.
          */
         internal fun splitByThreshold(detections: List<DetectionResult>, threshold: Float): List<DetectionResult> {
-            if (detections.size <= 1) return detections
             val sorted = detections.sortedByDescending { it.confidence }
-            val top = sorted.first()
-            val (primary, rest) = sorted.drop(1).partition { it.confidence >= threshold }
+            val (primary, rest) = sorted.partition { it.confidence >= threshold }
             val candidates = rest.map { alt ->
                 DetectionCandidate(
                     scientificName = alt.scientificName,
@@ -140,7 +138,7 @@ class RecordingPipeline(
                     confidence = alt.confidence
                 )
             }
-            return listOf(top.copy(candidates = candidates)) + primary
+            return primary.map { it.copy(candidates = candidates) }
         }
     }
 

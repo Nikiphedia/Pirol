@@ -291,4 +291,27 @@ class RecordingPipelineTest {
             p.onRecordingStopped()!!.join()
         }
     }
+
+    // --- T211: eine Schwelle fuer alle Arten ---
+
+    private fun det(name: String, conf: Float) = DetectionResult(
+        id = name, scientificName = name, commonName = name, confidence = conf,
+        timestampMs = 0L, chunkStartSec = 0f, chunkEndSec = 3f, sampleRate = 48000
+    )
+
+    @Test
+    fun topSpeciesBelowThreshold_noDetection() {
+        val out = RecordingPipeline.splitByThreshold(listOf(det("A", 0.45f), det("B", 0.3f)), 0.5f)
+        assertTrue(out.isEmpty())
+        assertTrue(RecordingPipeline.splitByThreshold(listOf(det("A", 0.4f)), 0.5f).isEmpty())
+    }
+
+    @Test
+    fun twoSpeciesAboveThreshold_twoDetections_candidatesKept() {
+        val out = RecordingPipeline.splitByThreshold(
+            listOf(det("B", 0.7f), det("A", 0.9f), det("C", 0.4f)), 0.5f
+        )
+        assertEquals(listOf("A", "B"), out.map { it.scientificName })
+        assertTrue(out.all { d -> d.candidates.map { it.scientificName } == listOf("C") })
+    }
 }

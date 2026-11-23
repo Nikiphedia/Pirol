@@ -65,4 +65,14 @@ class PlaybackNavTest {
         assertEquals(100f, PlaybackNav.tapToSec(500f, 20f, 200f, 0f, 100f, 100f)!!, 0.001f)
         assertNull(PlaybackNav.tapToSec(10f, 0f, 0f, 0f, 10f, 10f))
     }
+
+    @Test
+    fun playheadFraction_insideOutsideNull() {
+        assertEquals(0.5f, PlaybackNav.playheadFraction(15f, 10f, 10f)!!, 1e-6f)
+        assertEquals(0f, PlaybackNav.playheadFraction(10f, 10f, 10f)!!, 1e-6f)
+        assertEquals(null, PlaybackNav.playheadFraction(9f, 10f, 10f))
+        assertEquals(null, PlaybackNav.playheadFraction(21f, 10f, 10f))
+        assertEquals(null, PlaybackNav.playheadFraction(null, 10f, 10f))
+        assertEquals(null, PlaybackNav.playheadFraction(5f, 0f, 0f))
+    }
 }

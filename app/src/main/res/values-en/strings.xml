@@ -208,7 +208,7 @@
     <string name="settings_sonogramm">Sonogram</string>
     <string name="settings_tipp_langdruck_auf_das_sonogramm">Tip: a long press on the sonogram in the Live or Analysis tab opens the same sliders. Auto-contrast uses the 2nd/98th or 30th/99.5th percentile depending on the preset.</string>
     <string name="settings_erkennung">Detection</string>
-    <string name="settings_erkennungs_schwelle_topk">Detection threshold (TopK): %1$s%%</string>
+    <string name="settings_erkennungs_schwelle_topk">Confidence threshold (all species): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. species per chunk (TopK): %1$s</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: top species only (pre-T71 behavior)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: up to %2$s species at once</string>
@@ -624,4 +624,5 @@
     <string name="settings_section_map_gps">Map &amp; GPS</string>
     <string name="settings_section_export_upload">Export &amp; upload</string>
     <string name="settings_advanced">Advanced</string>
+    <string name="settings_erkennungs_schwelle_hinweis">Applies to every species, including the strongest. Windows with no species above it produce no detection.</string>
 </resources>

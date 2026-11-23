@@ -209,7 +209,7 @@
     <string name="settings_sonogramm">Sonogramm</string>
     <string name="settings_tipp_langdruck_auf_das_sonogramm">Tipp: Langdruck auf das Sonogramm im Live- oder Analyse-Tab oeffnet dieselben Regler. Auto-Kontrast nutzt je nach Preset das 2./98. oder 30./99.5. Perzentil.</string>
     <string name="settings_erkennung">Erkennung</string>
-    <string name="settings_erkennungs_schwelle_topk">Erkennungs-Schwelle (TopK): %1$s%%</string>
+    <string name="settings_erkennungs_schwelle_topk">Konfidenz-Schwelle (alle Arten): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. Arten pro Chunk (TopK): %1$s</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: nur Top-Art (Pre-T71-Verhalten)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: bis zu %2$s Arten gleichzeitig</string>
@@ -625,4 +625,5 @@
     <string name="settings_section_map_gps">Karte &amp; GPS</string>
     <string name="settings_section_export_upload">Export &amp; Upload</string>
     <string name="settings_advanced">Erweitert</string>
+    <string name="settings_erkennungs_schwelle_hinweis">Gilt fuer jede Art, auch die staerkste. Fenster ohne Art darueber ergeben keine Detektion.</string>
 </resources>

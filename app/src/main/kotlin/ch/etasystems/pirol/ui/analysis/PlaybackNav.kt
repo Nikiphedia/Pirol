@@ -25,6 +25,13 @@ object PlaybackNav {
      * Tipp-Position -> Session-Sekunde. [left]/[width] = Zeichenbereich in Pixeln,
      * [viewStartSec]/[viewDurSec] = sichtbarer Zeitbereich. Ergebnis auf [0, totalSec] begrenzt.
      */
+    /** T211: Anteil 0..1 der Position im Ausschnitt; null ausserhalb des Ausschnitts (kein Zeiger). */
+    fun playheadFraction(posSec: Float?, viewStartSec: Float, viewDurSec: Float): Float? {
+        if (posSec == null || viewDurSec <= 0f) return null
+        val f = (posSec - viewStartSec) / viewDurSec
+        return if (f in 0f..1f) f else null
+    }
+
     fun tapToSec(x: Float, left: Float, width: Float, viewStartSec: Float, viewDurSec: Float, totalSec: Float): Float? {
         if (width <= 0f || viewDurSec <= 0f) return null
         val frac = ((x - left) / width).coerceIn(0f, 1f)
