@@ -70,6 +70,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -632,18 +633,23 @@ fun SpeciesCard(
 
             // Zeile 5: Aufklappbare Kandidaten-Liste (T27, T52: showTopNCandidates-Guard)
             if (showTopNCandidates && detection.candidates.isNotEmpty()) {
-                // T224: volle Karte zeigt die Kandidaten immer (mit Titelzeile), kompakte Karte klappt auf (T192)
+                // T230: volle Karte: antippbarer Kopf klappt die Kandidaten auf; kompakte Karte klappt ueber das Menue auf (T192)
                 if (!compact) {
                     Text(
                         text = if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
                                else stringResource(R.string.ui_alternativen, detection.candidates.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp, start = 4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable { candidatesExpanded = !candidatesExpanded }
+                            .padding(top = 2.dp, start = 4.dp)
+                            .wrapContentHeight(Alignment.CenterVertically)
                     )
                 }
 
-                AnimatedVisibility(visible = !compact || candidatesExpanded) {
+                AnimatedVisibility(visible = candidatesExpanded) {
                     Column(modifier = Modifier.animateContentSize()) {
                         detection.candidates.forEach { candidate ->
                             Row(
