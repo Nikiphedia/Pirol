@@ -61,8 +61,16 @@ class SegmentedRecording(
     /** Liest [startSec, endSec) der Session als Mono-Samples, ueber Segmentgrenzen hinweg. */
     fun readRange(startSec: Float, endSec: Float): ExcerptWav.Pcm? {
         if (parts.isEmpty() || sampleRate <= 0) return null
-        val startFrame = Math.round(startSec.toDouble() * sampleRate).coerceIn(0L, totalFrames)
-        val endFrame = Math.round(endSec.toDouble() * sampleRate).coerceIn(startFrame, totalFrames)
+        val startFrame = Math.round(startSec.toDouble() * sampleRate)
+        val endFrame = Math.round(endSec.toDouble() * sampleRate)
+        return readFrames(startFrame, endFrame)
+    }
+
+    /** T221: Liest die Frames [startFrame, endFrame) der Session (sample-genau, auch bei langen Aufnahmen). */
+    fun readFrames(startFrameIn: Long, endFrameIn: Long): ExcerptWav.Pcm? {
+        if (parts.isEmpty() || sampleRate <= 0) return null
+        val startFrame = startFrameIn.coerceIn(0L, totalFrames)
+        val endFrame = endFrameIn.coerceIn(startFrame, totalFrames)
         val n = (endFrame - startFrame).toInt()
         if (n <= 0) return null
         val out = ShortArray(n)

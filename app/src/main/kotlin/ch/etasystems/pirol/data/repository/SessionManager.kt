@@ -15,6 +15,7 @@ import ch.etasystems.pirol.location.TrackPoint
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
+import ch.etasystems.pirol.rescan.RescanFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -686,16 +687,28 @@ class SessionManager(
     private fun accessFor(sessionDir: File): SessionFiles =
         docFor(sessionDir)?.let { DocSessionFiles(context, it) } ?: FileSessionFiles(sessionDir)
 
-    /** Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session an. */
-    suspend fun appendVerificationLine(sessionDir: File, line: String) = withContext(Dispatchers.IO) {
-        fileMutex.withLock { accessFor(sessionDir).append("verifications.jsonl", line) }
+    /**
+     * T221: Zugriff auf die Dateien einer Session unter dem fileMutex (Rescan-Varianten schreiben/loeschen).
+     */
+    suspend fun <T> withSessionFiles(sessionDir: File, block: (SessionFiles) -> T): T = withContext(Dispatchers.IO) {
+        fileMutex.withLock { block(accessFor(sessionDir)) }
     }
 
-    /** Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an detections.jsonl der Session an. */
-    suspend fun appendDetectionLine(sessionDir: File, line: String) = withContext(Dispatchers.IO) {
+    /**
+     * Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session an.
+     * T221: [variant] = Rescan-Variante (eigene Datei), null = Original.
+     */
+    suspend fun appendVerificationLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
+        fileMutex.withLock { accessFor(sessionDir).append(RescanFiles.verifications(variant), line) }
+    }
+
+    /** Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an detections.jsonl der Session (T221: oder der Variante) an. */
+    suspend fun appendDetectionLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
             val writer = detectionWriter
-            if (writer != null && isActiveDir(sessionDir)) {
+            if (variant != null) {
+                accessFor(sessionDir).append(RescanFiles.detections(variant), line)
+            } else if (writer != null && isActiveDir(sessionDir)) {
                 // aktive Session (File oder SAF): offenen Writer verwenden
                 writer.append(line)
                 writer.flush()
@@ -706,9 +719,17 @@ class SessionManager(
         }
     }
 
-    /** Ersetzt die Detektion mit gleicher ID in detections.jsonl der Session. No-op falls Datei fehlt. */
-    suspend fun replaceDetectionIn(sessionDir: File, updated: DetectionResult) = withContext(Dispatchers.IO) {
+    /** Ersetzt die Detektion mit gleicher ID in detections.jsonl der Session (T221: oder der Variante). No-op falls Datei fehlt. */
+    suspend fun replaceDetectionIn(sessionDir: File, updated: DetectionResult, variant: String? = null) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
+            if (variant != null) {
+                // T221: Variante wird nie live geschrieben -> Text ersetzen (File atomar, SAF "wt")
+                val access = accessFor(sessionDir)
+                val name = RescanFiles.detections(variant)
+                val text = access.readText(name) ?: return@withLock
+                access.writeReplacing(name, SessionFilesLogic.replaceDetectionInText(text, updated))
+                return@withLock
+            }
             if (activeSessionDoc != null && isActiveDir(sessionDir)) {
                 // T131: aktive SAF-Session -> offenen Writer/PFD schliessen und neu oeffnen (wie Live-Pfad)
                 replaceDetectionLocked(updated)
@@ -1221,9 +1242,9 @@ class SessionManager(
     /**
      * Laedt alle Detektionen einer Session aus detections.jsonl.
      */
-    suspend fun loadDetections(sessionDir: File): List<DetectionResult> = withContext(Dispatchers.IO) {
+    suspend fun loadDetections(sessionDir: File, variant: String? = null): List<DetectionResult> = withContext(Dispatchers.IO) {
         try {
-            (accessFor(sessionDir).readText("detections.jsonl") ?: return@withContext emptyList())
+            (accessFor(sessionDir).readText(RescanFiles.detections(variant)) ?: return@withContext emptyList())
                 .lines()
                 .filter { it.isNotBlank() }
                 .mapNotNull { line ->
@@ -1239,10 +1260,10 @@ class SessionManager(
     /**
      * Laedt Verifikations-Events und wendet sie auf Detektionen an.
      */
-    suspend fun loadDetectionsWithVerifications(sessionDir: File): List<DetectionResult> =
+    suspend fun loadDetectionsWithVerifications(sessionDir: File, variant: String? = null): List<DetectionResult> =
         withContext(Dispatchers.IO) {
-            val detections = loadDetections(sessionDir).toMutableList()
-            val veriText = try { accessFor(sessionDir).readText("verifications.jsonl") } catch (_: Exception) { null }
+            val detections = loadDetections(sessionDir, variant).toMutableList()
+            val veriText = try { accessFor(sessionDir).readText(RescanFiles.verifications(variant)) } catch (_: Exception) { null }
                 ?: return@withContext detections
 
             val verifications = try {
@@ -1277,8 +1298,8 @@ class SessionManager(
     /**
      * T167: Wanduhr-Zeiten der absorbierten Fenster je Anker-Detektion (aus CLUSTER_MERGED-Events).
      */
-    suspend fun loadMergeTimestamps(sessionDir: File): Map<String, List<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>> = withContext(Dispatchers.IO) {
-        val veriText = try { accessFor(sessionDir).readText("verifications.jsonl") } catch (_: Exception) { null }
+    suspend fun loadMergeTimestamps(sessionDir: File, variant: String? = null): Map<String, List<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>> = withContext(Dispatchers.IO) {
+        val veriText = try { accessFor(sessionDir).readText(RescanFiles.verifications(variant)) } catch (_: Exception) { null }
             ?: return@withContext emptyMap()
         val map = mutableMapOf<String, MutableList<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>>()
         veriText.lineSequence().forEach { line ->
@@ -1298,9 +1319,10 @@ class SessionManager(
      * Map von DetectionId → SimultaneousLinkSummary (simultaneous / probable / sameIndividual).
      */
     private suspend fun loadSimultaneousLinkMap(
-        sessionDir: File
+        sessionDir: File,
+        variant: String? = null
     ): Map<String, RavenExporter.SimultaneousLinkSummary> = withContext(Dispatchers.IO) {
-        val veriText = try { accessFor(sessionDir).readText("verifications.jsonl") } catch (_: Exception) { null }
+        val veriText = try { accessFor(sessionDir).readText(RescanFiles.verifications(variant)) } catch (_: Exception) { null }
             ?: return@withContext emptyMap()
 
         val map = mutableMapOf<String, RavenExporter.SimultaneousLinkSummary>()
@@ -1389,15 +1411,17 @@ class SessionManager(
      */
     suspend fun exportRavenSelectionTable(
         sessionDir: File,
-        appPreferences: AppPreferences? = null
+        appPreferences: AppPreferences? = null,
+        variant: String? = null  // T221: Rescan-Variante -> recording.rescan-<id>.selections.txt
     ): File? = withContext(Dispatchers.IO) {
         val access = accessFor(sessionDir)
         if (access.segmentSources().isEmpty()) return@withContext null
         val isDoc = access is DocSessionFiles
+        val ravenName = RescanFiles.raven(variant)
         // SAF: erst in eine Cache-Datei exportieren, dann in den Session-Ordner schreiben
-        val outputFile = if (isDoc) File(context.cacheDir, "recording.selections.txt")
-                         else File(sessionDir, "recording.selections.txt")
-        val detections = loadDetectionsWithVerifications(sessionDir)
+        val outputFile = if (isDoc) File(context.cacheDir, ravenName)
+                         else File(sessionDir, ravenName)
+        val detections = loadDetectionsWithVerifications(sessionDir, variant)
         // Metadaten fuer startedAt + recordingSegments laden (T57-B3)
         val meta = runCatching {
             val jsonText = access.readText("session.json") ?: error("session.json fehlt")
@@ -1422,18 +1446,18 @@ class SessionManager(
                 if (p.ravenFieldGleich)         add(RavenExporter.FIELD_GLEICH)
             }
         }
-        val linkMap = loadSimultaneousLinkMap(sessionDir)
+        val linkMap = loadSimultaneousLinkMap(sessionDir, variant)
         RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note)
         if (isDoc) {
-            fileMutex.withLock { access.writeReplacing("recording.selections.txt", outputFile.readText()) }
+            fileMutex.withLock { access.writeReplacing(ravenName, outputFile.readText()) }
             outputFile.delete()
         }
         outputFile
     }
 
     /** T194: Text der Raven-Datei der Session (auch bei SAF-Sessions); null = Datei fehlt. */
-    suspend fun readRavenText(sessionDir: File): String? = withContext(Dispatchers.IO) {
-        runCatching { accessFor(sessionDir).readText("recording.selections.txt") }.getOrNull()
+    suspend fun readRavenText(sessionDir: File, variant: String? = null): String? = withContext(Dispatchers.IO) {
+        runCatching { accessFor(sessionDir).readText(RescanFiles.raven(variant)) }.getOrNull()
     }
 
     // ── Migrations-Methoden (T41, erweitert T51) ──────────────────────

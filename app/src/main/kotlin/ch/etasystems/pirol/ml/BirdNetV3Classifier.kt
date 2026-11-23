@@ -25,7 +25,9 @@ class BirdNetV3Classifier(
     private val context: Context,
     private val modelManager: ModelManager,
     // T103a: erhaelt die Sprachspalten der 3.0-final-Labels als Rueckfall fuer Artnamen
-    private val speciesNameResolver: SpeciesNameResolver? = null
+    private val speciesNameResolver: SpeciesNameResolver? = null,
+    /** T221: festes Modell (Dateiname in filesDir/models, Rescan) statt des aktiven; null = aktives Modell */
+    private val fixedModelFile: String? = null
 ) : AudioClassifier {
 
     companion object {
@@ -113,7 +115,7 @@ class BirdNetV3Classifier(
     @Volatile private var labelNameSet: Set<String> = emptySet()
 
     // T103a: Profil, mit dem Session und Labels geladen wurden (wechselt nur ueber resetSession)
-    @Volatile private var profile: ModelProfile = modelManager.getActiveProfile()
+    @Volatile private var profile: ModelProfile = currentProfile()
     private var labelsProfileId: String? = null
     @Volatile private var labelsMissing = false
 
@@ -142,10 +144,10 @@ class BirdNetV3Classifier(
      */
     override fun isModelAvailable(): Boolean {
         // 1. Aktives Modell via ModelManager
-        val activeFile = modelManager.getActiveModelFile()
+        val activeFile = currentModelFile()
         if (activeFile != null && activeFile.exists()) return true
-        // 2. Assets Fallback
-        return isModelAvailableInAssets()
+        // 2. Assets Fallback (T221: nicht bei fest gewaehltem Modell)
+        return fixedModelFile == null && isModelAvailableInAssets()
     }
 
     /**
@@ -314,7 +316,7 @@ class BirdNetV3Classifier(
         ortSession = null
         sessionFailed = false
         // T103a: neues Profil sofort uebernehmen (modelId/Embedding-DB), Labels beim naechsten Aufruf
-        profile = modelManager.getActiveProfile()
+        profile = currentProfile()
         Log.i(TAG, "Session zurueckgesetzt — Modell ${profile.id} wird beim naechsten Aufruf neu geladen")
     }
 
@@ -337,7 +339,7 @@ class BirdNetV3Classifier(
 
         return try {
             // T103a: Profil des aktiven Modells uebernehmen (nach resetSession ggf. ein anderes)
-            profile = modelManager.getActiveProfile()
+            profile = currentProfile()
             // Labels immer laden (auch wenn Modell fehlt — fuer getLabels())
             loadLabels()
             if (labels.isEmpty()) {
@@ -355,7 +357,7 @@ class BirdNetV3Classifier(
             opts.setIntraOpNumThreads(INFERENCE_THREADS)
 
             // 1. Aktives Modell via ModelManager (direkter Pfad — memory-mapped)
-            val activeFile = modelManager.getActiveModelFile()
+            val activeFile = currentModelFile()
             if (activeFile != null && activeFile.exists()) {
                 Log.i(TAG, "Modell geladen via ModelManager: ${activeFile.absolutePath} " +
                         "(${activeFile.length() / 1_000_000} MB)")
@@ -366,7 +368,7 @@ class BirdNetV3Classifier(
             }
 
             // 2. Assets Fallback (muss als ByteArray geladen werden)
-            if (!isModelAvailableInAssets()) {
+            if (fixedModelFile != null || !isModelAvailableInAssets()) {
                 Log.w(TAG, "Modell nicht gefunden — weder in filesDir noch in assets")
                 Log.w(TAG, "Bitte Modell via Onboarding importieren oder in assets/ ablegen")
                 sessionFailed = true
@@ -383,6 +385,17 @@ class BirdNetV3Classifier(
             sessionFailed = true
             null
         }
+    }
+
+    /** T221: Modelldatei — fest gewaehlt (Rescan) oder aktiv laut Einstellungen */
+    private fun currentModelFile(): File? =
+        if (fixedModelFile == null) modelManager.getActiveModelFile() else modelManager.getModelFile(fixedModelFile)
+
+    /** T221: Profil der [currentModelFile] (ohne Datei: Preview-Profil fuer das Asset-Modell) */
+    private fun currentProfile(): ModelProfile {
+        if (fixedModelFile == null) return modelManager.getActiveProfile()
+        val file = currentModelFile() ?: return ModelProfile.LEGACY_DEFAULT
+        return ModelProfile.resolve(file.name, file.length())
     }
 
     /** Hilfsfunktion: Pruefen ob Modell in assets vorhanden ist */

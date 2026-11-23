@@ -138,6 +138,10 @@ class ModelManager(
         return null
     }
 
+    /** T221: installierte Modelldatei per Dateiname (null = fehlt/unbrauchbar) */
+    fun getModelFile(fileName: String): File? =
+        File(File(context.filesDir, MODEL_DIR), fileName).takeIf { it.exists() && isUsableModelFile(it) }
+
     /** T103a: Profil des aktiven Modells (ohne Modelldatei: Preview-Profil fuer das Asset-Modell) */
     fun getActiveProfile(): ModelProfile {
         val file = getActiveModelFile() ?: return ModelProfile.LEGACY_DEFAULT

@@ -29,6 +29,8 @@ interface SessionFiles {
     fun segmentSources(): List<SegmentSource>
     /** Ganzen Session-Ordner loeschen */
     fun deleteAll(): Boolean
+    /** T221: einzelne Datei loeschen (true = geloescht oder nicht vorhanden) */
+    fun delete(fileName: String): Boolean
 
     /** Aufnahme (alle Segmente) oder null */
     fun recording(): SegmentedRecording? =
@@ -50,6 +52,7 @@ class FileSessionFiles(val dir: File) : SessionFiles {
     override fun segmentSources(): List<SegmentSource> =
         SegmentedRecording.segmentFiles(dir).map { FileSegment(it) }
     override fun deleteAll(): Boolean = dir.deleteRecursively()
+    override fun delete(fileName: String): Boolean = File(dir, fileName).let { !it.exists() || it.delete() }
 }
 
 /** Reine Hilfsfunktionen (Pfad-/Namenslogik, JVM-testbar). */

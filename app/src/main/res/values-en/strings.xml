@@ -653,4 +653,23 @@
     <string name="settings_geo_jahresliste">Year list (whole year)</string>
     <string name="settings_geo_jahresliste_hint">Off = current week only. On = maximum over all 48 weeks.</string>
     <string name="settings_info_geomodel">BirdNET+ Geomodel V3.0.5: © 2026 The BirdNET Team, Apache License 2.0, doi:10.5281/zenodo.24362980</string>
+    <!-- T221: Rescan of a recording -->
+    <string name="analysis_rescan">Re-analyse recording</string>
+    <string name="analysis_rescan_info">The result is saved as a separate variant. The original stays unchanged; verifications are carried over when species and time window match.</string>
+    <string name="analysis_rescan_modell">Model</string>
+    <string name="analysis_rescan_liste">List</string>
+    <string name="analysis_rescan_schwelle">Confidence threshold: %1$d %%</string>
+    <string name="analysis_rescan_overlap">Overlap</string>
+    <string name="analysis_rescan_starten">Start</string>
+    <string name="analysis_rescan_kein_modell">No model installed.</string>
+    <string name="analysis_rescan_laeuft">Re-analysis: %1$d %%</string>
+    <string name="analysis_rescan_aufnahme_laeuft">Not possible while recording.</string>
+    <string name="analysis_rescan_fertig">Re-analysis done: %1$d detections, %2$d verifications carried over</string>
+    <string name="analysis_rescan_abgebrochen">Re-analysis cancelled</string>
+    <string name="analysis_rescan_keine_aufnahme">No recording available.</string>
+    <string name="analysis_rescan_modell_fehlt">Model not available.</string>
+    <string name="analysis_rescan_fehler">Re-analysis failed</string>
+    <string name="analysis_variante_original">Original</string>
+    <string name="analysis_variante_loeschen">Delete variant</string>
+    <string name="analysis_variante_loeschen_frage">Delete variant “%1$s”? The original is kept.</string>
 </resources>

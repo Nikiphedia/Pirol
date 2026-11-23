@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
@@ -454,6 +455,8 @@ private fun SessionDetailContent(
     // T203: Abspielposition beim Oeffnen von "+ Art" (session-relativ), null = keine
     var manualPositionSec by remember { mutableStateOf<Float?>(null) }
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
+    var showRescanDialog by remember { mutableStateOf(false) }  // T221
+    if (showRescanDialog) RescanDialog(viewModel) { showRescanDialog = false }
     // T202: Artsuche im Session-Detail (filtert die Detektionsliste)
     val detailResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
     var detailSearchOpen by remember { mutableStateOf(false) }
@@ -506,6 +509,15 @@ private fun SessionDetailContent(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // T221: angezeigte Rescan-Variante (Original ohne Zusatz)
+                state.variants.firstOrNull { it.id == state.activeVariant }?.let { v ->
+                    Text(
+                        text = variantLabel(v),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                }
             }
             // T202: Kopfzeile: Suche, Raven; Upload im Ueberlaufmenue (je 48 dp). T210: Wiedergabe in eigener Zeile darunter
             val uploadStatus by viewModel.uploadStatus.collectAsState()
@@ -514,6 +526,24 @@ private fun SessionDetailContent(
                 if (!detailSearchOpen) detailSearch = ""
             }) {
                 Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.analysis_suche_art))
+            }
+            // T221: Rescan neben der Lupe; waehrend einer Aufnahme ausgegraut mit Hinweis
+            if (state.hasRecording) {
+                val recordingActive by viewModel.recordingActive.collectAsState()
+                val rescanRunning = state.rescanProgress != null
+                IconButton(onClick = {
+                    when {
+                        recordingActive -> viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+                        !rescanRunning -> showRescanDialog = true
+                    }
+                }) {
+                    Icon(
+                        Icons.Filled.Autorenew,
+                        contentDescription = stringResource(R.string.analysis_rescan),
+                        tint = if (recordingActive || rescanRunning)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else androidx.compose.material3.LocalContentColor.current
+                    )
+                }
             }
             IconButton(onClick = { viewModel.openRavenTable() }) {
                 Icon(Icons.Filled.TableChart, contentDescription = stringResource(R.string.analysis_raven_oeffnen))
@@ -575,6 +605,9 @@ private fun SessionDetailContent(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+
+        // T221: Varianten Original | Rescan(s) und Fortschritt
+        RescanVariantBar(state, viewModel)
 
         // T109: Session-Bemerkung (editierbar)
         Row(

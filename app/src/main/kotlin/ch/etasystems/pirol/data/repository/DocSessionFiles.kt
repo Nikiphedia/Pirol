@@ -51,6 +51,8 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
 
     override fun deleteAll(): Boolean = doc.delete()
 
+    override fun delete(fileName: String): Boolean = doc.findFile(fileName)?.delete() ?: true
+
     private fun mimeOf(fileName: String) = when {
         fileName.endsWith(".json") -> "application/json"
         fileName.endsWith(".wav") -> "audio/wav"

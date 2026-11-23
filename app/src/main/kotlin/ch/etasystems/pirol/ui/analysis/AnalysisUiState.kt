@@ -105,5 +105,12 @@ data class AnalysisUiState(
     val ravenTable: RavenTable? = null,
 
     // IO-Fehler bei Verifikations-Persistierung (AC5)
-    val saveErrorMessage: String? = null
+    val saveErrorMessage: String? = null,
+
+    // T221: Rescan-Varianten der geoeffneten Session; activeVariant = angezeigte Variante (null = Original)
+    val variants: List<ch.etasystems.pirol.rescan.RescanInfo> = emptyList(),
+    val activeVariant: String? = null,
+    /** T221: Fortschritt 0..1 des laufenden Rescans (null = keiner) und dessen Session */
+    val rescanProgress: Float? = null,
+    val rescanSessionDir: File? = null
 )
