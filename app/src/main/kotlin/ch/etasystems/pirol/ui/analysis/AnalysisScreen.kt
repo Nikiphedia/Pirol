@@ -445,6 +445,8 @@ private fun SessionDetailContent(
     val session = state.selectedSession ?: return
     val context = LocalContext.current
     var showAddManualDialog by remember { mutableStateOf(false) }
+    // T203: Abspielposition beim Oeffnen von "+ Art" (session-relativ), null = keine
+    var manualPositionSec by remember { mutableStateOf<Float?>(null) }
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
     // T202: Artsuche im Session-Detail (filtert die Detektionsliste)
     val detailResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
@@ -762,7 +764,10 @@ private fun SessionDetailContent(
                 },
                 style = MaterialTheme.typography.titleSmall
             )
-            TextButton(onClick = { showAddManualDialog = true }) {
+            TextButton(onClick = {
+                manualPositionSec = state.playbackPositionSec ?: state.lastPlaybackPositionSec
+                showAddManualDialog = true
+            }) {
                 Icon(
                     imageVector = Icons.Filled.AddCircle,
                     contentDescription = stringResource(R.string.analysis_art),
@@ -917,16 +922,21 @@ private fun SessionDetailContent(
 
     // AddManualDetectionDialog (T72)
     if (showAddManualDialog) {
+        val manualTime = viewModel.manualEntryTime(manualPositionSec)
         AddManualDetectionDialog(
             onSearchSpecies = { query -> viewModel.searchSpecies(query) },
             atlasCodes = viewModel.atlasCodes,
-            currentLat = null,
-            currentLon = null,
+            currentLat = state.selectedSession?.metadata?.latitude,
+            currentLon = state.selectedSession?.metadata?.longitude,
             onAdd = { speciesKey, count, atlasCode, note, lat, lon ->
-                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon)
+                viewModel.addManualDetection(speciesKey, count, atlasCode, note, lat, lon, manualPositionSec)
                 showAddManualDialog = false
             },
-            onDismiss = { showAddManualDialog = false }
+            onDismiss = { showAddManualDialog = false },
+            allowMapPick = true,
+            timeHint = if (manualTime.hasPosition) {
+                formatSecondsAsMinSec(manualPositionSec ?: 0f) + " ±" + ManualEntryTime.HALF_WINDOW_SEC.toInt() + " s"
+            } else null
         )
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.ml.AtlasCode
+import ch.etasystems.pirol.location.LocationProvider
+import org.koin.compose.koinInject
 import ch.etasystems.pirol.R
 import androidx.compose.ui.res.stringResource
 
@@ -66,7 +69,11 @@ fun AddManualDetectionDialog(
     currentLat: Double?,
     currentLon: Double?,
     onAdd: (speciesKey: String, count: Int, atlasCode: String?, note: String?, lat: Double?, lon: Double?) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** T203: Karten-Knopf anzeigen (Analyse) */
+    allowMapPick: Boolean = false,
+    /** T203: Hinweis, welche Zeit uebernommen wird (z.B. "12:34 +/-10 s"), null = nichts */
+    timeHint: String? = null
 ) {
     // Art-Auswahl
     var speciesQuery by remember { mutableStateOf("") }
@@ -87,6 +94,10 @@ fun AddManualDetectionDialog(
     // GPS
     var latText by remember { mutableStateOf(currentLat?.toString() ?: "") }
     var lonText by remember { mutableStateOf(currentLon?.toString() ?: "") }
+
+    // T203: Kartenwahl
+    var showMapPicker by remember { mutableStateOf(false) }
+    val gps = if (allowMapPick) koinInject<LocationProvider>().location.value else null
 
     val canSave = selectedSpecies != null
 
@@ -252,6 +263,20 @@ fun AddManualDetectionDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                if (allowMapPick) {
+                    OutlinedButton(
+                        onClick = { showMapPicker = true },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) { Text(stringResource(R.string.ui_auf_karte_waehlen)) }
+                }
+                // 6. T203: Zeit aus Abspielposition
+                if (timeHint != null) {
+                    Text(
+                        text = stringResource(R.string.ui_zeit_aus_abspielposition, timeHint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {
@@ -269,4 +294,21 @@ fun AddManualDetectionDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
+
+    if (showMapPicker) {
+        // Start: gesetzte Koordinate, sonst Session-Koordinate, sonst GPS, sonst Schweiz
+        val lat0 = latText.toDoubleOrNull() ?: currentLat ?: gps?.latitude
+        val lon0 = lonText.toDoubleOrNull() ?: currentLon ?: gps?.longitude
+        MapPointPicker(
+            startLat = lat0 ?: 46.8,
+            startLon = lon0 ?: 8.2,
+            startZoom = if (lat0 != null && lon0 != null) 16.0 else 7.0,
+            onPick = { lat, lon ->
+                latText = String.format(java.util.Locale.US, "%.6f", lat)
+                lonText = String.format(java.util.Locale.US, "%.6f", lon)
+                showMapPicker = false
+            },
+            onDismiss = { showMapPicker = false }
+        )
+    }
 }
