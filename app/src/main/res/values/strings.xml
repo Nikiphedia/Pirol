@@ -54,6 +54,9 @@
     <string name="ui_keiner">(keiner)</string>
     <string name="ui_bemerkung">Bemerkung</string>
     <string name="ui_lat">Lat</string>
+    <string name="ui_auf_karte_waehlen">Auf Karte waehlen</string>
+    <string name="ui_karte_uebernehmen">Uebernehmen</string>
+    <string name="ui_zeit_aus_abspielposition">Zeit: %1$s</string>
     <string name="ui_lon">Lon</string>
     <string name="ui_hinzufuegen">Hinzufuegen</string>
     <string name="ui_watchlist_alarm_test">WATCHLIST-ALARM (Test)</string>

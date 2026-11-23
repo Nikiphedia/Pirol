@@ -121,7 +121,10 @@ class AnalysisViewModel(
                 if (state == AudioPlayer.PlaybackState.PLAYING) {
                     positionJob = viewModelScope.launch {
                         while (isActive) {
-                            _uiState.update { it.copy(playbackPositionSec = audioPlayer.currentPositionSec()) }
+                            _uiState.update { s ->
+                                val p = audioPlayer.currentPositionSec()
+                                s.copy(playbackPositionSec = p, lastPlaybackPositionSec = p ?: s.lastPlaybackPositionSec)
+                            }
                             delay(100)
                         }
                     }
@@ -360,6 +363,7 @@ class AnalysisViewModel(
                     hasRecording = rec != null || recFile != null,
                     recordingUri  = recUri,
                     recordingDurationSec = durationSec,
+                    lastPlaybackPositionSec = null,
                     zoomRange = null,
                     zoomSpectrogramState = SpectrogramState()
                 )
@@ -1142,6 +1146,19 @@ class AnalysisViewModel(
         return sessionManager.memoDocFile(doc, detectionId)?.uri
     }
 
+    /** T203: Zeitfenster fuer einen manuellen Eintrag aus der Abspielposition (session-relativ). */
+    fun manualEntryTime(positionSec: Float?, nowMs: Long = System.currentTimeMillis()): ManualEntryTime {
+        val state = _uiState.value
+        val startMs = state.selectedSession?.metadata?.startedAt?.let {
+            try {
+                java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                try { java.time.Instant.parse(it).toEpochMilli() } catch (_: Exception) { null }
+            }
+        }
+        return ManualEntryTime.compute(positionSec, state.recordingDurationSec, startMs, nowMs)
+    }
+
     /** Artsuche fuer AddManualDetectionDialog (T72). */
     fun searchSpecies(query: String): List<Pair<String, String>> =
         speciesNameResolver.searchSpecies(query)
@@ -1156,24 +1173,27 @@ class AnalysisViewModel(
         atlasCode: String? = null,
         note: String? = null,
         lat: Double? = null,
-        lon: Double? = null
+        lon: Double? = null,
+        positionSec: Float? = null
     ) {
         val session = _uiState.value.selectedSession ?: return
         val now = System.currentTimeMillis()
+        // T203: Zeit aus Abspielposition +/- 10 s (ohne Position: jetzt, kein Audio-Bezug)
+        val time = manualEntryTime(positionSec, now)
         val det = DetectionResult(
             id = java.util.UUID.randomUUID().toString(),
             scientificName = speciesKey,
             commonName = speciesNameResolver.resolve(speciesKey),
             confidence = 1.0f,
-            timestampMs = now,
-            chunkStartSec = 0f,
-            chunkEndSec = 0f,
-            sampleRate = 0,
+            timestampMs = time.timestampMs,
+            chunkStartSec = time.chunkStartSec,
+            chunkEndSec = time.chunkEndSec,
+            sampleRate = if (time.hasPosition) session.metadata.sampleRate else 0,
             latitude = lat,
             longitude = lon,
-            firstSeenAtMs = now,
-            lastSeenAtMs = now,
-            lastDetectedMs = now,
+            firstSeenAtMs = time.timestampMs,
+            lastSeenAtMs = time.timestampMs,
+            lastDetectedMs = time.timestampMs,
             count = count,
             atlasCode = atlasCode,
             note = note,
