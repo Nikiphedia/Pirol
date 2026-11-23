@@ -1,0 +1,29 @@
+{
+  "_comment": "Gespeicherte Beispielantworten (verkuerzt, Form wie api.gbif.org). Zahlen fuer Pirol aus T214.",
+  "labels": [
+    ["Oriolus oriolus", "Pirol"],
+    ["Poecile montanus", "Weidenmeise"],
+    ["Astur gentilis", "Habicht"],
+    ["Curruca curruca", "Klappergrasmuecke"]
+  ],
+  "aliases": {"Accipiter_gentilis": "Astur_gentilis", "Parus_montanus": "Poecile_montanus"},
+  "totals": {"2490265": 5, "5231918": 53000, "9515886": 120, "2481090": 800, "7001": 40, "7002": 15},
+  "months": {
+    "5231918": {"4": 254, "5": 25322, "6": 17921, "7": 10174, "8": 453, "9": 24},
+    "9515886": {"1": 20, "2": 20, "3": 20, "4": 20, "5": 20, "6": 20},
+    "2481090": {"1": 100, "2": 100, "3": 100, "4": 100, "5": 100, "6": 100, "7": 100, "8": 100, "9": 50, "10": 50, "11": 50, "12": 50},
+    "7001": {"11": 20, "12": 10, "1": 5, "2": 5}
+  },
+  "species": {
+    "2490265": {"canonicalName": "Anthus vaalensis"},
+    "5231918": {"canonicalName": "Oriolus oriolus"},
+    "9515886": {"canonicalName": "Parus montanus"},
+    "2481090": {"canonicalName": "Accipiter gentilis"},
+    "7001": {"canonicalName": "Sylvia curruca"},
+    "7002": {"canonicalName": "Pholidoptera griseoaptera"}
+  },
+  "synonyms": {
+    "7001": ["Curruca curruca", "Motacilla curruca"],
+    "7002": []
+  }
+}
