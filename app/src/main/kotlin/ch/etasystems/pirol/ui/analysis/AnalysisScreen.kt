@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
@@ -82,7 +84,8 @@ import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
 import ch.etasystems.pirol.ui.components.LiveDisplayMode
 import ch.etasystems.pirol.ui.components.SpectrumSettingsPanel
 import ch.etasystems.pirol.ui.components.WaveformSettingsPanel
-import ch.etasystems.pirol.ui.components.onSpectrogramLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -504,23 +507,8 @@ private fun SessionDetailContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            // T202: Kopfzeile mit Wiedergabe (Play + Position), Suche, Raven; Upload im Ueberlaufmenue (je 48 dp)
+            // T202: Kopfzeile: Suche, Raven; Upload im Ueberlaufmenue (je 48 dp). T210: Wiedergabe in eigener Zeile darunter
             val uploadStatus by viewModel.uploadStatus.collectAsState()
-            if (state.hasRecording) {
-                IconButton(onClick = { viewModel.playCurrentChunk() }) {  // T173: Start/Stopp-Umschalter
-                    Icon(
-                        imageVector = if (state.playingKey == PlaybackKeys.SESSION)
-                            Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = stringResource(R.string.common_play)
-                    )
-                }
-                Text(
-                    text = formatSecondsAsMinSec(state.playbackPositionSec ?: 0f) + " / " +
-                        formatSecondsAsMinSec(state.recordingDurationSec),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
             IconButton(onClick = {
                 detailSearchOpen = !detailSearchOpen
                 if (!detailSearchOpen) detailSearch = ""
@@ -547,6 +535,35 @@ private fun SessionDetailContent(
                         onClick = { menuOpen = false; viewModel.uploadSession() }
                     )
                 }
+            }
+        }
+        // T210: Wiedergabe-Zeile: vorherige Detektion, Play/Stopp, naechste Detektion, Position (je 48 dp)
+        if (state.hasRecording) {
+            val navList = remember(state.detections, detailSearch) {
+                state.detections.filter {
+                    SpeciesSearch.matches(detailSearch, detailResolver.resolve(it.scientificName), it.scientificName)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { viewModel.playAdjacent(navList, forward = false) }) {
+                    Icon(Icons.Filled.SkipPrevious, contentDescription = stringResource(R.string.analysis_vorherige_detektion))
+                }
+                IconButton(onClick = { viewModel.playCurrentChunk() }) {  // T173: Start/Stopp-Umschalter
+                    Icon(
+                        imageVector = if (state.playingKey == PlaybackKeys.SESSION)
+                            Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(R.string.common_play)
+                    )
+                }
+                IconButton(onClick = { viewModel.playAdjacent(navList, forward = true) }) {
+                    Icon(Icons.Filled.SkipNext, contentDescription = stringResource(R.string.analysis_naechste_detektion))
+                }
+                Text(
+                    text = formatSecondsAsMinSec(state.playbackPositionSec ?: state.pendingStartSec ?: 0f) + " / " +
+                        formatSecondsAsMinSec(state.recordingDurationSec),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         if (detailSearchOpen) {
@@ -668,7 +685,19 @@ private fun SessionDetailContent(
                     .height(150.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (settings.palette.isLight) Color.White else Color.Black)
-                    .onSpectrogramLongPress { showPanel = true }
+                    // T210: Tippen setzt die Wiedergabe (nur Sonogramm; das Oszillogramm meldet selbst), Langdruck = Panel
+                    .pointerInput(mode, zoom, state.recordingDurationSec) {
+                        detectTapGestures(
+                            onLongPress = { showPanel = true },
+                            onTap = { pos ->
+                                if (mode != LiveDisplayMode.SONOGRAM) return@detectTapGestures
+                                val viewStart = zoom?.startSec ?: 0f
+                                val viewDur = zoom?.durationSec ?: state.recordingDurationSec
+                                PlaybackNav.tapToSec(pos.x, 0f, size.width.toFloat(), viewStart, viewDur, state.recordingDurationSec)
+                                    ?.let { viewModel.seekTo(it) }
+                            }
+                        )
+                    }
             ) {
                 if (mode == LiveDisplayMode.SONOGRAM) {
                     SpectrogramCanvas(
@@ -704,6 +733,12 @@ private fun SessionDetailContent(
                         waveformSettings = waveformSettings,
                         sonoAutoRange = zoomRangeDb,
                         onLongPress = { showPanel = true },
+                        onSeekFraction = { frac ->  // T210
+                            val viewStart = zoom?.startSec ?: 0f
+                            val viewDur = zoom?.durationSec ?: state.recordingDurationSec
+                            PlaybackNav.tapToSec(frac, 0f, 1f, viewStart, viewDur, state.recordingDurationSec)
+                                ?.let { viewModel.seekTo(it) }
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -724,7 +759,7 @@ private fun SessionDetailContent(
                     )
                 }
                 // T107: Abspiel-Zeiger (Position relativ zur ganzen Aufnahme)
-                val posSec = state.playbackPositionSec
+                val posSec = state.playbackPositionSec ?: state.pendingStartSec  // T210: gesetzte Startposition zeigen
                 // T116: im Zoom relativ zum Ausschnitt statt zur ganzen Aufnahme
                 val viewStart = zoom?.startSec ?: 0f
                 val durSec = zoom?.durationSec ?: state.recordingDurationSec
