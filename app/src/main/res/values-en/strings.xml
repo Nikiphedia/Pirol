@@ -726,4 +726,13 @@
     <string name="settings_species_groups_auto_fallback">Auto without location or geomodel: birds use the fallback list below, grasshoppers and amphibians the Swiss list, mammals all species.</string>
     <string name="analysis_rescan_groups">Species groups</string>
     <string name="setup_sum_groups">Species groups: %1$s</string>
+    <string name="ui_alarm_button">Alarm</string>
+    <string name="ui_alarm_dauerhaft">Add to alarm list</string>
+    <string name="ui_alarm_24h">Alarm for 24 h</string>
+    <string name="ui_alarm_dauerhaft_machen">Make permanent</string>
+    <string name="ui_alarm_entfernen">Remove</string>
+    <string name="ui_alarm_gesetzt">Alarm active for %1$s</string>
+    <string name="ui_alarm_gesetzt_24h">Alarm active for %1$s (24 h)</string>
+    <string name="ui_alarm_entfernt">Alarm removed for %1$s</string>
+    <string name="settings_alarm_bis">until %1$s</string>
 </resources>

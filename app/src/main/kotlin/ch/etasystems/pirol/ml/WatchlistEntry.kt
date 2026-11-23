@@ -22,7 +22,9 @@ data class WatchlistEntry(
     val scientificName: String,
     val commonName: String = "",
     val priority: WatchlistPriority = WatchlistPriority.normal,
-    val notes: String? = null
+    val notes: String? = null,
+    /** T244: Ablaufzeit (epoch ms) fuer "Alarm fuer 24 h"; null = dauerhaft */
+    val expiresAtMs: Long? = null
 )
 
 /**

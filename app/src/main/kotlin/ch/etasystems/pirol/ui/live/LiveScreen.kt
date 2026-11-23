@@ -42,6 +42,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
@@ -204,7 +205,20 @@ fun LiveScreen(
         }
     }
 
+    // T244: Undo-Snackbar fuer den Alarm-Knopf der Artkarte
+    val alarmScope = rememberCoroutineScope()
+    val alarmUndo: (String, String, () -> Unit) -> Unit = { message, label, onUndo ->
+        alarmScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(message, label, duration = SnackbarDuration.Long)
+            if (result == SnackbarResult.ActionPerformed) onUndo()
+        }
+    }
+
     // --- Adaptives Layout basierend auf WindowWidthSizeClass ---
+    androidx.compose.runtime.CompositionLocalProvider(
+        ch.etasystems.pirol.ui.components.LocalUndoSnackbar provides alarmUndo
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column {
             // Fallback-Banner: SAF-URI nicht erreichbar (T51)
@@ -272,6 +286,7 @@ fun LiveScreen(
             hostState = topSnackbarHostState,
             modifier = Modifier.align(Alignment.TopCenter)
         )
+    }
     }
 }
 
