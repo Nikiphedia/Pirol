@@ -1,7 +1,7 @@
 package ch.etasystems.pirol.data.sync
 
 import ch.etasystems.pirol.data.repository.SessionMetadata
-import ch.etasystems.pirol.data.repository.SessionNoteUtil
+import ch.etasystems.pirol.data.export.ExportNames
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2ShareAccess
@@ -70,7 +70,7 @@ class SmbTarget(
         onProgress: (Float) -> Unit
     ): Boolean {
         val remote = UploadConfig.buildRemotePath(
-            settings.path, SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note)
+            settings.path, ExportNames.sessionZipName(metadata.startedAt, metadata.note, metadata.sessionId)
         )
         val folder = remote.substringBeforeLast('/', "")
         val total = zipFile.length().coerceAtLeast(1L)

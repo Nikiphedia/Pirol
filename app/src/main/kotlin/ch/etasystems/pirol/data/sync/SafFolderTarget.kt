@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import ch.etasystems.pirol.data.repository.SessionMetadata
-import ch.etasystems.pirol.data.repository.SessionNoteUtil
+import ch.etasystems.pirol.data.export.ExportNames
 import java.io.File
 
 /**
@@ -37,7 +37,7 @@ class SafFolderTarget(
         check()?.let { throw UploadConfigException(it) }
         val dir = DocumentFile.fromTreeUri(context, treeUri)!!
         val fileName = UploadConfig.sanitizeFileName(
-            SessionNoteUtil.zipFileName(metadata.sessionId, metadata.note)
+            ExportNames.sessionZipName(metadata.startedAt, metadata.note, metadata.sessionId)
         )
         // Bestehende Datei gleichen Namens ersetzen (Wiederholung nach Abbruch)
         dir.findFile(fileName)?.delete()
