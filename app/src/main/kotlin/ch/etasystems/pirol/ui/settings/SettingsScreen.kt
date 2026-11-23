@@ -1512,69 +1512,6 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    if (entries.isNotEmpty()) {
-                        Text(
-                            text = stringResource(R.string.settings_arten_2, watchlistManager.name, entries.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Artenliste mit Loeschen-Buttons (T21 AP-4)
-                        entries.forEach { entry ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = entry.commonName.ifEmpty { entry.scientificName.replace('_', ' ') },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = entry.priority.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = when (entry.priority) {
-                                        WatchlistPriority.high -> MaterialTheme.colorScheme.error
-                                        WatchlistPriority.normal -> MaterialTheme.colorScheme.primary
-                                        WatchlistPriority.low -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        watchlistManager.removeSpecies(entry.scientificName)
-                                    }
-                                }) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        contentDescription = stringResource(R.string.settings_entfernen),
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = stringResource(R.string.settings_keine_watchlist_geladen),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.settings_auto_import_downloads_pirol_watchlis),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (entries.isNotEmpty()) stringResource(R.string.settings_geladen) else stringResource(R.string.settings_keine_datei_gefunden),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (entries.isNotEmpty())
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.error
-                    )
 
                 }
             }
@@ -1807,6 +1744,71 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (entries.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.settings_arten_2, watchlistManager.name, entries.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Artenliste mit Loeschen-Buttons (T21 AP-4)
+                entries.forEach { entry ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = entry.commonName.ifEmpty { entry.scientificName.replace('_', ' ') },
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = entry.priority.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = when (entry.priority) {
+                                WatchlistPriority.high -> MaterialTheme.colorScheme.error
+                                WatchlistPriority.normal -> MaterialTheme.colorScheme.primary
+                                WatchlistPriority.low -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                        IconButton(onClick = {
+                            scope.launch {
+                                watchlistManager.removeSpecies(entry.scientificName)
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.settings_entfernen),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = stringResource(R.string.settings_keine_watchlist_geladen),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.settings_auto_import_downloads_pirol_watchlis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = if (entries.isNotEmpty()) stringResource(R.string.settings_geladen) else stringResource(R.string.settings_keine_datei_gefunden),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (entries.isNotEmpty())
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.error
+            )
             Spacer(modifier = Modifier.height(12.dp))
 
             // Art hinzufuegen Button (AP-4)
