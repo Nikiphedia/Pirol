@@ -28,7 +28,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,7 +50,10 @@ interface PipelineSession {
     fun currentRecordingOffsetSec(): Float
     suspend fun appendAudio(samples: ShortArray)
     suspend fun appendDetections(detections: List<DetectionResult>)
-    suspend fun replaceDetection(updated: DetectionResult)
+    /** T236: Update einer geschriebenen Detektion vormerken (kein Dateizugriff, gebuendelter Rewrite) */
+    fun queueDetectionUpdate(updated: DetectionResult)
+    /** T236: vorgemerkte Updates schreiben (Pipeline ca. alle [RecordingPipeline.DETECTION_FLUSH_INTERVAL_MS]) */
+    suspend fun flushDetectionUpdates()
     suspend fun appendVerification(event: VerificationEvent)
     suspend fun startSession(
         sampleRate: Int,
@@ -153,6 +155,8 @@ class RecordingPipeline(
         private const val GEO_CHECK_INTERVAL_MS = 60_000L
         /** T231: Laenge des Ringpuffers fuer das Zweitmodell (s); deckt Warteschlange + Ueberhang gut ab */
         private const val RING_SECONDS = 30
+        /** T236: Abstand der gebuendelten Rewrites von detections.jsonl (max. Verlust bei Prozess-Kill) */
+        const val DETECTION_FLUSH_INTERVAL_MS = 10_000L
 
         /**
          * T207/T211: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
@@ -218,6 +222,7 @@ class RecordingPipeline(
     // T231: Rohaudio der letzten Sekunden fuer laengere Zweitmodell-Fenster (Perch 5 s)
     @Volatile private var secondaryRing: AudioRingBuffer? = null
     private var geoJob: Job? = null  // T218
+    private var flushJob: Job? = null  // T236
     @Volatile private var running = false
     private var currentSessionId: String? = null
 
@@ -314,6 +319,17 @@ class RecordingPipeline(
                 delay(GEO_CHECK_INTERVAL_MS)
                 try { hooks.refreshSpeciesFilter(hooks.currentLocation(), System.currentTimeMillis()) } catch (e: Exception) {
                     Log.w(TAG, "Geomodel-Aktualisierung fehlgeschlagen", e)
+                }
+            }
+        }
+
+        // T236: Updates von Zweitmodell, Merge und GPS-Fix gebuendelt schreiben (Ende: endSession schreibt den Rest)
+        flushJob?.cancel()
+        flushJob = scope.launch(ioDispatcher) {
+            while (true) {
+                delay(DETECTION_FLUSH_INTERVAL_MS)
+                try { session.flushDetectionUpdates() } catch (e: Exception) {
+                    Log.w(TAG, "detections.jsonl: gebuendeltes Schreiben fehlgeschlagen", e)
                 }
             }
         }
@@ -447,15 +463,17 @@ class RecordingPipeline(
             }?.id
         }
         if (changed.isEmpty() || !session.isActive) return
-        // Zeile erst nach Append/Merge dieses Fensters ersetzen (sonst fehlt sie oder wird ueberschrieben);
-        // eigene Coroutine, damit ein wartender GPS-Fix (T143) die Zweitmodell-Schleife nicht aufhaelt
-        scope.launch(ioDispatcher) {
-            window.persisted.joinAll()
-            for (id in changed) {
-                val latest = detectionListState.getDetections().firstOrNull { it.id == id } ?: continue
-                if (session.isActive) session.replaceDetection(latest)
-            }
-        }
+        // T236: nur vormerken; noch nicht angehaengte Zeilen bekommen die neue Fassung beim Append
+        for (id in changed) queuePersist(id)
+    }
+
+    /**
+     * T236: Aktuellen Listenstand der Detektion zum Schreiben vormerken (unter der Listen-Sperre,
+     * damit spaetere Aenderungen nie von einem aelteren Stand ueberholt werden, Bericht #10).
+     */
+    private fun queuePersist(id: String) {
+        if (!session.isActive) return
+        detectionListState.withCurrent(id) { session.queueDetectionUpdate(it) }
     }
 
     private fun startInference(
@@ -515,6 +533,8 @@ class RecordingPipeline(
         stopSecondary()  // T224
         geoJob?.cancel()
         geoJob = null
+        flushJob?.cancel()  // T236: Rest schreibt endSession
+        flushJob = null
         // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
         // auf demselben sessionDispatcher → Reihenfolge Append vor Schliessen bleibt erhalten)
         inferenceWorker.flushPendingAudio()
@@ -582,7 +602,7 @@ class RecordingPipeline(
                     locationAgeMs = DetectionFixPolicy.ageMs(fix, now), locationAccuracyM = fix.accuracyM
                 )
             } ?: continue
-            if (session.isActive) session.replaceDetection(updated)
+            queuePersist(updated.id)  // T236
         }
     }
 
@@ -645,9 +665,8 @@ class RecordingPipeline(
                     mergedAnchors.add(result.anchor)
                     secondaryTargets += SecondaryChecker.SecondaryWindow.Target(result.anchor.id, det.scientificName)
                     if (session.isActive) {
-                        val anchor = result.anchor
+                        queuePersist(result.anchor.id)  // T236: gebuendelt
                         persistJobs += scope.launch(ioDispatcher) {
-                            session.replaceDetection(anchor)
                             session.appendVerification(clusterMergedEvent(result, System.currentTimeMillis()))
                         }
                     }
@@ -658,11 +677,11 @@ class RecordingPipeline(
         // T20/T124: Watchlist-Alarm fuer neue Detektionen und Cluster-Merges
         for (detection in newDetections + mergedAnchors) hooks.checkWatchlist(detection)
 
-        // Neue Detektionen in JSONL schreiben (Merges via replaceDetection)
+        // Neue Detektionen sofort in JSONL schreiben (Merges gebuendelt via queuePersist, T236)
         if (session.isActive && newDetections.isNotEmpty()) {
             persistJobs += scope.launch(ioDispatcher) {
                 session.appendDetections(newDetections)
-                // T143: erst nach dem Append, damit replaceDetection die Zeile findet
+                // T143: erst nach dem Append (T236: Reihenfolge sichert auch die Warteschlange ab)
                 refreshFixes(newDetections, loc)
             }
         } else if (newDetections.isNotEmpty()) {

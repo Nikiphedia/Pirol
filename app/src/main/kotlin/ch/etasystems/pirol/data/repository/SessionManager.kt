@@ -162,6 +162,9 @@ class SessionManager(
             enabled: Boolean
         ): Boolean = enabled && minSec > 0 && durationSec < minSec && detections == 0
 
+        /** T236 */
+        private const val DETECTIONS_FILE = "detections.jsonl"
+
         private val companionJson = Json { prettyPrint = false }
         private val companionJsonLenient = Json { ignoreUnknownKeys = true }
 
@@ -170,7 +173,12 @@ class SessionManager(
          */
         internal fun writeFileReplacing(target: File, content: String) {
             val tmp = File(target.parentFile, target.name + ".tmp")
-            tmp.writeText(content)
+            // T236: vor dem Move auf den Datentraeger bringen (sonst nach Stromausfall evtl. leere Datei)
+            java.io.FileOutputStream(tmp).use { os ->
+                os.write(content.toByteArray(Charsets.UTF_8))
+                os.flush()
+                try { os.fd.sync() } catch (_: java.io.SyncFailedException) { /* Dateisystem ohne sync */ }
+            }
             try {
                 java.nio.file.Files.move(
                     tmp.toPath(), target.toPath(),
@@ -219,6 +227,9 @@ class SessionManager(
 
     /** T93: Serialisiert alle Schreib-/Rewrite-Zugriffe auf detections.jsonl und verifications.jsonl. */
     private val fileMutex = Mutex()
+
+    /** T236: gesammelte Updates fuer detections.jsonl der aktiven Session (gebuendelter Rewrite) */
+    private val pendingUpdates = DetectionUpdateQueue()
 
     private val json = Json { prettyPrint = false }
     private val jsonLenient = Json { ignoreUnknownKeys = true }
@@ -354,6 +365,8 @@ class SessionManager(
         // Alte Session sicherheitshalber schliessen
         if (isActive) endSession()
         lastStartUsedFallback = false
+        // T236: Updates, die nach dem letzten Session-Ende noch eintrafen, gehoeren nicht zur neuen Session
+        pendingUpdates.clear()
 
         // Session-ID: Ortszeit (T155) + UUID-Prefix
         val sessionId = buildSessionId(LocalDateTime.now(), UUID.randomUUID().toString().take(6))
@@ -479,7 +492,8 @@ class SessionManager(
     suspend fun appendDetections(detections: List<DetectionResult>) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
             val writer = detectionWriter ?: return@withLock
-            for (detection in detections) {
+            // T236: liegt schon ein Update fuer eine neue Detektion vor, gleich die neue Fassung anhaengen
+            for (detection in pendingUpdates.takeForAppend(detections)) {
                 val line = json.encodeToString(detection)
                 writer.append(line)
                 writer.append('\n')
@@ -538,10 +552,9 @@ class SessionManager(
                 if (lastMatchIdx < 0) return@withLock
                 val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
                 try {
-                    context.contentResolver.openOutputStream(veriFile.uri, "wt")?.use { os ->
-                        val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                        os.write(content.toByteArray(Charsets.UTF_8))
-                    }
+                    val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
+                    // T236: Schattenkopie statt "wt" (kein leerer Stand bei Prozess-Kill)
+                    DocSessionFiles(context, sessionDoc).writeReplacing("verifications.jsonl", content)
                 } catch (e: Exception) {
                     Log.e(TAG, "removeLastVerification SAF fehlgeschlagen: $detectionId", e)
                 }
@@ -567,70 +580,101 @@ class SessionManager(
     }
 
     /**
-     * Ersetzt eine Detektion in detections.jsonl durch die aktualisierte Version.
-     * File-Modus: atomar via temp-File + Files.move (Writer wird dabei geschlossen und neu geoeffnet).
-     * SAF-Modus: "wt"-Rewrite (kein atomarer rename moeglich via ContentResolver).
-     * Silent no-op falls die Session-ID nicht gefunden wird.
+     * T236: Update einer bereits geschriebenen Detektion vormerken (Zweitmodell, Cluster-Merge, GPS-Fix).
+     * Kein Dateizugriff. Geschrieben wird gebuendelt in einem Rewrite: [flushDetectionUpdates]
+     * (Pipeline ca. alle 10 s), beim Session-Ende, vor Lesezugriffen auf die aktive Session und mit
+     * jedem [replaceDetection]. Pro ID gilt der zuletzt gemeldete Stand.
      */
-    suspend fun replaceDetection(updated: DetectionResult) = withContext(Dispatchers.IO) {
-        fileMutex.withLock { replaceDetectionLocked(updated) }
+    fun queueDetectionUpdate(updated: DetectionResult) {
+        if (!isActive) return
+        pendingUpdates.put(updated)
     }
 
-    /** Rumpf von [replaceDetection]; Aufrufer haelt den fileMutex (T131: auch fuer Analyse-Tab auf aktiver SAF-Session). */
-    private fun replaceDetectionLocked(updated: DetectionResult) {
-        run {
-            val encodedLine = json.encodeToString(updated) + "\n"
-            val sessionDoc = activeSessionDoc
+    /** T236: Gesammelte Updates jetzt schreiben (no-op ohne Updates). */
+    suspend fun flushDetectionUpdates() = withContext(Dispatchers.IO) {
+        if (pendingUpdates.isEmpty()) return@withContext
+        fileMutex.withLock { flushPendingLocked() }
+        Unit
+    }
+
+    /**
+     * Ersetzt eine Detektion in detections.jsonl sofort (Nutzer-Aktionen), zusammen mit allen gesammelten
+     * Updates in einem Rewrite. File-Modus: temp-File + atomarer Move. SAF-Modus: Schattenkopie mit
+     * Fertig-Marke ([ShadowReplace]). Der Append-Writer wird dabei geschlossen und neu geoeffnet.
+     * Silent no-op ohne aktive Session; ist die Zeile noch nicht angehaengt, bleibt das Update vorgemerkt.
+     */
+    suspend fun replaceDetection(updated: DetectionResult) = withContext(Dispatchers.IO) {
+        fileMutex.withLock {
+            if (!isActive) return@withLock
+            pendingUpdates.put(updated)
+            flushPendingLocked()
+            Unit
+        }
+    }
+
+    /**
+     * T236: Gesammelte Updates in EINEM Rewrite schreiben. Aufrufer haelt den fileMutex.
+     * Geschriebene Eintraege verlassen die Warteschlange; bei Fehler bleiben sie fuer den naechsten Versuch.
+     * @return Fehler oder null
+     */
+    private fun flushPendingLocked(): Exception? {
+        if (pendingUpdates.isEmpty()) return null
+        val sessionDoc = activeSessionDoc
+        val sessionDir = activeSessionDir
+        return try {
             if (sessionDoc != null) {
-                // SAF-Modus
-                val detFile = sessionDoc.findFile("detections.jsonl") ?: return
-                val lines = try {
-                    context.contentResolver.openInputStream(detFile.uri)?.use {
-                        it.bufferedReader().readLines()
-                    } ?: return
-                } catch (_: Exception) { return }
-                val replaced = lines.map { raw ->
-                    if (raw.isBlank()) raw
-                    else try {
-                        if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine.trimEnd('\n')
-                        else raw
-                    } catch (_: Exception) { raw }
-                }
-                // T93: offenen Append-Writer + PFD vor dem "wt"-Rewrite schliessen ...
-                try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
-                detectionWriter = null
-                try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
-                activeDetectionsFd = null
-                try {
-                    context.contentResolver.openOutputStream(detFile.uri, "wt")?.use { os ->
-                        val content = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
-                        os.write(content.toByteArray(Charsets.UTF_8))
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "replaceDetection SAF fehlgeschlagen: ${updated.id}", e)
-                } finally {
-                    // ... und danach IMMER wieder im Append-Modus oeffnen
-                    try {
-                        val fd = context.contentResolver.openFileDescriptor(detFile.uri, "wa")
-                        if (fd != null) {
-                            activeDetectionsFd = fd
-                            detectionWriter = OutputStreamWriter(
-                                java.io.FileOutputStream(fd.fileDescriptor), Charsets.UTF_8
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "detections.jsonl konnte nicht neu geoeffnet werden", e)
+                val access = DocSessionFiles(context, sessionDoc)
+                pendingUpdates.flush({ access.readText(DETECTIONS_FILE) }) { text ->
+                    withDetectionWriterClosed(reopen = { reopenSafWriterLocked(sessionDoc) }) {
+                        // SAF: Schattenkopie mit Fertig-Marke statt "wt"-Rewrite
+                        access.writeReplacing(DETECTIONS_FILE, text)
                     }
                 }
-            } else {
-                // File-Modus: Writer schliessen, atomar ersetzen, Writer neu oeffnen (T93)
-                val sessionDir = activeSessionDir ?: return
-                val file = File(sessionDir, "detections.jsonl")
-                detectionWriter = replaceDetectionInFile(file, updated, detectionWriter) { e ->
-                    Log.e(TAG, "replaceDetection fehlgeschlagen: ${updated.id}", e)
+            } else if (sessionDir != null) {
+                val file = File(sessionDir, DETECTIONS_FILE)
+                pendingUpdates.flush({ file.takeIf { it.exists() }?.readText() }) { text ->
+                    withDetectionWriterClosed(reopen = { detectionWriter = FileWriter(file, true) }) {
+                        writeFileReplacing(file, text)  // temp-File + atomarer Move
+                    }
                 }
             }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "detections.jsonl: ${pendingUpdates.size()} Updates nicht geschrieben (neuer Versuch beim naechsten Schreiben)", e)
+            e
         }
+    }
+
+    /**
+     * Append-Writer fuer den Rewrite schliessen (er zeigt sonst auf die alte Datei bzw. schreibt mitten hinein)
+     * und danach IMMER wieder oeffnen, falls einer offen war.
+     */
+    private inline fun withDetectionWriterClosed(reopen: () -> Unit, block: () -> Unit) {
+        val hadWriter = detectionWriter != null
+        closeDetectionWriterLocked()
+        try {
+            block()
+        } finally {
+            if (hadWriter) {
+                try { reopen() } catch (e: Exception) { Log.e(TAG, "detections.jsonl konnte nicht neu geoeffnet werden", e) }
+            }
+        }
+    }
+
+    /** SAF: Append-PFD + Writer auf detections.jsonl neu oeffnen. */
+    private fun reopenSafWriterLocked(sessionDoc: DocumentFile) {
+        val detFile = sessionDoc.findFile(DETECTIONS_FILE) ?: return
+        val fd = context.contentResolver.openFileDescriptor(detFile.uri, "wa") ?: return
+        activeDetectionsFd = fd
+        detectionWriter = OutputStreamWriter(java.io.FileOutputStream(fd.fileDescriptor), Charsets.UTF_8)
+    }
+
+    /** Append-Writer (und SAF-PFD) schliessen. Aufrufer haelt den fileMutex. */
+    private fun closeDetectionWriterLocked() {
+        try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
+        detectionWriter = null
+        try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
+        activeDetectionsFd = null
     }
 
     // ── T93b: Zugriffe von aussen (Analyse-Tab) auf beliebige Session-Ordner ──────────
@@ -691,7 +735,10 @@ class SessionManager(
      * T221: Zugriff auf die Dateien einer Session unter dem fileMutex (Rescan-Varianten schreiben/loeschen).
      */
     suspend fun <T> withSessionFiles(sessionDir: File, block: (SessionFiles) -> T): T = withContext(Dispatchers.IO) {
-        fileMutex.withLock { block(accessFor(sessionDir)) }
+        fileMutex.withLock {
+            if (isActive && isActiveDir(sessionDir)) flushPendingLocked()  // T236: Rescan liest den aktuellen Stand
+            block(accessFor(sessionDir))
+        }
     }
 
     /**
@@ -723,34 +770,28 @@ class SessionManager(
     suspend fun replaceDetectionIn(sessionDir: File, updated: DetectionResult, variant: String? = null) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
             if (variant != null) {
-                // T221: Variante wird nie live geschrieben -> Text ersetzen (File atomar, SAF "wt")
+                // T221: Variante wird nie live geschrieben -> Text ersetzen (File atomar, SAF Schattenkopie)
                 val access = accessFor(sessionDir)
                 val name = RescanFiles.detections(variant)
                 val text = access.readText(name) ?: return@withLock
                 access.writeReplacing(name, SessionFilesLogic.replaceDetectionInText(text, updated))
                 return@withLock
             }
-            if (activeSessionDoc != null && isActiveDir(sessionDir)) {
-                // T131: aktive SAF-Session -> offenen Writer/PFD schliessen und neu oeffnen (wie Live-Pfad)
-                replaceDetectionLocked(updated)
+            if (isActive && isActiveDir(sessionDir)) {
+                // T131/T236: aktive Session (File oder SAF) -> zusammen mit den gesammelten Updates schreiben
+                pendingUpdates.put(updated)
+                flushPendingLocked()?.let { throw it }
                 return@withLock
             }
             val doc = docFor(sessionDir)
             if (doc != null) {
                 val access = DocSessionFiles(context, doc)
-                val text = access.readText("detections.jsonl") ?: return@withLock
-                access.writeReplacing("detections.jsonl", SessionFilesLogic.replaceDetectionInText(text, updated))
+                val text = access.readText(DETECTIONS_FILE) ?: return@withLock
+                access.writeReplacing(DETECTIONS_FILE, SessionFilesLogic.replaceDetectionInText(text, updated))
                 return@withLock
             }
-            val file = File(sessionDir, "detections.jsonl")
-            // Fehler erst NACH der Writer-Zuweisung werfen, damit die aktive Session
-            // in jedem Fall wieder einen gueltigen Append-Writer hat.
             var error: Exception? = null
-            if (isActiveDir(sessionDir)) {
-                detectionWriter = replaceDetectionInFile(file, updated, detectionWriter) { e -> error = e }
-            } else {
-                replaceDetectionInFile(file, updated, null) { e -> error = e }
-            }
+            replaceDetectionInFile(File(sessionDir, DETECTIONS_FILE), updated, null) { e -> error = e }
             error?.let { throw it }
         }
     }
@@ -868,10 +909,11 @@ class SessionManager(
 
         // JSONL-Writer schliessen
         fileMutex.withLock {  // T93: nicht parallel zu append/replace schliessen
-            try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
-            detectionWriter = null
-            try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
-            activeDetectionsFd = null
+            // T236: gesammelte Updates zuletzt schreiben; was dann noch fehlt (Zeile nie angehaengt), verwerfen
+            flushPendingLocked()
+            val dropped = pendingUpdates.clear()
+            if (dropped > 0) Log.w(TAG, "Session-Ende: $dropped Updates ohne Zeile in detections.jsonl verworfen")
+            closeDetectionWriterLocked()
         }
 
         // session.json aktualisieren (endedAt, Zaehler, gpsStats)
@@ -1243,6 +1285,8 @@ class SessionManager(
      * Laedt alle Detektionen einer Session aus detections.jsonl.
      */
     suspend fun loadDetections(sessionDir: File, variant: String? = null): List<DetectionResult> = withContext(Dispatchers.IO) {
+        // T236: Analyse/Export lesen die aktive Session -> gesammelte Updates vorher schreiben
+        if (variant == null && isActive && isActiveDir(sessionDir)) flushDetectionUpdates()
         try {
             (accessFor(sessionDir).readText(RescanFiles.detections(variant)) ?: return@withContext emptyList())
                 .lines()

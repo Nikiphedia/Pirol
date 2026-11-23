@@ -82,16 +82,44 @@ object SessionFilesLogic {
             (activeDocName != null && activeDocName == candidateName)
 
     /** Ersetzt die Zeile der Detektion mit gleicher ID in JSONL-Text; unlesbare Zeilen bleiben unveraendert. */
-    fun replaceDetectionInText(text: String, updated: DetectionResult): String {
-        val encoded = json.encodeToString(updated)
+    fun replaceDetectionInText(text: String, updated: DetectionResult): String =
+        replaceDetectionsInText(text, mapOf(updated.id to updated)).text
+
+    /** T236: Ergebnis eines gebuendelten Ersetzens */
+    data class ReplaceResult(val text: String, val matchedIds: Set<String>)
+
+    /**
+     * T236: Ersetzt alle Zeilen, deren ID in [updates] vorkommt, in einem Durchgang (ein Rewrite fuer n Updates).
+     * Die ID wird per Praefix `{"id":"…"` gelesen (so schreibt kotlinx die Zeilen); nur abweichende Zeilen
+     * werden voll dekodiert. Ersetzte Zeilen = [json].encodeToString (Format unveraendert).
+     */
+    fun replaceDetectionsInText(text: String, updates: Map<String, DetectionResult>): ReplaceResult {
+        if (updates.isEmpty()) return ReplaceResult(text, emptySet())
         val lines = text.lines().let { if (it.lastOrNull() == "") it.dropLast(1) else it }
+        val matched = mutableSetOf<String>()
         val replaced = lines.map { raw ->
-            if (raw.isBlank()) raw
-            else try {
-                if (jsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encoded else raw
-            } catch (_: Exception) { raw }
+            if (raw.isBlank()) return@map raw
+            val id = detectionIdOf(raw) ?: return@map raw
+            val upd = updates[id] ?: return@map raw
+            matched += id
+            json.encodeToString(upd)
         }
-        return if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
+        val out = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
+        return ReplaceResult(out, matched)
+    }
+
+    private const val ID_PREFIX = "{\"id\":\""
+
+    /** T236: ID einer JSONL-Zeile (Praefix, sonst Decoder); null = unlesbar */
+    fun detectionIdOf(line: String): String? {
+        if (line.startsWith(ID_PREFIX)) {
+            val end = line.indexOf('"', ID_PREFIX.length)
+            // Escape in der ID (bei UUIDs nie) -> Decoder entscheidet
+            if (end > ID_PREFIX.length && line.lastIndexOf('\\', end) < ID_PREFIX.length) {
+                return line.substring(ID_PREFIX.length, end)
+            }
+        }
+        return try { jsonLenient.decodeFromString<DetectionResult>(line).id } catch (_: Exception) { null }
     }
 
     /** Entfernt File-Sessions, deren Ordnername schon als SAF-Session gelistet ist (Duplikate). */

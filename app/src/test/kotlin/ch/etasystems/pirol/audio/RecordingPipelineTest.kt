@@ -67,8 +67,11 @@ class RecordingPipelineTest {
             events += "append"
         }
         override suspend fun appendDetections(detections: List<DetectionResult>) { this.detections += detections }
-        val replaced: MutableList<DetectionResult> = Collections.synchronizedList(mutableListOf())
-        override suspend fun replaceDetection(updated: DetectionResult) { replaced += updated }
+        // T236: Updates werden nur vorgemerkt, geschrieben wird gebuendelt
+        val queued: MutableList<DetectionResult> = Collections.synchronizedList(mutableListOf())
+        @Volatile var flushes = 0
+        override fun queueDetectionUpdate(updated: DetectionResult) { queued += updated }
+        override suspend fun flushDetectionUpdates() { flushes++ }
         override suspend fun appendVerification(event: VerificationEvent) {}
         override suspend fun startSession(
             sampleRate: Int, latitude: Double?, longitude: Double?, regionFilter: String?,
@@ -207,7 +210,7 @@ class RecordingPipelineTest {
             pos += 4800
         }
         waitUntil("Zweitmodell-Ergebnis in der Liste") { list.getDetections().firstOrNull()?.secondaryStatus != null }
-        waitUntil("Zweitmodell-Ergebnis persistiert") { session.replaced.any { it.secondaryStatus != null } }
+        waitUntil("Zweitmodell-Ergebnis persistiert") { session.queued.any { it.secondaryStatus != null } }
 
         val det = list.getDetections().first()
         assertEquals("Turdus_merula", det.scientificName)
@@ -344,6 +347,13 @@ class RecordingPipelineTest {
             assertEquals("overlap=$overlap", setOf("Turdus_merula", "Fringilla_coelebs"), dets.map { it.scientificName }.toSet())
             assertEquals("overlap=$overlap", 2, dets.size)
             assertEquals("overlap=$overlap", 2, session.detections.size)
+            // T236: Merges nur vorgemerkt (kein Rewrite pro Fenster); der letzte Stand ist der Listenstand
+            val merged = list.getDetections().first { it.detectionCount >= 2 }
+            waitUntil("Vormerkung = Listenstand ($overlap %)") {
+                val cur = list.getDetections().first { it.id == merged.id }
+                session.queued.toList().lastOrNull { it.id == merged.id } == cur
+            }
+            assertEquals("overlap=$overlap: kein Ticker-Rewrite vor 10 s", 0, session.flushes)
             p.onRecordingStopped()!!.join()
         }
     }

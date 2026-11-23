@@ -30,7 +30,8 @@ class SessionManagerPipelineSession(private val sm: SessionManager) : PipelineSe
     override fun currentRecordingOffsetSec(): Float = sm.getCurrentRecordingOffsetSec()
     override suspend fun appendAudio(samples: ShortArray) { sm.appendAudioSamples(samples) }
     override suspend fun appendDetections(detections: List<DetectionResult>) { sm.appendDetections(detections) }
-    override suspend fun replaceDetection(updated: DetectionResult) { sm.replaceDetection(updated) }
+    override fun queueDetectionUpdate(updated: DetectionResult) { sm.queueDetectionUpdate(updated) }  // T236
+    override suspend fun flushDetectionUpdates() { sm.flushDetectionUpdates() }  // T236
     override suspend fun appendVerification(event: VerificationEvent) { sm.appendVerification(event) }
     override suspend fun startSession(
         sampleRate: Int, latitude: Double?, longitude: Double?, regionFilter: String?,

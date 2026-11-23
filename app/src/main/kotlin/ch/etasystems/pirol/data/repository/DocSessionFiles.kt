@@ -21,17 +21,57 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
 
     override fun exists(fileName: String) = doc.findFile(fileName) != null
 
+    /** T236: Zugriff fuer [ShadowReplace] (Schattenkopie mit Fertig-Marke) */
+    private val store = object : ShadowReplace.Store {
+        override fun exists(name: String) = doc.findFile(name) != null
+        override fun read(name: String): String? {
+            val f = doc.findFile(name) ?: return null
+            return resolver.openInputStream(f.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        }
+        override fun write(name: String, content: String) {
+            val f = fileFor(name)
+            // "wt" = kuerzen; danach sync, damit die Reihenfolge der Schritte auf dem Datentraeger gilt
+            val pfd = resolver.openFileDescriptor(f.uri, "wt")
+                ?: throw IllegalStateException("SAF: $name nicht beschreibbar")
+            pfd.use { fd ->
+                // Stream nicht separat schliessen: der Deskriptor gehoert der PFD
+                val os = java.io.FileOutputStream(fd.fileDescriptor)
+                os.write(content.toByteArray(Charsets.UTF_8))
+                os.flush()
+                try { fd.fileDescriptor.sync() } catch (_: java.io.SyncFailedException) { /* Provider ohne sync */ }
+            }
+        }
+        override fun create(name: String) { fileFor(name) }
+        override fun delete(name: String) { doc.findFile(name)?.delete() }
+    }
+
+    /** Vorhandene Datei oder neu erstellt; der Provider darf den Namen nicht veraendern. */
+    private fun fileFor(name: String): DocumentFile {
+        doc.findFile(name)?.let { return it }
+        val created = doc.createFile(mimeOf(name), name)
+            ?: throw IllegalStateException("SAF: $name konnte nicht erstellt werden")
+        if (created.name != name) {
+            created.delete()
+            throw IllegalStateException("SAF: $name wurde als ${created.name} erstellt")
+        }
+        return created
+    }
+
     override fun readText(fileName: String): String? {
-        val f = doc.findFile(fileName) ?: return null
-        return resolver.openInputStream(f.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        // T236: Reste eines unterbrochenen Ersetzens zuerst aufloesen (Prozess-Kill waehrend des Schreibens)
+        recover(fileName)
+        return store.read(fileName)
+    }
+
+    /** T236: Unterbrochenes Ersetzen von [fileName] aufloesen; true = es gab Reste. */
+    fun recover(fileName: String): Boolean {
+        if (!ShadowReplace.needsRecovery(listNames(), fileName)) return false
+        return ShadowReplace.recover(store, fileName)
     }
 
     override fun writeReplacing(fileName: String, content: String) {
-        val f = doc.findFile(fileName) ?: doc.createFile(mimeOf(fileName), fileName)
-            ?: throw IllegalStateException("SAF: $fileName konnte nicht erstellt werden")
-        // "wt" = truncate; ein einziger Schreibvorgang mit dem fertigen Inhalt
-        resolver.openOutputStream(f.uri, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-            ?: throw IllegalStateException("SAF: $fileName nicht beschreibbar")
+        // T236: nie kuerzen ohne vollstaendige Kopie (siehe ShadowReplace)
+        ShadowReplace.replace(store, fileName, content)
     }
 
     override fun append(fileName: String, content: String) {
@@ -54,6 +94,8 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
     override fun delete(fileName: String): Boolean = doc.findFile(fileName)?.delete() ?: true
 
     private fun mimeOf(fileName: String) = when {
+        // T236: Schattenkopie/Marke ohne Endungs-Zuordnung, sonst haengt der Provider evtl. eine an
+        fileName.endsWith(ShadowReplace.NEW_SUFFIX) || fileName.endsWith(ShadowReplace.OK_SUFFIX) -> "application/octet-stream"
         fileName.endsWith(".json") -> "application/json"
         fileName.endsWith(".wav") -> "audio/wav"
         fileName.endsWith(".txt") -> "text/plain"
