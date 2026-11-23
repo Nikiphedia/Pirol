@@ -169,6 +169,7 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                         "central_europe" to "EU",
                         "all" to AppStrings.get(R.string.common_all),
                         GeoLogic.REGION_ID to AppStrings.get(R.string.live_region_auto),
+                        ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID to AppStrings.get(R.string.analysis_rescan_groups),  // T232
                         null to AppStrings.get(R.string.common_off)
                     ) + customRegions.map { it.id to (it.nameDe + " (" + AppStrings.get(R.string.settings_eigene_liste) + ")") })
                         .forEach { (id, label) ->

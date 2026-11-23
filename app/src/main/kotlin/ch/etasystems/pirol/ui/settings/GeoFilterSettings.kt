@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.data.AppPreferences
-import ch.etasystems.pirol.ml.GeoCombine
 import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.GeoModelFiles
 import ch.etasystems.pirol.ml.ModelManager
@@ -38,7 +37,8 @@ import kotlinx.coroutines.launch
 
 /**
  * T218: Einstellungen fuer "Automatisch (Standort + Woche)": Geomodel-Bezug, Schwelle,
- * Verknuepfung mit einer Liste, Jahresliste.
+ * Ersatzliste, Jahresliste. T232: Die Verknuepfung mit einer Liste (Schnittmenge/Vereinigung) entfaellt,
+ * weil jede Artgruppe ihre eigene Quelle hat (Auto oder Liste).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -54,7 +54,6 @@ fun ColumnScope.GeoFilterSettings(
     var progress by remember { mutableStateOf<Float?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var threshold by remember { mutableStateOf(appPreferences.geoThreshold) }
-    var combine by remember { mutableStateOf(GeoCombine.parse(appPreferences.geoCombine)) }
     var yearly by remember { mutableStateOf(appPreferences.geoYearly) }
     var companion by remember { mutableStateOf(appPreferences.geoCompanionRegion) }
 
@@ -113,22 +112,10 @@ fun ColumnScope.GeoFilterSettings(
         }
     }
 
-    // Verknuepfung mit Liste
+    // T232: Ersatzliste fuer Voegel ohne Standort/Geomodel
     Spacer(modifier = Modifier.height(8.dp))
-    Text(stringResource(R.string.settings_geo_kombination), style = MaterialTheme.typography.bodyMedium)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(
-            GeoCombine.GEO_ONLY to R.string.settings_geo_nur_geo,
-            GeoCombine.INTERSECT to R.string.settings_geo_schnittmenge,
-            GeoCombine.UNION to R.string.settings_geo_vereinigung
-        ).forEach { (c, label) ->
-            FilterChip(
-                selected = combine == c,
-                onClick = { combine = c; appPreferences.geoCombine = c.name },
-                label = { Text(stringResource(label)) }
-            )
-        }
-    }
+    Text(stringResource(R.string.settings_species_groups_auto_fallback), style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(stringResource(R.string.settings_geo_liste), style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

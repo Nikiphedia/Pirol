@@ -220,7 +220,9 @@ class AndroidPipelineHooks(
 
     // T218: Geomodel-Filter; ohne Position einmal kurz einen frischen Fix versuchen
     override suspend fun prepareSpeciesFilter(loc: LocationData?, nowMs: Long): SpeciesFilterInfo? {
-        val needsFix = loc == null && appPreferences.regionFilter == ch.etasystems.pirol.ml.GeoLogic.REGION_ID
+        val region = appPreferences.regionFilter
+        val needsFix = loc == null && (region == ch.etasystems.pirol.ml.GeoLogic.REGION_ID ||
+            region == ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID && appPreferences.speciesGroups.usesAuto())  // T232
         val fix = loc ?: if (needsFix) try { locationProvider.requestFreshFix(3_000L) } catch (e: Exception) { null } else null
         return geoFilter.prepare(fix, nowMs)
     }

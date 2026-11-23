@@ -90,9 +90,11 @@ class SpeciesNameResolver(private val context: Context) {
             val jsonObj = JSONObject(jsonText)
             val taxa = jsonObj.getJSONArray("taxa")
             val map = HashMap<String, Map<String, String>>(taxa.length() * 2)
+            val groups = HashMap<String, String>(taxa.length() * 2)  // T232
             for (i in 0 until taxa.length()) {
                 val taxon = taxa.getJSONObject(i)
                 val sciName = taxon.getString("scientific_name")
+                groups[sciName] = taxon.optString("taxon_group")
                 val commonNames = taxon.optJSONObject("common_names") ?: continue
                 val langMap = mutableMapOf<String, String>()
                 for (key in commonNames.keys()) {
@@ -104,6 +106,7 @@ class SpeciesNameResolver(private val context: Context) {
                 map[sciName] = langMap
             }
             namesMap = map
+            TaxonGroups.addMasterGroups(groups)  // T232: Artgruppen fuer Arten ohne Label-CSV-Eintrag
             loaded = true
             Log.i(TAG, "T95_STATS load_ms=${SystemClock.elapsedRealtime() - startMs} species=${map.size} lang=$language")
         } catch (e: Exception) {

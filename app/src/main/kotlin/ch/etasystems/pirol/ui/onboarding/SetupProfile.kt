@@ -2,13 +2,14 @@ package ch.etasystems.pirol.ui.onboarding
 
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.GPS_MODE_ON_DETECTION
-import ch.etasystems.pirol.ml.GeoCombine
 import ch.etasystems.pirol.ml.GeoLogic
+import ch.etasystems.pirol.ml.GroupSource
+import ch.etasystems.pirol.ml.TaxonGroup
 
 /** T226: Einsatzzweck im Einrichtungsassistenten (Mehrfachwahl). Reihenfolge = Vorrang bei Konflikten. */
 enum class SetupPurpose { FIELD_BIRDS, ORTHOPTERA_AMPHIBIANS, MONITORING, RESEARCH }
 
-/** T226: Wahl der Artenliste. CUSTOM laesst die Liste unveraendert (Auswahl in den Einstellungen). */
+/** T226: Wahl der Artenliste (T232: fuer die Voegel). CUSTOM laesst die Wahl unveraendert (Einstellungen). */
 enum class SetupList(val regionId: String?) {
     AUTO(GeoLogic.REGION_ID),
     SWITZERLAND("ch_breeding"),
@@ -40,14 +41,16 @@ data class ProfileValues(
     val compactCard: Boolean? = null,
     val trackRecording: Boolean? = null,
     val maxRecordingMinutes: Int? = null,
-    /** T228: Begleitliste, mit der das Geomodel vereinigt wird (UNION); null = nur Geomodel */
-    val unionCompanion: String? = null
+    /** T232: Quelle je Artgruppe ausser Voegeln (Voegel folgen der Listenwahl); fehlend = Aus */
+    val groups: Map<TaxonGroup, String> = emptyMap()
 )
 
 /** T226: fertig aufgeloeste Einstellungen (Ergebnis von [SetupProfile.resolve]). */
 data class SetupSettings(
-    val regionFilter: String?,
-    val geoCombine: String,
+    /** T232: Quelle der Voegel (Listenwahl); null = unveraendert */
+    val birdsSource: String?,
+    /** T232: Quelle der uebrigen Artgruppen (immer gesetzt, fehlend = Aus) */
+    val groupSources: Map<TaxonGroup, String>,
     val geoYearly: Boolean,
     val threshold: Float,
     val alternativesFloor: Float,
@@ -55,8 +58,6 @@ data class SetupSettings(
     val secondaryModelFileName: String?,
     /** T228: Zweitmodell gewuenscht, aber keins installiert (Hinweis mit Weg zum Import) */
     val secondaryMissing: Boolean,
-    /** T228: Begleitliste fuer die Auto-Liste, null = unveraendert */
-    val geoCompanion: String?,
     val respectListSeason: Boolean,
     val freqMaxHz: Float?,
     val gpsMode: String?,
@@ -79,7 +80,8 @@ object SetupProfile {
         )
         SetupPurpose.ORTHOPTERA_AMPHIBIANS -> ProfileValues(
             threshold = 0.3f, alternativesFloor = 0.10f, overlapPercent = 50, secondary = false,
-            geoYearly = true, freqMaxHz = 24000f, unionCompanion = ORTHOPTERA_LIST_ID
+            geoYearly = true, freqMaxHz = 24000f,
+            groups = mapOf(TaxonGroup.ORTHOPTERA to ORTHOPTERA_LIST_ID, TaxonGroup.AMPHIBIANS to ORTHOPTERA_LIST_ID)
         )
         SetupPurpose.MONITORING -> ProfileValues(
             threshold = 0.5f, alternativesFloor = 0.20f, overlapPercent = 0, secondary = false,
@@ -87,7 +89,9 @@ object SetupProfile {
         )
         SetupPurpose.RESEARCH -> ProfileValues(
             threshold = 0.3f, alternativesFloor = 0.05f, overlapPercent = 50, secondary = true,
-            compactCard = false
+            compactCard = false,
+            groups = mapOf(TaxonGroup.ORTHOPTERA to GroupSource.AUTO, TaxonGroup.AMPHIBIANS to GroupSource.AUTO,
+                TaxonGroup.MAMMALS to GroupSource.ALL)
         )
     }
 
@@ -95,6 +99,7 @@ object SetupProfile {
      * Mehrfachwahl zusammenfuehren: empfindlichste Schwelle und Alternativen-Grenze (Minimum),
      * hoechste Ueberlappung, Zweitmodell/Jahresliste wenn irgendein Profil sie will,
      * hoechster Frequenzbereich; optionale Werte vom ersten Profil (Reihenfolge des Enums), das sie setzt.
+     * T232: je Artgruppe die erste Quelle (Enum-Reihenfolge), die nicht Aus ist; Voegel = Listenwahl.
      * Ohne Wahl gilt "Voegel im Feld".
      */
     fun resolve(choices: SetupChoices, secondaryCandidates: List<String>): SetupSettings {
@@ -106,12 +111,12 @@ object SetupProfile {
         val wantSecondary = choices.secondaryOverride ?: vs.any { it.secondary }
         val secondary = choices.secondaryModel?.takeIf { it in secondaryCandidates }
             ?: secondaryCandidates.firstOrNull()
-        // T228: Vereinigung mit der Begleitliste nur bei Auto-Liste (sonst gibt es kein Geomodel)
-        val companion = if (choices.list == SetupList.AUTO) first { it.unionCompanion } else null
+        val groups = (TaxonGroup.entries - TaxonGroup.BIRDS).associateWith { g ->
+            first { it.groups[g] } ?: GroupSource.OFF
+        }
         return SetupSettings(
-            regionFilter = choices.list.regionId,
-            geoCombine = (if (companion != null) GeoCombine.UNION else GeoCombine.GEO_ONLY).name,
-            geoCompanion = companion,
+            birdsSource = choices.list.regionId,
+            groupSources = groups,
             geoYearly = vs.any { it.geoYearly },
             threshold = choices.thresholdOverride ?: vs.minOf { it.threshold },
             alternativesFloor = vs.minOf { it.alternativesFloor },
@@ -130,9 +135,11 @@ object SetupProfile {
     /** Werte in die bestehenden Preferences schreiben (nur vorhandene Einstellungen). */
     fun apply(s: SetupSettings, expert: Boolean, prefs: AppPreferences) {
         prefs.expertMode = expert
-        s.regionFilter?.let { prefs.regionFilter = it }
-        prefs.geoCombine = s.geoCombine
-        s.geoCompanion?.let { prefs.geoCompanionRegion = it }
+        // T232: Liste je Artgruppe
+        var sel = prefs.speciesGroups
+        s.birdsSource?.let { sel = sel.with(TaxonGroup.BIRDS, it) }
+        s.groupSources.forEach { (g, src) -> sel = sel.with(g, src) }
+        prefs.speciesGroups = sel
         prefs.geoYearly = s.geoYearly
         prefs.confidenceThreshold = s.threshold
         prefs.alternativesFloor = s.alternativesFloor

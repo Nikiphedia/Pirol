@@ -642,11 +642,7 @@
     <string name="settings_geo_entfernen">Remove</string>
     <string name="settings_geo_fehler">Download failed: %1$s</string>
     <string name="settings_geo_schwelle">Threshold (occurrence probability)</string>
-    <string name="settings_geo_kombination">Combination with list</string>
-    <string name="settings_geo_nur_geo">Geomodel only</string>
-    <string name="settings_geo_schnittmenge">List and geomodel</string>
-    <string name="settings_geo_vereinigung">List or geomodel</string>
-    <string name="settings_geo_liste">List (fallback without location, or to combine):</string>
+    <string name="settings_geo_liste">Fallback list for birds without location:</string>
     <string name="settings_geo_jahresliste">Year list (whole year)</string>
     <string name="settings_geo_jahresliste_hint">Off = current week only. On = maximum over all 48 weeks.</string>
     <string name="settings_info_geomodel">BirdNET+ Geomodel V3.0.5: © 2026 The BirdNET Team, Apache License 2.0, doi:10.5281/zenodo.24362980</string>
@@ -732,8 +728,24 @@
     <string name="setup_monitoring_hint">Switching the screen off saves the most battery; recording continues.</string>
     <string name="setup_expert_secondary_pick">Choose second model:</string>
     <string name="setup_sum_secondary_missing">Second model wanted, but none installed. Import: Settings, Model &amp; Detection, Import (BirdNET 2.4 non-commercial only).</string>
-    <string name="setup_list_ortho_note">Automatic plus the bundled Swiss grasshopper &amp; amphibian list (73 species).</string>
+    <string name="setup_list_ortho_note">Grasshoppers &amp; amphibians: bundled list for Switzerland (73 species).</string>
     <string name="settings_info_lists">Species list grasshoppers &amp; amphibians (CH): data from GBIF.org, licence CC0 and CC BY 4.0, retrieved 2026-11-23. Datasets include Swiss National Grasshoppers Databank (doi:10.15468/bcthst), Swiss National Amphibian Databank (doi:10.15468/ggwedn), Swiss National Fauna Databank (doi:10.15468/8s936n), NABU/naturgucker (doi:10.15468/uc1apo); full list: tools/listen-generator/sources_ch_orthoptera_anura.md. The list is licensed CC BY 4.0.</string>
     <string name="card_toggle_to_detailed">Show detailed species card</string>
     <string name="card_toggle_to_compact">Show compact species card</string>
+    <string name="group_birds">Birds</string>
+    <string name="group_orthoptera">Grasshoppers</string>
+    <string name="group_amphibians">Amphibians</string>
+    <string name="group_mammals">Mammals</string>
+    <string name="group_other">Other</string>
+    <string name="group_letter_birds">B</string>
+    <string name="group_letter_orthoptera">G</string>
+    <string name="group_letter_amphibians">A</string>
+    <string name="group_letter_mammals">M</string>
+    <string name="group_letter_other">O</string>
+    <string name="group_source_list">List</string>
+    <string name="settings_species_groups">Species list per group</string>
+    <string name="settings_species_groups_hint">Off = group is not reported, All = unfiltered, Auto = location + week (geomodel), List = selected species list. Other = remaining insects, reptiles, fish and sounds (wind, dog, engine).</string>
+    <string name="settings_species_groups_auto_fallback">Auto without location or geomodel: birds use the fallback list below, grasshoppers and amphibians the Swiss list, mammals all species.</string>
+    <string name="analysis_rescan_groups">Species groups</string>
+    <string name="setup_sum_groups">Species groups: %1$s</string>
 </resources>

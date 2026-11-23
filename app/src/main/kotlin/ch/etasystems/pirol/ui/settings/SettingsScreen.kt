@@ -95,8 +95,8 @@ import ch.etasystems.pirol.ml.ModelProfile
 import ch.etasystems.pirol.ml.ModelRoles
 import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import ch.etasystems.pirol.ml.PhenologyRepository
-import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.TaxonGroup
 import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.ml.PirolFolder
 import ch.etasystems.pirol.ml.SpeciesNameResolver
@@ -202,7 +202,7 @@ fun SettingsScreen(
     var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     LaunchedEffect(Unit) {
         if (regionalFilter.getSpeciesList().isEmpty()) {
-            regionalFilter.loadRegion(appPreferences.regionFilter ?: "ch_breeding")
+            regionalFilter.loadRegion(RegionalSpeciesFilter.GROUPS_ID)  // T232
         }
         speciesNameResolver.load()
         allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
@@ -1523,41 +1523,19 @@ fun SettingsScreen(
             appPreferences = appPreferences,
             defaultExpanded = false
         ) {
-            // Region-Chips
-            var selectedRegion by remember { mutableStateOf(appPreferences.regionFilter) }
-
-            Text(stringResource(R.string.settings_regionaler_filter), style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "ch_breeding" to "CH",
-                    "ch_all" to "CH+",
-                    "central_europe" to "EU",
-                    "all" to AppStrings.get(R.string.common_all),
-                    GeoLogic.REGION_ID to AppStrings.get(R.string.live_region_auto),  // T218
-                    null to AppStrings.get(R.string.common_off)
-                ).plus(customRegions.map { it.id to (it.nameDe + " (" + AppStrings.get(R.string.settings_eigene_liste) + ")") })
-                .forEach { (regionId, label) ->
-                    FilterChip(
-                        selected = selectedRegion == regionId,
-                        onClick = {
-                            selectedRegion = regionId
-                            appPreferences.regionFilter = regionId
-                        },
-                        label = { Text(label) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    )
-                }
+            // T232: Artenliste je Artgruppe (ersetzt die einzelne Regionswahl und die Geomodel-Verknuepfung)
+            var groupSel by remember { mutableStateOf(appPreferences.speciesGroups) }
+            SpeciesGroupSettings(groupSel, regionalFilter.getAvailableRegions()) { sel ->
+                groupSel = sel
+                appPreferences.speciesGroups = sel
+                scope.launch(Dispatchers.IO) { regionalFilter.loadRegion(RegionalSpeciesFilter.GROUPS_ID) }
             }
 
-            // T218: Geomodel-Einstellungen; T218b: Hinweis + Download immer, Rest nur bei Region "Automatisch"
+            // T218: Geomodel-Einstellungen; T218b: Hinweis + Download immer, Rest nur wenn eine Gruppe auf Auto steht
+            Spacer(modifier = Modifier.height(8.dp))
             GeoFilterSettings(
                 appPreferences, koinInject<ModelManager>(), regionalFilter.getAvailableRegions(),
-                active = selectedRegion == GeoLogic.REGION_ID
+                active = groupSel.usesAuto()
             )
 
             customWarnings.forEach {
@@ -1590,7 +1568,8 @@ fun SettingsScreen(
                 }
             }
             // T190: gewaehlte eigene Liste in die Watchlist uebernehmen
-            val selectedCustom = selectedRegion?.let { id -> customRegions.firstOrNull { it.id == id } }
+            val selectedCustom = TaxonGroup.entries.map { groupSel.sourceOf(it) }
+                .firstNotNullOfOrNull { id -> customRegions.firstOrNull { it.id == id } }
                 ?.let { regionalFilter.getCustomList(it.id) }
             if (selectedCustom != null) {
                 Spacer(modifier = Modifier.height(8.dp))

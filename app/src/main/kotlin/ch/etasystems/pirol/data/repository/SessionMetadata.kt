@@ -63,5 +63,7 @@ data class SpeciesFilterInfo(
     val combine: String? = null,
     val yearly: Boolean = false,
     val model: String? = null,
-    val fallbackRegion: String? = null
+    val fallbackRegion: String? = null,
+    /** T232: Quelle je Artgruppe (birds/orthoptera/amphibians/mammals/other -> off/all/auto_geo/Region-ID) */
+    val groups: Map<String, String>? = null
 )
