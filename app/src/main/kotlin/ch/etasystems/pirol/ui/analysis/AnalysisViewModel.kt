@@ -1134,9 +1134,11 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    // detections.jsonl: Zeile ersetzen — ueber SessionManager (T93b: gemeinsamer Mutex,
-                    // offener Writer der laufenden Session wird beruecksichtigt)
-                    sessionManager.replaceDetectionIn(session.sessionDir, updated, variant)
+                    // detections.jsonl: ueber SessionManager (T93b: gemeinsamer Mutex). T251 (M1): nur die eigenen
+                    // Felder auf den aktuellen Stand (laufende Session: Live-Liste, Merges bleiben erhalten)
+                    sessionManager.modifyDetectionIn(session.sessionDir, detectionId, variant) {
+                        it.copy(count = count, atlasCode = atlasCode, note = note, voiceMemoFile = voiceMemoFile)
+                    }
 
                     // verifications.jsonl: granular appenden
                     val now = System.currentTimeMillis()
@@ -1290,9 +1292,10 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    // detections.jsonl: Zeile ersetzen — ueber SessionManager (T93b: gemeinsamer Mutex,
-                    // offener Writer der laufenden Session wird beruecksichtigt)
-                    sessionManager.replaceDetectionIn(session.sessionDir, updated, variant)
+                    // detections.jsonl: T251 (M1) nur lockSpecies auf den aktuellen Stand
+                    sessionManager.modifyDetectionIn(session.sessionDir, detectionId, variant) {
+                        it.copy(lockSpecies = updated.lockSpecies)
+                    }
                     // verifications.jsonl: SPECIES_LOCKED-Event appenden
                     sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line =
                         Json.encodeToString(VerificationEvent(
@@ -1334,7 +1337,7 @@ class AnalysisViewModel(
                 undoOffer = UndoOffer(
                     message = AppStrings.get(R.string.live_alternative_gewaehlt, candidate.commonName),
                     actionLabel = AppStrings.get(R.string.common_undo),
-                    onUndo = { undoAlternative(session, variant, before) }
+                    onUndo = { undoAlternative(session, variant, before, updated) }
                 )
             )
         }
@@ -1342,8 +1345,10 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    val current = _uiState.value.detections.find { it.id == detectionId } ?: updated
-                    sessionManager.replaceDetectionIn(session.sessionDir, current, variant)
+                    // T251 (M1): nur die Alternativ-Felder auf den aktuellen Stand
+                    sessionManager.modifyDetectionIn(session.sessionDir, detectionId, variant) {
+                        AlternativeSelection.revert(it, updated)
+                    }
                     sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(VerificationEvent(
                         detectionId = detectionId,
                         status = VerificationStatus.CONFIRMED,
@@ -1352,8 +1357,10 @@ class AnalysisViewModel(
                         newValue = before.scientificName
                     )) + "\n")
                 } catch (e: Exception) {
-                    val back = rollbackAlternative(before)
-                    runCatching { back?.let { sessionManager.replaceDetectionIn(session.sessionDir, it, variant) } }
+                    rollbackAlternative(before)
+                    runCatching {
+                        sessionManager.modifyDetectionIn(session.sessionDir, detectionId, variant) { AlternativeSelection.revert(it, before) }
+                    }
                     _uiState.update { it.copy(undoOffer = null, saveErrorMessage = AppStrings.get(R.string.common_save_failed)) }
                 }
             }
@@ -1371,12 +1378,21 @@ class AnalysisViewModel(
         return restored
     }
 
-    private fun undoAlternative(session: SessionSummary, variant: String?, before: DetectionResult) {
-        val restored = rollbackAlternative(before) ?: return
+    private fun undoAlternative(session: SessionSummary, variant: String?, before: DetectionResult, applied: DetectionResult) {
+        // T251 (Zusatz T249): zwischenzeitliche Verifikation bleibt (wie in verifications.jsonl nach dem Undo)
+        var found = false
+        _uiState.update { st ->
+            st.copy(detections = st.detections.map {
+                if (it.id == before.id) { found = true; AlternativeSelection.undo(it, before, applied) } else it
+            })
+        }
+        if (!found) return
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    sessionManager.replaceDetectionIn(session.sessionDir, restored, variant)
+                    sessionManager.modifyDetectionIn(session.sessionDir, before.id, variant) {
+                        AlternativeSelection.undo(it, before, applied)
+                    }
                     sessionManager.removeLastVerificationIn(
                         session.sessionDir, before.id, variant, VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED  // T249 (M6)
                     )

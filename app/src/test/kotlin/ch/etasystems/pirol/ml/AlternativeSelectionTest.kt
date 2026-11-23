@@ -90,4 +90,24 @@ class AlternativeSelectionTest {
         assertNull(SessionManager.removeLastStatusEventText(after, "a"))
         assertTrue(SessionManager.removeLastStatusEventText(json.encodeToString(conf) + "\n", "a") == "")
     }
+
+    /** T251 (Zusatz T249): Undo nach zwischenzeitlicher Verifikation behaelt den Status (wie die Datei). */
+    @Test fun undo_nach_zwischenzeitlicher_Verifikation_behaelt_Status() {
+        val a = det("a")
+        val applied = AlternativeSelection.apply(a, cand, 5L)
+        val uncertain = applied.copy(verificationStatus = VerificationStatus.UNCERTAIN, verifiedAtMs = 9L)
+        val r = AlternativeSelection.undo(uncertain, before = a, applied = applied)
+        assertEquals(a.scientificName, r.scientificName)
+        assertEquals(a.candidates, r.candidates)
+        assertEquals(a.secondaryStatus, r.secondaryStatus)
+        assertEquals(VerificationStatus.UNCERTAIN, r.verificationStatus)
+        assertEquals(9L, r.verifiedAtMs)
+    }
+
+    @Test fun undo_ohne_zwischenzeitliche_Verifikation_stellt_Status_her() {
+        val a = det("a")
+        val applied = AlternativeSelection.apply(a, cand, 5L)
+        val r = AlternativeSelection.undo(applied.copy(count = 7), before = a, applied = applied)
+        assertEquals(a.copy(count = 7), r)
+    }
 }

@@ -20,13 +20,33 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
 
     override val name: String get() = doc.name ?: ""
 
-    override fun exists(fileName: String) = doc.findFile(fileName) != null
+    /**
+     * T251 (M5): Ordnerinhalt einmal pro Instanz listen (jede SAF-Liste = eine Provider-Abfrage plus Name je Kind)
+     * und fuer alle Zugriffe wiederverwenden; Erstellen/Loeschen werden nachgetragen. Instanzen leben nur fuer
+     * einen Vorgang unter dem fileMutex bzw. einen Lesevorgang.
+     */
+    private var cache: MutableMap<String, DocumentFile>? = null
+
+    private fun children(): MutableMap<String, DocumentFile> =
+        cache ?: doc.listFiles().filter { it.name != null }.associateByTo(HashMap()) { it.name!! }.also { cache = it }
+
+    private fun find(name: String): DocumentFile? = children()[name]
+
+    private fun invalidate() { cache = null }
+
+    /** Neu erstellte Datei im Listing nachtragen (kein erneutes Listen). */
+    private fun remember(f: DocumentFile): DocumentFile = f.also { d -> d.name?.let { cache?.put(it, d) } }
+
+    /** Geloeschte Datei aus dem Listing nehmen. */
+    private fun forget(name: String) { cache?.remove(name) }
+
+    override fun exists(fileName: String) = find(fileName) != null
 
     /** T236: Zugriff fuer [ShadowReplace] (Schattenkopie mit Fertig-Marke) */
     private val store = object : ShadowReplace.Store {
-        override fun exists(name: String) = doc.findFile(name) != null
+        override fun exists(name: String) = find(name) != null
         override fun read(name: String): String? {
-            val f = doc.findFile(name) ?: return null
+            val f = find(name) ?: return null
             return resolver.openInputStream(f.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
         }
         override fun write(name: String, content: String) {
@@ -43,12 +63,12 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
             }
         }
         override fun create(name: String) { fileFor(name) }
-        override fun delete(name: String) { doc.findFile(name)?.delete() }
+        override fun delete(name: String) { find(name)?.delete(); forget(name) }
     }
 
     /** Vorhandene Datei oder neu erstellt; der Provider darf den Namen nicht veraendern. */
     private fun fileFor(name: String): DocumentFile {
-        doc.findFile(name)?.let { return it }
+        find(name)?.let { return it }
         val created = doc.createFile(mimeOf(name), name)
             ?: throw IllegalStateException("SAF: $name konnte nicht erstellt werden")
         if (created.name != name) {
@@ -57,7 +77,7 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
             Log.w(TAG, "SAF: $name wurde als ${created.name} erstellt")
             throw ShadowReplace.UnsupportedNameException(name)
         }
-        return created
+        return remember(created)
     }
 
     /**
@@ -94,23 +114,23 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
     override fun append(fileName: String, content: String) {
         // T249: an ein evtl. halb ueberschriebenes Original nie anhaengen (die Zeile ginge beim Wiederherstellen verloren)
         recover(fileName)
-        val f = doc.findFile(fileName) ?: doc.createFile(mimeOf(fileName), fileName)
+        val f = find(fileName) ?: doc.createFile(mimeOf(fileName), fileName)?.let { remember(it) }
             ?: throw IllegalStateException("SAF: $fileName konnte nicht erstellt werden")
         resolver.openOutputStream(f.uri, "wa")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
             ?: throw IllegalStateException("SAF: $fileName nicht beschreibbar")
     }
 
-    override fun listNames(): List<String> = doc.listFiles().mapNotNull { it.name }
+    override fun listNames(): List<String> = children().keys.toList()
 
     override fun segmentSources(): List<SegmentSource> {
-        val byName = doc.listFiles().filter { it.isFile && it.name != null }.associateBy { it.name!! }
+        val byName = children().filterValues { it.isFile }
         val ordered = SegmentedRecording.orderedSegmentNames(byName.keys.toList())
         return ordered.map { UriSegment(resolver, byName.getValue(it)) }
     }
 
-    override fun deleteAll(): Boolean = doc.delete()
+    override fun deleteAll(): Boolean = doc.delete().also { invalidate() }
 
-    override fun delete(fileName: String): Boolean = doc.findFile(fileName)?.delete() ?: true
+    override fun delete(fileName: String): Boolean = (find(fileName)?.delete() ?: true).also { forget(fileName) }
 
     private companion object { const val TAG = "DocSessionFiles" }
 

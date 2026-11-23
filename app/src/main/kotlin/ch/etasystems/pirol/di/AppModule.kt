@@ -68,7 +68,7 @@ val appModule = module {
     single { StorageManager(get()) }
 
     // Session-Manager — Singleton, verwaltet Aufnahme-Sessions auf Disk
-    single { SessionManager(get(), get()) }
+    single { SessionManager(get(), get(), get()) }  // T251: + DetectionListState (Aenderungen der aktiven Session)
 
     // Upload-Manager — Singleton, orchestriert Session-Uploads via WorkManager
     single { UploadManager(get()) }
