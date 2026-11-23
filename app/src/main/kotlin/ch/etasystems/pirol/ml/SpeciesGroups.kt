@@ -109,7 +109,7 @@ object TaxonGroups {
      * Ohne class-Spalte leeres Ergebnis.
      */
     internal fun parseLabelCsv(text: String): Map<String, TaxonGroup> {
-        val lines = text.removePrefix("﻿").lineSequence().filter { it.isNotBlank() }.toList()
+        val lines = text.removePrefix("\uFEFF").lineSequence().filter { it.isNotBlank() }.toList()
         if (lines.isEmpty()) return emptyMap()
         val sep = if (lines[0].count { it == ';' } >= lines[0].count { it == ',' }) ';' else ','
         val head = lines[0].split(sep).map { it.trim().lowercase() }

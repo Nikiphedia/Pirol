@@ -116,6 +116,11 @@ android {
         prefab = true
     }
 
+    // T243: Zusatzsprachen (fr, it, ca, pt, nl, gsw) fallen laut CLAUDE.md auf Deutsch zurueck; de/en sind vollstaendig
+    lint {
+        disable += "MissingTranslation"
+    }
+
     // T94: android.util.Log in Pipeline/InferenceWorker liefert im JVM-Unit-Test Defaults statt Exception
     testOptions {
         unitTests.isReturnDefaultValues = true

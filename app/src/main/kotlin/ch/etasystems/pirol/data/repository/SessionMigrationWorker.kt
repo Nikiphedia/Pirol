@@ -114,7 +114,7 @@ class SessionMigrationWorker(
         val result = try {
             sessionManager.migrateSessions(target, deleteSource) { p ->
                 setProgressAsync(workDataOf(KEY_DONE to p.doneSessions, KEY_TOTAL to p.totalSessions, KEY_BYTES to p.bytesCopied))
-                try { notifyManager().notify(NOTIFICATION_ID, buildNotification(p.doneSessions, p.totalSessions)) } catch (_: Exception) { }
+                notifyProgress(p.doneSessions, p.totalSessions)
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -140,6 +140,15 @@ class SessionMigrationWorker(
     }
 
     private fun notifyManager() = NotificationManagerCompat.from(applicationContext)
+
+    // Fortschritts-Benachrichtigung nur mit Berechtigung (Android 13+: POST_NOTIFICATIONS), sonst still uebersprungen
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun notifyProgress(done: Int, total: Int) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        try { notifyManager().notify(NOTIFICATION_ID, buildNotification(done, total)) } catch (_: Exception) { }
+    }
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(

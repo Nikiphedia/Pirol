@@ -115,7 +115,7 @@ object ModelProfileJson {
      */
     fun parse(text: String): Parsed {
         val spec = try {
-            json.decodeFromString(Spec.serializer(), text.trimStart('﻿'))
+            json.decodeFromString(Spec.serializer(), text.trimStart('\uFEFF'))
         } catch (e: Exception) {
             throw ProfileError(ErrorCode.SCHEMA, "JSON: ${e.message?.lineSequence()?.firstOrNull() ?: e.javaClass.simpleName}")
         }
