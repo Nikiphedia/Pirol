@@ -751,5 +751,6 @@
     <string name="model_err_http_429">Server responded with HTTP 429 (too many requests, try again later)</string>
     <string name="model_err_incomplete">Download incomplete (%1$d MB)</string>
     <string name="model_err_corrupt">File corrupt (checksum does not match)</string>
-    <string name="analysis_rescan_hinweis">Screen stays on. Keep the app open until the re-analysis finishes.</string>
+    <string name="analysis_rescan_hinweis">Keeps running in the background, even with the screen off. Cancel also via the notification.</string>
+    <string name="svc_rescan_kanal">Re-analysis</string>
 </resources>

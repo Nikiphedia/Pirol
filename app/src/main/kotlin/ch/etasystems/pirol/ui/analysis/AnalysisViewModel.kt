@@ -1425,6 +1425,9 @@ class AnalysisViewModel(
         playback.stop()
         _uiState.update { it.copy(rescanProgress = 0f, rescanSessionDir = dir) }
         rescanEngine.start(dir, options)  // T250/M4: laeuft im Engine-Scope, ueberlebt das ViewModel
+        // T252: Vordergrund-Dienst haelt den Prozess am Leben (auch bei ausgeschaltetem Bildschirm)
+        runCatching { ch.etasystems.pirol.rescan.RescanService.start(context) }
+            .onFailure { Log.w("AnalysisViewModel", "Rescan-Dienst nicht gestartet", it) }
     }
 
     /** T250/M4: Zustand und Ende des Rescans aus dem Singleton in den UI-State spiegeln (auch nach neuem ViewModel) */

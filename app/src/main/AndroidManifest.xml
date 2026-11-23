@@ -68,6 +68,12 @@
             android:foregroundServiceType="microphone|location"
             android:exported="false" />
 
+        <!-- T252: Rescan als Vordergrund-Dienst (lokale Datenverarbeitung -> dataSync) -->
+        <service
+            android:name=".rescan.RescanService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
         <!-- T141: WorkManager-Foreground-Service fuer die Session-Migration (dataSync) -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
