@@ -10,9 +10,9 @@ Update ueber v0.0.10 ohne Deinstallation (gleiche Signatur); Sessions und Modell
 ### Live-Tab
 - Mehrfacherkennung: alle Arten im Fenster, die die gemeinsame Konfidenz-Schwelle erreichen (T207, T211)
 - Anzeige-Modi Sonogramm, Spektrum und Oszillogramm, umschaltbar im Anzeige-Panel (T193)
-- Spektrum mit echter FFT: dBFS, lineare kHz-Skala, Cursor, Mittelung, Peak-Halten mit verblassenden Spitzen (T198, T200)
-- Oszillogramm mit Pegelmodi, Bandpass, Peak/RMS, rote Markierung bei Uebersteuerung, Cursor und Einfrieren (T199, T201)
-- Sonogramm bis 24 kHz; Frequenz, Dynamik und Farbmuster gelten fuer alle drei Ansichten gemeinsam (T198, T201)
+- Spektrum mit echter FFT: dBFS, lineare kHz-Skala, Cursor, Mittelung, Peak-Halten mit verblassenden Spitzen (T198, T201)
+- Oszillogramm mit Pegelmodi, Bandpass, Peak/RMS, rote Markierung bei Uebersteuerung, Cursor und Einfrieren (T200, T201)
+- Sonogramm in dBFS und bis 24 kHz; Frequenz, Dynamik und Farbmuster gelten fuer alle drei Ansichten gemeinsam (T199, T200)
 - Option "Artkarte kompakt" mit einer Zeile und "+"-Menue fuer seltene Aktionen (T192)
 
 ### Analyse
