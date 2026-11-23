@@ -110,7 +110,7 @@ class SpeciesGroupsTest {
         assertTrue(GroupRule.Listed(emptySet()).allows("b", null))  // Liste fehlt -> kein Filter
     }
 
-    // --- Auswahl, Speicherung, Migration ---
+    // --- Auswahl, Speicherung ---
 
     @Test fun `Kodierung hin und zurueck, fehlende Gruppe = Aus`() {
         val s = SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "auto_geo", TaxonGroup.ORTHOPTERA to "list:meine=liste"))
@@ -120,27 +120,6 @@ class SpeciesGroupsTest {
         assertEquals(GroupSource.OFF, back.sourceOf(TaxonGroup.MAMMALS))
         assertNull(SpeciesGroupSelection.decode(null)); assertNull(SpeciesGroupSelection.decode(""))
         assertTrue(back.usesAuto()); assertFalse(back.with(TaxonGroup.BIRDS, "ch_breeding").usesAuto())
-    }
-
-    @Test fun `Migration Einzelwahl`() {
-        val m = SpeciesGroupSelection.migrate("ch_breeding", "GEO_ONLY", "ch_all")
-        assertEquals("ch_breeding", m.sourceOf(TaxonGroup.BIRDS))
-        assertEquals(GroupSource.OFF, m.sourceOf(TaxonGroup.ORTHOPTERA))
-        assertEquals(GroupSource.OFF, m.sourceOf(TaxonGroup.AMPHIBIANS))
-        assertEquals(GroupSource.OFF, m.sourceOf(TaxonGroup.MAMMALS))
-        assertEquals(GroupSource.OFF, m.sourceOf(TaxonGroup.OTHER))
-        assertEquals(GroupSource.ALL, SpeciesGroupSelection.migrate(null, null, null).sourceOf(TaxonGroup.BIRDS))
-    }
-
-    @Test fun `Migration Auto mit Vereinigung uebernimmt Begleitliste fuer Heuschrecken und Amphibien`() {
-        val m = SpeciesGroupSelection.migrate("auto_geo", "UNION", "ch_orthoptera_anura")
-        assertEquals("auto_geo", m.sourceOf(TaxonGroup.BIRDS))
-        assertEquals("ch_orthoptera_anura", m.sourceOf(TaxonGroup.ORTHOPTERA))
-        assertEquals("ch_orthoptera_anura", m.sourceOf(TaxonGroup.AMPHIBIANS))
-        assertEquals(GroupSource.OFF, m.sourceOf(TaxonGroup.MAMMALS))
-        // Schnittmenge / nur Geomodel -> keine Begleitliste
-        assertEquals(GroupSource.OFF, SpeciesGroupSelection.migrate("auto_geo", "INTERSECT", "ch_all").sourceOf(TaxonGroup.ORTHOPTERA))
-        assertEquals(GroupSource.OFF, SpeciesGroupSelection.migrate("ch_all", "UNION", "ch_all").sourceOf(TaxonGroup.ORTHOPTERA))
     }
 
     @Test fun `Kurzanzeige`() {
@@ -184,6 +163,15 @@ class SpeciesGroupsTest {
         assertEquals("ch_all", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.BIRDS, "ch_all"))
         assertEquals("ch_orthoptera_anura", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.AMPHIBIANS, "ch_all"))
         assertEquals("all", RegionalSpeciesFilter.autoFallbackId(TaxonGroup.MAMMALS, "ch_all"))
+    }
+
+    @Test fun `T246 Ersatzlisten der Auto-Gruppen fuer session json`() {
+        val sel = SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to GroupSource.AUTO, TaxonGroup.ORTHOPTERA to GroupSource.AUTO,
+            TaxonGroup.AMPHIBIANS to "ch_orthoptera_anura", TaxonGroup.MAMMALS to GroupSource.AUTO))
+        assertEquals(mapOf("birds" to "central_europe", "orthoptera" to "ch_orthoptera_anura", "mammals" to "all"),
+            RegionalSpeciesFilter.autoFallbacks(sel, "central_europe"))
+        assertEquals(emptyMap<String, String>(),
+            RegionalSpeciesFilter.autoFallbacks(SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "ch_all")), "ch_all"))
     }
 
     @Test fun `T239 Vogel-Ersatzliste ist nie die Heuschrecken-Liste`() {

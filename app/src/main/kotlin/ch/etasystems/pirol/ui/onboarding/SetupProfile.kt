@@ -2,7 +2,6 @@ package ch.etasystems.pirol.ui.onboarding
 
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.GPS_MODE_ON_DETECTION
-import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.GroupSource
 import ch.etasystems.pirol.ml.TaxonGroup
 
@@ -11,7 +10,7 @@ enum class SetupPurpose { FIELD_BIRDS, ORTHOPTERA_AMPHIBIANS, MONITORING, RESEAR
 
 /** T226: Wahl der Artenliste (T232: fuer die Voegel). CUSTOM laesst die Wahl unveraendert (Einstellungen). */
 enum class SetupList(val regionId: String?) {
-    AUTO(GeoLogic.REGION_ID),
+    AUTO(GroupSource.AUTO),
     SWITZERLAND("ch_breeding"),
     REGION("central_europe"),
     CUSTOM(null)

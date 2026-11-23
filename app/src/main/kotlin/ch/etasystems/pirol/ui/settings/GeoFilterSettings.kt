@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.data.AppPreferences
-import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.GeoModelFiles
 import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.RegionInfo
@@ -36,9 +35,8 @@ import ch.etasystems.pirol.ui.AppStrings
 import kotlinx.coroutines.launch
 
 /**
- * T218: Einstellungen fuer "Automatisch (Standort + Woche)": Geomodel-Bezug, Schwelle,
- * Ersatzliste, Jahresliste. T232: Die Verknuepfung mit einer Liste (Schnittmenge/Vereinigung) entfaellt,
- * weil jede Artgruppe ihre eigene Quelle hat (Auto oder Liste).
+ * T218: Einstellungen fuer Artgruppen auf "Auto" (Standort + Woche): Geomodel-Bezug, Schwelle,
+ * Ersatzliste der Voegel, Jahresliste.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -46,7 +44,7 @@ fun ColumnScope.GeoFilterSettings(
     appPreferences: AppPreferences,
     modelManager: ModelManager,
     regions: List<RegionInfo>,
-    active: Boolean = true  // T218b: false = nur Hinweis + Download zeigen (Region "Auto" nicht gewaehlt)
+    active: Boolean = true  // T218b: false = nur Hinweis + Download zeigen (keine Gruppe auf Auto)
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -55,7 +53,7 @@ fun ColumnScope.GeoFilterSettings(
     var error by remember { mutableStateOf<String?>(null) }
     var threshold by remember { mutableStateOf(appPreferences.geoThreshold) }
     var yearly by remember { mutableStateOf(appPreferences.geoYearly) }
-    var companion by remember { mutableStateOf(appPreferences.geoCompanionRegion) }
+    var birdsFallback by remember { mutableStateOf(appPreferences.groupFallbackBirds) }
 
     Spacer(modifier = Modifier.height(8.dp))
     Text(stringResource(R.string.settings_geo_hint), style = MaterialTheme.typography.bodySmall,
@@ -121,8 +119,8 @@ fun ColumnScope.GeoFilterSettings(
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         regions.forEach { r ->
             FilterChip(
-                selected = companion == r.id,
-                onClick = { companion = r.id; appPreferences.geoCompanionRegion = r.id },
+                selected = birdsFallback == r.id,
+                onClick = { birdsFallback = r.id; appPreferences.groupFallbackBirds = r.id },
                 label = { Text(r.nameDe) }
             )
         }

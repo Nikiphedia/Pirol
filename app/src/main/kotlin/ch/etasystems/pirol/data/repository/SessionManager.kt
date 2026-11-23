@@ -361,7 +361,7 @@ class SessionManager(
      * @param sampleRate Sample Rate der Aufnahme
      * @param latitude Startposition Breitengrad (kann null sein)
      * @param longitude Startposition Laengengrad (kann null sein)
-     * @param regionFilter Aktiver Regionalfilter (z.B. "ch_breeding")
+     * @param regionFilter Artenfilter ("groups" = Gruppenfilter, null = keiner)
      * @param confidenceThreshold Aktuelle Confidence-Schwelle
      * @return Session-ID
      */

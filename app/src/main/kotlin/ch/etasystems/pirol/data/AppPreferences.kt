@@ -19,6 +19,18 @@ class AppPreferences(context: Context) {
     init {
         // T240: Reste entfernter Einstellungen aufraeumen (T225: Top-K-Schwelle)
         if (prefs.contains("pirol_topk_threshold")) prefs.edit().remove("pirol_topk_threshold").apply()
+        // T246: Einzelregion und Geomodel-Verknuepfung entfernt; die Begleitliste wird einmalig zur Vogel-Ersatzliste
+        if (prefs.contains("pirol_geo_companion_region") || prefs.contains("pirol_geo_combine") ||
+            prefs.contains("pirol_region_filter")) {
+            val companion = prefs.getString("pirol_geo_companion_region", null)
+            prefs.edit().apply {
+                if (companion != null && !prefs.contains("pirol_group_fallback_birds"))
+                    putString("pirol_group_fallback_birds", ch.etasystems.pirol.ml.RegionalSpeciesFilter.birdsFallbackId(companion))
+                remove("pirol_geo_companion_region")
+                remove("pirol_geo_combine")
+                remove("pirol_region_filter")
+            }.apply()
+        }
     }
 
     // --- Onboarding ---
@@ -60,37 +72,17 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("pirol_alternatives_floor", 0.10f)
         set(value) = prefs.edit().putFloat("pirol_alternatives_floor", value).apply()
 
-    var regionFilter: String?
-        get() = prefs.getString("pirol_region_filter", "ch_breeding")
-        set(value) = prefs.edit().putString("pirol_region_filter", value).apply()
-
     /**
-     * T232: Quelle je Artgruppe (Aus / Alle / Auto / Liste). Ersetzt die Einzelwahl [regionFilter] und die
-     * Geomodel-Verknuepfung (T218/T228). Fehlt der Eintrag, wird die bisherige Wahl einmalig migriert.
+     * T232: Quelle je Artgruppe (Aus / Alle / Auto / Liste). T246: einziger Artenfilter;
+     * fehlt der Eintrag, gilt [ch.etasystems.pirol.ml.SpeciesGroupSelection.DEFAULT].
      */
     var speciesGroups: ch.etasystems.pirol.ml.SpeciesGroupSelection
-        get() {
-            ch.etasystems.pirol.ml.SpeciesGroupSelection.decode(prefs.getString("pirol_species_groups", null))?.let { return it }
-            val companion = geoCompanionRegion
-            val m = ch.etasystems.pirol.ml.SpeciesGroupSelection.migrate(regionFilter, geoCombine, companion)
-            // Begleitliste war die Heuschrecken-Liste (auch ohne Vereinigung) -> Ersatzliste der Voegel wieder "ch_all" (T239)
-            if (m.sourceOf(ch.etasystems.pirol.ml.TaxonGroup.ORTHOPTERA) == companion ||
-                companion == "ch_orthoptera_anura") geoCompanionRegion = "ch_all"
-            storeSpeciesGroups(m)
-            return m
-        }
+        get() = ch.etasystems.pirol.ml.SpeciesGroupSelection.decode(prefs.getString("pirol_species_groups", null))
+            ?: ch.etasystems.pirol.ml.SpeciesGroupSelection.DEFAULT
         set(value) {
-            storeSpeciesGroups(value)
+            prefs.edit().putString("pirol_species_groups", value.encode()).apply()
             speciesGroupsMutable.value = value
         }
-
-    private fun storeSpeciesGroups(value: ch.etasystems.pirol.ml.SpeciesGroupSelection) {
-        prefs.edit()
-            .putString("pirol_species_groups", value.encode())
-            .putString("pirol_region_filter", ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID)
-            .putString("pirol_geo_combine", "GEO_ONLY")
-            .apply()
-    }
 
     // T235: einmalig lesen (inkl. Migration), danach beobachtbar; die UI liest nicht mehr bei jeder Recomposition
     private val speciesGroupsMutable by lazy { kotlinx.coroutines.flow.MutableStateFlow(speciesGroups) }
@@ -112,20 +104,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("pirol_geo_threshold", 0.03f)
         set(value) = prefs.edit().putFloat("pirol_geo_threshold", value).apply()
 
-    /** GeoCombine.name: GEO_ONLY / INTERSECT / UNION */
-    var geoCombine: String
-        get() = prefs.getString("pirol_geo_combine", "GEO_ONLY") ?: "GEO_ONLY"
-        set(value) = prefs.edit().putString("pirol_geo_combine", value).apply()
-
     /** Jahresliste: Maximum ueber alle 48 Wochen statt aktueller Woche */
     var geoYearly: Boolean
         get() = prefs.getBoolean("pirol_geo_yearly", false)
         set(value) = prefs.edit().putBoolean("pirol_geo_yearly", value).apply()
 
-    /** Begleitliste: Ersatz ohne Position, bei Schnittmenge/Vereinigung die verknuepfte Liste */
-    var geoCompanionRegion: String
-        get() = prefs.getString("pirol_geo_companion_region", "ch_all") ?: "ch_all"
-        set(value) = prefs.edit().putString("pirol_geo_companion_region", value).apply()
+    /** T246: Ersatzliste der Voegel auf Auto (ohne Position/Geomodel, dem Geomodel unbekannte Arten) */
+    var groupFallbackBirds: String
+        get() = prefs.getString("pirol_group_fallback_birds", "ch_all") ?: "ch_all"
+        set(value) = prefs.edit().putString("pirol_group_fallback_birds", value).apply()
 
     /** Letzte Geomodel-Position (WGS84) und Zeitpunkt; atMs = 0 = keine */
     var geoLastLat: Double
@@ -513,7 +500,7 @@ class AppPreferences(context: Context) {
             confidenceThreshold = confidenceThreshold,
             topK = topK,
             alternativesFloor = alternativesFloor,
-            regionFilter = speciesGroups.let { ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID },  // T232
+            regionFilter = ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID,  // T232/T246: immer Gruppenfilter
             showOnlyFiltered = showOnlyFiltered,
             inferenceIntervalMs = inferenceIntervalMs,
             highpassEnabled = highpassEnabled,
@@ -527,7 +514,6 @@ class AppPreferences(context: Context) {
         confidenceThreshold = config.confidenceThreshold
         topK = config.topK
         alternativesFloor = config.alternativesFloor
-        regionFilter = config.regionFilter
         showOnlyFiltered = config.showOnlyFiltered
         inferenceIntervalMs = config.inferenceIntervalMs
         highpassEnabled = config.highpassEnabled

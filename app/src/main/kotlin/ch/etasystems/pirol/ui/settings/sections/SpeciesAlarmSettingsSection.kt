@@ -187,7 +187,7 @@ internal fun SpeciesAlarmSettingsSection(
         SpeciesGroupSettings(groupSel, regionalFilter.getAvailableRegions()) { sel ->
             groupSel = sel
             appPreferences.speciesGroups = sel
-            scope.launch(Dispatchers.IO) { regionalFilter.loadRegion(RegionalSpeciesFilter.GROUPS_ID) }
+            scope.launch(Dispatchers.IO) { regionalFilter.loadGroups() }
         }
 
         // T218: Geomodel-Einstellungen; T218b: Hinweis + Download immer, Rest nur wenn eine Gruppe auf Auto steht

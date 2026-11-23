@@ -27,7 +27,7 @@ data class RescanInfo(
     val createdAt: String,
     val modelId: String? = null,
     val modelName: String,
-    /** Region/Liste wie in session.json (`auto_geo`, `list:...`, null = kein Filter) */
+    /** Filter wie in session.json (`groups`; Gruppenwahl in [speciesFilter]) */
     val regionFilter: String? = null,
     val confidenceThreshold: Float,
     val overlapPercent: Int,

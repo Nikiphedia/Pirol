@@ -45,13 +45,14 @@ data class SessionMetadata(
     val recordingSegments: List<RecordingSegment>? = null,  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
     val note: String? = null,       // T109: Freitext-Bemerkung zur Session (null = keine; alte session.json ohne Feld)
     val modelId: String? = null,    // T103a: Profil-ID des Modells (z.B. "v3_final_fp16")
-    val speciesFilter: SpeciesFilterInfo? = null  // T218: Quelle des Filters "Automatisch (Standort + Woche)"
+    val speciesFilter: SpeciesFilterInfo? = null  // T218/T246: Gruppenwahl und Geomodel-Angaben
 )
 
 /**
- * T218: Herkunft des Geomodel-Filters einer Session (additiv; nur bei Region "auto_geo").
- * [source]: "gps" (frischer Fix), "saved" (gespeicherte Position), "fallback" (Ersatzliste, kein Geomodel).
- * Koordinaten auf 2 Dezimalen gerundet (ca. 1 km).
+ * T218/T246: Artenfilter einer Session (nur Gruppenfilter). [groups] = Quelle je Artgruppe.
+ * [source]: "list" (keine Gruppe auf Auto), "gps" (frischer Fix), "saved" (gespeicherte Position),
+ * "session" (Rescan mit Session-Position), "fallback" (Ersatzlisten, kein Geomodel).
+ * Geomodel-Angaben nur bei einer Gruppe auf Auto; Koordinaten auf 2 Dezimalen gerundet (ca. 1 km).
  */
 @Serializable
 data class SpeciesFilterInfo(
@@ -60,10 +61,10 @@ data class SpeciesFilterInfo(
     val longitude: Double? = null,
     val week: Int? = null,
     val threshold: Float? = null,
-    val combine: String? = null,
     val yearly: Boolean = false,
     val model: String? = null,
-    val fallbackRegion: String? = null,
+    /** T246: Ersatzliste je Gruppe auf Auto (Gruppen-Code -> Liste): ohne Position/Geomodel und fuer dem Geomodel unbekannte Arten */
+    val fallbacks: Map<String, String>? = null,
     /** T232: Quelle je Artgruppe (birds/orthoptera/amphibians/mammals/other -> off/all/auto_geo/Region-ID) */
     val groups: Map<String, String>? = null
 )

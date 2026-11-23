@@ -23,8 +23,8 @@ data class InferenceConfig(
      */
     val alternativesFloor: Float = 0.10f,
 
-    /** Region-ID fuer Artenfilter (null = kein Filter, z.B. "ch_breeding", "central_europe") */
-    val regionFilter: String? = "ch_breeding",
+    /** Artenfilter: [RegionalSpeciesFilter.GROUPS_ID] = Liste je Artgruppe (T246: einziger Filterweg), null = kein Filter */
+    val regionFilter: String? = RegionalSpeciesFilter.GROUPS_ID,
 
     /** true = nur regionale Arten anzeigen, false = alle (ungewoehnliche markiert) */
     val showOnlyFiltered: Boolean = true,

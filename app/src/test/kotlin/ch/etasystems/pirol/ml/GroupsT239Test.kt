@@ -36,7 +36,7 @@ class GroupsT239Test {
     fun `loadGroups nimmt die vorgegebene Wahl statt der Einstellungen`() {
         val f = filter()
         f.loadGroups(SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "ch_all", TaxonGroup.ORTHOPTERA to GroupSource.OFF)))
-        assertEquals(RegionalSpeciesFilter.GROUPS_ID, f.getCurrentRegionId())
+        assertTrue(f.isLoaded())
         assertTrue(f.isPlausible("Turdus_merula"))
         assertFalse(f.isPlausible("Parus_major"))          // nicht in CH+
         assertFalse(f.isPlausible("Gryllus_campestris"))   // Heuschrecken Aus
@@ -47,10 +47,10 @@ class GroupsT239Test {
         val f = filter()
         f.loadGroups(SpeciesGroupSelection(mapOf(TaxonGroup.ORTHOPTERA to GroupSource.AUTO)))
         // Geomodel kennt keine Heuschrecken -> Ersatzliste ch_orthoptera_anura entscheidet, auch mit Maske
-        f.setGeoMask(GeoMask(known = setOf("Turdus_merula"), allowed = setOf("Turdus_merula")), GeoCombine.GEO_ONLY)
+        f.setGeoMask(GeoMask(known = setOf("Turdus_merula"), allowed = setOf("Turdus_merula")))
         assertTrue(f.isPlausible("Gryllus_campestris"))
         assertFalse(f.isPlausible("Gryllus_fremd"))
-        f.setGeoMask(null, GeoCombine.GEO_ONLY)
+        f.setGeoMask(null)
         assertTrue(f.isPlausible("Gryllus_campestris"))
         assertFalse(f.isPlausible("Gryllus_fremd"))
     }
@@ -59,11 +59,14 @@ class GroupsT239Test {
     fun `ensureLoaded laedt beim Kaltstart die Gruppen, danach nicht erneut`() {
         val f = filter()
         assertFalse(f.isLoaded())
+        assertTrue(f.isPlausible("Gryllus_campestris"))  // noch nicht geladen = kein Filter
         f.ensureLoaded()
         assertTrue(f.isLoaded())
-        assertEquals(RegionalSpeciesFilter.GROUPS_ID, f.getCurrentRegionId())
-        f.loadRegion("ch_all")
+        // Standard: nur Voegel auf Auto
+        assertFalse(f.isPlausible("Gryllus_campestris"))
+        f.loadGroups(SpeciesGroupSelection(mapOf(TaxonGroup.ORTHOPTERA to GroupSource.ALL)))
         f.ensureLoaded()  // bereits geladen: unveraendert
-        assertEquals("ch_all", f.getCurrentRegionId())
+        assertTrue(f.isPlausible("Gryllus_campestris"))
+        assertFalse(f.isPlausible("Turdus_merula"))
     }
 }

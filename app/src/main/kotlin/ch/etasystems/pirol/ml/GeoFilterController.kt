@@ -14,7 +14,7 @@ import java.time.ZoneId
 import kotlin.math.roundToInt
 
 /**
- * T218: Berechnet die Geomodel-Maske fuer den Filter "Automatisch (Standort + Woche)" und
+ * T218: Berechnet die Geomodel-Maske fuer Artgruppen auf "Auto" (Standort + Woche) und
  * schreibt sie in den [RegionalSpeciesFilter]. Gerechnet wird beim Session-Start sowie bei
  * Wochenwechsel oder Ortswechsel > 10 km (hoechstens 1x/min, siehe [GeoLogic.shouldRecompute]).
  * Die ORT-Session des Geomodels bleibt nie offen.
@@ -34,23 +34,14 @@ class GeoFilterController(
     var info: SpeciesFilterInfo? = null
         private set
 
-    /** T232: Liste je Artgruppe aktiv? */
-    private fun groupMode() = prefs.regionFilter == RegionalSpeciesFilter.GROUPS_ID
+    /** T232: Steht eine Artgruppe auf Auto? */
+    private fun active() = prefs.speciesGroups.usesAuto()
 
-    /** Region "auto_geo" gewaehlt bzw. (T232) eine Artgruppe auf Auto? */
-    private fun active() = if (groupMode()) prefs.speciesGroups.usesAuto() else prefs.regionFilter == GeoLogic.REGION_ID
+    /** T246: Ersatzlisten der Auto-Gruppen fuer session.json */
+    private fun fallbacks(sel: SpeciesGroupSelection): Map<String, String>? =
+        RegionalSpeciesFilter.autoFallbacks(sel, prefs.groupFallbackBirds).ifEmpty { null }
 
-    /** T232: Quelle je Gruppe fuer session.json (null ohne Gruppenmodus) */
-    private fun groups(): Map<String, String>? = if (groupMode()) prefs.speciesGroups.toMap() else null
-
-    /** T239: Im Gruppenmodus gibt es keine Verknuepfung (Auto ignoriert sie) -> nicht in session.json schreiben */
-    private fun combineName(c: GeoCombine): String? = if (groupMode()) null else c.name
-
-    /** T239: Ersatzliste fuer session.json; im Gruppenmodus die der Voegel (nie die Heuschrecken-Liste) */
-    private fun companionRegion(): String =
-        if (groupMode()) RegionalSpeciesFilter.birdsFallbackId(prefs.geoCompanionRegion) else prefs.geoCompanionRegion
-
-    /** Session-Start: immer rechnen (nach dem Startfix). null = weder Geomodel- noch Gruppenfilter. */
+    /** Session-Start: immer rechnen (nach dem Startfix). Liefert die Filter-Angaben fuer session.json. */
     suspend fun prepare(fresh: LocationData?, nowMs: Long): SpeciesFilterInfo? =
         mutex.withLock { compute(fresh, nowMs, force = true) }
 
@@ -61,17 +52,18 @@ class GeoFilterController(
     }
 
     private suspend fun compute(fresh: LocationData?, nowMs: Long, force: Boolean): SpeciesFilterInfo? {
-        if (!active()) {
-            // Auswahl wurde geaendert: Filter mit der neuen Region laden, Geomodel-Zustand verwerfen
-            if (force || filter.isAutoGeo()) prefs.regionFilter?.let { filter.loadRegion(it) }
-            filter.setGeoMask(null, GeoCombine.GEO_ONLY)
+        val sel = prefs.speciesGroups
+        val groups = sel.toMap()
+        if (!sel.usesAuto()) {
+            // Auswahl wurde geaendert: Gruppen neu laden, Geomodel-Zustand verwerfen
+            if (force || filter.isAutoGeo()) filter.loadGroups()
+            filter.setGeoMask(null)
             last = null
             // T232: Gruppenwahl auch ohne Geomodel in session.json vermerken
-            return groups()?.let { SpeciesFilterInfo(source = "list", groups = it) }.also { info = it }
+            return SpeciesFilterInfo(source = "list", groups = groups).also { info = it }
         }
-        if (force) prefs.regionFilter?.let { filter.loadRegion(it) }  // Einstellungen (Gruppen bzw. Begleitliste)
-        val combine = GeoCombine.parse(prefs.geoCombine)
-        val companion = companionRegion()
+        if (force) filter.loadGroups()  // Gruppenwahl der Einstellungen
+        val fallbacks = fallbacks(sel)
         val date = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()).toLocalDate()
         val week = GeoLogic.birdnetWeek(date)
 
@@ -80,12 +72,12 @@ class GeoFilterController(
             fresh?.let { it.latitude to it.longitude }, saved, prefs.geoLastAtMs, nowMs
         )
         if (pos == null || !GeoModelFiles.isInstalled(context)) {
-            // Ersatz: Begleitliste ohne Geomodel
-            filter.setGeoMask(null, combine)
+            // Ersatz: Ersatzliste je Auto-Gruppe ohne Geomodel
+            filter.setGeoMask(null)
             last = null
-            val i = SpeciesFilterInfo(source = "fallback", fallbackRegion = companion, groups = groups())
+            val i = SpeciesFilterInfo(source = "fallback", fallbacks = fallbacks, groups = groups)
             info = i
-            Log.i(TAG, "T218_GEO fallback region=$companion installed=${GeoModelFiles.isInstalled(context)}")
+            Log.i(TAG, "T218_GEO fallback lists=$fallbacks installed=${GeoModelFiles.isInstalled(context)}")
             return i
         }
         val (lat, lon) = pos
@@ -96,7 +88,7 @@ class GeoFilterController(
         return try {
             val t0 = System.currentTimeMillis()
             val mask = computeMask(lat, lon, week, yearly, threshold)
-            filter.setGeoMask(mask, combine)
+            filter.setGeoMask(mask)
             last = GeoState(lat, lon, week, nowMs)
             if (source == GeoLogic.PositionSource.GPS) {
                 prefs.geoLastLat = lat; prefs.geoLastLon = lon; prefs.geoLastAtMs = nowMs
@@ -106,14 +98,14 @@ class GeoFilterController(
             SpeciesFilterInfo(
                 source = if (source == GeoLogic.PositionSource.GPS) "gps" else "saved",
                 latitude = round2(lat), longitude = round2(lon), week = if (yearly) null else week,
-                threshold = threshold, combine = combineName(combine), yearly = yearly,
-                model = GeoModelFiles.VERSION, fallbackRegion = companion, groups = groups()
+                threshold = threshold, yearly = yearly,
+                model = GeoModelFiles.VERSION, fallbacks = fallbacks, groups = groups
             ).also { info = it }
         } catch (e: Exception) {
             Log.w(TAG, "Geomodel nicht berechenbar: ${e.message}", e)
-            filter.setGeoMask(null, combine)
+            filter.setGeoMask(null)
             last = null
-            SpeciesFilterInfo(source = "fallback", fallbackRegion = companion, groups = groups()).also { info = it }
+            SpeciesFilterInfo(source = "fallback", fallbacks = fallbacks, groups = groups).also { info = it }
         }
     }
 
@@ -130,36 +122,34 @@ class GeoFilterController(
 
     /**
      * T221: Geomodel-Filter fuer einen Rescan in [target] setzen — feste Position und Datum der Session,
-     * Einstellungen (Schwelle, Jahr, Verknuepfung, Begleitliste) wie live. Aendert weder den Live-Filter
-     * noch die gespeicherte Position. Ohne Position oder Modell: Begleitliste als Ersatz.
+     * Einstellungen (Schwelle, Jahr, Ersatzliste) wie live. [target] traegt bereits die Gruppenregeln von
+     * [selection]. Aendert weder den Live-Filter noch die gespeicherte Position. Ohne Position oder Modell:
+     * Ersatzliste je Auto-Gruppe.
      */
     suspend fun applyForRescan(
         target: RegionalSpeciesFilter, lat: Double?, lon: Double?, atMs: Long,
-        groupSelection: SpeciesGroupSelection? = null
+        selection: SpeciesGroupSelection
     ): SpeciesFilterInfo {
-        // T232: Gruppenmodus behaelt die geladenen Gruppenregeln, sonst wie bisher "auto_geo"
-        if (target.getCurrentRegionId() != RegionalSpeciesFilter.GROUPS_ID) target.loadRegion(GeoLogic.REGION_ID)
-        val groups = if (target.getCurrentRegionId() == RegionalSpeciesFilter.GROUPS_ID) (groupSelection ?: prefs.speciesGroups).toMap() else null
-        val combine = GeoCombine.parse(prefs.geoCombine)
-        val companion = companionRegion()
+        val groups = selection.toMap()
+        val fallbacks = fallbacks(selection)
         if (lat == null || lon == null || !GeoModelFiles.isInstalled(context)) {
-            target.setGeoMask(null, combine)
-            return SpeciesFilterInfo(source = "fallback", fallbackRegion = companion, groups = groups)
+            target.setGeoMask(null)
+            return SpeciesFilterInfo(source = "fallback", fallbacks = fallbacks, groups = groups)
         }
         val week = GeoLogic.birdnetWeek(Instant.ofEpochMilli(atMs).atZone(ZoneId.systemDefault()).toLocalDate())
         val yearly = prefs.geoYearly
         val threshold = prefs.geoThreshold.coerceIn(GeoLogic.MIN_THRESHOLD, GeoLogic.MAX_THRESHOLD)
         return try {
-            target.setGeoMask(computeMask(lat, lon, week, yearly, threshold), combine)
+            target.setGeoMask(computeMask(lat, lon, week, yearly, threshold))
             SpeciesFilterInfo(
                 source = "session", latitude = round2(lat), longitude = round2(lon), week = if (yearly) null else week,
-                threshold = threshold, combine = if (groups != null) null else combine.name, yearly = yearly,
-                model = GeoModelFiles.VERSION, fallbackRegion = companion, groups = groups
+                threshold = threshold, yearly = yearly,
+                model = GeoModelFiles.VERSION, fallbacks = fallbacks, groups = groups
             )
         } catch (e: Exception) {
             Log.w(TAG, "Geomodel (Rescan) nicht berechenbar: ${e.message}", e)
-            target.setGeoMask(null, combine)
-            SpeciesFilterInfo(source = "fallback", fallbackRegion = companion, groups = groups)
+            target.setGeoMask(null)
+            SpeciesFilterInfo(source = "fallback", fallbacks = fallbacks, groups = groups)
         }
     }
 

@@ -267,14 +267,11 @@ class LiveViewModel(
     // T198: FFT-Spektrum aus Rohsamples; wird nur gefuellt, solange der Spektrum-Modus angezeigt wird.
     private val spectrumState = ch.etasystems.pirol.ui.components.SpectrumState()
 
-    // T238: Filter-Laden auf IO, in Aufrufreihenfolge (eine Region nach der anderen, letzte gewinnt)
-    private val filterDispatcher = Dispatchers.IO.limitedParallelism(1)
-
-    /** T238: Region im Hintergrund laden (liest Assets/Listen, nie auf dem Main-Thread) */
-    private fun loadRegionAsync(regionId: String) {
-        viewModelScope.launch(filterDispatcher) {
-            regionalFilter.loadRegion(regionId)
-            Log.d(TAG, "Regionaler Filter geladen: ${regionalFilter.getCurrentRegionId()} (${regionalFilter.getSpeciesList().size} Arten)")
+    /** T238: Gruppenfilter im Hintergrund laden (liest Assets/Listen, nie auf dem Main-Thread) */
+    private fun loadFilterAsync() {
+        viewModelScope.launch(Dispatchers.IO) {
+            regionalFilter.loadGroups()
+            Log.d(TAG, "Artenfilter geladen (${regionalFilter.getSpeciesList().size} Arten in Listen)")
         }
     }
 
@@ -290,9 +287,8 @@ class LiveViewModel(
         // T110: Ueberlappung separat aus den Prefs (wird zudem bei jedem Pipeline-Start neu gelesen)
         pipeline.setInferenceConfig(savedConfig)
 
-        // Region laden (aus gespeicherter Config)
-        val region = savedConfig.regionFilter ?: "ch_breeding"
-        loadRegionAsync(region)  // T238: IO statt Main
+        // Artenfilter laden (T246: nur Gruppenwahl)
+        loadFilterAsync()  // T238: IO statt Main
 
         // Artennamen-Sprache laden + species_master.json parsen (T26, T32-Fix)
         // T95: Im Hintergrund laden (species_master.json ist ~10 MB) statt den Main-Thread zu blockieren.
@@ -923,15 +919,11 @@ class LiveViewModel(
 
     /** Gesamte InferenceConfig setzen (z.B. fuer Presets) */
     fun setInferenceConfig(config: InferenceConfig) {
-        // Region laden falls geaendert
-        if (config.regionFilter != null && config.regionFilter != _uiState.value.inferenceConfig.regionFilter) {
-            loadRegionAsync(config.regionFilter)
-        }
         pipeline.setInferenceConfig(config)  // T94: Worker lebt in der Pipeline (T110: Overlap aus Prefs)
         _uiState.update { it.copy(inferenceConfig = config) }
         // In SharedPreferences persistieren
         appPreferences.saveInferenceConfig(config)
-        Log.d(TAG, "InferenceConfig aktualisiert: threshold=${config.confidenceThreshold}, topK=${config.topK}, region=${config.regionFilter}")
+        Log.d(TAG, "InferenceConfig aktualisiert: threshold=${config.confidenceThreshold}, topK=${config.topK}")
     }
 
     // --- Service-Binding ---

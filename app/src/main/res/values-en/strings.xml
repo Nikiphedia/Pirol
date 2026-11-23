@@ -630,7 +630,6 @@
     <string name="analysis_rescan">Re-analyse recording</string>
     <string name="analysis_rescan_info">The result is saved as a separate variant. The original stays unchanged; verifications are carried over when species and time window match.</string>
     <string name="analysis_rescan_modell">Model</string>
-    <string name="analysis_rescan_liste">List</string>
     <string name="analysis_rescan_schwelle">Confidence threshold: %1$d %%</string>
     <string name="analysis_rescan_overlap">Overlap</string>
     <string name="analysis_rescan_starten">Start</string>

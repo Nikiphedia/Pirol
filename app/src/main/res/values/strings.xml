@@ -631,7 +631,6 @@
     <string name="analysis_rescan">Aufnahme neu analysieren</string>
     <string name="analysis_rescan_info">Ergebnis wird als eigene Variante gespeichert. Das Original bleibt unverändert; Verifikationen werden übernommen, wenn Art und Zeitfenster passen.</string>
     <string name="analysis_rescan_modell">Modell</string>
-    <string name="analysis_rescan_liste">Liste</string>
     <string name="analysis_rescan_schwelle">Konfidenz-Schwelle: %1$d %%</string>
     <string name="analysis_rescan_overlap">Überlappung</string>
     <string name="analysis_rescan_starten">Starten</string>
