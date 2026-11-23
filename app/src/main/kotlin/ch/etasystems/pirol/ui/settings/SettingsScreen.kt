@@ -1496,10 +1496,11 @@ fun SettingsScreen(
                 }
             }
 
-            // T218: Geomodel-Einstellungen nur bei gewaehlter Region "Automatisch"
-            if (selectedRegion == GeoLogic.REGION_ID) {
-                GeoFilterSettings(appPreferences, koinInject<ModelManager>(), regionalFilter.getAvailableRegions())
-            }
+            // T218: Geomodel-Einstellungen; T218b: Hinweis + Download immer, Rest nur bei Region "Automatisch"
+            GeoFilterSettings(
+                appPreferences, koinInject<ModelManager>(), regionalFilter.getAvailableRegions(),
+                active = selectedRegion == GeoLogic.REGION_ID
+            )
 
             customWarnings.forEach {
                 Text(

@@ -45,7 +45,8 @@ import kotlinx.coroutines.launch
 fun ColumnScope.GeoFilterSettings(
     appPreferences: AppPreferences,
     modelManager: ModelManager,
-    regions: List<RegionInfo>
+    regions: List<RegionInfo>,
+    active: Boolean = true  // T218b: false = nur Hinweis + Download zeigen (Region "Auto" nicht gewaehlt)
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -96,6 +97,8 @@ fun ColumnScope.GeoFilterSettings(
                 color = MaterialTheme.colorScheme.error)
         }
     }
+
+    if (!active) return
 
     // Schwelle
     Spacer(modifier = Modifier.height(8.dp))
