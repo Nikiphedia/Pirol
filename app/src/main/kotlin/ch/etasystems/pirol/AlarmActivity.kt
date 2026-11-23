@@ -118,7 +118,7 @@ class AlarmActivity : AppCompatActivity() {
                 .format(Instant.ofEpochMilli(r.timestampMs))
         }
         // Artname in der gewaehlten Anzeigesprache (SpeciesNameResolver)
-        val common = remember(r.scientificName) { speciesNameResolver.resolve(r.scientificName) }
+        val common = remember(r.scientificName) { speciesNameResolver.displayName(r.scientificName) }
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.Center,

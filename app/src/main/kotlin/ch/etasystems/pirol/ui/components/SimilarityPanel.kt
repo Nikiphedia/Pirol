@@ -152,7 +152,7 @@ private fun SimilarityCard(
     modifier: Modifier = Modifier
 ) {
     val similarityPercent = (match.similarity * 100).toInt()
-    val commonName = resolver.resolve(match.species)
+    val commonName = resolver.displayName(match.species)
     val scientificName = match.species.replace('_', ' ')
 
     val barColor = when {

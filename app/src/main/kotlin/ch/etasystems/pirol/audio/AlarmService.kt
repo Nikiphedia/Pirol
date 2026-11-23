@@ -137,7 +137,7 @@ class AlarmService(
             AlarmEvent(
                 detectionId = detection.id,
                 scientificName = detection.scientificName,
-                commonName = speciesNameResolver.resolve(detection.scientificName),
+                commonName = speciesNameResolver.commonName(detection.scientificName),
                 confidence = detection.confidence,
                 timestampMs = detection.timestampMs.takeIf { it > 0 } ?: now
             )
@@ -158,7 +158,7 @@ class AlarmService(
             AlarmEvent(
                 detectionId = "",
                 scientificName = sci,
-                commonName = speciesNameResolver.resolve(sci),
+                commonName = speciesNameResolver.commonName(sci),
                 confidence = 0.95f,
                 timestampMs = System.currentTimeMillis(),
                 isTest = true

@@ -70,16 +70,26 @@ class AppPreferences(context: Context) {
             val m = ch.etasystems.pirol.ml.SpeciesGroupSelection.migrate(regionFilter, geoCombine, companion)
             // Begleitliste war die Heuschrecken-Liste -> als Ersatzliste fuer Voegel wieder "ch_all"
             if (m.sourceOf(ch.etasystems.pirol.ml.TaxonGroup.ORTHOPTERA) == companion) geoCompanionRegion = "ch_all"
-            speciesGroups = m
+            storeSpeciesGroups(m)
             return m
         }
         set(value) {
-            prefs.edit()
-                .putString("pirol_species_groups", value.encode())
-                .putString("pirol_region_filter", ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID)
-                .putString("pirol_geo_combine", "GEO_ONLY")
-                .apply()
+            storeSpeciesGroups(value)
+            speciesGroupsMutable.value = value
         }
+
+    private fun storeSpeciesGroups(value: ch.etasystems.pirol.ml.SpeciesGroupSelection) {
+        prefs.edit()
+            .putString("pirol_species_groups", value.encode())
+            .putString("pirol_region_filter", ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID)
+            .putString("pirol_geo_combine", "GEO_ONLY")
+            .apply()
+    }
+
+    // T235: einmalig lesen (inkl. Migration), danach beobachtbar; die UI liest nicht mehr bei jeder Recomposition
+    private val speciesGroupsMutable by lazy { kotlinx.coroutines.flow.MutableStateFlow(speciesGroups) }
+    val speciesGroupsFlow: kotlinx.coroutines.flow.StateFlow<ch.etasystems.pirol.ml.SpeciesGroupSelection>
+        get() = speciesGroupsMutable
 
     var showOnlyFiltered: Boolean
         get() = prefs.getBoolean("pirol_show_only_filtered", true)

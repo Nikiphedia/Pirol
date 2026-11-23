@@ -727,7 +727,7 @@ class LiveViewModel(
         val det = DetectionResult(
             id = java.util.UUID.randomUUID().toString(),
             scientificName = speciesKey,
-            commonName = speciesNameResolver.resolve(speciesKey),
+            commonName = speciesNameResolver.commonName(speciesKey),
             confidence = 1.0f,
             timestampMs = now,
             chunkStartSec = 0f,
@@ -1161,7 +1161,7 @@ class LiveViewModel(
                 findSimilar(e.embedding, e.species)
                 val recent = detectionListState.getDetections()
                     .take(5)
-                    .map { speciesNameResolver.resolve(it.scientificName) }
+                    .map { speciesNameResolver.displayName(it.scientificName) }
                 _uiState.update { it.copy(recentSpecies = recent) }
             }
         }

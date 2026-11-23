@@ -186,7 +186,7 @@ private fun SessionListView(
     val searchCounts: Map<String, Int>? = remember(state.sessionSearch, state.sessionSpecies) {
         if (state.sessionSearch.isBlank()) null
         else state.sessionSpecies.mapValues { (_, names) ->
-            SpeciesSearch.countMatches(state.sessionSearch, names) { nameResolver.resolve(it) }
+            SpeciesSearch.countMatches(state.sessionSearch, names) { nameResolver.displayName(it) }
         }
     }
 
@@ -586,7 +586,7 @@ private fun SessionDetailContent(
         if (state.hasRecording) {
             val navList = remember(state.detections, detailSearch) {
                 state.detections.filter {
-                    SpeciesSearch.matches(detailSearch, detailResolver.resolve(it.scientificName), it.scientificName)
+                    SpeciesSearch.matches(detailSearch, detailResolver.displayName(it.scientificName), it.scientificName)
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -892,7 +892,7 @@ private fun SessionDetailContent(
                 } else {
                     // T202: bei aktiver Suche gefilterte / gesamte Zahl
                     val shown = state.detections.count {
-                        SpeciesSearch.matches(detailSearch, detailResolver.resolve(it.scientificName), it.scientificName)
+                        SpeciesSearch.matches(detailSearch, detailResolver.displayName(it.scientificName), it.scientificName)
                     }
                     stringResource(R.string.analysis_detektionen_gefiltert, shown, state.detections.size)
                 },
@@ -933,7 +933,7 @@ private fun SessionDetailContent(
             // T73: Lock-First sortieren, dann nach lastSeenAtMs desc (AC6)
             val sortedDetections = remember(state.detections, detailSearch) {
                 state.detections.filter {
-                    SpeciesSearch.matches(detailSearch, detailResolver.resolve(it.scientificName), it.scientificName)
+                    SpeciesSearch.matches(detailSearch, detailResolver.displayName(it.scientificName), it.scientificName)
                 }.sortedWith(
                     compareByDescending<ch.etasystems.pirol.ml.DetectionResult> { it.lockSpecies }
                         .thenByDescending { it.lastSeenAtMs }

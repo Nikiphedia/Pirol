@@ -693,7 +693,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         nameResolver.language = prefs.effectiveSpeciesLanguage()
                                         val shownName = if (m.scientificName.isNotBlank())
-                                            nameResolver.resolve(m.scientificName) else m.species
+                                            nameResolver.displayName(m.scientificName) else m.species
                                         Text(shownName, style = MaterialTheme.typography.bodyMedium)
                                         if (m.scientificName.isNotBlank()) {
                                             Text(
@@ -1220,7 +1220,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             for (e in legendEntries) {
                                 val visible = e.key !in state.hiddenSpecies
                                 val name = if (e.scientificName.isBlank()) e.fallbackName.replace('_', ' ')
-                                    else nameResolver.resolve(e.scientificName)
+                                    else nameResolver.displayName(e.scientificName)
                                 Row(
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                                         .alpha(if (visible) 1f else 0.5f)

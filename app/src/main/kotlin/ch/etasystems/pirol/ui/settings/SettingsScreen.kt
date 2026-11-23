@@ -206,7 +206,7 @@ fun SettingsScreen(
         }
         speciesNameResolver.load()
         allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
-            Pair(scientific, speciesNameResolver.resolve(scientific))
+            Pair(scientific, speciesNameResolver.displayName(scientific))
         }
     }
 
@@ -2526,7 +2526,7 @@ fun SettingsScreen(
             adoptList = null
             scope.launch {
                 val previous = watchlistManager.adoptFromList(list, merge) { sci ->
-                    if (speciesNameResolver.getAllNames(sci).isNotEmpty()) speciesNameResolver.resolve(sci)
+                    if (speciesNameResolver.getAllNames(sci).isNotEmpty()) speciesNameResolver.commonName(sci)
                     else list.commonNames[sci] ?: ""
                 }
                 val result = snackbarHostState.showSnackbar(

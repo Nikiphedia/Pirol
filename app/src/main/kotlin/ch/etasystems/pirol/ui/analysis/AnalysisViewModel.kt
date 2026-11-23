@@ -1238,7 +1238,7 @@ class AnalysisViewModel(
         val det = DetectionResult(
             id = java.util.UUID.randomUUID().toString(),
             scientificName = speciesKey,
-            commonName = speciesNameResolver.resolve(speciesKey),
+            commonName = speciesNameResolver.commonName(speciesKey),
             confidence = 1.0f,
             timestampMs = time.timestampMs,
             chunkStartSec = time.chunkStartSec,
