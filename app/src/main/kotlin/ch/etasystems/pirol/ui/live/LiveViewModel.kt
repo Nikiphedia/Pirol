@@ -27,6 +27,7 @@ import ch.etasystems.pirol.data.sync.UploadStatus
 import ch.etasystems.pirol.data.sync.UploadTargetFactory
 import kotlinx.serialization.json.Json as KJson
 import ch.etasystems.pirol.location.LocationProvider
+import ch.etasystems.pirol.ml.AlternativeSelection
 import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.AtlasCode
 import ch.etasystems.pirol.ml.DetectionCandidate
@@ -613,47 +614,52 @@ class LiveViewModel(
         note: String?,
         voiceMemoFile: String? = null  // T69: relativer Pfad oder null (kein/gelöschtes Memo)
     ) {
-        val current = detectionListState.getDetections().find { it.id == detectionId } ?: return
-        val updated = current.copy(
-            count = count,
-            atlasCode = atlasCode,
-            note = note,
-            voiceMemoFile = voiceMemoFile
-        )
-        detectionListState.updateDetection(updated)
+        // T237: atomar unter der Listen-Sperre; Rollback setzt nur diese vier Felder zurueck
+        var current: DetectionResult? = null
+        val updated = detectionListState.modifyDetection(detectionId) { c ->
+            current = c
+            c.copy(count = count, atlasCode = atlasCode, note = note, voiceMemoFile = voiceMemoFile)
+        } ?: return
+        val before = current ?: return
         if (!sessionManager.isActive) return
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
                     sessionManager.replaceDetection(updated)
                     val now = System.currentTimeMillis()
-                    if (current.count != count) sessionManager.appendVerification(
-                        VerificationEvent(detectionId, current.verificationStatus,
+                    if (before.count != count) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, before.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_COUNT_CHANGED))
-                    if (current.atlasCode != atlasCode) sessionManager.appendVerification(
-                        VerificationEvent(detectionId, current.verificationStatus,
+                    if (before.atlasCode != atlasCode) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, before.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_ATLAS_SET))
-                    if (current.note != note) sessionManager.appendVerification(
-                        VerificationEvent(detectionId, current.verificationStatus,
+                    if (before.note != note) sessionManager.appendVerification(
+                        VerificationEvent(detectionId, before.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED))
                     // T69: Memo-Events
-                    if (current.voiceMemoFile == null && voiceMemoFile != null) {
+                    if (before.voiceMemoFile == null && voiceMemoFile != null) {
                         sessionManager.appendVerification(VerificationEvent(
-                            detectionId, current.verificationStatus,
+                            detectionId, before.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_RECORDED,
                             newValue = voiceMemoFile))
                     }
-                    if (current.voiceMemoFile != null && voiceMemoFile == null) {
+                    if (before.voiceMemoFile != null && voiceMemoFile == null) {
                         getMemoTargetFile(detectionId)?.takeIf { it.exists() }?.delete()
                         sessionManager.appendVerification(VerificationEvent(
-                            detectionId, current.verificationStatus,
+                            detectionId, before.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_DELETED))
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        detectionListState.updateDetection(current)
+                        // T237: nur die vier bearbeiteten Felder zurueck, spaetere Aenderungen (Merge, Zweitmodell) bleiben
+                        val rolledBack = detectionListState.modifyDetection(detectionId) {
+                            it.copy(count = before.count, atlasCode = before.atlasCode,
+                                note = before.note, voiceMemoFile = before.voiceMemoFile)
+                        }
+                        // Datei kann schon teilweise neu sein: Stand der Liste best effort nachziehen
+                        if (rolledBack != null) launch(Dispatchers.IO) { runCatching { sessionManager.replaceDetection(rolledBack) } }
                         _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.common_save_failed)))
                     }
                 }
@@ -775,51 +781,57 @@ class LiveViewModel(
     }
 
     /**
-     * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative (T45).
-     *
-     * Markiert das Original als REPLACED, fuegt die Alternative als neue Detektion
-     * an Index 0 ein und schreibt ein VerificationEvent in verifications.jsonl.
-     * Zeigt Snackbar mit Undo-Action (T52).
+     * T237: Ersetzt die Art der bestehenden Detektion durch die gewaehlte Alternative (gleiche ID,
+     * Aufnahmezeit, Fenster). Persistenz: detections.jsonl (Zeile ersetzt) + Event ALTERNATIVE_CONFIRMED
+     * in verifications.jsonl (alte Art in newValue). Snackbar mit Undo; bei Schreibfehler Rollback.
      */
     fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
-        // Aktuellen Zustand fuer Undo merken
-        val original = detectionListState.getDetections().find { it.id == detectionId }
-        pendingUndo = original?.let {
-            UndoEntry(detectionId, it.verificationStatus, it.correctedSpecies)
+        val before = detectionListState.selectAlternative(detectionId, candidate) ?: return
+        val persist = sessionManager.isActive
+        viewModelScope.launch {
+            _snackbarChannel.send(SnackbarEvent(
+                message = AppStrings.get(R.string.live_alternative_gewaehlt, candidate.commonName),
+                actionLabel = AppStrings.get(R.string.common_undo),
+                onAction = { undoAlternative(before) }
+            ))
         }
-
-        val success = detectionListState.selectAlternative(detectionId, candidate)
-        if (success) {
-            // Snackbar senden (T52)
-            viewModelScope.launch {
-                _snackbarChannel.send(SnackbarEvent(
-                    message = AppStrings.get(R.string.live_alternative_gewaehlt, candidate.commonName),
-                    actionLabel = AppStrings.get(R.string.common_undo),
-                    onAction = { undoLastVerification() }
-                ))
-            }
-            viewModelScope.launch(Dispatchers.IO) {
-                verificationMutex.withLock {
-                    try {
-                        sessionManager.appendVerification(
-                            VerificationEvent(
-                                detectionId = detectionId,
-                                status = VerificationStatus.REPLACED,
-                                correctedSpecies = candidate.scientificName,
-                                verifiedAtMs = System.currentTimeMillis(),
-                                actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED  // T72
-                            )
+        if (!persist) return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    val updated = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return@withLock
+                    sessionManager.replaceDetection(updated)
+                    sessionManager.appendVerification(
+                        VerificationEvent(
+                            detectionId = detectionId,
+                            status = VerificationStatus.CONFIRMED,
+                            verifiedAtMs = updated.verifiedAtMs ?: System.currentTimeMillis(),
+                            actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED,  // T72
+                            newValue = before.scientificName
                         )
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.common_save_failed)))
-                        }
-                    }
+                    )
+                } catch (e: Exception) {
+                    detectionListState.modifyDetection(detectionId) { AlternativeSelection.revert(it, before) }
+                    runCatching { sessionManager.replaceDetection(before) }
+                    _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.common_save_failed)))
                 }
             }
         }
     }
 
+    /** T237: Alternative zuruecknehmen: Felder der Detektion zurueck, Zeile ersetzen, Event entfernen. */
+    private fun undoAlternative(before: DetectionResult) {
+        val restored = detectionListState.modifyDetection(before.id) { AlternativeSelection.revert(it, before) } ?: return
+        if (!sessionManager.isActive) return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    sessionManager.replaceDetection(restored)
+                    sessionManager.removeLastVerification(before.id)
+                } catch (_: Exception) { /* Undo-IO-Fehler still ignorieren */ }
+            }
+        }
+    }
     /**
      * Speichert eine verifizierte Detektion als Referenz-Aufnahme (T123).
      * Schneidet den Ausschnitt (T116: 3 s davor, 5 s danach) aus recording.wav der Session.

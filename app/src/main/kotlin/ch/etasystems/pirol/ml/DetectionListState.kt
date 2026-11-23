@@ -254,66 +254,22 @@ class DetectionListState(
     }
 
     /**
-     * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative.
+     * T237: Ersetzt die Art der Detektion durch die gewaehlte Alternative (gleiche ID, Position, Zeit),
+     * siehe [AlternativeSelection]. Andere Detektionen bleiben unberuehrt.
      *
-     * - Original-Detektion wird als REPLACED markiert (bleibt an ihrer Position, ausgegraut)
-     * - Alternative wird als neue Detektion an Index 0 eingefuegt (5s-Highlight)
-     * - Falls die Alternative bereits in der Liste war, wird sie vorher entfernt (kein Duplikat)
-     *
-     * @param originalDetectionId UUID der zu ersetzenden Detektion
-     * @param candidate Vom Nutzer gewaehlte Alternative
-     * @return true wenn erfolgreich, false wenn originalDetectionId nicht gefunden
+     * @return Stand vor der Aenderung (fuer Undo) oder null wenn nicht gefunden
      */
-    @Synchronized
     fun selectAlternative(
         originalDetectionId: String,
-        candidate: DetectionCandidate
-    ): Boolean {
-        val originalIndex = detections.indexOfFirst { it.id == originalDetectionId }
-        if (originalIndex < 0) return false
-
-        val original = detections[originalIndex]
-        val now = System.currentTimeMillis()
-
-        // 1. Original als REPLACED markieren (bleibt an Position)
-        detections[originalIndex] = original.copy(
-            verificationStatus = VerificationStatus.REPLACED,
-            correctedSpecies = candidate.scientificName,
-            verifiedAtMs = now
-        )
-
-        // 2. Falls die Alternative-Art schon woanders in der Liste ist → entfernen
-        detections.removeAll {
-            it.id != originalDetectionId &&
-            it.scientificName == candidate.scientificName
+        candidate: DetectionCandidate,
+        nowMs: Long = System.currentTimeMillis()
+    ): DetectionResult? {
+        var before: DetectionResult? = null
+        modifyDetection(originalDetectionId) { current ->
+            before = current
+            AlternativeSelection.apply(current, candidate, nowMs)
         }
-
-        // 3. Alternative als neue Detektion an Index 0
-        val alternativeDetection = DetectionResult(
-            id = java.util.UUID.randomUUID().toString(),
-            scientificName = candidate.scientificName,
-            commonName = candidate.commonName,
-            confidence = candidate.confidence,
-            timestampMs = now,
-            chunkStartSec = original.chunkStartSec,
-            chunkEndSec = original.chunkEndSec,
-            sampleRate = original.sampleRate,
-            latitude = original.latitude,
-            longitude = original.longitude,
-            verificationStatus = VerificationStatus.UNVERIFIED,
-            candidates = emptyList(),
-            detectionCount = 1,
-            lastDetectedMs = now
-        )
-        detections.add(0, alternativeDetection)
-
-        // 4. Max-Limit einhalten
-        while (detections.size > maxDetections) {
-            detections.removeAt(detections.lastIndex)
-        }
-
-        _version.intValue++
-        return true
+        return before
     }
 
     /**

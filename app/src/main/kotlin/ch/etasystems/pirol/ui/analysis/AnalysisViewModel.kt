@@ -22,7 +22,7 @@ import ch.etasystems.pirol.data.repository.ReferenceEntry
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
 import ch.etasystems.pirol.ml.AtlasCode
-import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
+import ch.etasystems.pirol.ml.AlternativeSelection
 import ch.etasystems.pirol.ml.DetectionCandidate
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.SpeciesNameResolver
@@ -652,26 +652,14 @@ class AnalysisViewModel(
         val speciesName = detection.scientificName.replace(' ', '_')
         val references = referenceRepository.getBySpecies(speciesName)
 
-        // Chunk-Index berechnen
-        val state = _uiState.value
-        val session = state.selectedSession ?: return
-        // OffsetDateTime akzeptiert sowohl "+02:00" als auch "Z" (Offset 0).
-        // Fallback auf Instant.parse() fuer sehr alte Sessions ohne Offset.
-        val startMs = try {
-            java.time.OffsetDateTime.parse(session.metadata.startedAt).toInstant().toEpochMilli()
-        } catch (_: Exception) {
-            try {
-                java.time.Instant.parse(session.metadata.startedAt).toEpochMilli()
-            } catch (_: Exception) { return }
-        }
-        val chunkIndex = ((detection.timestampMs - startMs) / CHUNK_DURATION_MS).toInt()
-            .coerceAtLeast(0)
+        // T237: Startsekunde des Fensters (Session-Zeitachse) statt 3-s-Chunk-Nummer aus der Wanduhr
+        if (_uiState.value.selectedSession == null) return
 
         _uiState.update {
             it.copy(
                 isCompareMode = true,
                 compareDetection = detection,
-                compareDetectionChunkIndex = chunkIndex,
+                compareDetectionStartSec = detection.bestWindowStartSec,  // T237
                 referenceEntries = references,
                 selectedReference = references.firstOrNull()
             )
@@ -693,7 +681,7 @@ class AnalysisViewModel(
             it.copy(
                 isCompareMode = false,
                 compareDetection = null,
-                compareDetectionChunkIndex = null,
+                compareDetectionStartSec = null,
                 referenceEntries = emptyList(),
                 selectedReference = null,
                 detectionSpectrogramState = SpectrogramState(),
@@ -1326,50 +1314,66 @@ class AnalysisViewModel(
     }
 
     /**
-     * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative (T72, Analyse-Tab).
-     * Analog zu LiveViewModel.selectAlternative, aber direktes Schreiben in verifications.jsonl.
+     * T237: Ersetzt die Art der bestehenden Detektion durch die gewaehlte Alternative (gleiche ID,
+     * Aufnahmezeit, Fenster; Original oder Rescan-Variante). detections.jsonl: Zeile ersetzt;
+     * verifications.jsonl: ALTERNATIVE_CONFIRMED (alte Art in newValue). Snackbar mit Undo.
      */
     fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
         val session = _uiState.value.selectedSession ?: return
         val variant = _uiState.value.activeVariant  // T221: Original (null) oder Rescan-Variante
-        val previousDetections = _uiState.value.detections
-        val original = previousDetections.find { it.id == detectionId } ?: return
-        val now = System.currentTimeMillis()
-
-        // Neue Detection aus der Alternative erzeugen
-        val newDet = DetectionResult(
-            id = java.util.UUID.randomUUID().toString(),
-            scientificName = candidate.scientificName,
-            commonName = candidate.commonName,
-            confidence = candidate.confidence,
-            timestampMs = now,
-            chunkStartSec = original.chunkStartSec,
-            chunkEndSec = original.chunkEndSec,
-            sampleRate = original.sampleRate,
-            latitude = original.latitude,
-            longitude = original.longitude,
-            lastDetectedMs = now
-        )
-        // In-Memory: Original REPLACED, Alternative an Index 0
-        val updated = previousDetections.map { det ->
-            if (det.id == detectionId) det.copy(
-                verificationStatus = VerificationStatus.REPLACED,
-                correctedSpecies = candidate.scientificName,
-                verifiedAtMs = now
-            ) else det
-        }.filter { it.scientificName != candidate.scientificName || it.id == detectionId }
-        _uiState.update { it.copy(detections = listOf(newDet) + updated) }
+        val before = _uiState.value.detections.find { it.id == detectionId } ?: return
+        val updated = AlternativeSelection.apply(before, candidate, System.currentTimeMillis())
+        _uiState.update { st ->
+            st.copy(
+                // revert(current, x) schreibt die Alternativ-Felder von x in den aktuellen Stand
+                detections = st.detections.map { if (it.id == detectionId) AlternativeSelection.revert(it, updated) else it },
+                undoOffer = UndoOffer(
+                    message = AppStrings.get(R.string.live_alternative_gewaehlt, candidate.commonName),
+                    actionLabel = AppStrings.get(R.string.common_undo),
+                    onUndo = { undoAlternative(session, variant, before) }
+                )
+            )
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
+                    val current = _uiState.value.detections.find { it.id == detectionId } ?: updated
+                    sessionManager.replaceDetectionIn(session.sessionDir, current, variant)
                     sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(VerificationEvent(
                         detectionId = detectionId,
-                        status = VerificationStatus.REPLACED,
-                        correctedSpecies = candidate.scientificName,
-                        verifiedAtMs = now,
-                        actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED
+                        status = VerificationStatus.CONFIRMED,
+                        verifiedAtMs = updated.verifiedAtMs ?: System.currentTimeMillis(),
+                        actionType = VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED,
+                        newValue = before.scientificName
                     )) + "\n")
+                } catch (e: Exception) {
+                    val back = rollbackAlternative(before)
+                    runCatching { back?.let { sessionManager.replaceDetectionIn(session.sessionDir, it, variant) } }
+                    _uiState.update { it.copy(undoOffer = null, saveErrorMessage = AppStrings.get(R.string.common_save_failed)) }
+                }
+            }
+        }
+    }
+
+    /** T237: Felder der Detektion im State auf den Stand vor der Alternative zurueck, liefert die neue Fassung. */
+    private fun rollbackAlternative(before: DetectionResult): DetectionResult? {
+        var restored: DetectionResult? = null
+        _uiState.update { st ->
+            st.copy(detections = st.detections.map {
+                if (it.id == before.id) AlternativeSelection.revert(it, before).also { r -> restored = r } else it
+            })
+        }
+        return restored
+    }
+
+    private fun undoAlternative(session: SessionSummary, variant: String?, before: DetectionResult) {
+        val restored = rollbackAlternative(before) ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            verificationMutex.withLock {
+                try {
+                    sessionManager.replaceDetectionIn(session.sessionDir, restored, variant)
+                    sessionManager.removeLastVerificationIn(session.sessionDir, before.id, variant)
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(saveErrorMessage = AppStrings.get(R.string.common_save_failed)) }
@@ -1378,6 +1382,12 @@ class AnalysisViewModel(
             }
         }
     }
+
+    /** T237: Undo-Hinweis nach Anzeige zuruecksetzen */
+    fun consumeUndoOffer() {
+        _uiState.update { it.copy(undoOffer = null) }
+    }
+
 
     // ── T221: Rescan und Varianten ───────────────────────────────────
 
