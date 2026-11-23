@@ -117,7 +117,7 @@ object RavenExporter {
             if (on(FIELD_SIMULTAN))        header += "Simultan"
             if (on(FIELD_MOEGLICH))        header += "Moeglich"
             if (on(FIELD_GLEICH))          header += "Gleich"
-            if (secondary) header += listOf("Second Model", "Second Status", "Second Score", "Second Top Species", "Second Top Score")
+            if (secondary) header += listOf("Second Model", "Second Status", "Second Score", "Second Top Species", "Second Top Score", "Second Rank")
             header += "Status"
             header += "Corrected Species"
             if (noteCell.isNotEmpty()) header += "Session-Bemerkung"
@@ -156,6 +156,7 @@ object RavenExporter {
                     row += d.secondaryConfidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
                     row += sanitize(d.secondaryTopSpecies.orEmpty())
                     row += d.secondaryTopConfidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
+                    row += d.secondaryRank?.toString().orEmpty()
                 }
                 row += d.verificationStatus.name
                 row += sanitize(d.correctedSpecies ?: "")

@@ -877,7 +877,8 @@ private fun CompactRow(
                 // T247: Zweitmodell-Wert kurz ("82 · 64 %"), wenn geprueft
                 if (detection.secondaryStatus != null &&
                     detection.secondaryStatus != ch.etasystems.pirol.ml.SecondaryCheck.STATUS_NOT_CHECKABLE) {
-                    Text("· ${((detection.secondaryConfidence ?: 0f) * 100).toInt()}%",
+                    val secRank = ch.etasystems.pirol.ml.SecondaryCheck.displayRank(detection)
+                    Text(if (secRank != null) "· #$secRank" else "· ${((detection.secondaryConfidence ?: 0f) * 100).toInt()}%",
                         style = MaterialTheme.typography.labelSmall, color = neutralContent)
                 }
                 if (inline) {
@@ -1022,8 +1023,10 @@ private fun ModelScoreRow(
             )
             else -> {
                 val secPercent = ((detection.secondaryConfidence ?: 0f) * 100).toInt()
+                val secRank = ch.etasystems.pirol.ml.SecondaryCheck.displayRank(detection)
                 Text(
-                    text = stringResource(R.string.card_model_score, secLabel, secPercent),
+                    text = if (secRank != null) stringResource(R.string.card_model_rank, secLabel, secRank)
+                           else stringResource(R.string.card_model_score, secLabel, secPercent),
                     style = style,
                     color = muted,
                     maxLines = 1

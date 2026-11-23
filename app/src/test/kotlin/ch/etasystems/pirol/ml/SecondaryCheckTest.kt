@@ -208,4 +208,52 @@ class SecondaryCheckTest {
         assertEquals("Erithacus_rubecula", b!!.topSpecies)
         assertNull(SecondaryCheck.evaluateScores("Turdus merula", floatArrayOf(Float.NaN, Float.NaN, Float.NaN), names, idx, 0.5f))
     }
+
+    // ── T253: Rang ──
+
+    @Test
+    fun rank_countsStrictlyBetterClasses() {
+        val names = listOf("Turdus_merula", "Parus_major", "Erithacus_rubecula", "Sitta_europaea")
+        val idx = SecondaryCheck.keyIndex(names)
+        val scores = floatArrayOf(0.1f, 0.8f, 0.3f, Float.NaN)
+        assertEquals(3, SecondaryCheck.evaluateScores("Turdus merula", scores, names, idx, 0.5f)!!.rank)
+        assertEquals(1, SecondaryCheck.evaluateScores("Parus major", scores, names, idx, 0.5f)!!.rank)
+        // gleicher Score teilt den Rang
+        assertEquals(1, SecondaryCheck.evaluateScores("Turdus merula", floatArrayOf(0.5f, 0.5f, 0f, 0f), names, idx, 0.9f)!!.rank)
+    }
+
+    @Test
+    fun rank_listPathMatchesScorePath() {
+        val names = listOf("Turdus_merula", "Parus_major", "Erithacus_rubecula")
+        val scores = floatArrayOf(0.1f, 0.8f, 0.3f)
+        val results = names.indices.map { cr(names[it], scores[it]) }.sortedByDescending { it.confidence }
+        val o = SecondaryCheck.evaluate("Turdus merula", results, SecondaryCheck.keyIndex(names).keys, 0.5f)!!
+        assertEquals(3, o.rank)
+        assertNull(SecondaryCheck.evaluate("Aquila chrysaetos", results, SecondaryCheck.keyIndex(names).keys, 0.5f)!!.rank)
+    }
+
+    @Test
+    fun rank_serializationOldAndNew() {
+        assertFalse(json.encodeToString(det()).contains("secondaryRank"))
+        val old = jsonLenient.decodeFromString<DetectionResult>(json.encodeToString(det()))
+        assertNull(old.secondaryRank)
+        val d = SecondaryCheck.apply(det(), "m", SecondaryCheck.Outcome(SecondaryCheck.STATUS_CHECKED, 0f, rank = 2))
+        assertEquals(2, jsonLenient.decodeFromString<DetectionResult>(json.encodeToString(d)).secondaryRank)
+    }
+
+    @Test
+    fun displayRank_onlyForSoftmaxModels() {
+        // Katalogmodell ohne Softmax: Prozent
+        assertNull(SecondaryCheck.displayRank(det().copy(secondaryModelId = "birdnet24_global6k", secondaryRank = 2)))
+        assertNull(SecondaryCheck.displayRank(det().copy(secondaryModelId = null, secondaryRank = 2)))
+        val soft = ModelProfile.CATALOG.first().copy(id = "t253_soft", scoreTransform = ModelProfile.ScoreTransform.SOFTMAX)
+        val saved = ModelProfile.imported
+        try {
+            ModelProfile.imported = listOf(soft)
+            assertEquals(2, SecondaryCheck.displayRank(det().copy(secondaryModelId = "t253_soft", secondaryRank = 2)))
+            assertNull(SecondaryCheck.displayRank(det().copy(secondaryModelId = "t253_soft", secondaryRank = null)))
+        } finally {
+            ModelProfile.imported = saved
+        }
+    }
 }

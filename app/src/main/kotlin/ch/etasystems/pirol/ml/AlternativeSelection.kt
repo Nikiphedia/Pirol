@@ -27,7 +27,8 @@ object AlternativeSelection {
             secondaryStatus = null,
             secondaryConfidence = null,
             secondaryTopSpecies = null,
-            secondaryTopConfidence = null
+            secondaryTopConfidence = null,
+            secondaryRank = null
         )
     }
 
@@ -47,7 +48,8 @@ object AlternativeSelection {
         secondaryStatus = before.secondaryStatus,
         secondaryConfidence = before.secondaryConfidence,
         secondaryTopSpecies = before.secondaryTopSpecies,
-        secondaryTopConfidence = before.secondaryTopConfidence
+        secondaryTopConfidence = before.secondaryTopConfidence,
+        secondaryRank = before.secondaryRank
     )
 
     /**

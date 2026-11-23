@@ -73,7 +73,9 @@ data class DetectionResult(
     val secondaryStatus: String? = null,
     val secondaryConfidence: Float? = null,      // Score der Detektionsart im Zweitmodell (null bei NOT_CHECKABLE)
     val secondaryTopSpecies: String? = null,     // nur bei DISAGREES: Top-Art des Zweitmodells (wiss. Name)
-    val secondaryTopConfidence: Float? = null
+    val secondaryTopConfidence: Float? = null,
+    // T253: Rang der Detektionsart unter allen Klassen des Zweitmodells (1 = beste); null = unbekannt/alt/NOT_CHECKABLE
+    val secondaryRank: Int? = null
 ) {
     /** T186: Start des repraesentativen (besten) Fensters in der Session-Aufnahme */
     val bestWindowStartSec: Float get() = bestStartSec ?: chunkStartSec

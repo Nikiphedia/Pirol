@@ -25,7 +25,9 @@ object SecondaryCheck {
         val status: String,
         val confidence: Float?,
         val topSpecies: String? = null,
-        val topConfidence: Float? = null
+        val topConfidence: Float? = null,
+        /** T253: Rang der Detektionsart unter allen Klassen (1 = beste); null bei NOT_CHECKABLE */
+        val rank: Int? = null
     )
 
     /**
@@ -50,14 +52,18 @@ object SecondaryCheck {
         if (key !in labelKeys) return Outcome(STATUS_NOT_CHECKABLE, null)
         val score = results.firstOrNull { SpeciesKey.of(it.scientificName) == key }?.confidence ?: 0f
         val top = results.firstOrNull { isPlausible(it.scientificName) }
+        val rank = rankOf(score, results.asSequence().map { it.confidence })
         return if (top != null && SpeciesKey.of(top.scientificName) != key &&
             top.confidence >= threshold && top.confidence > score
         ) {
-            Outcome(STATUS_DISAGREES, score, top.scientificName, top.confidence)
+            Outcome(STATUS_DISAGREES, score, top.scientificName, top.confidence, rank)
         } else {
-            Outcome(STATUS_CHECKED, score)
+            Outcome(STATUS_CHECKED, score, rank = rank)
         }
     }
+
+    /** T253: Rang = 1 + Zahl der Klassen mit strikt hoeherem Score (NaN zaehlt nicht); gleiche Scores teilen den Rang */
+    fun rankOf(score: Float, all: Sequence<Float>): Int = 1 + all.count { !it.isNaN() && it > score }
 
     /** T250/N3: Index-Map Artschluessel -> Label-Index (einmal je Modell aufbauen) */
     fun keyIndex(names: List<String>): Map<String, Int> {
@@ -82,6 +88,7 @@ object SecondaryCheck {
         val key = SpeciesKey.of(species)
         val idx = keyIndex[key] ?: return Outcome(STATUS_NOT_CHECKABLE, null)
         val score = scores[idx].let { if (it.isNaN()) 0f else it }
+        val rank = rankOf(score, scores.asSequence())
         var best = -1
         var bestScore = Float.NEGATIVE_INFINITY
         for (i in scores.indices) {
@@ -92,9 +99,9 @@ object SecondaryCheck {
         return if (best >= 0 && best != idx && SpeciesKey.of(names[best]) != key &&
             bestScore >= threshold && bestScore > score
         ) {
-            Outcome(STATUS_DISAGREES, score, names[best], bestScore)
+            Outcome(STATUS_DISAGREES, score, names[best], bestScore, rank)
         } else {
-            Outcome(STATUS_CHECKED, score)
+            Outcome(STATUS_CHECKED, score, rank = rank)
         }
     }
 
@@ -117,7 +124,8 @@ object SecondaryCheck {
             secondaryStatus = outcome.status,
             secondaryConfidence = outcome.confidence,
             secondaryTopSpecies = outcome.topSpecies,
-            secondaryTopConfidence = outcome.topConfidence
+            secondaryTopConfidence = outcome.topConfidence,
+            secondaryRank = outcome.rank
         )
 
     /**
@@ -171,6 +179,15 @@ object SecondaryCheck {
         val name = ModelProfile.byId(modelId)?.name ?: return modelId
         return name.substringBefore(" (").trim().ifEmpty { name }
     }
+
+    /**
+     * T253: Rang statt Prozent anzeigen? Nur bei Softmax-Ausgang (Scores einer Verteilung, viele Arten
+     * zeigen 0 %) und vorhandenem Rang; sonst null = Prozent wie bisher.
+     */
+    fun displayRank(detection: DetectionResult): Int? =
+        detection.secondaryRank?.takeIf {
+            ModelProfile.byId(detection.secondaryModelId)?.scoreTransform == ModelProfile.ScoreTransform.SOFTMAX
+        }
 
     /** Anzahl Samples des Zweitmodell-Fensters bei der Abtastrate [sampleRate] der Aufnahme */
     fun windowSamplesAt(windowMs: Int, sampleRate: Int): Int =
