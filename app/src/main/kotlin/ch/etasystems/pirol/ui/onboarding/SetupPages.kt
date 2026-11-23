@@ -119,7 +119,7 @@ fun SetupListPage(selected: SetupList, showOrthoSource: Boolean, onSelect: (Setu
         }
     }
     // T228: Quellenangabe der mitgelieferten Heuschrecken-/Amphibienliste (CC BY)
-    if (showOrthoSource && selected == SetupList.AUTO) {
+    if (showOrthoSource) {  // T232: Liste gilt unabhaengig von der Vogel-Listenwahl
         Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.setup_list_ortho_note), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.settings_info_lists), style = MaterialTheme.typography.bodySmall,
@@ -191,6 +191,10 @@ fun SetupSummaryPage(choices: SetupChoices, s: SetupSettings, modelName: String?
         add(AppStrings.get(R.string.setup_sum_purpose,
             choices.purposes.sortedBy { it.ordinal }.joinToString(", ") { AppStrings.get(purposeLabel(it)) }))
         add(AppStrings.get(R.string.setup_sum_list, AppStrings.get(listLabel(choices.list))))
+        // T232: Quelle je Artgruppe (ohne Voegel, die folgen der Listenwahl)
+        add(AppStrings.get(R.string.setup_sum_groups, s.groupSources.entries.joinToString(", ") { (g, src) ->
+            ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.name(g) + " " + ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.source(src)
+        }))
         add(AppStrings.get(R.string.setup_sum_model, modelName ?: AppStrings.get(R.string.setup_sum_model_none)))
         add(AppStrings.get(R.string.setup_sum_threshold, (s.threshold * 100).toInt(), (s.alternativesFloor * 100).toInt()))
         add(AppStrings.get(R.string.setup_sum_overlap, s.overlapPercent))

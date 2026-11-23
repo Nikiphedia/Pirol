@@ -1,6 +1,7 @@
 package ch.etasystems.pirol.ui.onboarding
 
 import ch.etasystems.pirol.data.GPS_MODE_ON_DETECTION
+import ch.etasystems.pirol.ml.TaxonGroup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -18,7 +19,9 @@ class SetupProfileTest {
         assertEquals(0.5f, s.threshold); assertEquals(0.10f, s.alternativesFloor)
         assertEquals(0, s.overlapPercent); assertNull(s.secondaryModelFileName)
         assertEquals(GPS_MODE_ON_DETECTION, s.gpsMode); assertEquals(true, s.compactCard)
-        assertEquals("auto_geo", s.regionFilter); assertEquals("GEO_ONLY", s.geoCombine)
+        assertEquals("auto_geo", s.birdsSource)
+        assertEquals(mapOf(TaxonGroup.ORTHOPTERA to "off", TaxonGroup.AMPHIBIANS to "off",
+            TaxonGroup.MAMMALS to "off", TaxonGroup.OTHER to "off"), s.groupSources)
         assertFalse(s.geoYearly); assertFalse(s.respectListSeason)
     }
 
@@ -28,17 +31,40 @@ class SetupProfileTest {
         assertTrue(s.geoYearly); assertEquals(24000f, s.freqMaxHz); assertNull(s.secondaryModelFileName)
     }
 
-    // T228: Heuschrecken -> Geomodel UNION mit der mitgelieferten Liste (nur bei Auto-Liste)
-    @Test fun heuschreckenVereinigtMitBegleitliste() {
+    // T232: Heuschrecken/Amphibien -> mitgelieferte Liste je Gruppe, Voegel folgen der Listenwahl
+    @Test fun heuschreckenAmphibienJeGruppe() {
         val s = r(SetupPurpose.ORTHOPTERA_AMPHIBIANS)
-        assertEquals("UNION", s.geoCombine)
-        assertEquals("ch_orthoptera_anura", s.geoCompanion)
+        assertEquals("auto_geo", s.birdsSource)
+        assertEquals("ch_orthoptera_anura", s.groupSources[TaxonGroup.ORTHOPTERA])
+        assertEquals("ch_orthoptera_anura", s.groupSources[TaxonGroup.AMPHIBIANS])
+        assertEquals("off", s.groupSources[TaxonGroup.MAMMALS])
+        assertEquals("off", s.groupSources[TaxonGroup.OTHER])
         assertFalse(s.respectListSeason)
         val manual = r(SetupPurpose.ORTHOPTERA_AMPHIBIANS, list = SetupList.SWITZERLAND)
-        assertEquals("GEO_ONLY", manual.geoCombine); assertNull(manual.geoCompanion)
-        val birds = r(SetupPurpose.FIELD_BIRDS)
-        assertEquals("GEO_ONLY", birds.geoCombine); assertNull(birds.geoCompanion)
-        assertEquals("UNION", r(SetupPurpose.FIELD_BIRDS, SetupPurpose.ORTHOPTERA_AMPHIBIANS).geoCombine)
+        assertEquals("ch_breeding", manual.birdsSource)
+        assertEquals("ch_orthoptera_anura", manual.groupSources[TaxonGroup.ORTHOPTERA])
+        assertEquals("off", r(SetupPurpose.FIELD_BIRDS).groupSources[TaxonGroup.ORTHOPTERA])
+        assertEquals("ch_orthoptera_anura",
+            r(SetupPurpose.FIELD_BIRDS, SetupPurpose.ORTHOPTERA_AMPHIBIANS).groupSources[TaxonGroup.AMPHIBIANS])
+    }
+
+    @Test fun monitoringNurVoegel() {
+        val s = r(SetupPurpose.MONITORING)
+        assertEquals("auto_geo", s.birdsSource)
+        assertTrue(s.groupSources.values.all { it == "off" })
+    }
+
+    @Test fun forschungGruppen() {
+        val s = r(SetupPurpose.RESEARCH)
+        assertEquals("auto_geo", s.birdsSource)
+        assertEquals("auto_geo", s.groupSources[TaxonGroup.ORTHOPTERA])
+        assertEquals("auto_geo", s.groupSources[TaxonGroup.AMPHIBIANS])
+        assertEquals("all", s.groupSources[TaxonGroup.MAMMALS])
+        assertEquals("off", s.groupSources[TaxonGroup.OTHER])
+        // Heuschrecken-Profil steht vor Forschung -> Liste gewinnt
+        assertEquals("ch_orthoptera_anura",
+            r(SetupPurpose.ORTHOPTERA_AMPHIBIANS, SetupPurpose.RESEARCH).groupSources[TaxonGroup.ORTHOPTERA])
+        assertEquals("all", r(SetupPurpose.ORTHOPTERA_AMPHIBIANS, SetupPurpose.RESEARCH).groupSources[TaxonGroup.MAMMALS])
     }
 
     // T228: Zweitmodell-Auswahl und Hinweislogik
@@ -84,9 +110,9 @@ class SetupProfileTest {
     }
 
     @Test fun listenwahl() {
-        assertEquals("ch_breeding", r(SetupPurpose.FIELD_BIRDS, list = SetupList.SWITZERLAND).regionFilter)
-        assertEquals("central_europe", r(SetupPurpose.FIELD_BIRDS, list = SetupList.REGION).regionFilter)
-        assertNull(r(SetupPurpose.FIELD_BIRDS, list = SetupList.CUSTOM).regionFilter)
+        assertEquals("ch_breeding", r(SetupPurpose.FIELD_BIRDS, list = SetupList.SWITZERLAND).birdsSource)
+        assertEquals("central_europe", r(SetupPurpose.FIELD_BIRDS, list = SetupList.REGION).birdsSource)
+        assertNull(r(SetupPurpose.FIELD_BIRDS, list = SetupList.CUSTOM).birdsSource)
     }
 
     @Test fun expertenOverridesGewinnen() {

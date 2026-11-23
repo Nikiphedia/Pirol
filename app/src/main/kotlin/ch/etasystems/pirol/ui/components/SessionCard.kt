@@ -167,7 +167,12 @@ fun SessionCard(
                         infoParts.add("%.2f\u00B0N, %.2f\u00B0E".format(meta.latitude, meta.longitude))
                     }
                     if (meta.regionFilter != null) {
-                        infoParts.add(meta.regionFilter)
+                        // T232: Gruppenwahl kurz anzeigen statt "groups"
+                        val groups = meta.speciesFilter?.groups?.let { m ->
+                            ch.etasystems.pirol.ml.SpeciesGroupSelection(m.mapNotNull { (k, v) ->
+                                ch.etasystems.pirol.ml.TaxonGroup.ofCode(k)?.let { it to v } }.toMap())
+                        }
+                        infoParts.add(groups?.let { ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.short(it) } ?: meta.regionFilter)
                     }
                     Text(
                         text = infoParts.joinToString(" \u00B7 "),

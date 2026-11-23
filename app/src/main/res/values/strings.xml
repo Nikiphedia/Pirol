@@ -645,11 +645,7 @@
     <string name="settings_geo_entfernen">Entfernen</string>
     <string name="settings_geo_fehler">Download fehlgeschlagen: %1$s</string>
     <string name="settings_geo_schwelle">Schwelle (Vorkommenswahrscheinlichkeit)</string>
-    <string name="settings_geo_kombination">Verknüpfung mit Liste</string>
-    <string name="settings_geo_nur_geo">Nur Geomodel</string>
-    <string name="settings_geo_schnittmenge">Liste und Geomodel</string>
-    <string name="settings_geo_vereinigung">Liste oder Geomodel</string>
-    <string name="settings_geo_liste">Liste (Ersatz ohne Standort bzw. zur Verknüpfung):</string>
+    <string name="settings_geo_liste">Ersatzliste Vögel ohne Standort:</string>
     <string name="settings_geo_jahresliste">Jahresliste (ganzes Jahr)</string>
     <string name="settings_geo_jahresliste_hint">Aus = nur die aktuelle Woche. An = Maximum über alle 48 Wochen.</string>
     <string name="settings_info_geomodel">BirdNET+ Geomodel V3.0.5: © 2026 The BirdNET Team, Apache License 2.0, doi:10.5281/zenodo.24362980</string>
@@ -735,8 +731,24 @@
     <string name="setup_monitoring_hint">Bildschirm ausschalten spart am meisten Akku, die Aufnahme laeuft weiter.</string>
     <string name="setup_expert_secondary_pick">Zweitmodell waehlen:</string>
     <string name="setup_sum_secondary_missing">Zweitmodell gewuenscht, aber keines installiert. Import: Einstellungen, Modell &amp; Erkennung, Import (BirdNET 2.4 nur nicht-kommerziell).</string>
-    <string name="setup_list_ortho_note">Automatisch plus mitgelieferte Liste Heuschrecken &amp; Amphibien der Schweiz (73 Arten).</string>
+    <string name="setup_list_ortho_note">Heuschrecken &amp; Amphibien: mitgelieferte Liste der Schweiz (73 Arten).</string>
     <string name="settings_info_lists">Artenliste Heuschrecken &amp; Amphibien (CH): Daten von GBIF.org, Lizenz CC0 und CC BY 4.0, Abfrage 2026-11-23. Datensaetze u.a. Swiss National Grasshoppers Databank (doi:10.15468/bcthst), Swiss National Amphibian Databank (doi:10.15468/ggwedn), Swiss National Fauna Databank (doi:10.15468/8s936n), NABU/naturgucker (doi:10.15468/uc1apo); vollstaendige Liste: tools/listen-generator/sources_ch_orthoptera_anura.md. Die Liste steht unter CC BY 4.0.</string>
     <string name="card_toggle_to_detailed">Artkarte ausfuehrlich anzeigen</string>
     <string name="card_toggle_to_compact">Artkarte kompakt anzeigen</string>
+    <string name="group_birds">Vögel</string>
+    <string name="group_orthoptera">Heuschrecken</string>
+    <string name="group_amphibians">Amphibien</string>
+    <string name="group_mammals">Säugetiere</string>
+    <string name="group_other">Andere</string>
+    <string name="group_letter_birds">V</string>
+    <string name="group_letter_orthoptera">H</string>
+    <string name="group_letter_amphibians">A</string>
+    <string name="group_letter_mammals">S</string>
+    <string name="group_letter_other">O</string>
+    <string name="group_source_list">Liste</string>
+    <string name="settings_species_groups">Artenliste je Artgruppe</string>
+    <string name="settings_species_groups_hint">Aus = Gruppe wird nicht gemeldet, Alle = ungefiltert, Auto = Standort + Woche (Geomodel), Liste = gewählte Artenliste. Andere = übrige Insekten, Reptilien, Fische und Geräusche (Wind, Hund, Motor).</string>
+    <string name="settings_species_groups_auto_fallback">Auto ohne Standort oder Geomodel: Vögel nutzen die Ersatzliste unten, Heuschrecken und Amphibien die Liste der Schweiz, Säugetiere alle Arten.</string>
+    <string name="analysis_rescan_groups">Artgruppen</string>
+    <string name="setup_sum_groups">Artgruppen: %1$s</string>
 </resources>

@@ -59,6 +59,28 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_region_filter", "ch_breeding")
         set(value) = prefs.edit().putString("pirol_region_filter", value).apply()
 
+    /**
+     * T232: Quelle je Artgruppe (Aus / Alle / Auto / Liste). Ersetzt die Einzelwahl [regionFilter] und die
+     * Geomodel-Verknuepfung (T218/T228). Fehlt der Eintrag, wird die bisherige Wahl einmalig migriert.
+     */
+    var speciesGroups: ch.etasystems.pirol.ml.SpeciesGroupSelection
+        get() {
+            ch.etasystems.pirol.ml.SpeciesGroupSelection.decode(prefs.getString("pirol_species_groups", null))?.let { return it }
+            val companion = geoCompanionRegion
+            val m = ch.etasystems.pirol.ml.SpeciesGroupSelection.migrate(regionFilter, geoCombine, companion)
+            // Begleitliste war die Heuschrecken-Liste -> als Ersatzliste fuer Voegel wieder "ch_all"
+            if (m.sourceOf(ch.etasystems.pirol.ml.TaxonGroup.ORTHOPTERA) == companion) geoCompanionRegion = "ch_all"
+            speciesGroups = m
+            return m
+        }
+        set(value) {
+            prefs.edit()
+                .putString("pirol_species_groups", value.encode())
+                .putString("pirol_region_filter", ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID)
+                .putString("pirol_geo_combine", "GEO_ONLY")
+                .apply()
+        }
+
     var showOnlyFiltered: Boolean
         get() = prefs.getBoolean("pirol_show_only_filtered", true)
         set(value) = prefs.edit().putBoolean("pirol_show_only_filtered", value).apply()
@@ -475,7 +497,7 @@ class AppPreferences(context: Context) {
             confidenceThreshold = confidenceThreshold,
             topK = topK,
             alternativesFloor = alternativesFloor,
-            regionFilter = regionFilter,
+            regionFilter = speciesGroups.let { ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID },  // T232
             showOnlyFiltered = showOnlyFiltered,
             inferenceIntervalMs = inferenceIntervalMs,
             highpassEnabled = highpassEnabled,

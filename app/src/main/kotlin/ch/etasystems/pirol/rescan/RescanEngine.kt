@@ -133,7 +133,7 @@ class RescanEngine(
                 runCatching { filter.refreshCustomLists() }
                 if (region != null) filter.loadRegion(region)
             }
-            if (region == GeoLogic.REGION_ID) {
+            if (region == GeoLogic.REGION_ID || filter.isAutoGeo()) {  // T232: auch Artgruppe auf Auto
                 filterInfo = geoFilter.applyForRescan(filter, sessionPos?.first, sessionPos?.second, epoch0)
             }
 
