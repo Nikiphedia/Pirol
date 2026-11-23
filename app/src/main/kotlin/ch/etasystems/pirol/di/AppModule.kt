@@ -140,7 +140,13 @@ val appModule = module {
 
     // AnalysisViewModel — Session-Browser + Replay (T23) + Vergleich (T24)
     // T72: +1 Param (SpeciesNameResolver) fuer AddManualDetectionDialog (6→7 get())
-    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext(), get(), get()) }  // T173: + PlaybackController, T194: + UploadManager
+    // T221: Rescan einer Aufnahme (eigene ORT-Session, eigener Listenfilter)
+    single {
+        ch.etasystems.pirol.rescan.RescanEngine(
+            androidContext(), get(), get(), get(), get(), get(), get(), get<ch.etasystems.pirol.ml.AudioClassifier>(), get()
+        )
+    }
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext(), get(), get(), get()) }  // T173: + PlaybackController, T194: + UploadManager
      // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)

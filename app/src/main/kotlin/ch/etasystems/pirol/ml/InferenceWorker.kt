@@ -230,9 +230,22 @@ class InferenceWorker(
             "examples_after=${after.take(5)}")
     }
 
-    private fun analyze(job: WindowJob) {
+    /** Ergebnis eines Fensters: Detektionen (null = Fehler) + Embedding */
+    private class WindowOutput(val detections: List<DetectionResult>?, val embedding: FloatArray?)
+
+    /**
+     * T221: Ein Fenster sofort analysieren (Rescan einer Aufnahme): gleiche Schritte wie live
+     * (Resampling, DSP, Klassifikation, Regionsfilter, Zuordnung), aber ohne Puffer, Auto-Fallback
+     * und Callback. [recordingOffsetSec] = Fensterstart auf der Session-Achse.
+     */
+    fun analyzeWindowNow(window: AnalysisWindow, startEpochMs: Long, recordingOffsetSec: Float): List<DetectionResult> {
+        val hopMs = OverlapFallback.hopMsFor(config.overlapPercent, classifier.windowMs)
+        val job = WindowJob(window, config.overlapPercent, hopMs, hopMs.toLong(), startEpochMs, recordingOffsetSec, backlog = true)
+        return runWindow(job).detections.orEmpty()
+    }
+
+    private fun runWindow(job: WindowJob): WindowOutput {
         val window = job.window
-        val t0 = System.nanoTime()
         var detections: List<DetectionResult>? = null
         var embedding: FloatArray? = null
         try {
@@ -268,6 +281,15 @@ class InferenceWorker(
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)
         }
+        return WindowOutput(detections, embedding)
+    }
+
+    private fun analyze(job: WindowJob) {
+        val window = job.window
+        val t0 = System.nanoTime()
+        val output = runWindow(job)
+        val detections = output.detections
+        val embedding = output.embedding
         val inferMs = (System.nanoTime() - t0) / 1_000_000
 
         // T110: Auto-Fallback + Statistik

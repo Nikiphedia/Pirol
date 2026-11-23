@@ -149,6 +149,28 @@ class RecordingPipeline(
             }
             return primary.map { it.copy(candidates = candidates) }
         }
+
+        /** T221: Artnamen (inkl. Kandidaten) in der gewaehlten Sprache (Live und Rescan) */
+        internal fun withResolvedNames(det: DetectionResult, resolve: (String) -> String): DetectionResult =
+            det.copy(
+                commonName = resolve(det.scientificName),
+                candidates = det.candidates.map { cand -> cand.copy(commonName = resolve(cand.scientificName)) }
+            )
+
+        /** T70/T181/T221: CLUSTER_MERGED-Event eines Cluster-Merges (Live und Rescan) */
+        internal fun clusterMergedEvent(result: ClusterResult.Merged, nowMs: Long): VerificationEvent {
+            val anchor = result.anchor
+            // T181: Konfidenz/Start des absorbierten Fensters (Punkt als Dezimaltrenner)
+            val absorbedConf = String.format(java.util.Locale.ROOT, "%.4f", result.absorbedConfidence)
+            val absorbedStart = String.format(java.util.Locale.ROOT, "%.3f", result.absorbedStartSec)
+            return VerificationEvent(
+                detectionId = anchor.id,
+                status = anchor.verificationStatus,
+                correctedSpecies = "merged:${result.absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}|conf:${absorbedConf}|start:${absorbedStart}",
+                verifiedAtMs = nowMs,
+                actionType = VerificationEvent.ACTION_CLUSTER_MERGED
+            )
+        }
     }
 
     // T54-Fix: startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf
@@ -198,6 +220,10 @@ class RecordingPipeline(
     /** Laeuft gerade eine Aufnahme durch die Pipeline? */
     val isRunning: Boolean get() = running
 
+    private val _runningState = MutableStateFlow(false)
+    /** T221: Aufnahme laeuft (beobachtbar, z.B. Rescan-Knopf in der Analyse) */
+    val runningState: StateFlow<Boolean> = _runningState.asStateFlow()
+
     /** Test: bisher in den InferenceWorker eingespeiste Samples (Preroll + Live) */
     internal fun fedSamples(): Long = prerollSamplesFed.get() + liveSamplesFed.get()
 
@@ -236,6 +262,7 @@ class RecordingPipeline(
     fun onRecordingStarted(chunks: SharedFlow<AudioChunk>, sampleRate: Int, preroll: PrerollCapture?) {
         if (running) return
         running = true
+        _runningState.value = true
         persistSampleRate = sampleRate
         detectionOnlyGps = hooks.gpsOnDetectionOnly()
         fixGate = DetectionFixGate()
@@ -357,6 +384,7 @@ class RecordingPipeline(
     fun onRecordingStopped(): Job? {
         if (!running) return null
         running = false
+        _runningState.value = false
         // T53: GpsStats VOR stop() erfassen
         val gpsStats = hooks.stopLocation()
         inferenceJob?.cancel()
@@ -465,14 +493,7 @@ class RecordingPipeline(
             InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence)
         )
         // T26/T27: Artnamen in gewaehlter Sprache
-        val geoDetections = topWithCandidates.map { det ->
-            det.copy(
-                commonName = hooks.resolveName(det.scientificName),
-                candidates = det.candidates.map { cand ->
-                    cand.copy(commonName = hooks.resolveName(cand.scientificName))
-                }
-            )
-        }
+        val geoDetections = topWithCandidates.map { det -> withResolvedNames(det) { hooks.resolveName(it) } }
         // T70: Cluster-Algorithmus
         val newDetections = mutableListOf<DetectionResult>()
         val mergedAnchors = mutableListOf<DetectionResult>()  // T124: auch Merges koennen alarmieren
@@ -489,21 +510,9 @@ class RecordingPipeline(
                     mergedAnchors.add(result.anchor)
                     if (session.isActive) {
                         val anchor = result.anchor
-                        val absorbedId = result.absorbedId
-                        // T181: Konfidenz/Start des absorbierten Fensters (Punkt als Dezimaltrenner)
-                        val absorbedConf = String.format(java.util.Locale.ROOT, "%.4f", result.absorbedConfidence)
-                        val absorbedStart = String.format(java.util.Locale.ROOT, "%.3f", result.absorbedStartSec)
                         scope.launch(ioDispatcher) {
                             session.replaceDetection(anchor)
-                            session.appendVerification(
-                                VerificationEvent(
-                                    detectionId = anchor.id,
-                                    status = anchor.verificationStatus,
-                                    correctedSpecies = "merged:${absorbedId}|count:${anchor.detectionCount}|lastSeenAt:${anchor.lastSeenAtMs}|conf:${absorbedConf}|start:${absorbedStart}",
-                                    verifiedAtMs = System.currentTimeMillis(),
-                                    actionType = VerificationEvent.ACTION_CLUSTER_MERGED
-                                )
-                            )
+                            session.appendVerification(clusterMergedEvent(result, System.currentTimeMillis()))
                         }
                     }
                 }

@@ -309,7 +309,9 @@ class DetectionListState(
         detection: DetectionResult,
         clusterEnabled: Boolean,
         radiusM: Int,
-        timeWindowMin: Int
+        timeWindowMin: Int,
+        /** T221: Bezugszeit (Rescan: Aufnahmezeit des Fensters statt Wanduhr) */
+        nowMs: Long = System.currentTimeMillis()
     ): ClusterResult {
         if (!clusterEnabled) {
             // Toggle aus → klassisches T44-Verhalten
@@ -317,7 +319,6 @@ class DetectionListState(
             return ClusterResult.New(detection)
         }
 
-        val nowMs = System.currentTimeMillis()
         val windowMs = timeWindowMin * 60_000L
 
         val matchIndex = detections.indexOfFirst { existing ->

@@ -81,14 +81,7 @@ class GeoFilterController(
         val threshold = prefs.geoThreshold.coerceIn(GeoLogic.MIN_THRESHOLD, GeoLogic.MAX_THRESHOLD)
         return try {
             val t0 = System.currentTimeMillis()
-            val mask = withContext(Dispatchers.Default) {
-                SpeciesKey.load(context)
-                val model = GeoSpeciesModel(GeoModelFiles.modelFile(context), GeoModelFiles.indexFile(context))
-                val names = model.loadNames()
-                val weeks = if (yearly) IntArray(GeoLogic.WEEKS) { it + 1 } else intArrayOf(week)
-                val scores = GeoLogic.yearMax(model.predict(lat, lon, weeks))
-                GeoLogic.buildMask(names, scores, threshold)
-            }
+            val mask = computeMask(lat, lon, week, yearly, threshold)
             filter.setGeoMask(mask, combine)
             last = GeoState(lat, lon, week, nowMs)
             if (source == GeoLogic.PositionSource.GPS) {
@@ -107,6 +100,47 @@ class GeoFilterController(
             filter.setGeoMask(null, combine)
             last = null
             SpeciesFilterInfo(source = "fallback", fallbackRegion = companion).also { info = it }
+        }
+    }
+
+    /** Geomodel-Maske fuer Position und Woche (ohne Zustand; wirft, wenn das Modell fehlt/unlesbar ist) */
+    private suspend fun computeMask(lat: Double, lon: Double, week: Int, yearly: Boolean, threshold: Float): GeoMask =
+        withContext(Dispatchers.Default) {
+            SpeciesKey.load(context)
+            val model = GeoSpeciesModel(GeoModelFiles.modelFile(context), GeoModelFiles.indexFile(context))
+            val names = model.loadNames()
+            val weeks = if (yearly) IntArray(GeoLogic.WEEKS) { it + 1 } else intArrayOf(week)
+            val scores = GeoLogic.yearMax(model.predict(lat, lon, weeks))
+            GeoLogic.buildMask(names, scores, threshold)
+        }
+
+    /**
+     * T221: Geomodel-Filter fuer einen Rescan in [target] setzen — feste Position und Datum der Session,
+     * Einstellungen (Schwelle, Jahr, Verknuepfung, Begleitliste) wie live. Aendert weder den Live-Filter
+     * noch die gespeicherte Position. Ohne Position oder Modell: Begleitliste als Ersatz.
+     */
+    suspend fun applyForRescan(target: RegionalSpeciesFilter, lat: Double?, lon: Double?, atMs: Long): SpeciesFilterInfo {
+        target.loadRegion(GeoLogic.REGION_ID)
+        val combine = GeoCombine.parse(prefs.geoCombine)
+        val companion = prefs.geoCompanionRegion
+        if (lat == null || lon == null || !GeoModelFiles.isInstalled(context)) {
+            target.setGeoMask(null, combine)
+            return SpeciesFilterInfo(source = "fallback", fallbackRegion = companion)
+        }
+        val week = GeoLogic.birdnetWeek(Instant.ofEpochMilli(atMs).atZone(ZoneId.systemDefault()).toLocalDate())
+        val yearly = prefs.geoYearly
+        val threshold = prefs.geoThreshold.coerceIn(GeoLogic.MIN_THRESHOLD, GeoLogic.MAX_THRESHOLD)
+        return try {
+            target.setGeoMask(computeMask(lat, lon, week, yearly, threshold), combine)
+            SpeciesFilterInfo(
+                source = "session", latitude = round2(lat), longitude = round2(lon), week = if (yearly) null else week,
+                threshold = threshold, combine = combine.name, yearly = yearly,
+                model = GeoModelFiles.VERSION, fallbackRegion = companion
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Geomodel (Rescan) nicht berechenbar: ${e.message}", e)
+            target.setGeoMask(null, combine)
+            SpeciesFilterInfo(source = "fallback", fallbackRegion = companion)
         }
     }
 

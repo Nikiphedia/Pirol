@@ -70,7 +70,8 @@ class AnalysisViewModel(
     private val speciesNameResolver: SpeciesNameResolver,  // T72: Artsuche fuer AddManualDetectionDialog
     private val context: Context,  // T69: fuer VoiceMemoRecorder SAF
     private val playback: ch.etasystems.pirol.audio.PlaybackController,  // T173: zentrale Wiedergabe
-    private val uploadManager: ch.etasystems.pirol.data.sync.UploadManager  // T194: Upload aus der Session-Kopfzeile
+    private val uploadManager: ch.etasystems.pirol.data.sync.UploadManager,  // T194: Upload aus der Session-Kopfzeile
+    private val rescanEngine: ch.etasystems.pirol.rescan.RescanEngine  // T221: Rescan einer Aufnahme
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -349,6 +350,7 @@ class AnalysisViewModel(
             val rec = sessionManager.loadRecording(summary.sessionDir)
             recording = rec
             val mergeTimes = sessionManager.loadMergeTimestamps(summary.sessionDir)  // T167
+            val variants = rescanEngine.variants(summary.sessionDir)  // T221
             // T62: URI aus File ableiten; T131: bei SAF content://-URI des ersten Segments
             val recUri  = recFile?.let { Uri.fromFile(it) }
                 ?: rec?.firstSource?.uriString?.let { Uri.parse(it) }
@@ -356,6 +358,8 @@ class AnalysisViewModel(
             _uiState.update {
                 it.copy(
                     selectedSession = summary,
+                    variants = variants,
+                    activeVariant = null,
                     // T186: bestes Fenster auch fuer Sessions vor T186 aus den Merge-Events ableiten
                     detections = detections.map { d -> DetectionOccurrences.withBestWindow(d, mergeTimes[d.id].orEmpty()) },
                     mergeTimestamps = mergeTimes,
@@ -388,6 +392,8 @@ class AnalysisViewModel(
         _uiState.update {
             it.copy(
                 selectedSession = null,
+                variants = emptyList(),
+                activeVariant = null,
                 detections = emptyList(),
                 mergeTimestamps = emptyMap(),
                 recordingFile = null,
@@ -983,6 +989,7 @@ class AnalysisViewModel(
         correctedSpecies: String? = null
     ) {
         val session = _uiState.value.selectedSession ?: return
+        val variant = _uiState.value.activeVariant  // T221: Original (null) oder Rescan-Variante
         val previousDetections = _uiState.value.detections
 
         // In-Memory aktualisieren (optimistisch)
@@ -1007,7 +1014,7 @@ class AnalysisViewModel(
                         correctedSpecies = correctedSpecies,
                         verifiedAtMs = System.currentTimeMillis()
                     )
-                    sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(event) + "\n")
+                    sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(event) + "\n")
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(
@@ -1032,9 +1039,10 @@ class AnalysisViewModel(
      */
     fun openRavenTable() {
         val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        val variant = _uiState.value.activeVariant  // T221: Raven der angezeigten Variante
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { sessionManager.exportRavenSelectionTable(dir, appPreferences) }
-            val table = sessionManager.readRavenText(dir)?.let { RavenTable.parse(it) }
+            runCatching { sessionManager.exportRavenSelectionTable(dir, appPreferences, variant) }
+            val table = sessionManager.readRavenText(dir, variant)?.let { RavenTable.parse(it) }
             if (table == null) {
                 _uiState.update { it.copy(ravenExportMessage = AppStrings.get(R.string.analysis_raven_keine_datei)) }
             } else {
@@ -1117,6 +1125,7 @@ class AnalysisViewModel(
         voiceMemoFile: String? = null  // T69: relativer Pfad oder null
     ) {
         val session = _uiState.value.selectedSession ?: return
+        val variant = _uiState.value.activeVariant  // T221: Original (null) oder Rescan-Variante
         val previousDetections = _uiState.value.detections
         val current = previousDetections.find { it.id == detectionId } ?: return
 
@@ -1136,22 +1145,22 @@ class AnalysisViewModel(
                 try {
                     // detections.jsonl: Zeile ersetzen — ueber SessionManager (T93b: gemeinsamer Mutex,
                     // offener Writer der laufenden Session wird beruecksichtigt)
-                    sessionManager.replaceDetectionIn(session.sessionDir, updated)
+                    sessionManager.replaceDetectionIn(session.sessionDir, updated, variant)
 
                     // verifications.jsonl: granular appenden
                     val now = System.currentTimeMillis()
-                    if (current.count != count) sessionManager.appendVerificationLine(session.sessionDir,
+                    if (current.count != count) sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line =
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_COUNT_CHANGED)) + "\n")
-                    if (current.atlasCode != atlasCode) sessionManager.appendVerificationLine(session.sessionDir,
+                    if (current.atlasCode != atlasCode) sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line =
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_ATLAS_SET)) + "\n")
-                    if (current.note != note) sessionManager.appendVerificationLine(session.sessionDir,
+                    if (current.note != note) sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line =
                         Json.encodeToString(VerificationEvent(detectionId, current.verificationStatus,
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED)) + "\n")
                     // T69: Memo-Events
                     if (current.voiceMemoFile == null && voiceMemoFile != null) {
-                        sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
+                        sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(VerificationEvent(
                             detectionId, current.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_RECORDED,
@@ -1159,7 +1168,7 @@ class AnalysisViewModel(
                     }
                     if (current.voiceMemoFile != null && voiceMemoFile == null) {
                         sessionManager.deleteMemo(session.sessionDir, detectionId)  // T131: File + SAF
-                        sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
+                        sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(VerificationEvent(
                             detectionId, current.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_DELETED)) + "\n")
@@ -1223,6 +1232,7 @@ class AnalysisViewModel(
         positionSec: Float? = null
     ) {
         val session = _uiState.value.selectedSession ?: return
+        val variant = _uiState.value.activeVariant  // T221: Original (null) oder Rescan-Variante
         val now = System.currentTimeMillis()
         // T203: Zeit aus Abspielposition +/- 10 s (ohne Position: jetzt, kein Audio-Bezug)
         val time = manualEntryTime(positionSec, now)
@@ -1251,8 +1261,8 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    sessionManager.appendDetectionLine(session.sessionDir, Json.encodeToString(det) + "\n")
-                    sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
+                    sessionManager.appendDetectionLine(session.sessionDir, variant = variant, line = Json.encodeToString(det) + "\n")
+                    sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(VerificationEvent(
                         detectionId = det.id,
                         status = VerificationStatus.CONFIRMED,
                         verifiedAtMs = now,
@@ -1276,6 +1286,7 @@ class AnalysisViewModel(
      */
     fun toggleLock(detectionId: String) {
         val session = _uiState.value.selectedSession ?: return
+        val variant = _uiState.value.activeVariant  // T221: Original (null) oder Rescan-Variante
         val previousDetections = _uiState.value.detections
         val det = previousDetections.find { it.id == detectionId } ?: return
         val updated = det.copy(lockSpecies = !det.lockSpecies)
@@ -1290,9 +1301,9 @@ class AnalysisViewModel(
                 try {
                     // detections.jsonl: Zeile ersetzen — ueber SessionManager (T93b: gemeinsamer Mutex,
                     // offener Writer der laufenden Session wird beruecksichtigt)
-                    sessionManager.replaceDetectionIn(session.sessionDir, updated)
+                    sessionManager.replaceDetectionIn(session.sessionDir, updated, variant)
                     // verifications.jsonl: SPECIES_LOCKED-Event appenden
-                    sessionManager.appendVerificationLine(session.sessionDir,
+                    sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line =
                         Json.encodeToString(VerificationEvent(
                             detectionId = detectionId,
                             status = det.verificationStatus,
@@ -1321,6 +1332,7 @@ class AnalysisViewModel(
      */
     fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
         val session = _uiState.value.selectedSession ?: return
+        val variant = _uiState.value.activeVariant  // T221: Original (null) oder Rescan-Variante
         val previousDetections = _uiState.value.detections
         val original = previousDetections.find { it.id == detectionId } ?: return
         val now = System.currentTimeMillis()
@@ -1352,7 +1364,7 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    sessionManager.appendVerificationLine(session.sessionDir, Json.encodeToString(VerificationEvent(
+                    sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(VerificationEvent(
                         detectionId = detectionId,
                         status = VerificationStatus.REPLACED,
                         correctedSpecies = candidate.scientificName,
@@ -1365,6 +1377,105 @@ class AnalysisViewModel(
                     }
                 }
             }
+        }
+    }
+
+    // ── T221: Rescan und Varianten ───────────────────────────────────
+
+    /** Aufnahme laeuft -> Rescan-Knopf deaktiviert */
+    val recordingActive: StateFlow<Boolean> get() = rescanEngine.recording
+
+    private var rescanJob: Job? = null
+
+    /** Installierte Modelle fuer den Rescan-Dialog */
+    fun rescanModels(): List<ch.etasystems.pirol.ml.ModelManager.InstalledModel> = rescanEngine.models()
+
+    /** Eigene Listen fuer den Rescan-Dialog */
+    suspend fun rescanCustomRegions(): List<ch.etasystems.pirol.ml.RegionInfo> = rescanEngine.customRegions()
+
+    /** Voreinstellungen: Liste und Schwelle der Session, aktives Modell, Overlap aus den Einstellungen */
+    fun rescanDefaults(): ch.etasystems.pirol.rescan.RescanOptions? {
+        val meta = _uiState.value.selectedSession?.metadata ?: return null
+        return rescanEngine.defaults(meta.regionFilter, meta.confidenceThreshold)
+    }
+
+    /** Rescan der geoeffneten Session im Hintergrund starten (Fortschritt im UI-State, abbrechbar). */
+    fun startRescan(options: ch.etasystems.pirol.rescan.RescanOptions) {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        if (rescanJob?.isActive == true) return
+        if (rescanEngine.recording.value) {
+            reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+            return
+        }
+        playback.stop()
+        _uiState.update { it.copy(rescanProgress = 0f, rescanSessionDir = dir) }
+        rescanJob = viewModelScope.launch(Dispatchers.IO) {
+            var lastPct = -1
+            try {
+                val info = rescanEngine.run(dir, options) { p ->
+                    val pct = (p * 100).toInt()
+                    if (pct != lastPct) {
+                        lastPct = pct
+                        _uiState.update { it.copy(rescanProgress = p) }
+                    }
+                }
+                if (_uiState.value.selectedSession?.sessionDir == dir) {
+                    val variants = rescanEngine.variants(dir)
+                    _uiState.update { it.copy(variants = variants) }
+                    loadVariant(dir, info.id)
+                }
+                reportError(AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                reportError(AppStrings.get(R.string.analysis_rescan_abgebrochen))
+                throw e
+            } catch (e: ch.etasystems.pirol.rescan.RescanAbortedException) {
+                reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+            } catch (e: ch.etasystems.pirol.rescan.RescanEngine.RecordingActiveException) {
+                reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
+            } catch (e: ch.etasystems.pirol.rescan.RescanEngine.NoRecordingException) {
+                reportError(AppStrings.get(R.string.analysis_rescan_keine_aufnahme))
+            } catch (e: ch.etasystems.pirol.rescan.RescanEngine.ModelUnavailableException) {
+                reportError(AppStrings.get(R.string.analysis_rescan_modell_fehlt))
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "Rescan fehlgeschlagen", e)
+                reportError(AppStrings.get(R.string.analysis_rescan_fehler))
+            } finally {
+                _uiState.update { it.copy(rescanProgress = null, rescanSessionDir = null) }
+            }
+        }
+    }
+
+    /** Laufenden Rescan abbrechen (nichts wird geschrieben). */
+    fun cancelRescan() { rescanJob?.cancel() }
+
+    /** Variante anzeigen: null = Original, sonst Rescan-Kennung. */
+    fun selectVariant(id: String?) {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        if (id == _uiState.value.activeVariant) return
+        viewModelScope.launch(Dispatchers.IO) { loadVariant(dir, id) }
+    }
+
+    private suspend fun loadVariant(dir: File, id: String?) {
+        val detections = sessionManager.loadDetectionsWithVerifications(dir, id)
+        val mergeTimes = sessionManager.loadMergeTimestamps(dir, id)
+        _uiState.update { st ->
+            if (st.selectedSession?.sessionDir != dir) st else st.copy(
+                activeVariant = id,
+                detections = detections.map { d -> DetectionOccurrences.withBestWindow(d, mergeTimes[d.id].orEmpty()) },
+                mergeTimestamps = mergeTimes
+            )
+        }
+    }
+
+    /** Variante loeschen (Bestaetigung in der UI); zeigt danach das Original. */
+    fun deleteVariant(id: String) {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = runCatching { rescanEngine.deleteVariant(dir, id) }.getOrDefault(false)
+            if (!ok) reportError(AppStrings.get(R.string.common_save_failed))
+            if (_uiState.value.activeVariant == id) loadVariant(dir, null)
+            val variants = rescanEngine.variants(dir)
+            _uiState.update { st -> if (st.selectedSession?.sessionDir != dir) st else st.copy(variants = variants) }
         }
     }
 

@@ -654,4 +654,23 @@
     <string name="settings_geo_jahresliste">Jahresliste (ganzes Jahr)</string>
     <string name="settings_geo_jahresliste_hint">Aus = nur die aktuelle Woche. An = Maximum über alle 48 Wochen.</string>
     <string name="settings_info_geomodel">BirdNET+ Geomodel V3.0.5: © 2026 The BirdNET Team, Apache License 2.0, doi:10.5281/zenodo.24362980</string>
+    <!-- T221: Rescan einer Aufnahme -->
+    <string name="analysis_rescan">Aufnahme neu analysieren</string>
+    <string name="analysis_rescan_info">Ergebnis wird als eigene Variante gespeichert. Das Original bleibt unverändert; Verifikationen werden übernommen, wenn Art und Zeitfenster passen.</string>
+    <string name="analysis_rescan_modell">Modell</string>
+    <string name="analysis_rescan_liste">Liste</string>
+    <string name="analysis_rescan_schwelle">Konfidenz-Schwelle: %1$d %%</string>
+    <string name="analysis_rescan_overlap">Überlappung</string>
+    <string name="analysis_rescan_starten">Starten</string>
+    <string name="analysis_rescan_kein_modell">Kein Modell installiert.</string>
+    <string name="analysis_rescan_laeuft">Neu-Analyse: %1$d %%</string>
+    <string name="analysis_rescan_aufnahme_laeuft">Während einer Aufnahme nicht möglich.</string>
+    <string name="analysis_rescan_fertig">Neu-Analyse fertig: %1$d Detektionen, %2$d Verifikationen übernommen</string>
+    <string name="analysis_rescan_abgebrochen">Neu-Analyse abgebrochen</string>
+    <string name="analysis_rescan_keine_aufnahme">Keine Aufnahme vorhanden.</string>
+    <string name="analysis_rescan_modell_fehlt">Modell nicht verfügbar.</string>
+    <string name="analysis_rescan_fehler">Neu-Analyse fehlgeschlagen</string>
+    <string name="analysis_variante_original">Original</string>
+    <string name="analysis_variante_loeschen">Variante löschen</string>
+    <string name="analysis_variante_loeschen_frage">Variante „%1$s“ löschen? Das Original bleibt erhalten.</string>
 </resources>
