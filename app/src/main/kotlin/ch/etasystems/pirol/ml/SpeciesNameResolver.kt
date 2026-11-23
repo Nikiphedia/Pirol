@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -66,7 +68,12 @@ class SpeciesNameResolver(private val context: Context) {
     var language: String = "de"
 
     /** T220: true = Artnamen wissenschaftlich anzeigen (Landesname wird Untertitel) */
-    @Volatile var scientificNames: Boolean = false
+    private val _scientificNames = MutableStateFlow(false)
+    /** T235: beobachtbar, damit Karten sofort umschalten */
+    val scientificNamesFlow: StateFlow<Boolean> = _scientificNames
+    var scientificNames: Boolean
+        get() = _scientificNames.value
+        set(value) { _scientificNames.value = value }
 
     /**
      * species_master.json laden und Index aufbauen.
@@ -117,16 +124,19 @@ class SpeciesNameResolver(private val context: Context) {
     }
 
     /**
-     * Uebersetzt scientificName in CommonName der gewaehlten Sprache.
-     * Fallback: Englisch → scientificName falls nichts gefunden.
+     * T235: Name fuer die ANZEIGE (UI). Folgt dem Schalter "wissenschaftlich anzeigen".
+     * Nie fuer Persistenz, Export oder Alarm-Texte verwenden: dort [commonName].
      */
-    fun resolve(scientificName: String): String {
+    fun displayName(scientificName: String): String {
         if (scientificNames) return scientificName.replace('_', ' ')
-        return resolveCommon(scientificName)
+        return commonName(scientificName)
     }
 
-    /** T220: Name in der Artnamen-Sprache, unabhaengig vom Schalter "wissenschaftlich anzeigen". */
-    fun resolveCommon(scientificName: String): String {
+    /**
+     * T235: Name fuer DATEN (detections.jsonl, Raven, Export, Alarm): immer der Landesname in der
+     * Artnamen-Sprache, unabhaengig vom Schalter. Fallback: Englisch → wiss. Name.
+     */
+    fun commonName(scientificName: String): String {
         val key = scientificName.replace(' ', '_')
         return pickCommon(
             scientificName, namesMap[key], modelNamesMap[key], listNamesMap[key], language
@@ -135,7 +145,7 @@ class SpeciesNameResolver(private val context: Context) {
 
     /** T220: Untertitel zur Anzeige, immer der jeweils andere Name (Standard: wiss. Name; umgeschaltet: Landesname). */
     fun subtitle(scientificName: String): String =
-        if (scientificNames) resolveCommon(scientificName) else scientificName.replace('_', ' ')
+        if (scientificNames) commonName(scientificName) else scientificName.replace('_', ' ')
 
     // T103a: Namen aus der Label-Datei des aktiven Modells (Unterstrich-Schluessel → Sprache → Name)
     @Volatile private var modelNamesMap: Map<String, Map<String, String>> = emptyMap()

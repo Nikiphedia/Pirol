@@ -180,7 +180,7 @@ class AndroidPipelineHooks(
         return stats
     }
     override suspend fun awaitSpeciesNames() = speciesNameResolver.load()
-    override fun resolveName(scientificName: String): String = speciesNameResolver.resolve(scientificName)
+    override fun resolveName(scientificName: String): String = speciesNameResolver.commonName(scientificName)
     override fun clusterEnabled(): Boolean = appPreferences.clusterEnabled
     override fun clusterRadiusM(): Int = appPreferences.clusterRadiusM
     override fun clusterTimeWindowMin(): Int = appPreferences.clusterTimeWindowMin

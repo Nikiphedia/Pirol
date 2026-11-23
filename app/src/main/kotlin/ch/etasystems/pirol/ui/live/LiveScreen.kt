@@ -1067,6 +1067,7 @@ private fun ScanStatusRow(
         SpectrogramConfig.WIDEBAND -> AppStrings.get(R.string.live_breitband)
         else -> AppStrings.get(R.string.live_voegel)
     }
+    val speciesGroups by koinInject<ch.etasystems.pirol.data.AppPreferences>().speciesGroupsFlow.collectAsState()  // T235
     val regionLabel = when (uiState.inferenceConfig.regionFilter) {
         "ch_breeding" -> "CH"
         "ch_all" -> "CH+"
@@ -1074,7 +1075,7 @@ private fun ScanStatusRow(
         "all" -> AppStrings.get(R.string.common_all)
         "auto_geo" -> AppStrings.get(R.string.live_region_auto)  // T218
         ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID ->  // T232: Gruppenwahl kurz
-            ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.short(koinInject<ch.etasystems.pirol.data.AppPreferences>().speciesGroups)
+            ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.short(speciesGroups)
         null -> AppStrings.get(R.string.common_off)
         else -> uiState.inferenceConfig.regionFilter ?: "?"
     }

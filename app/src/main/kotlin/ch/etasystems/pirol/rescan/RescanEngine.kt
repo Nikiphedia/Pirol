@@ -147,7 +147,7 @@ class RescanEngine(
                 classifier = cls,
                 regionalFilter = filter,
                 config = config,
-                resolveName = { speciesNameResolver.resolve(it) },
+                resolveName = { speciesNameResolver.commonName(it) },
                 clusterEnabled = appPreferences.clusterEnabled,
                 clusterRadiusM = appPreferences.clusterRadiusM,
                 clusterTimeWindowMin = appPreferences.clusterTimeWindowMin

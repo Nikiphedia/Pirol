@@ -90,7 +90,7 @@ class DetectionExporter(
         val dir = File(context.cacheDir, "share").apply { mkdirs() }
         // Alte Dateien aufraeumen
         dir.listFiles()?.forEach { it.delete() }
-        val target = File(dir, ExportNames.detectionName(det.timestampMs, nameResolver.resolve(det.scientificName), det.note) + "." + format.extension)
+        val target = File(dir, ExportNames.detectionName(det.timestampMs, nameResolver.commonName(det.scientificName), det.note) + "." + format.extension)
 
         when (format) {
             ShareFormat.WAV -> ExcerptWav.write(target, pcm)
@@ -212,7 +212,7 @@ class DetectionExporter(
     private fun captionLines(request: DetectionShareRequest, range: DetectionExcerpt.Range): List<String> {
         val det = request.detection
         val sci = det.scientificName.replace('_', ' ')
-        val common = nameResolver.resolve(det.scientificName)
+        val common = nameResolver.commonName(det.scientificName)
         val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
         val lines = mutableListOf<String>()
         lines += common

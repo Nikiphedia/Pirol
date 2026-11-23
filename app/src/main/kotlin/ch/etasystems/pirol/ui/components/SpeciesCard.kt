@@ -203,7 +203,7 @@ fun SpeciesCard(
 
     // T220: Namensanzeige (wissenschaftlich/Landessprache) aus dem Resolver
     val nameResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
-    val sciMode = nameResolver.scientificNames
+    val sciMode by nameResolver.scientificNamesFlow.collectAsState()
 
     // REJECTED / REPLACED: leicht ausgegraut
     val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED ||
@@ -311,7 +311,7 @@ fun SpeciesCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (sciMode) nameResolver.resolve(detection.scientificName) else detection.commonName,
+                        text = if (sciMode) nameResolver.displayName(detection.scientificName) else detection.commonName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -471,7 +471,7 @@ fun SpeciesCard(
             ModelScoreRow(
                 detection = detection,
                 primaryModelLabel = primaryModelLabel,
-                resolveName = { sci -> nameResolver.resolve(sci) }
+                resolveName = { sci -> nameResolver.displayName(sci) }
             )
 
             // Zeile 3 (T164): Aktionsleiste in EINER Zeile, 48-dp-Tap-Targets.
@@ -670,7 +670,7 @@ fun SpeciesCard(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (sciMode) nameResolver.resolve(candidate.scientificName) else candidate.commonName,
+                                        text = if (sciMode) nameResolver.displayName(candidate.scientificName) else candidate.commonName,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
