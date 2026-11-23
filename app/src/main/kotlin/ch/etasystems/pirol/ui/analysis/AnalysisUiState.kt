@@ -29,6 +29,9 @@ data class AnalysisUiState(
     // Session-Liste
     val sessions: List<SessionSummary> = emptyList(),
     val isLoading: Boolean = false,
+    // T202: Artsuche ueber alle Sessions; sessionSpecies = wiss. Namen je Detektion pro sessionId (Cache bis Neuladen)
+    val sessionSearch: String = "",
+    val sessionSpecies: Map<String, List<String>> = emptyMap(),
 
     // T180: Mehrfachauswahl (Schluessel = sessionId); selectionMode = Auswahlmodus aktiv
     val selectionMode: Boolean = false,
