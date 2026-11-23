@@ -130,7 +130,11 @@ class MapViewModel(
         /** T191: Routen der geladenen Sessions (ohne Live-Session) */
         val tracks: List<SessionTrack> = emptyList(),
         /** T191: Route der laufenden Aufnahme, live fortgeschrieben */
-        val liveTrack: SessionTrack? = null
+        val liveTrack: SessionTrack? = null,
+        /** T204: ausgeblendete Arten (Schluessel); neue Arten sind standardmaessig sichtbar */
+        val hiddenSpecies: Set<String> = emptySet(),
+        /** T204: nur Alarmarten (Watchlist) anzeigen */
+        val onlyAlarm: Boolean = false
     ) {
         /** T191: anzuzeigende Routen; die laufende Session nur einmal (live statt Datei) */
         fun visibleTracks(): List<SessionTrack> {
@@ -180,6 +184,20 @@ class MapViewModel(
             }
         }
         loadHistoricalDetections(FilterMode.ALL)
+    }
+
+    /** T204: Art im Artfilter ein-/ausblenden */
+    fun toggleSpecies(key: String) {
+        _uiState.update { it.copy(hiddenSpecies = MapSpeciesFilter.toggle(it.hiddenSpecies, key)) }
+    }
+
+    /** T204: alle angegebenen Arten ein- (visible = true) bzw. ausblenden */
+    fun setSpeciesVisible(keys: Collection<String>, visible: Boolean) {
+        _uiState.update { it.copy(hiddenSpecies = if (visible) it.hiddenSpecies - keys.toSet() else it.hiddenSpecies + keys) }
+    }
+
+    fun setOnlyAlarm(on: Boolean) {
+        _uiState.update { it.copy(onlyAlarm = on) }
     }
 
     /** Filter umschalten — LIVE_ONLY zeigt nur liveMarkers, sonst historische laden */
