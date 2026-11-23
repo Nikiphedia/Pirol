@@ -210,5 +210,24 @@ class EvaluateFlowTest(unittest.TestCase):
             self.assertFalse(by["b"].checkable)
 
 
+class PrepareWindowTest(unittest.TestCase):
+    def test_nur_anheben_nie_absenken(self):
+        import numpy as np
+        loud = np.full(100, 0.99, dtype="float32")
+        out = ev.prepare_window(loud, 48000, 48000, 100, use_highpass=False)
+        self.assertAlmostEqual(float(np.abs(out).max()), 0.99, places=5)
+        quiet = np.full(100, 0.1, dtype="float32")
+        out = ev.prepare_window(quiet, 48000, 48000, 100, use_highpass=False)
+        self.assertAlmostEqual(float(np.abs(out).max()), 0.95, places=5)
+
+    def test_hochpass_daempft_tiefe_frequenz(self):
+        import numpy as np
+        t = np.arange(48000) / 48000
+        low = np.sin(2 * np.pi * 20 * t).astype("float32")
+        hi = np.sin(2 * np.pi * 3000 * t).astype("float32")
+        self.assertLess(float(np.abs(ev.highpass(low, 48000)[24000:]).max()), 0.05)
+        self.assertGreater(float(np.abs(ev.highpass(hi, 48000)[24000:]).max()), 0.95)
+
+
 if __name__ == "__main__":
     unittest.main()

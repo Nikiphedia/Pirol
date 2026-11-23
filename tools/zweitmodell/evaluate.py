@@ -27,6 +27,7 @@ STATUS_ORDER = ["CONFIRMED", "REJECTED", "CORRECTED", "UNCERTAIN", "UNVERIFIED"]
 
 THRESHOLDS = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
 PEAK_TARGET = 0.95
+HIGHPASS = True  # wie App-Standard (highpassEnabled = true); --no-highpass schaltet ab
 
 
 # ---------------------------------------------------------------- Sessions
@@ -356,8 +357,30 @@ class SecondModel:
         return y
 
 
-def prepare_window(wave, src_sr: int, dst_sr: int, n_dst: int):
-    """Resampling (linear, nur wenn Raten verschieden) und Peak-Normalisierung auf 0.95."""
+def highpass(wave, sr: int, cutoff: float = 200.0):
+    """Biquad-Hochpass wie AudioDspUtils.highpassFilter der App (Butterworth Q=0.7071, Direct Form II transposed)."""
+    import numpy as np
+    w0 = 2.0 * math.pi * cutoff / sr
+    alpha = math.sin(w0) / (2.0 * 0.7071)
+    c = math.cos(w0)
+    a0 = 1 + alpha
+    b0 = (1 + c) / 2 / a0
+    b1 = -(1 + c) / a0
+    a1 = -2 * c / a0
+    a2 = (1 - alpha) / a0
+    z1 = z2 = 0.0
+    out = np.empty(len(wave), dtype="float32")
+    for i, x in enumerate(wave.tolist()):
+        y = b0 * x + z1
+        z1 = b1 * x - a1 * y + z2
+        z2 = b0 * x - a2 * y
+        out[i] = y
+    return out
+
+
+def prepare_window(wave, src_sr: int, dst_sr: int, n_dst: int, use_highpass: bool = True):
+    """Wie InferenceWorker der App: Resampling (linear, nur bei anderer Rate), Hochpass 200 Hz, Peak-Normalisierung
+    auf 0.95 (nur anheben, nie absenken), Limiter."""
     import numpy as np
     if src_sr != dst_sr:
         n_src = len(wave)
@@ -365,8 +388,12 @@ def prepare_window(wave, src_sr: int, dst_sr: int, n_dst: int):
     wave = np.asarray(wave, dtype="float32")[:n_dst]
     if len(wave) < n_dst:
         wave = np.pad(wave, (0, n_dst - len(wave)))
+    if use_highpass:
+        wave = highpass(wave, dst_sr)
     peak = float(np.abs(wave).max())
-    return wave * (PEAK_TARGET / peak) if peak > 0 else wave
+    if peak >= 1e-6 and PEAK_TARGET / peak > 1.0:
+        wave = wave * (PEAK_TARGET / peak)
+    return np.clip(wave, -1.0, 1.0).astype("float32")
 
 
 def load_model_from_args(args) -> SecondModel:
@@ -399,7 +426,8 @@ def evaluate_sessions(sessions: List[Session], model, aliases: Dict[str, str], w
     idx = label_index(model.labels, aliases)
     rows: List[Row] = []
     for s in sessions:
-        if not s.meta.get("sessionRelativeOffsets"):
+        # Flag steht nur bei rotierten Sessions; Einzeldatei: Offsets identisch zur Wanduhr
+        if len(s.meta.get("recordingSegments") or []) > 1 and not s.meta.get("sessionRelativeOffsets"):
             print(f"WARNUNG: {s.dir.name}: alte Session ohne sessionRelativeOffsets, Offsets evtl. falsch",
                   file=sys.stderr)
         audio = SessionAudio(s.dir, s.meta)
@@ -422,7 +450,7 @@ def evaluate_sessions(sessions: List[Session], model, aliases: Dict[str, str], w
                 w = audio.window(t, round(audio.sr * model.window_sec))
                 if w is None:
                     continue
-                sc = model.scores(prepare_window(w, audio.sr, model.sample_rate, model.n_samples))
+                sc = model.scores(prepare_window(w, audio.sr, model.sample_rate, model.n_samples, HIGHPASS))
                 if best is None or sc[col] > best[0]:
                     best = (float(sc[col]), t, sc)
             if best is None:
@@ -471,9 +499,12 @@ def main(argv=None):
     ap.add_argument("--csv", type=Path, default=Path("zweitmodell_eval.csv"), help="Ausgabe je Detektion")
     ap.add_argument("--with-merged", action="store_true",
                     help="zusaetzlich absorbierte Cluster-Fenster (CLUSTER_MERGED start:) rechnen, Maximum zaehlt")
+    ap.add_argument("--no-highpass", action="store_true", help="200-Hz-Hochpass der App-Vorverarbeitung auslassen")
     ap.add_argument("--min-pos", type=int, default=200)
     ap.add_argument("--min-neg", type=int, default=50)
     args = ap.parse_args(argv)
+    global HIGHPASS
+    HIGHPASS = not args.no_highpass
 
     dirs = find_sessions(args.sessions)
     if not dirs:
