@@ -477,6 +477,27 @@ fun SettingsScreen(
                         }
                     }
                 }
+                // --- T231: groesster Hop fuer lange Modellfenster (Perch 5 s) ---
+                Spacer(modifier = Modifier.height(12.dp))
+                var selectedMaxHop by remember { mutableIntStateOf(appPreferences.maxHopMs) }
+                Text(stringResource(R.string.settings_max_hop, selectedMaxHop / 1000), style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    InferenceConfig.MAX_HOP_OPTIONS_MS.forEach { v ->
+                        FilterChip(
+                            selected = selectedMaxHop == v,
+                            onClick = {
+                                selectedMaxHop = v
+                                appPreferences.maxHopMs = v
+                            },
+                            label = { Text("${v / 1000} s") }
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.settings_max_hop_hinweis),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))

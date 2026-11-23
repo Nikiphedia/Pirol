@@ -167,6 +167,7 @@ class AndroidPipelineHooks(
 ) : PipelineHooks {
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
+    override fun maxHopMs(): Int = appPreferences.maxHopMs  // T231
     override fun sessionNote(): String = appPreferences.lastSessionNote
     override fun currentLocation(): LocationData? = locationProvider.location.value
     override suspend fun requestFreshFix(timeoutMs: Long): LocationData? = locationProvider.requestFreshFix(timeoutMs)

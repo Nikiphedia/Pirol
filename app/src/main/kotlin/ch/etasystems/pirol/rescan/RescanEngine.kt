@@ -185,7 +185,7 @@ class RescanEngine(
             runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = id) }
                 .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
             Log.i(TAG, "T221_RESCAN id=$id model=${cls.modelId} region=$region thr=${options.confidenceThreshold} " +
-                "overlap=${options.overlapPercent} windows=${result.windows} detections=${result.detections.size} " +
+                "overlap=${options.overlapPercent} hop=${config.hopMsFor(options.overlapPercent, cls.windowMs)} windows=${result.windows} detections=${result.detections.size} " +
                 "merges=${result.mergeEvents.size} transferred=${transfer.size} ms=${now - t0}")
             return info
         } finally {

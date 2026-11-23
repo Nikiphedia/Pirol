@@ -89,7 +89,7 @@ class RescanRunner(
     ): Result {
         val sr = recording.sampleRate
         val windowMs = classifier.windowMs
-        val starts = RescanPlan.windowStarts(recording.totalFrames, sr, windowMs, config.overlapPercent)
+        val starts = RescanPlan.windowStarts(recording.totalFrames, sr, windowMs, config.overlapPercent, config.maxHopMs)
         val windowFrames = sr.toLong() * windowMs / 1000
         val threshold = InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence)
         val list = DetectionListState(maxDetections = Int.MAX_VALUE)
