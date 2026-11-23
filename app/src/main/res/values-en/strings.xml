@@ -611,6 +611,8 @@
     <string name="waveform_peak_label">Peak</string>
     <string name="waveform_clip_label">Clipping</string>
     <string name="analysis_suche_art">Search species</string>
+    <string name="analysis_vorherige_detektion">Previous detection</string>
+    <string name="analysis_naechste_detektion">Next detection</string>
     <string name="analysis_treffer">%1$d matches</string>
     <string name="analysis_keine_treffer">No recording contains this species.</string>
     <string name="analysis_mehr">More</string>

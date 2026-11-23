@@ -612,6 +612,8 @@
     <string name="waveform_peak_label">Peak</string>
     <string name="waveform_clip_label">Uebersteuert</string>
     <string name="analysis_suche_art">Art suchen</string>
+    <string name="analysis_vorherige_detektion">Vorherige Detektion</string>
+    <string name="analysis_naechste_detektion">Nächste Detektion</string>
     <string name="analysis_treffer">%1$d Treffer</string>
     <string name="analysis_keine_treffer">Keine Aufnahme mit dieser Art.</string>
     <string name="analysis_mehr">Mehr</string>

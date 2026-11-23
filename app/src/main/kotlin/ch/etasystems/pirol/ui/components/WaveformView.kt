@@ -63,6 +63,7 @@ fun WaveformView(
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
     timeOriginSec: Float? = null,  // T205: Analyse: absolute Zeitachse ab diesem Zeitpunkt statt "-Ns ... Jetzt"
+    onSeekFraction: ((Float) -> Unit)? = null,  // T210: Analyse: Tippen setzt die Wiedergabe (Anteil 0..1 der Zeichenbreite) statt den Cursor
     showFreeze: Boolean = true
 ) {
     val lightBg = settings.palette.isLight
@@ -93,6 +94,7 @@ fun WaveformView(
     // Cursor als Anteil der Zeichenbreite 0..1 (NaN = kein Cursor)
     val cursorFrac = remember { mutableFloatStateOf(Float.NaN) }
     val currentLongPress by rememberUpdatedState(onLongPress)
+    val currentSeek by rememberUpdatedState(onSeekFraction)
 
     Box(modifier = modifier) {
         Canvas(
@@ -105,6 +107,10 @@ fun WaveformView(
                             val left = WAVE_LEFT_PAD_DP.dp.toPx()
                             val w = size.width - left
                             if (w <= 0f || pos.x < left) return@detectTapGestures
+                            currentSeek?.let { seek ->
+                                seek(((pos.x - left) / w).coerceIn(0f, 1f))
+                                return@detectTapGestures
+                            }
                             val old = cursorFrac.floatValue
                             val near = old.isFinite() && kotlin.math.abs(left + old * w - pos.x) < 24.dp.toPx()
                             cursorFrac.floatValue = if (near) Float.NaN else ((pos.x - left) / w).coerceIn(0f, 1f)

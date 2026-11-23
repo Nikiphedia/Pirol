@@ -364,6 +364,7 @@ class AnalysisViewModel(
                     recordingUri  = recUri,
                     recordingDurationSec = durationSec,
                     lastPlaybackPositionSec = null,
+                    pendingStartSec = null,
                     zoomRange = null,
                     zoomSpectrogramState = SpectrogramState(),
                     zoomPcm = null
@@ -406,22 +407,63 @@ class AnalysisViewModel(
     fun navigateChunk(delta: Int) { /* T48: Timeline-Navigation */ }
 
     /**
-     * Aufnahme-Datei abspielen.
+     * Aufnahme-Datei abspielen (Start/Stopp-Umschalter).
      * T62: bevorzugt Uri-Variante fuer SAF-Kompatibilitaet (AC5).
+     * T210: startet an der zuletzt angetippten Position (sonst Anfang).
      */
     fun playChunk(chunkIndex: Int) {
+        if (playback.isPlaying(PlaybackKeys.SESSION)) {
+            playback.stop()
+            return
+        }
+        startSessionFrom(_uiState.value.pendingStartSec ?: 0f)
+    }
+
+    /** T210: ganze Aufnahme ab [startSec] spielen (T173: ueber den zentralen Controller, verdraengt Laufendes). */
+    private fun startSessionFrom(startSec: Float) {
         val uri = _uiState.value.recordingUri
         val f   = _uiState.value.recordingFile
         val rec = recording
-        // T173: Start/Stopp-Umschalten ueber den zentralen Controller
         val start: () -> Unit = when {
-            rec != null && rec.parts.size > 1 -> { { audioPlayer.play(rec) } }  // T130: Segmente nacheinander
-            uri != null -> { { audioPlayer.play(uri) } }
-            f   != null -> { { audioPlayer.play(f) } }
+            rec != null && rec.parts.size > 1 -> { { audioPlayer.play(rec, startSec) } }  // T130: Segmente nacheinander
+            uri != null -> { { audioPlayer.play(uri, startSec) } }
+            f   != null -> { { audioPlayer.play(f, startSec) } }
             else -> return
         }
-        if (playback.toggle(PlaybackKeys.SESSION, start)) return
-        _uiState.update { it.copy(playingChunkIndex = 0, playingDetectionId = null, playingOccurrenceStartSec = null) }
+        playback.play(PlaybackKeys.SESSION, start)
+        _uiState.update {
+            it.copy(playingChunkIndex = 0, playingDetectionId = null, playingOccurrenceStartSec = null, pendingStartSec = null)
+        }
+    }
+
+    /**
+     * T210: Tippen in Sonogramm/Oszillogramm. Laeuft eine Wiedergabe, springt sie an [sec] und spielt weiter;
+     * sonst wird nur die Startposition fuer das naechste Play gemerkt.
+     */
+    fun seekTo(sec: Float) {
+        val s = _uiState.value
+        if (!s.hasRecording) return
+        val pos = sec.coerceIn(0f, s.recordingDurationSec.coerceAtLeast(0f))
+        if (playback.playingKey.value != null) {
+            startSessionFrom(pos)
+        } else {
+            _uiState.update { it.copy(pendingStartSec = pos, lastPlaybackPositionSec = pos) }
+        }
+    }
+
+    /**
+     * T210: zur naechsten/vorherigen Detektion (nach Zeit) springen und den Ausschnitt abspielen.
+     * [visible] = gerade angezeigte (ggf. nach Art gefilterte) Detektionen. Bezug ist die laufende Detektion,
+     * sonst Abspiel-/Cursorposition; ohne Bezug: erste (vor) bzw. letzte (zurueck).
+     */
+    fun playAdjacent(visible: List<DetectionResult>, forward: Boolean) {
+        val s = _uiState.value
+        val sorted = PlaybackNav.sortedByTime(visible)
+        val from = s.detections.firstOrNull { it.id == s.playingDetectionId }?.bestWindowStartSec
+            ?: s.playbackPositionSec ?: s.pendingStartSec ?: s.lastPlaybackPositionSec
+            ?: if (forward) -1f else Float.MAX_VALUE / 2
+        val target = (if (forward) PlaybackNav.next(sorted, from) else PlaybackNav.previous(sorted, from)) ?: return
+        playDetection(target)
     }
 
     /** Aufnahme abspielen (spielt recording.wav) */

@@ -41,6 +41,7 @@ internal fun AnalysisExcerptView(
     waveformSettings: WaveformSettings,
     sonoAutoRange: Pair<Float, Float>?,
     onLongPress: () -> Unit,
+    onSeekFraction: ((Float) -> Unit)? = null,  // T210: Tippen im Oszillogramm
     modifier: Modifier = Modifier
 ) {
     if (pcm == null) return
@@ -93,6 +94,7 @@ internal fun AnalysisExcerptView(
                 onLongPress = onLongPress,
                 modifier = modifier,
                 timeOriginSec = excerptStartSec,
+                onSeekFraction = onSeekFraction,
                 showFreeze = false
             )
         }

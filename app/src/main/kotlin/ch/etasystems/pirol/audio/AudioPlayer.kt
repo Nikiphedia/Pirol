@@ -86,8 +86,8 @@ class AudioPlayer(
         }
     }
 
-    /** WAV-Datei vollstaendig abspielen (File-Pfad). */
-    fun play(file: File) {
+    /** WAV-Datei abspielen (File-Pfad), ab [startSec] (T210, Default Anfang). */
+    fun play(file: File, startSec: Float = 0f) {
         stop()
         mediaPlayer = MediaPlayer().apply {
             setDataSource(file.absolutePath)
@@ -97,6 +97,7 @@ class AudioPlayer(
                 true
             }
             prepare()
+            if (startSec > 0f) seekTo((startSec * 1000f).toInt())  // T210
             start()
             setOnCompletionListener { setState(PlaybackState.IDLE) }
         }
@@ -107,7 +108,7 @@ class AudioPlayer(
      * WAV-Datei vollstaendig abspielen (SAF-URI).
      * T62: MediaPlayer.setDataSource(context, uri) unterstuetzt content://-URIs nativ.
      */
-    fun play(uri: Uri) {
+    fun play(uri: Uri, startSec: Float = 0f) {
         stop()
         mediaPlayer = MediaPlayer().apply {
             setDataSource(context, uri)
@@ -117,6 +118,7 @@ class AudioPlayer(
                 true
             }
             prepare()
+            if (startSec > 0f) seekTo((startSec * 1000f).toInt())  // T210
             start()
             setOnCompletionListener { setState(PlaybackState.IDLE) }
         }
@@ -163,20 +165,22 @@ class AudioPlayer(
      * T130: Ganze Session-Aufnahme abspielen — Segmente nacheinander via MediaPlayer.
      * [currentPositionSec] liefert die Position auf der Session-Zeitachse.
      */
-    fun play(recording: SegmentedRecording) {
+    fun play(recording: SegmentedRecording, startSec: Float = 0f) {
         if (recording.parts.size <= 1) {
             // T131: File- oder SAF-Segment
             val src = recording.firstSource ?: return
             val f = src.file
             val u = src.uriString
-            if (f != null) play(f) else if (u != null) play(Uri.parse(u))
+            if (f != null) play(f, startSec) else if (u != null) play(Uri.parse(u), startSec)
             return
         }
         stop()
-        playPart(recording, 0)
+        // T210: Start mitten in der Session -> passendes Segment + Offset darin
+        val loc = if (startSec > 0f) recording.locate(startSec) else null
+        playPart(recording, loc?.partIndex ?: 0, loc?.offsetSec ?: 0f)
     }
 
-    private fun playPart(recording: SegmentedRecording, index: Int) {
+    private fun playPart(recording: SegmentedRecording, index: Int, seekSec: Float = 0f) {
         val part = recording.parts.getOrNull(index)
         if (part == null) {
             mediaPlayer?.release()
@@ -199,6 +203,7 @@ class AudioPlayer(
                 true
             }
             mp.prepare()
+            if (seekSec > 0f) mp.seekTo((seekSec * 1000f).toInt())
             mp.setOnCompletionListener { done ->
                 if (mediaPlayer === done) playPart(recording, index + 1)
             }

@@ -80,6 +80,8 @@ data class AnalysisUiState(
     val playbackPositionSec: Float? = null,
     /** T203: letzte bekannte Abspielposition (bleibt nach Stopp, fuer "+ Art") */
     val lastPlaybackPositionSec: Float? = null,
+    /** T210: per Tippen gesetzte Startposition (Wiedergabe gestoppt); Play startet dort, null = Anfang */
+    val pendingStartSec: Float? = null,
     // T167: abgespieltes Einzelvorkommen (Startsekunde in der Session), null = Hauptfenster/keines
     val playingOccurrenceStartSec: Float? = null,
     // T167: Wanduhr-Zeiten absorbierter Fenster je Detektions-ID (aus CLUSTER_MERGED)
