@@ -2394,6 +2394,11 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Text(
+                text = stringResource(R.string.settings_info_lists),  // T228: Quellenangabe CH-Heuschreckenliste
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(onClick = { showWhatsNew = true }) {
                 Text(stringResource(R.string.settings_whats_new_button))

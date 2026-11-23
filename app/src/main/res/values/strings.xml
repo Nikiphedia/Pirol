@@ -167,9 +167,6 @@
     <string name="map_zielposition">Zielposition</string>
     <string name="map_bestaetigt">✓ %1$s bestätigt</string>
     <string name="onboarding_importiert">Importiert: %1$s</string>
-    <string name="onboarding_schritt_von_3">Schritt %1$s von 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Willkommen bei PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Waehle deine Region fuer die Artenerkennung:</string>
     <string name="onboarding_weiter">Weiter</string>
     <string name="onboarding_birdnet_v3_0_modell">BirdNET V3.0 Modell</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">Fuer die Artenerkennung wird das BirdNET-Modell benoetigt.</string>
@@ -374,8 +371,6 @@
     <string name="map_download_nicht_moeglich">Download nicht moeglich: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">Offline-Download gibt es nur fuer swisstopo-Karten. Waehle eine swisstopo-Quelle (bei Automatisch: ab Zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Dieser Ausschnitt braucht %1$s Kacheln (Zoom %2$s-%3$s). Erlaubt sind maximal %4$s. Bitte weiter hineinzoomen.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Schweizer Brutvoegel (180 Arten)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Mitteleuropa (302 Arten)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download abgebrochen — Teil bleibt zum Fortsetzen erhalten</string>
     <string name="onboarding_download_fehlgeschlagen">"Download fehlgeschlagen — "</string>
     <string name="onboarding_internetverbindung_pruefen">Internetverbindung pruefen</string>
@@ -490,7 +485,6 @@
     <string name="mig_result_failed">%1$d verschoben, %2$d fehlgeschlagen. Originale bleiben unverändert. %3$s</string>
     <string name="mig_notif_done_title">Session-Migration beendet</string>
     <string name="mig_notif_result">%1$d verschoben, %2$d übersprungen, %3$d fehlgeschlagen</string>
-    <string name="onboarding_alle_arten_n">Alle Arten (%1$s)</string>
     <string name="onboarding_modell_x_von_n">(Modell %1$d von %2$d)</string>
     <string name="settings_bench_datei_hinweis">Misst eine beliebige ONNX-Datei (z.B. aus Download) mit Zufallsrauschen, 1/2/4 Threads. Die Datei wird kurz in den Cache kopiert.</string>
     <string name="settings_bench_datei_waehlen">ONNX-Datei wählen und messen</string>
@@ -712,7 +706,7 @@
     <string name="setup_expert_threshold">Schwelle: %1$d %%</string>
     <string name="setup_expert_overlap">Ueberlappung: %1$d %%</string>
     <string name="setup_expert_secondary">Zweitmodell nutzen</string>
-    <string name="setup_expert_secondary_none">Kein zweites Modell installiert (Modelle in den Einstellungen)</string>
+    <string name="setup_expert_secondary_none">Kein zweites Modell installiert. Import: Einstellungen, Modell &amp; Erkennung, Import (BirdNET 2.4 nur nicht-kommerziell).</string>
     <string name="setup_perm_notifications">Benachrichtigungen (Aufnahme im Hintergrund)</string>
     <string name="setup_summary_title">Zusammenfassung</string>
     <string name="setup_sum_level">Niveau: %1$s</string>
@@ -736,4 +730,9 @@
     <string name="setup_start">Einrichtung starten</string>
     <string name="settings_expert_mode">Experteneinstellungen</string>
     <string name="settings_expert_mode_hint">Zeigt alle Feineinstellungen. Aus: nur das Wichtigste.</string>
+    <string name="setup_monitoring_hint">Bildschirm ausschalten spart am meisten Akku, die Aufnahme laeuft weiter.</string>
+    <string name="setup_expert_secondary_pick">Zweitmodell waehlen:</string>
+    <string name="setup_sum_secondary_missing">Zweitmodell gewuenscht, aber keines installiert. Import: Einstellungen, Modell &amp; Erkennung, Import (BirdNET 2.4 nur nicht-kommerziell).</string>
+    <string name="setup_list_ortho_note">Automatisch plus mitgelieferte Liste Heuschrecken &amp; Amphibien der Schweiz (73 Arten).</string>
+    <string name="settings_info_lists">Artenliste Heuschrecken &amp; Amphibien (CH): Daten von GBIF.org, Lizenz CC0 und CC BY 4.0, Abfrage 2026-11-23. Datensaetze u.a. Swiss National Grasshoppers Databank (doi:10.15468/bcthst), Swiss National Amphibian Databank (doi:10.15468/ggwedn), Swiss National Fauna Databank (doi:10.15468/8s936n), NABU/naturgucker (doi:10.15468/uc1apo); vollstaendige Liste: tools/listen-generator/sources_ch_orthoptera_anura.md. Die Liste steht unter CC BY 4.0.</string>
 </resources>

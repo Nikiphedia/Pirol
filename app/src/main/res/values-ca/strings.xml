@@ -162,9 +162,6 @@
     <string name="map_zielposition">Posició de destinació</string>
     <string name="map_bestaetigt">✓ %1$s confirmat</string>
     <string name="onboarding_importiert">Importat: %1$s</string>
-    <string name="onboarding_schritt_von_3">Pas %1$s de 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Benvingut a PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Trieu la vostra regió per al reconeixement d\'espècies:</string>
     <string name="onboarding_weiter">Següent</string>
     <string name="onboarding_birdnet_v3_0_modell">Model BirdNET V3.0</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">Per al reconeixement d\'espècies cal el model BirdNET.</string>
@@ -367,8 +364,6 @@
     <string name="map_download_nicht_moeglich">Descàrrega impossible: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">La descàrrega sense connexió només està disponible per als mapes swisstopo. Trieu una font swisstopo (en Automàtic: des del zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Aquesta àrea necessita %1$s rajoles (zoom %2$s-%3$s). El màxim permès és %4$s. Apropeu-vos més.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Ocells nidificants suïssos (180 espècies)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Europa central (302 espècies)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Descàrrega interrompuda: la part descarregada es conserva per continuar</string>
     <string name="onboarding_download_fehlgeschlagen">"La descàrrega ha fallat: "</string>
     <string name="onboarding_internetverbindung_pruefen">Comproveu la connexió a Internet</string>
@@ -462,5 +457,4 @@
     <string name="settings_alarm_testen_5s">D\'aquí a 5 s, bloqueja el dispositiu</string>
     <string name="settings_alarm_fullscreen_hinweis">A la pantalla de bloqueig, l\'alarma només apareix com a notificació mentre no es permetin les \"notificacions a pantalla completa\" per a PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Obre el permís</string>
-    <string name="onboarding_alle_arten_n">Totes les espècies (11\'560)</string>
 </resources>

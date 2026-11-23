@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "sets": [
     {
       "id": "all",
@@ -750,6 +750,828 @@
         "Vanellus_vanellus",
         "Xenus_cinereus"
       ]
+    },
+    {
+      "id": "ch_orthoptera_anura",
+      "name_de": "CH Heuschrecken & Amphibien",
+      "name_en": "CH Grasshoppers & Amphibians",
+      "description_de": "Heuschrecken und Froschlurche der Schweiz, vom Modell erkennbar (73 Arten). Quelle: GBIF (CC0/CC BY 4.0), Abfrage 2026-11-23, siehe Info/Lizenzen",
+      "taxon_group": "orthoptera",
+      "species": [
+        "Acheta_domesticus",
+        "Aeropedellus_variegatus",
+        "Alytes_obstetricans",
+        "Anonconotus_alpinus",
+        "Arcyptera_fusca",
+        "Barbitistes_serricauda",
+        "Bicolorana_bicolor",
+        "Bombina_variegata",
+        "Bufo_bufo",
+        "Chorthippus_albomarginatus",
+        "Chorthippus_apricarius",
+        "Chorthippus_biguttulus",
+        "Chorthippus_brunneus",
+        "Chorthippus_dorsatus",
+        "Chorthippus_mollis",
+        "Chorthippus_pullus",
+        "Chorthippus_vagans",
+        "Chrysochraon_dispar",
+        "Conocephalus_dorsalis",
+        "Conocephalus_fuscus",
+        "Decticus_verrucivorus",
+        "Ephippiger_diurnus",
+        "Ephippiger_terrestris",
+        "Epidalea_calamita",
+        "Euchorthippus_declivus",
+        "Eumodicogryllus_bordigalensis",
+        "Eupholidoptera_chabrieri",
+        "Gomphocerippus_rufus",
+        "Gomphocerus_sibiricus",
+        "Gryllotalpa_gryllotalpa",
+        "Gryllus_campestris",
+        "Hyla_arborea",
+        "Hyla_intermedia",
+        "Leptophyes_laticauda",
+        "Leptophyes_punctatissima",
+        "Locusta_migratoria",
+        "Meconema_meridionale",
+        "Meconema_thalassinum",
+        "Metrioptera_brachyptera",
+        "Myrmeleotettix_maculatus",
+        "Nemobius_sylvestris",
+        "Oecanthus_pellucens",
+        "Oedipoda_caerulescens",
+        "Omocestus_haemorrhoidalis",
+        "Omocestus_rufipes",
+        "Omocestus_viridulus",
+        "Pelophylax_lessonae",
+        "Pelophylax_ridibundus",
+        "Pholidoptera_aptera",
+        "Pholidoptera_fallax",
+        "Pholidoptera_griseoaptera",
+        "Pholidoptera_littoralis",
+        "Platycleis_albopunctata",
+        "Polysarcus_denticauda",
+        "Pseudochorthippus_montanus",
+        "Pseudochorthippus_parallelus",
+        "Psophus_stridulus",
+        "Pteronemobius_heydenii",
+        "Pteronemobius_lineolatus",
+        "Rana_dalmatina",
+        "Rana_temporaria",
+        "Roeseliana_roeselii",
+        "Ruspolia_nitidula",
+        "Stauroderus_scalaris",
+        "Stenobothrus_lineatus",
+        "Stenobothrus_nigromaculatus",
+        "Stenobothrus_rubicundulus",
+        "Stenobothrus_stigmaticus",
+        "Stethophyma_grossum",
+        "Tessellana_tessellata",
+        "Tettigonia_cantans",
+        "Tettigonia_caudata",
+        "Tettigonia_viridissima"
+      ],
+      "species_info": {
+        "Acheta_domesticus": {
+          "common_name": "Heimchen",
+          "season": [
+            {
+              "from": "04",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Aeropedellus_variegatus": {
+          "common_name": "Alpen-Keulenschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Alytes_obstetricans": {
+          "common_name": "Nördliche Geburtshelferkröte",
+          "season": [
+            {
+              "from": "03",
+              "to": "07"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Anonconotus_alpinus": {
+          "common_name": "Alpenschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Arcyptera_fusca": {
+          "common_name": "Große Höckerschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Barbitistes_serricauda": {
+          "common_name": "Laubholz-Säbelschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Bicolorana_bicolor": {
+          "common_name": "Zweifarbige Beißschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Bombina_variegata": {
+          "common_name": "Gelbbauchunke",
+          "season": [
+            {
+              "from": "04",
+              "to": "08"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Bufo_bufo": {
+          "common_name": "Erdkröte",
+          "season": [
+            {
+              "from": "03",
+              "to": "06"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Chorthippus_albomarginatus": {
+          "common_name": "Weißrandiger Grashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_apricarius": {
+          "common_name": "Feldgrashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_biguttulus": {
+          "common_name": "Nachtigall-Grashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_brunneus": {
+          "common_name": "Brauner Grashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_dorsatus": {
+          "common_name": "Wiesengrashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_mollis": {
+          "common_name": "Verkannter Grashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_pullus": {
+          "common_name": "Kiesbankgrashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chorthippus_vagans": {
+          "common_name": "Steppengrashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Chrysochraon_dispar": {
+          "common_name": "Große Goldschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Conocephalus_dorsalis": {
+          "common_name": "Kurzflügelige Schwertschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Conocephalus_fuscus": {
+          "common_name": "Langflügelige Schwertschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Decticus_verrucivorus": {
+          "common_name": "Warzenbeißer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Ephippiger_diurnus": {
+          "common_name": "Westliche Sattelschrecke",
+          "season": [
+            {
+              "from": "08",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Ephippiger_terrestris": {
+          "common_name": "Alpen-Sattelschrecke",
+          "season": [
+            {
+              "from": "08",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Epidalea_calamita": {
+          "common_name": "Kreuzkröte",
+          "season": [
+            {
+              "from": "04",
+              "to": "07"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Euchorthippus_declivus": {
+          "common_name": "Gewöhnlicher Dickkopf-Grashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Eumodicogryllus_bordigalensis": {
+          "common_name": "Südliche Grille",
+          "season": [
+            {
+              "from": "05",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Eupholidoptera_chabrieri": {
+          "common_name": "Grüne Strauchschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Gomphocerippus_rufus": {
+          "common_name": "Rote Keulenschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Gomphocerus_sibiricus": {
+          "common_name": "Sibirische Keulenschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Gryllotalpa_gryllotalpa": {
+          "common_name": "Europäische Maulwurfsgrille",
+          "season": [
+            {
+              "from": "04",
+              "to": "06"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Gryllus_campestris": {
+          "common_name": "Feldgrille",
+          "season": [
+            {
+              "from": "04",
+              "to": "07"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Hyla_arborea": {
+          "common_name": "Europäischer Laubfrosch",
+          "season": [
+            {
+              "from": "04",
+              "to": "06"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Hyla_intermedia": {
+          "common_name": "Italienischer Laubfrosch",
+          "season": [
+            {
+              "from": "04",
+              "to": "06"
+            },
+            {
+              "from": "09",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Leptophyes_laticauda": {
+          "common_name": "Südliche Zartschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Leptophyes_punctatissima": {
+          "common_name": "Punktierte Zartschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Locusta_migratoria": {
+          "common_name": "Europäische Wanderheuschrecke",
+          "season": [
+            {
+              "from": "02",
+              "to": "02"
+            },
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Meconema_meridionale": {
+          "common_name": "Südliche Eichenschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Meconema_thalassinum": {
+          "common_name": "Gemeine Eichenschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Metrioptera_brachyptera": {
+          "common_name": "Kurzflügelige Beißschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Myrmeleotettix_maculatus": {
+          "common_name": "Gefleckte Keulenschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Nemobius_sylvestris": {
+          "common_name": "Waldgrille",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Oecanthus_pellucens": {
+          "common_name": "Weinhähnchen",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Oedipoda_caerulescens": {
+          "common_name": "Blauflügelige Ödlandschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Omocestus_haemorrhoidalis": {
+          "common_name": "Rotleibiger Grashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Omocestus_rufipes": {
+          "common_name": "Buntbäuchiger Grashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Omocestus_viridulus": {
+          "common_name": "Bunter Grashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pelophylax_lessonae": {
+          "common_name": "Kleiner Wasserfrosch",
+          "season": [
+            {
+              "from": "03",
+              "to": "07"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Pelophylax_ridibundus": {
+          "common_name": "Seefrosch",
+          "season": [
+            {
+              "from": "03",
+              "to": "07"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Pholidoptera_aptera": {
+          "common_name": "Alpen-Strauchschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pholidoptera_fallax": {
+          "common_name": "Südliche Strauchschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pholidoptera_griseoaptera": {
+          "common_name": "Gewöhnliche Strauchschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pholidoptera_littoralis": {
+          "common_name": "Küsten-Strauchschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Platycleis_albopunctata": {
+          "common_name": "Westliche Beißschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Polysarcus_denticauda": {
+          "common_name": "Wanstschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "08"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pseudochorthippus_montanus": {
+          "common_name": "Sumpfgrashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pseudochorthippus_parallelus": {
+          "common_name": "Gemeiner Grashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Psophus_stridulus": {
+          "common_name": "Rotflügelige Schnarrschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pteronemobius_heydenii": {
+          "common_name": "Sumpfgrille",
+          "season": [
+            {
+              "from": "05",
+              "to": "08"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Pteronemobius_lineolatus": {
+          "common_name": "Gestreifte Sumpfgrille",
+          "season": [
+            {
+              "from": "08",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Rana_dalmatina": {
+          "common_name": "Springfrosch",
+          "season": [
+            {
+              "from": "02",
+              "to": "05"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Rana_temporaria": {
+          "common_name": "Grasfrosch",
+          "season": [
+            {
+              "from": "03",
+              "to": "07"
+            }
+          ],
+          "taxon_group": "anura"
+        },
+        "Roeseliana_roeselii": {
+          "common_name": "Roesels Beißschrecke",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Ruspolia_nitidula": {
+          "common_name": "Große Schiefkopfschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Stauroderus_scalaris": {
+          "common_name": "Gebirgsgrashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Stenobothrus_lineatus": {
+          "common_name": "Heidegrashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Stenobothrus_nigromaculatus": {
+          "common_name": "Schwarzfleckiger Grashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "08"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Stenobothrus_rubicundulus": {
+          "common_name": "Bunter Alpengrashüpfer",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Stenobothrus_stigmaticus": {
+          "common_name": "Kleiner Heidegrashüpfer",
+          "season": [
+            {
+              "from": "07",
+              "to": "08"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Stethophyma_grossum": {
+          "common_name": "Sumpfschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Tessellana_tessellata": {
+          "common_name": "Braunfleckige Beißschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Tettigonia_cantans": {
+          "common_name": "Zwitscherschrecke",
+          "season": [
+            {
+              "from": "07",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Tettigonia_caudata": {
+          "common_name": "Östliches Heupferd",
+          "season": [
+            {
+              "from": "07",
+              "to": "10"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        },
+        "Tettigonia_viridissima": {
+          "common_name": "Grünes Heupferd",
+          "season": [
+            {
+              "from": "06",
+              "to": "09"
+            }
+          ],
+          "taxon_group": "orthoptera"
+        }
+      }
     }
   ]
 }
