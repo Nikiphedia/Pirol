@@ -11,18 +11,18 @@ class ExportNamesTest {
     private val ts = 1776688200000L
 
     @Test fun `Detektion mit Bemerkung`() {
-        assertEquals("202604201430_Amsel_Garten_hinten",
+        assertEquals("20260420143000_Amsel_Garten_hinten",
             ExportNames.detectionName(ts, "Amsel", "Garten hinten", zurich))
     }
 
     @Test fun `Detektion ohne Bemerkung kein Unterstrich am Ende`() {
-        assertEquals("202604201430_Amsel", ExportNames.detectionName(ts, "Amsel", null, zurich))
-        assertEquals("202604201430_Amsel", ExportNames.detectionName(ts, "Amsel", "  ", zurich))
+        assertEquals("20260420143000_Amsel", ExportNames.detectionName(ts, "Amsel", null, zurich))
+        assertEquals("20260420143000_Amsel", ExportNames.detectionName(ts, "Amsel", "  ", zurich))
     }
 
     @Test fun `Zeit ist lokal`() {
-        assertEquals("202604201230", ExportNames.timePart(ts, TimeZone.getTimeZone("UTC")))
-        assertEquals("202604201430", ExportNames.timePart(ts, zurich))
+        assertEquals("20260420123000", ExportNames.timePart(ts, TimeZone.getTimeZone("UTC")))
+        assertEquals("20260420143000", ExportNames.timePart(ts, zurich))
     }
 
     @Test fun `Sonderzeichen und Umlaute`() {
@@ -41,14 +41,14 @@ class ExportNamesTest {
 
     @Test fun `Session mit und ohne Bemerkung`() {
         val s = "2026-04-20T14:30:00+02:00"
-        assertEquals("202604201430_Begehung_Aare", ExportNames.sessionName(s, "Begehung Aare", "x"))
-        assertEquals("202604201430", ExportNames.sessionName(s, null, "x"))
-        assertEquals("202604201430.zip", ExportNames.sessionZipName(s, "", "x"))
-        assertEquals("202604201430_A.selections.txt", ExportNames.sessionRavenName(s, "A", "x"))
+        assertEquals("20260420143000_Begehung_Aare", ExportNames.sessionName(s, "Begehung Aare", "x"))
+        assertEquals("20260420143000", ExportNames.sessionName(s, null, "x"))
+        assertEquals("20260420143000.zip", ExportNames.sessionZipName(s, "", "x"))
+        assertEquals("20260420143000_A.selections.txt", ExportNames.sessionRavenName(s, "A", "x"))
     }
 
     @Test fun `Session Zeit bleibt Lokalzeit des Offsets`() {
-        assertEquals("202604202330", ExportNames.sessionName("2026-04-20T23:30:00-07:00", null, "x"))
+        assertEquals("20260420233000", ExportNames.sessionName("2026-04-20T23:30:00-07:00", null, "x"))
     }
 
     @Test fun `Session unlesbare Zeit nutzt Id`() {
@@ -67,10 +67,18 @@ class ExportNamesTest {
         val first = ExportNames.chooseZipName(null, base) { it in remote }
         remote += first
         val second = ExportNames.chooseZipName(null, base) { it in remote }
-        assertEquals("202604201430.zip", first)
-        assertEquals("202604201430-2.zip", second)
+        assertEquals("20260420143010.zip", first)
+        assertEquals("20260420143010-2.zip", second)
         // Retry der zweiten Session: gemerkter Name, obwohl er schon (teilweise) existiert
         remote += second
         assertEquals(second, ExportNames.chooseZipName(second, base) { it in remote })
+    }
+
+    @Test fun `reservierte Namen anderer Sessions gelten als belegt`() {
+        val base = "20260420143010"
+        val reserved = setOf("$base.zip")
+        assertEquals("$base-2.zip", ExportNames.chooseZipName(null, base, reserved) { false })
+        // eigener gemerkter Name bleibt
+        assertEquals("$base.zip", ExportNames.chooseZipName("$base.zip", base, reserved) { true })
     }
 }
