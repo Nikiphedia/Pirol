@@ -1034,6 +1034,7 @@ private fun SessionNoteField(viewModel: LiveViewModel) {
         maxLength = 200,
         onNoteChange = { viewModel.setSessionNote(it) },
         iconOnly = true,
+        ensureFix = { locationProvider.ensureFix() },
     )
     }
 }

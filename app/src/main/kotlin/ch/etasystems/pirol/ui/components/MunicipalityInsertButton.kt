@@ -42,6 +42,7 @@ fun MunicipalityInsertButton(
     maxLength: Int,
     onNoteChange: (String) -> Unit,
     iconOnly: Boolean = false,
+    ensureFix: (suspend () -> Unit)? = null,  // T206: ohne Position einmal aktiv suchen
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -49,13 +50,24 @@ fun MunicipalityInsertButton(
     var busy by remember { mutableStateOf(false) }
 
     val onClick = click@{
-        val pos = position()
-        if (pos == null) {
+        val first = position()
+        if (first == null && ensureFix == null) {
             Toast.makeText(context, context.getString(R.string.ui_gemeinde_keine_position), Toast.LENGTH_SHORT).show()
             return@click
         }
         busy = true
         scope.launch {
+            var pos = first
+            if (pos == null) {
+                Toast.makeText(context, context.getString(R.string.ui_gemeinde_suche_position), Toast.LENGTH_SHORT).show()
+                ensureFix?.invoke()
+                pos = position()
+            }
+            if (pos == null) {
+                busy = false
+                Toast.makeText(context, context.getString(R.string.ui_gemeinde_keine_position), Toast.LENGTH_SHORT).show()
+                return@launch
+            }
             val label = lookup.lookup(pos.first, pos.second)
             busy = false
             if (label == null) {

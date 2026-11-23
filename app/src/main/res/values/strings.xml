@@ -576,6 +576,7 @@
     <string name="ui_gemeinde_text">Gemeinde: %1$s</string>
     <string name="ui_gemeinde_nicht_ermittelbar">Gemeinde nicht ermittelbar</string>
     <string name="ui_gemeinde_keine_position">Keine Position verfügbar</string>
+    <string name="ui_gemeinde_suche_position">Suche Position…</string>
     <string name="settings_section_display">Darstellung</string>
     <string name="settings_fullscreen">Vollbild</string>
     <string name="settings_fullscreen_hint">Blendet Status- und Navigationsleiste aus. Mit einer Wischgeste vom Bildschirmrand erscheinen sie kurz wieder.</string>

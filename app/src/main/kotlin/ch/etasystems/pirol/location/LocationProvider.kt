@@ -10,6 +10,7 @@ import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -203,8 +204,15 @@ class LocationProvider(
      * T143: Frischen High-Accuracy-Fix anfordern (fuer neue Detektionen). Liefert null bei Timeout,
      * fehlender Permission oder Fehler. Laeuft im Kontext des Aufrufers (Dienst-Pipeline), nicht der UI.
      */
+    suspend fun requestFreshFix(timeoutMs: Long): LocationData? {
+        val data = fetchFix(timeoutMs)
+        if (data != null && detectionOnly) registerDetectionFix(data)
+        return data
+    }
+
+    /** Einmalige Positionsabfrage ohne Seiteneffekt auf Statistik/Detektions-Fixes (T206). */
     @SuppressLint("MissingPermission")
-    suspend fun requestFreshFix(timeoutMs: Long): LocationData? = suspendCancellableCoroutine { cont ->
+    private suspend fun fetchFix(timeoutMs: Long): LocationData? = suspendCancellableCoroutine { cont ->
         val cts = CancellationTokenSource()
         cont.invokeOnCancellation { cts.cancel() }
         try {
@@ -224,7 +232,6 @@ class LocationProvider(
                             timestampMs = it.time
                         )
                     }
-                    if (data != null && detectionOnly) registerDetectionFix(data)
                     if (cont.isActive) cont.resume(data)
                 }
                 .addOnFailureListener { e ->
@@ -236,6 +243,33 @@ class LocationProvider(
             Log.w(TAG, "Frischer Fix ohne Permission nicht verfuegbar")
             if (cont.isActive) cont.resume(null)
         }
+    }
+
+    private val startFixMutex = Mutex()
+
+    /**
+     * T206: Standort ausserhalb einer Aufnahme sicherstellen (Programmstart, Karte, Gemeinde-Knopf).
+     * Erst letzte bekannte Position, dann bei Bedarf ein einmaliger frischer Fix. Kein Dauertracking,
+     * zaehlt nicht als Detektions-Fix und beruehrt waehrend einer Aufnahme nichts.
+     * Parallele Aufrufe: nur einer fragt, die anderen kehren sofort zurueck.
+     * @return aktuelle Position (kann null sein)
+     */
+    suspend fun ensureFix(timeoutMs: Long = StartFixPolicy.TIMEOUT_MS): LocationData? {
+        if (isTracking) return _location.value
+        val maxAcc = appPreferences.gpsMaxAccuracyMeters
+        publishLastKnown()
+        if (!StartFixPolicy.needsFix(_location.value, System.currentTimeMillis(), maxAcc)) return _location.value
+        if (!startFixMutex.tryLock()) return _location.value
+        try {
+            val fresh = fetchFix(timeoutMs)
+            if (fresh != null && !isTracking && StartFixPolicy.shouldPublish(_location.value, fresh, maxAcc)) {
+                _location.value = fresh
+                Log.i(TAG, "Start-Fix publiziert: ±${fresh.accuracyM}m")
+            }
+        } finally {
+            startFixMutex.unlock()
+        }
+        return _location.value
     }
 
     /** T152: Fix aus requestFreshFix im Modus "Nur bei Detektion" zaehlen und veroeffentlichen. */

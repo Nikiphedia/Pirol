@@ -596,6 +596,7 @@ private fun SessionDetailContent(
                             note = noteText,
                             maxLength = 200,
                             onNoteChange = { noteText = it },
+                            ensureFix = { locationProvider.ensureFix() },
                         )
                     }
                 },
