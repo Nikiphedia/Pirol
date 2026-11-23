@@ -253,6 +253,12 @@ class RegionalSpeciesFilter(
     fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean =
         state.isPlausible(scientificName, respectSeason, monthDay)
 
+    /**
+     * T248: false, wenn die Artgruppe der Art auf "Aus" steht. Gilt auch bei "Nur gefilterte anzeigen" aus:
+     * eine ausgeschaltete Gruppe wird nie gemeldet. Ohne geladene Gruppenwahl: true.
+     */
+    fun isGroupEnabled(scientificName: String): Boolean = state.isGroupEnabled(scientificName)
+
     /** Alle Arten der Listen der geladenen Gruppenwahl (Auto: Ersatzliste) */
     fun getSpeciesList(): Set<String> = state.species
 
@@ -307,6 +313,11 @@ internal data class FilterState(
     val groupRules: Map<TaxonGroup, GroupRule>? = null
 ) {
     fun isAutoGeo(): Boolean = groupRules?.values?.any { it is GroupRule.Auto } == true
+
+    fun isGroupEnabled(scientificName: String): Boolean {
+        val rules = groupRules ?: return true
+        return (rules[TaxonGroups.of(SpeciesKey.of(scientificName))] ?: GroupRule.Off) !is GroupRule.Off
+    }
 
     fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean {
         val rules = groupRules ?: return true

@@ -67,12 +67,13 @@ class InferenceWorker(
         }
 
         /**
-         * T238 (#13): Anzahl Treffer, die der Classifier liefern soll. Mit aktivem Regionsfilter (nur plausible)
-         * alle ueber der Untergrenze, damit der Filter VOR der TopK-Auswahl wirkt (laute ausgeschlossene
-         * Gruppen verdraengen sonst plausible Arten). Gekappt wird danach mit [resultLimit].
+         * T238 (#13): Anzahl Treffer, die der Classifier liefern soll. Mit aktivem Filter alle ueber der
+         * Untergrenze, damit er VOR der TopK-Auswahl wirkt (laute ausgeschaltete Gruppen verdraengen sonst
+         * andere Arten). T248: gilt auch bei "Nur gefilterte anzeigen" aus (Gruppen auf Aus fallen immer weg).
+         * Gekappt wird danach mit [resultLimit].
          */
         internal fun classifierTopK(config: InferenceConfig): Int =
-            if (config.regionFilter != null && config.showOnlyFiltered) Int.MAX_VALUE else resultLimit(config)
+            if (config.regionFilter != null) Int.MAX_VALUE else resultLimit(config)
 
         /** T225: topK Detektionen plus topK Alternativen; splitByThreshold begrenzt wieder */
         internal fun resultLimit(config: InferenceConfig): Int = config.topK * 2
@@ -375,9 +376,13 @@ class InferenceWorker(
     private fun filterRegional(classifierResults: List<AudioClassifier.ClassifierResult>, job: WindowJob): List<AudioClassifier.ClassifierResult> {
         // T190: Aufnahmedatum (lokal) des Fensters fuer die Listen-Saison
         val monthDay = if (config.respectListSeason) ListSeason.monthDay(job.startEpochMs) else null
+        // T248: Gruppen auf "Aus" nie melden, auch wenn "Nur gefilterte anzeigen" aus ist
+        val enabled = if (config.regionFilter != null) {
+            classifierResults.filter { regionalFilter.isGroupEnabled(it.scientificName) }
+        } else classifierResults
         if (config.regionFilter != null && config.showOnlyFiltered) {
             // Nur plausible Arten durchlassen
-            return classifierResults.filter { cr ->
+            return enabled.filter { cr ->
                 val plausible = regionalFilter.isPlausible(cr.scientificName, config.respectListSeason, monthDay)
                 if (!plausible) {
                     Log.d(TAG, "Herausgefiltert (nicht regional plausibel): " +
@@ -388,7 +393,7 @@ class InferenceWorker(
         }
         // Alle behalten, aber ungewoehnliche Arten loggen
         if (config.regionFilter != null) {
-            classifierResults.forEach { cr ->
+            enabled.forEach { cr ->
                 if (!regionalFilter.isPlausible(cr.scientificName, config.respectListSeason, monthDay)) {
                     Log.d(TAG, "Ungewoehnlich (nicht regional erwartet): " +
                             "${cr.commonName} (${cr.scientificName}) " +
@@ -396,7 +401,7 @@ class InferenceWorker(
                 }
             }
         }
-        return classifierResults
+        return enabled
     }
 
     /**

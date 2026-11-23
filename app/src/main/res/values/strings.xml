@@ -727,6 +727,8 @@
     <string name="settings_species_groups_hint">Aus = Gruppe wird nicht gemeldet, Alle = ungefiltert, Auto = Standort + Woche (Geomodel), Liste = gewählte Artenliste. Andere = übrige Insekten, Reptilien, Fische und Geräusche (Wind, Hund, Motor).</string>
     <string name="settings_species_groups_auto_fallback">Auto ohne Standort oder Geomodel: Vögel nutzen die Ersatzliste unten, Heuschrecken und Amphibien die Liste der Schweiz, Säugetiere alle Arten.</string>
     <string name="analysis_rescan_groups">Artgruppen</string>
+    <string name="analysis_rescan_zweitmodell">Zweitmodell</string>
+    <string name="analysis_rescan_zweitmodell_aus">Aus</string>
     <string name="setup_sum_groups">Artgruppen: %1$s</string>
     <string name="ui_alarm_button">Alarm</string>
     <string name="ui_alarm_dauerhaft">In Alarmliste aufnehmen</string>

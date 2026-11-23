@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ml
 
+import ch.etasystems.pirol.audio.dsp.AudioResampler
 import ch.etasystems.pirol.audio.dsp.FFT
 import kotlin.math.PI
 import kotlin.math.abs
@@ -210,29 +211,11 @@ class MfccExtractor {
 
     /**
      * Stellt sicher, dass Audio bei SAMPLE_RATE (48kHz) vorliegt.
-     * Einfaches Resampling per linearer Interpolation.
+     * T248: Resampling im Modus der Einstellung ([AudioResampler.defaultMode]).
      */
     private fun ensureSampleRate(samples: FloatArray, sampleRate: Int): FloatArray {
-        if (sampleRate == SAMPLE_RATE) return samples
-        if (samples.isEmpty()) return samples
-
-        val ratio = sampleRate.toDouble() / SAMPLE_RATE.toDouble()
-        val outputLength = (samples.size / ratio).toInt()
-        val output = FloatArray(outputLength)
-
-        for (i in 0 until outputLength) {
-            val srcPos = i * ratio
-            val srcIdx = srcPos.toInt()
-            val frac = (srcPos - srcIdx).toFloat()
-
-            output[i] = if (srcIdx + 1 < samples.size) {
-                samples[srcIdx] * (1f - frac) + samples[srcIdx + 1] * frac
-            } else {
-                samples[srcIdx.coerceAtMost(samples.size - 1)]
-            }
-        }
-
-        return output
+        if (sampleRate == SAMPLE_RATE || samples.isEmpty()) return samples
+        return AudioResampler.resample(samples, sampleRate, SAMPLE_RATE, AudioResampler.defaultMode)
     }
 
     /**

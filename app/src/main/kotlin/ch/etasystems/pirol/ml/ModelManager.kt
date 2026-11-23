@@ -303,6 +303,7 @@ class ModelManager(
         if (target.exists()) target.delete()
         tempFile.renameTo(target)
         Log.i(TAG, "Label-Datei importiert: ${target.name}")
+        reloadTaxonGroups()  // T248
         // Liegt ein passendes Modell schon bereit, wird es aktiv
         listInstalledModels().firstOrNull { it.profile.labelFileName == profile.labelFileName }
             ?.let { appPreferences.activeModelFileName = it.fileName }
@@ -318,7 +319,9 @@ class ModelManager(
         if (getLabelFile(profile) != null) return true
         val url = profile.labelUrl ?: return false
         val target = File(File(context.filesDir, MODEL_DIR), profile.labelFileName ?: return false)
-        return downloadFile(url, target, profile.labelChecksum, profile.labelSizeBytes, minBytes = 1_000L) {}
+        val ok = downloadFile(url, target, profile.labelChecksum, profile.labelSizeBytes, minBytes = 1_000L) {}
+        if (ok) reloadTaxonGroups()  // T248: neue Label-CSV sofort fuer die Gruppenzuordnung
+        return ok
     }
 
     /** T104: Groesse der angefangenen (unvollstaendigen) Download-Datei eines Modells, 0 = keine */
@@ -890,6 +893,7 @@ class ModelManager(
             }
             File(dir, profile.id + ModelProfileJson.FILE_SUFFIX).writeText(jsonText)
             reloadImportedProfiles()
+            reloadTaxonGroups()  // T248: Label-CSV des Profils zaehlt sofort fuer die Gruppenzuordnung
             val installed = ModelProfile.byId(profile.id) ?: profile
             appPreferences.activeModelFileName = installed.fileName
             onProgress(1f)
@@ -907,6 +911,11 @@ class ModelManager(
     }
 
     // --- Private Hilfsfunktionen ---
+
+    /** T248: Artgruppen aus den Label-CSVs neu einlesen (Fehler nie nach aussen) */
+    private fun reloadTaxonGroups() {
+        runCatching { TaxonGroups.reload(context) }.onFailure { Log.w(TAG, "Artgruppen nicht neu geladen", it) }
+    }
 
     /** Dateiname aus ContentResolver lesen */
     private fun queryDisplayName(uri: Uri): String? {

@@ -12,7 +12,10 @@ import ch.etasystems.pirol.ml.GeoFilterController
 import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.PirolFolder
 import ch.etasystems.pirol.ml.RegionInfo
+import ch.etasystems.pirol.ml.InferenceConfig
+import ch.etasystems.pirol.ml.ListSeason
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.SecondaryChecker
 import ch.etasystems.pirol.ml.SpeciesKey
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.util.parseInstantCompat
@@ -31,7 +34,9 @@ data class RescanOptions(
     val confidenceThreshold: Float,
     val overlapPercent: Int,
     /** T239/T246: Gruppenwahl (einziger Filter); Voreinstellung = Wahl der Session, sonst aktuelle Einstellungen */
-    val groups: ch.etasystems.pirol.ml.SpeciesGroupSelection
+    val groups: ch.etasystems.pirol.ml.SpeciesGroupSelection,
+    /** T248: Zweitmodell (Datei in filesDir/models), null = keins. Voreinstellung: wie in den Live-Einstellungen */
+    val secondaryModelFileName: String? = null
 )
 
 /**
@@ -79,11 +84,14 @@ class RescanEngine(
      */
     fun defaults(threshold: Float?, groups: Map<String, String>?): RescanOptions {
         val model = models().firstOrNull { it.isActive } ?: models().firstOrNull()
+        val secondary = appPreferences.secondaryModelFileName
+            ?.takeIf { f -> f != model?.fileName && models().any { it.fileName == f } }
         return RescanOptions(
             modelFileName = model?.fileName.orEmpty(),
             confidenceThreshold = threshold ?: appPreferences.confidenceThreshold,
             overlapPercent = appPreferences.overlapPercent,
-            groups = groups?.let { ch.etasystems.pirol.ml.SpeciesGroupSelection.fromMap(it) } ?: appPreferences.speciesGroups
+            groups = groups?.let { ch.etasystems.pirol.ml.SpeciesGroupSelection.fromMap(it) } ?: appPreferences.speciesGroups,
+            secondaryModelFileName = secondary
         )
     }
 
@@ -102,7 +110,10 @@ class RescanEngine(
         if (pipeline.isRunning || sessionManager.isActiveSession(sessionDir)) throw RecordingActiveException()
         if (!busy.tryLock()) throw IllegalStateException("Rescan laeuft bereits")
         var classifier: BirdNetV3Classifier? = null
+        var secondaryClassifier: BirdNetV3Classifier? = null
+        val secondaryFile = options.secondaryModelFileName?.takeIf { it != options.modelFileName }
         modelManager.markInUse(options.modelFileName)  // T239: waehrend des Rescans nicht loeschbar
+        secondaryFile?.let { modelManager.markInUse(it) }
         try {
             val meta = sessionManager.loadMetadata(sessionDir)
             val recording = sessionManager.loadRecording(sessionDir) ?: throw NoRecordingException()
@@ -149,6 +160,13 @@ class RescanEngine(
                 overlapPercent = options.overlapPercent,
                 inferenceIntervalMs = CHUNK_DURATION_MS
             )
+            // T248: Zweitmodell wie live (nur Anzeige, Felder secondary*); nicht ladbar -> Rescan ohne
+            var secondary: SecondaryChecker? = null
+            if (secondaryFile != null) {
+                secondary = runCatching { openSecondary(secondaryFile, filter, config, epoch0) }
+                    .onFailure { Log.w(TAG, "T248 Zweitmodell nicht geoeffnet", it) }.getOrNull()
+                    ?.also { secondaryClassifier = it.first }?.second
+            }
             val runner = RescanRunner(
                 classifier = cls,
                 regionalFilter = filter,
@@ -156,7 +174,9 @@ class RescanEngine(
                 resolveName = { speciesNameResolver.commonName(it) },
                 clusterEnabled = appPreferences.clusterEnabled,
                 clusterRadiusM = appPreferences.clusterRadiusM,
-                clusterTimeWindowMin = appPreferences.clusterTimeWindowMin
+                clusterTimeWindowMin = appPreferences.clusterTimeWindowMin,
+                secondary = secondary,
+                secondaryOverlapPercent = appPreferences.secondaryOverlapPercent
             )
             val t0 = System.currentTimeMillis()
             val result = withContext(Dispatchers.Default) {
@@ -199,8 +219,34 @@ class RescanEngine(
             return info
         } finally {
             classifier?.close()  // ORT-Session des Rescans sofort freigeben
+            secondaryClassifier?.close()
+            secondaryFile?.let { modelManager.unmarkInUse(it) }
             modelManager.unmarkInUse(options.modelFileName)
             busy.unlock()
         }
+    }
+
+    /**
+     * T248: Zweitmodell fuer den Rescan oeffnen (eigene ORT-Session). Schwelle wie live.
+     * @return Klassifizierer (zum Schliessen) und Checker; null/Fehler -> Rescan laeuft ohne Zweitmodell
+     */
+    private suspend fun openSecondary(
+        fileName: String,
+        filter: RegionalSpeciesFilter,
+        config: InferenceConfig,
+        epoch0: Long
+    ): Pair<BirdNetV3Classifier, SecondaryChecker>? {
+        val file = modelManager.getModelFile(fileName) ?: return null
+        modelManager.ensureLabels(ch.etasystems.pirol.ml.ModelProfile.resolve(file.name, file.length()))
+        val cls = BirdNetV3Classifier(context, modelManager, null, fileName)
+        if (!cls.isModelAvailable()) { cls.close(); return null }
+        // Regionsfilter fuer die angezeigte Top-Art wie live (Saison nach Aufnahmedatum der Session)
+        val monthDay = if (config.respectListSeason) ListSeason.monthDay(epoch0) else null
+        val checker = SecondaryChecker(
+            classifier = cls,
+            threshold = appPreferences.secondaryConfidenceThreshold,
+            isPlausible = { filter.isPlausible(it, config.respectListSeason, monthDay) }
+        ) { _, _ -> }
+        return cls to checker
     }
 }

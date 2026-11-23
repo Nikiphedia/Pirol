@@ -650,9 +650,8 @@ class RecordingPipeline(
         // T70: Cluster-Algorithmus
         val newDetections = mutableListOf<DetectionResult>()
         val mergedAnchors = mutableListOf<DetectionResult>()  // T124: auch Merges koennen alarmieren
-        // T224: Ziele des Zweitmodells (Detektion in der Liste + Art) und Persistenz-Jobs dieses Fensters
+        // T224: Ziele des Zweitmodells (Detektion in der Liste + Art)
         val secondaryTargets = mutableListOf<SecondaryChecker.SecondaryWindow.Target>()
-        val persistJobs = mutableListOf<Job>()
         for (det in geoDetections) {
             // T73: gesperrte Art → Detection verwerfen
             val speciesKey = det.scientificName.replace(' ', '_')
@@ -670,7 +669,7 @@ class RecordingPipeline(
                     secondaryTargets += SecondaryChecker.SecondaryWindow.Target(result.anchor.id, det.scientificName)
                     if (session.isActive) {
                         queuePersist(result.anchor.id)  // T236: gebuendelt
-                        persistJobs += scope.launch(ioDispatcher) {
+                        scope.launch(ioDispatcher) {
                             session.appendVerification(clusterMergedEvent(result, System.currentTimeMillis()))
                         }
                     }
@@ -683,7 +682,7 @@ class RecordingPipeline(
 
         // Neue Detektionen sofort in JSONL schreiben (Merges gebuendelt via queuePersist, T236)
         if (session.isActive && newDetections.isNotEmpty()) {
-            persistJobs += scope.launch(ioDispatcher) {
+            scope.launch(ioDispatcher) {
                 session.appendDetections(newDetections)
                 // T143: erst nach dem Append (T236: Reihenfolge sichert auch die Warteschlange ab)
                 refreshFixes(newDetections, loc)
@@ -693,7 +692,7 @@ class RecordingPipeline(
         }
 
         // T224: Zweitmodell (nur Anzeige) — nach der Hauptinferenz, eigene Coroutine, begrenzte Warteschlange
-        submitSecondary(audioBlock, geoDetections.firstOrNull()?.chunkStartSec, secondaryTargets, persistJobs)
+        submitSecondary(audioBlock, geoDetections.firstOrNull()?.chunkStartSec, secondaryTargets)
 
         // Embedding-Arm (T61: Embedding aus der Klassifikations-Inference)
         val topDetection = geoDetections.maxByOrNull { it.confidence } ?: return
@@ -712,8 +711,7 @@ class RecordingPipeline(
     private fun submitSecondary(
         audioBlock: AudioBlock,
         windowStartSec: Float?,
-        targets: List<SecondaryChecker.SecondaryWindow.Target>,
-        persistJobs: List<Job>
+        targets: List<SecondaryChecker.SecondaryWindow.Target>
     ) {
         val checker = secondary ?: return
         val gate = secondaryGate ?: return
@@ -730,8 +728,7 @@ class RecordingPipeline(
                 sampleRate = audioBlock.sampleRate,
                 windowStartSec = windowStartSec,
                 highpass = inferenceWorker.config.highpassEnabled,
-                targets = accepted,
-                persisted = persistJobs
+                targets = accepted
             )
         )
     }

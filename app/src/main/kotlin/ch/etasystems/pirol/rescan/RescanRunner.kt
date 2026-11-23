@@ -12,6 +12,8 @@ import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.InferenceWorker
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.SecondaryCheck
+import ch.etasystems.pirol.ml.SecondaryChecker
 import ch.etasystems.pirol.ml.VerificationEvent
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -55,7 +57,10 @@ class RescanRunner(
     private val resolveName: (String) -> String,
     private val clusterEnabled: Boolean,
     private val clusterRadiusM: Int,
-    private val clusterTimeWindowMin: Int
+    private val clusterTimeWindowMin: Int,
+    /** T248: Zweitmodell (nur Anzeige, Felder secondary*); null = keins */
+    private val secondary: SecondaryChecker? = null,
+    private val secondaryOverlapPercent: Int = 0
 ) {
     class Result(
         /** Detektionen wie in detections.jsonl (Merges bereits im Anker), nach Startzeit sortiert */
@@ -96,6 +101,7 @@ class RescanRunner(
         // Wie detections.jsonl: neue Detektionen anhaengen, Merges ersetzen den Anker (Reihenfolge bleibt)
         val persisted = LinkedHashMap<String, DetectionResult>()
         val merges = mutableListOf<VerificationEvent>()
+        val gate = secondary?.let { SecondaryCheck.OverlapGate(it.windowMs, secondaryOverlapPercent, config.maxHopMs) }
 
         for ((i, start) in starts.withIndex()) {
             currentCoroutineContext().ensureActive()
@@ -111,20 +117,66 @@ class RescanRunner(
                     located, threshold, config.alternativesFloor, config.topK, config.topK
                 )
                     .map { RecordingPipeline.withResolvedNames(it, resolveName) }
+                val targets = mutableListOf<SecondaryChecker.SecondaryWindow.Target>()
                 for (det in named) {
                     when (val r = list.addOrCluster(det, clusterEnabled, clusterRadiusM, clusterTimeWindowMin,
                         nowMs = startEpoch + windowMs)) {
-                        is ClusterResult.New -> persisted[r.detection.id] = r.detection
+                        is ClusterResult.New -> {
+                            persisted[r.detection.id] = r.detection
+                            targets += SecondaryChecker.SecondaryWindow.Target(r.detection.id, det.scientificName)
+                        }
                         is ClusterResult.Merged -> {
                             persisted[r.anchor.id] = r.anchor
                             merges += RecordingPipeline.clusterMergedEvent(r, nowMs())
+                            targets += SecondaryChecker.SecondaryWindow.Target(r.anchor.id, det.scientificName)
                         }
                     }
+                }
+                if (secondary != null && gate != null) {
+                    checkSecondary(secondary, gate, targets, recording, start, pcm.samples, startSec, list, persisted)
                 }
             }
             onProgress((i + 1).toFloat() / starts.size)
         }
         return Result(persisted.values.sortedBy { it.chunkStartSec }, merges, starts.size)
+    }
+
+    /**
+     * T248: Zweitmodell fuer ein Fenster mit Detektionen (wie live: [SecondaryCheck.OverlapGate], bestes Fenster
+     * des Clusters via [SecondaryCheck.shouldApply]). Laengere Fenster (Perch 5 s) lesen echtes Umgebungsaudio
+     * aus der Aufnahme, zentriert um das Hauptfenster; sonst wie live [SecondaryCheck.fitWindow].
+     */
+    private fun checkSecondary(
+        checker: SecondaryChecker,
+        gate: SecondaryCheck.OverlapGate,
+        targets: List<SecondaryChecker.SecondaryWindow.Target>,
+        recording: SegmentedRecording,
+        start: Long,
+        samples: ShortArray,
+        startSec: Float,
+        list: DetectionListState,
+        persisted: MutableMap<String, DetectionResult>
+    ) {
+        val accepted = targets.filter { gate.accept(it.scientificName, startSec) }
+        if (accepted.isEmpty()) return
+        val sr = recording.sampleRate
+        val target = SecondaryCheck.windowSamplesAt(checker.windowMs, sr)
+        val context = if (target > samples.size) {
+            val range = SecondaryCheck.contextRange(start, samples.size, target, 0L)
+            // Aufnahmeende: nach links verschieben, damit keine Stille noetig ist
+            val from = minOf(range.from, recording.totalFrames - target).coerceAtLeast(0L)
+            recording.readFrames(from, from + target)?.samples?.takeIf { it.size == target }
+                ?.let { SecondaryChecker.ContextAudio(it, "CENTERED", 0L) }
+        } else null
+        val window = SecondaryChecker.SecondaryWindow(samples, sr, startSec, config.highpassEnabled, accepted)
+        for ((t, outcome) in checker.process(window, context)) {
+            val update = { cur: DetectionResult ->
+                if (SecondaryCheck.shouldApply(cur, startSec)) SecondaryCheck.apply(cur, checker.modelId, outcome) else null
+            }
+            // Cluster aus: die Liste haelt nur die neueste Detektion je Art, aeltere stehen nur in [persisted]
+            val updated = list.modifyDetection(t.id, update) ?: persisted[t.id]?.let(update)
+            if (updated != null) persisted[t.id] = updated
+        }
     }
 }
 

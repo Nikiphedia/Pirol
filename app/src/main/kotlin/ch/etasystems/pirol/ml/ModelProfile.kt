@@ -40,6 +40,8 @@ data class ModelProfile(
     val scoreOutputIndex: Int,
     val embeddingOutputName: String? = null,
     val embeddingOutputIndex: Int,
+    /** T248: weitere akzeptierte Namen des Embedding-Ausgangs (z.B. BirdNET-3.0.1: `embeddings`) */
+    val embeddingOutputAliases: List<String> = emptyList(),
     val scoreTransform: ScoreTransform,
     val speciesCount: Int,
     val licenseNote: String,
@@ -124,6 +126,7 @@ data class ModelProfile(
             scoreOutputIndex = 0,
             embeddingOutputName = "embeddings_out",
             embeddingOutputIndex = 1,
+            embeddingOutputAliases = listOf("embeddings"),
             scoreTransform = ScoreTransform.NONE,
             speciesCount = 11725,
             licenseNote = LICENSE_BIRDNET3,
