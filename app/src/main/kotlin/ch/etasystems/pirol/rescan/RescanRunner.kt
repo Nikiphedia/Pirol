@@ -90,7 +90,9 @@ class RescanRunner(
         positionAt: (Long) -> Pair<Double, Double>?,
         onProgress: (Float) -> Unit = {},
         isAborted: () -> Boolean = { false },
-        nowMs: () -> Long = { System.currentTimeMillis() }
+        nowMs: () -> Long = { System.currentTimeMillis() },
+        /** T255: Wanduhr je Frame (Segmente mit Luecken, [RescanPlan.wallClockAt]); null = linear ab [epochAtZeroMs] */
+        wallClockAt: ((Long) -> Long)? = null
     ): Result {
         val sr = recording.sampleRate
         val windowMs = classifier.windowMs
@@ -108,7 +110,7 @@ class RescanRunner(
             if (isAborted()) throw RescanAbortedException()
             val pcm = recording.readFrames(start, start + windowFrames) ?: continue
             val startSec = (start.toDouble() / sr).toFloat()
-            val startEpoch = epochAtZeroMs + start * 1000L / sr
+            val startEpoch = wallClockAt?.invoke(start) ?: (epochAtZeroMs + start * 1000L / sr)
             val raw = worker.analyzeWindowNow(AnalysisWindow(pcm.samples, sr, start), startEpoch, startSec)
             if (raw.isNotEmpty()) {
                 val pos = positionAt(startEpoch)

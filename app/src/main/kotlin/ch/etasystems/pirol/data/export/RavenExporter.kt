@@ -133,7 +133,10 @@ object RavenExporter {
                 val beginFile  = segment?.fileName ?: "recording.wav"
                 val localStart = if (segment != null) winStart - segment.startSec else winStart
                 val localEnd   = if (segment != null) winEnd   - segment.startSec else winEnd
-                val detectionTime = sessionStart.plusSeconds(winStart.toLong())
+                // T255: importierte Segmente mit eigener Wanduhr (Luecken zwischen Dateien), sonst Session-Start + Offset
+                val segmentStart = segment?.startedAt?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
+                val detectionTime = segmentStart?.plusSeconds(localStart.toLong())
+                    ?: sessionStart.plusSeconds(winStart.toLong())
                 val beginDateTime = detectionTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
                 val row = mutableListOf((index + 1).toString(), VIEW, CHANNEL.toString())

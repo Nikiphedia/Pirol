@@ -181,6 +181,15 @@ private fun SessionListView(
         }
     }
     val selectedCount = state.selectedIds.size
+    // T255: Import-Fortschritt und Dialog vor dem Fremdaudio-Import
+    val importActive by viewModel.importActive.collectAsState()
+    if (state.audioImportOpen) {
+        AudioImportDialog(
+            probes = state.audioImportProbes,
+            onDismiss = { viewModel.dismissAudioImport() },
+            onStart = { viewModel.startAudioImport(it) }
+        )
+    }
     // T202: Artsuche (Trefferzahl je Session aus dem beim Laden aufgebauten Index)
     val nameResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
     var searchOpen by remember { mutableStateOf(state.sessionSearch.isNotEmpty()) }
@@ -328,6 +337,8 @@ private fun SessionListView(
                 Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.analysis_suche_art))
             }
             Spacer(modifier = Modifier.weight(1f))
+            // T255: Import (ZIP, Ordner, Fremdaudio); waehrend eines Imports gesperrt
+            ImportMenuButton(viewModel, enabled = importActive == null && !state.batchRunning)
             if (state.sessions.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.analysis_ses, state.sessions.size),
@@ -337,6 +348,7 @@ private fun SessionListView(
             }
         }
         }
+        importActive?.let { a -> ImportProgressRow(a, onCancel = { viewModel.cancelImport() }) }  // T255
         if (searchOpen) {
             OutlinedTextField(
                 value = state.sessionSearch,
@@ -494,6 +506,13 @@ private fun SessionDetailContent(
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
     var showRescanDialog by remember { mutableStateOf(false) }  // T221
     if (showRescanDialog) RescanDialog(viewModel) { showRescanDialog = false }
+    // T255: nach einem Fremdaudio-Import den Rescan-Dialog fuer die neue Session oeffnen
+    LaunchedEffect(state.rescanRequest, state.hasRecording, session.metadata.sessionId) {
+        if (state.rescanRequest && state.hasRecording) {
+            viewModel.consumeRescanRequest()
+            if (state.rescanProgress == null) showRescanDialog = true
+        }
+    }
     // T202: Artsuche im Session-Detail (filtert die Detektionsliste)
     val detailResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
     var detailSearchOpen by remember { mutableStateOf(false) }

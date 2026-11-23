@@ -29,6 +29,7 @@ import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.ui.components.SpectrogramState
+import ch.etasystems.pirol.data.importer.SessionImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -71,7 +72,8 @@ class AnalysisViewModel(
     private val context: Context,  // T69: fuer VoiceMemoRecorder SAF
     private val playback: ch.etasystems.pirol.audio.PlaybackController,  // T173: zentrale Wiedergabe
     private val uploadManager: ch.etasystems.pirol.data.sync.UploadManager,  // T194: Upload aus der Session-Kopfzeile
-    private val rescanEngine: ch.etasystems.pirol.rescan.RescanEngine  // T221: Rescan einer Aufnahme
+    private val rescanEngine: ch.etasystems.pirol.rescan.RescanEngine,  // T221: Rescan einer Aufnahme
+    private val importer: ch.etasystems.pirol.data.importer.SessionImporter  // T255: Import (ZIP, Ordner, Fremdaudio)
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalysisUiState())
@@ -96,6 +98,7 @@ class AnalysisViewModel(
 
     init {
         observeRescan()  // T250/M4
+        observeImport()  // T255
         // T65: Crash-Recovery vor erstem Session-Laden (verwaiste Sessions reparieren)
         viewModelScope.launch {
             sessionManager.recoverOrphanSessions()
@@ -153,7 +156,12 @@ class AnalysisViewModel(
 
     /** Alle Sessions laden (fuer Liste) */
     fun loadSessions() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) { loadSessionsNow() }
+    }
+
+    /** Liste laden und abwarten (T255: danach importierte Session oeffnen) */
+    private suspend fun loadSessionsNow() {
+        withContext(Dispatchers.IO) {
             _uiState.update { it.copy(isLoading = true) }
             val dirs = sessionManager.listSessions()
             val speciesIndex = HashMap<String, List<String>>()
@@ -1410,6 +1418,75 @@ class AnalysisViewModel(
         _uiState.update { it.copy(undoOffer = null) }
     }
 
+
+    // ── T255: Import ─────────────────────────────────────────────────
+
+    /** Laufender Import (Fortschritt), null = keiner */
+    val importActive: StateFlow<ch.etasystems.pirol.data.importer.SessionImporter.Active?> get() = importer.active
+
+    /** PIROL-Session aus ZIP oder Ordner importieren (Hintergrund) */
+    fun importPackage(uri: android.net.Uri, isFolder: Boolean) {
+        importer.startPackage(uri, isFolder)
+        startImportService()
+    }
+
+    /** Vordergrund-Dienst haelt den Prozess bei langen Importen am Leben (wie Rescan, T252) */
+    private fun startImportService() {
+        runCatching { ch.etasystems.pirol.data.importer.ImportService.start(context) }
+            .onFailure { Log.w("AnalysisViewModel", "Import-Dienst nicht gestartet", it) }
+    }
+
+    /** Gewaehlte Audiodateien vorpruefen; danach zeigt der Dialog Zeiten/Ort ([AnalysisUiState.audioImportProbes]) */
+    fun probeAudioImport(uris: List<android.net.Uri>) {
+        _uiState.update { it.copy(audioImportOpen = true, audioImportProbes = null) }
+        viewModelScope.launch {
+            val probes = runCatching { importer.probe(uris) }.getOrElse { emptyList() }
+            _uiState.update { if (it.audioImportOpen) it.copy(audioImportProbes = probes) else it }
+        }
+    }
+
+    fun dismissAudioImport() { _uiState.update { it.copy(audioImportOpen = false, audioImportProbes = null) } }
+
+    fun startAudioImport(request: ch.etasystems.pirol.data.importer.AudioImportRequest) {
+        dismissAudioImport()
+        importer.startAudio(request)
+        startImportService()
+    }
+
+    fun cancelImport() = importer.cancel()
+
+    /** Rescan-Dialog wurde geoeffnet (Anfrage nach Fremdaudio-Import) */
+    fun consumeRescanRequest() { _uiState.update { it.copy(rescanRequest = false) } }
+
+    /** Ende des Imports: Liste neu laden, erste neue Session oeffnen; nach Fremdaudio den Rescan-Dialog anbieten. */
+    private fun observeImport() {
+        viewModelScope.launch {
+            importer.outcomes.collect { o ->
+                loadSessionsNow()
+                val msg = when (o) {
+                    is SessionImporter.Outcome.Done -> if (o.renamed && o.sessionIds.size == 1)
+                        AppStrings.get(R.string.import_fertig_neue_id, o.sessionIds.first())
+                        else AppStrings.get(R.string.import_fertig, o.sessionIds.size)
+                    is SessionImporter.Outcome.Cancelled -> AppStrings.get(R.string.import_abgebrochen, o.sessionIds.size)
+                    is SessionImporter.Outcome.Failed -> when (o.failure) {
+                        SessionImporter.Failure.NOT_A_SESSION -> AppStrings.get(R.string.import_fehler_keine_session)
+                        SessionImporter.Failure.NO_AUDIO -> AppStrings.get(R.string.import_fehler_kein_audio, o.detail ?: "")
+                        SessionImporter.Failure.READ -> AppStrings.get(R.string.import_fehler_lesen, o.detail ?: "")
+                        SessionImporter.Failure.WRITE -> AppStrings.get(R.string.import_fehler_schreiben)
+                    }
+                }
+                val first = o.sessionIds.firstOrNull()?.let { id -> _uiState.value.sessions.firstOrNull { it.metadata.sessionId == id } }
+                if (o is SessionImporter.Outcome.Done && first != null && !_uiState.value.selectionMode) {
+                    _uiState.update { it.copy(rescanRequest = o.kind == SessionImporter.Kind.AUDIO) }
+                    openSession(first)
+                    reportError(msg)  // Snackbar der Detailansicht
+                } else {
+                    _uiState.update { it.copy(batchMessage = msg) }  // Snackbar der Liste
+                    if (_uiState.value.selectedSession != null) reportError(msg)
+                }
+            }
+        }
+    }
 
     // ── T221: Rescan und Varianten ───────────────────────────────────
 

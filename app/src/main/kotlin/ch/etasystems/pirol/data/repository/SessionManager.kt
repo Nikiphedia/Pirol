@@ -678,6 +678,35 @@ class SessionManager(
         locator.findBySessionId(sessionId)
     }
 
+    // ── Import (T255) ─────────────────────────────────────────────────
+
+    /**
+     * T255: Arbeitsordner fuer einen Import in der Basis des Speicherorts neuer Sessions (SAF bevorzugt, sonst
+     * Datei-Basis, wie [startSession]). Der Tagesordner wird erst beim Fertigstellen gewaehlt ([importDayDir]).
+     */
+    suspend fun createImportStaging(): ImportStaging = withContext(Dispatchers.IO) {
+        val name = ImportStaging.PREFIX + UUID.randomUUID().toString().take(8)
+        val baseDoc = if (appPreferences.storageBaseUri != null) locator.resolveBaseDocFile() else null
+        if (baseDoc != null && baseDoc.canWrite()) {
+            val doc = baseDoc.createDirectory(name) ?: throw IllegalStateException("SAF: Import-Ordner nicht erstellbar")
+            DocImportStaging(context, baseDoc, doc)
+        } else {
+            val base = locator.resolveBaseFile()
+            val dir = File(base, name)
+            if (!dir.mkdirs()) throw IllegalStateException("Import-Ordner nicht erstellbar: ${dir.absolutePath}")
+            FileImportStaging(base, dir)
+        }
+    }
+
+    /** T255: Tagesordner fuer eine importierte Session (Aufnahmedatum), null wenn Tagesordner ausgeschaltet. */
+    fun importDayDir(recordingDate: String?): String? = recordingDate?.takeIf { appPreferences.storageDailySubfolder }
+
+    /** T255: Gibt es schon eine Session mit dieser ID (= Ordnername)? */
+    suspend fun isSessionIdTaken(sessionId: String): Boolean = findSessionDir(sessionId) != null
+
+    /** T255: Reste abgebrochener Importe entfernen (nur ohne laufenden Import). */
+    suspend fun removeImportStaging() = withContext(Dispatchers.IO) { locator.removeStaging() }
+
     /** Loescht Session-Folder im File- oder SAF-Modus (T60: Auto-Delete). */
     internal fun deleteSessionFolder(dir: File?, doc: DocumentFile?) {
         if (doc != null) {

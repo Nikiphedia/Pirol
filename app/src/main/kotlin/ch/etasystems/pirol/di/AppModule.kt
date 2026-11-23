@@ -147,7 +147,8 @@ val appModule = module {
             androidContext(), get(), get(), get(), get(), get(), get(), get<ch.etasystems.pirol.ml.AudioClassifier>(), get()
         )
     }
-    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext(), get(), get(), get()) }  // T173: + PlaybackController, T194: + UploadManager
+    single { ch.etasystems.pirol.data.importer.SessionImporter(androidContext(), get(), get()) }  // T255: Import
+    viewModel { AnalysisViewModel(get(), get(), get(), get(), get(), get(), androidContext(), get(), get(), get(), get()) }  // T173: + PlaybackController, T194: + UploadManager
      // SessionManager + AudioPlayer + ReferenceRepository + AppPreferences + AtlasCodeRepository + SpeciesNameResolver + Context (T72)
 
     // MapViewModel — Detektionen auf OSM-Karte (T31)

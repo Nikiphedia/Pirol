@@ -1,6 +1,8 @@
 package ch.etasystems.pirol.rescan
 
+import ch.etasystems.pirol.data.repository.RecordingSegment
 import ch.etasystems.pirol.ml.DetectionResult
+import ch.etasystems.pirol.util.parseInstantCompat
 import ch.etasystems.pirol.ml.OverlapFallback
 import ch.etasystems.pirol.ml.SpeciesKey
 import ch.etasystems.pirol.ml.VerificationEvent
@@ -85,6 +87,24 @@ object RescanPlan {
             .sorted()
         if (offsets.isNotEmpty()) return offsets[offsets.size / 2]
         return startedAtMs
+    }
+
+    /**
+     * T255: Wanduhr (Epoch ms) eines Frames der Session-Achse. Importierte Sessions aus mehreren Dateien haben
+     * Luecken zwischen den Segmenten; die Achse ist aber luecken-los. Tragen alle Segmente ihre Wanduhr
+     * ([RecordingSegment.startedAt]), gilt Segment-Wanduhr + Offset im Segment; sonst [epoch0] + Offset.
+     */
+    fun wallClockAt(segments: List<RecordingSegment>?, sampleRate: Int, epoch0: Long): (Long) -> Long {
+        val linear = { f: Long -> epoch0 + f * 1000L / sampleRate.coerceAtLeast(1) }
+        if (segments.isNullOrEmpty() || sampleRate <= 0) return linear
+        val anchors = segments.map { s ->
+            val wall = s.startedAt?.let { parseInstantCompat(it) }?.toEpochMilli() ?: return linear
+            Math.round(s.startSec.toDouble() * sampleRate) to wall
+        }.sortedBy { it.first }
+        return { f ->
+            val a = anchors.lastOrNull { it.first <= f } ?: anchors.first()
+            a.second + (f - a.first) * 1000L / sampleRate
+        }
     }
 
     /** Position zur Zeit [timeMs]: zeitlich naechster Routenpunkt (time ms, lat, lon), sonst [fallback]. */
