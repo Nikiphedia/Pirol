@@ -15,6 +15,7 @@ Update ueber v0.0.11 ohne Deinstallation (gleiche Signatur); Sessions und Modell
 ### Live-Tab
 - Zweitmodell: Prozent bzw. Rang ("Perch #2") auf Karte und kompakter Karte (T224, T253)
 - Alternativen mit eigener Untergrenze "Alternativen ab" 5/10/20/30 % (T225)
+- Perch mit echtem 5-s-Fenster, als Primaer- oder Zweitmodell, Abstand 3/4/5 s einstellbar (T231)
 - Alarm-Knopf auf der Artkarte: dauerhaft oder fuer 24 h, 24-h-Alarme mit Abzeichen (T244, T247)
 - Kompakt-Knopf: Artkarten kompakt oder ausfuehrlich, Alternativen auf- und zuklappbar (T229, T230)
 - Alternative waehlen ersetzt die Art der Detektion (gleiche Zeile); Rueckgaengig in der Snackbar (T237)
@@ -22,7 +23,7 @@ Update ueber v0.0.11 ohne Deinstallation (gleiche Signatur); Sessions und Modell
 
 ### Analyse
 - Rescan mit Modell, Liste bzw. Artgruppen, Schwelle, Overlap und Zweitmodell; laeuft als Vordergrund-Dienst mit Abbrechen (T221, T248, T250, T252)
-- Audio-Import: PIROL-Session als ZIP oder Ordner, Audiodateien (WAV, FLAC, MP3, M4A, OGG) mit Startzeit (T255)
+- Audio-Import: PIROL-Session als ZIP oder Ordner, Audiodateien (WAV, FLAC, MP3, M4A) mit Startzeit aus Metadaten oder Dateiname, Ort per Karte, mehrere Dateien einzeln oder als eine Session (T255)
 - Episoden einzeln teilen (T222)
 - Kopfzeile mit Datum, Gemeinde und Bemerkung; Kompakt/Gross-Umschalter (T254)
 - Upload nebenlaeufig und sicher (Namensreservierung, Cache-ZIP) (T234)
@@ -34,11 +35,11 @@ Update ueber v0.0.11 ohne Deinstallation (gleiche Signatur); Sessions und Modell
 - Listen-Editor: Auswahl nach Ordnung, Familie, Gattung; wissenschaftliche Namen umschaltbar; Artenlisten v4 (T189, T190, T220, T235)
 
 ### Export
-- Dateinamen `YYYYMMDDHHMM_Art_Bemerkung` beim Teilen, `YYYYMMDDHHMM_Bemerkung.zip` fuer Sessions (T233, T234)
+- Dateinamen `YYYYMMDDHHMMSS_Art_Bemerkung` beim Teilen, `YYYYMMDDHHMMSS_Bemerkung.zip` fuer Sessions (T233, T234)
 - Raven-Export mit Spalte "Second Rank" (T253)
 
 ### Karte
-- Zoom-Knoepfe 50 % groesser (T245)
+- Alle Kartenknoepfe 50 % groesser (T245)
 - Sonogramme nutzen die echte Abtastrate der Aufnahme (T247)
 
 ### Robustheit und Technik
