@@ -117,6 +117,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.ui.input.pointer.pointerInput
@@ -430,6 +431,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             factory = { ctx ->
                 MapView(ctx).apply {
                     setMultiTouchControls(true)
+                    // T245: eingebaute Zoom-Knoepfe aus, eigene (groessere) Compose-Knoepfe
+                    zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
                     controller.setZoom(14.0)
                     rawZoom.doubleValue = 14.0
                     controller.setCenter(GeoPoint(state.centerLat, state.centerLon))
@@ -896,8 +899,28 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp)
+                    .size(84.dp)  // T245: 56 dp * 1.5
             ) {
-                Icon(Icons.Filled.MyLocation, contentDescription = stringResource(R.string.map_mein_standort))
+                Icon(Icons.Filled.MyLocation, contentDescription = stringResource(R.string.map_mein_standort), modifier = Modifier.size(36.dp))
+            }
+
+            // T245: Zoom +/- (eigene Knoepfe, 50 % groesser als der Standard), ueber dem Standort-Knopf
+            Column(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 116.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FloatingActionButton(
+                    onClick = { mapViewRef.value?.controller?.zoomIn() },
+                    modifier = Modifier.size(84.dp)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.map_zoom_in), modifier = Modifier.size(36.dp))
+                }
+                FloatingActionButton(
+                    onClick = { mapViewRef.value?.controller?.zoomOut() },
+                    modifier = Modifier.size(84.dp)
+                ) {
+                    Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.map_zoom_out), modifier = Modifier.size(36.dp))
+                }
             }
 
             // T108: Download-Fortschritt mit Abbrechen
@@ -997,8 +1020,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 shadowElevation = 6.dp
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { panelOpen = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_kartenmenue_oeffnen))
+                    IconButton(onClick = { panelOpen = true }, modifier = Modifier.size(72.dp)) {
+                        Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_kartenmenue_oeffnen), modifier = Modifier.size(36.dp))
                     }
                     Text(
                         when (state.filterMode) {
@@ -1102,8 +1125,8 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.map_karte), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { panelOpen = false }, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_menue_schliessen))
+                            IconButton(onClick = { panelOpen = false }, modifier = Modifier.size(72.dp)) {
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_menue_schliessen), modifier = Modifier.size(36.dp))
                             }
                         }
 
@@ -1311,11 +1334,12 @@ private fun buildClusters(
     }
 }
 
-/** T173: Play/Stopp-Knopf (48 dp) fuer den Detektions-Ausschnitt auf der Karte. */
+/** T173: Play/Stopp-Knopf (72 dp, T245) fuer den Detektions-Ausschnitt auf der Karte. */
 @Composable
 private fun MapPlayButton(playing: Boolean, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+    IconButton(onClick = onClick, modifier = Modifier.size(72.dp)) {
         Icon(
+            modifier = Modifier.size(36.dp),
             imageVector = if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow,
             contentDescription = stringResource(if (playing) R.string.ui_wiedergabe_stoppen else R.string.common_play),
             tint = MaterialTheme.colorScheme.primary

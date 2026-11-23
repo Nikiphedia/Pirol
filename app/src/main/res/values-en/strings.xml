@@ -134,6 +134,8 @@
     <string name="map_vermutete_simultanbeobachtung">\?  Possible simultaneous observation</string>
     <string name="map_gleiches_tier">!  Same animal</string>
     <string name="map_mein_standort">My location</string>
+    <string name="map_zoom_in">Zoom in</string>
+    <string name="map_zoom_out">Zoom out</string>
     <string name="map_karte_laden_kacheln">Loading map: %1$s / %2$s tiles</string>
     <string name="map_ausschnitt_herunterladen">Download this area?</string>
     <string name="map_kacheln_zoom_ca_mb">%1$s tiles (zoom %2$s-%3$s), approx. %4$s MB.</string>
