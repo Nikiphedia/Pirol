@@ -29,6 +29,11 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             filter.refreshCustomListsIfChanged()
         }
+        // T206: Standort-Fix beim Start/Vordergrund (nur mit Permission, kein Dauertracking)
+        if (ch.etasystems.pirol.location.areLocationPermissionsGranted(this)) {
+            val locationProvider: ch.etasystems.pirol.location.LocationProvider = get()
+            lifecycleScope.launch { locationProvider.ensureFix() }
+        }
     }
 
     /** T195: Vollbild-Einstellung anwenden (Systemleisten aus; per Wischen kurz sichtbar). */

@@ -359,10 +359,10 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val locationState by viewModel.currentLocation.collectAsState()
 
     // T112: Beim Oeffnen auf den Standort zoomen (swisstopo-Standard). Kein erneuter Sprung,
-    // sobald der Nutzer die Karte bewegt hat (Kartenmitte != Startmitte) oder nach 4 s ohne Fix.
+    // sobald der Nutzer die Karte bewegt hat (Kartenmitte != Startmitte) oder nach 15 s ohne Fix.
     LaunchedEffect(Unit) {
         viewModel.requestLastKnownLocation()
-        val loc = withTimeoutOrNull(4000L) {
+        val loc = withTimeoutOrNull(15_000L) {
             snapshotFlow { locationState }.filterNotNull().first()
         } ?: return@LaunchedEffect
         val mv = mapViewRef.value ?: return@LaunchedEffect
