@@ -63,6 +63,38 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_respect_list_season", false)
         set(value) = prefs.edit().putBoolean("pirol_respect_list_season", value).apply()
 
+    // --- T218: Filter "Automatisch (Standort + Woche)" mit Geomodel ---
+    /** Schwelle 0,01-0,15 (Default 0,03) */
+    var geoThreshold: Float
+        get() = prefs.getFloat("pirol_geo_threshold", 0.03f)
+        set(value) = prefs.edit().putFloat("pirol_geo_threshold", value).apply()
+
+    /** GeoCombine.name: GEO_ONLY / INTERSECT / UNION */
+    var geoCombine: String
+        get() = prefs.getString("pirol_geo_combine", "GEO_ONLY") ?: "GEO_ONLY"
+        set(value) = prefs.edit().putString("pirol_geo_combine", value).apply()
+
+    /** Jahresliste: Maximum ueber alle 48 Wochen statt aktueller Woche */
+    var geoYearly: Boolean
+        get() = prefs.getBoolean("pirol_geo_yearly", false)
+        set(value) = prefs.edit().putBoolean("pirol_geo_yearly", value).apply()
+
+    /** Begleitliste: Ersatz ohne Position, bei Schnittmenge/Vereinigung die verknuepfte Liste */
+    var geoCompanionRegion: String
+        get() = prefs.getString("pirol_geo_companion_region", "ch_all") ?: "ch_all"
+        set(value) = prefs.edit().putString("pirol_geo_companion_region", value).apply()
+
+    /** Letzte Geomodel-Position (WGS84) und Zeitpunkt; atMs = 0 = keine */
+    var geoLastLat: Double
+        get() = Double.fromBits(prefs.getLong("pirol_geo_last_lat", 0L))
+        set(value) = prefs.edit().putLong("pirol_geo_last_lat", value.toRawBits()).apply()
+    var geoLastLon: Double
+        get() = Double.fromBits(prefs.getLong("pirol_geo_last_lon", 0L))
+        set(value) = prefs.edit().putLong("pirol_geo_last_lon", value.toRawBits()).apply()
+    var geoLastAtMs: Long
+        get() = prefs.getLong("pirol_geo_last_at_ms", 0L)
+        set(value) = prefs.edit().putLong("pirol_geo_last_at_ms", value).apply()
+
     // --- Inference-Intervall (T29: Energiesparmodus) ---
     var inferenceIntervalMs: Long
         get() = prefs.getLong("pirol_inference_interval_ms", CHUNK_DURATION_MS)

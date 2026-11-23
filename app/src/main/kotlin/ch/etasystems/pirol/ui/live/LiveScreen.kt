@@ -1059,6 +1059,7 @@ private fun ScanStatusRow(
         "ch_all" -> "CH+"
         "central_europe" -> "EU"
         "all" -> AppStrings.get(R.string.common_all)
+        "auto_geo" -> AppStrings.get(R.string.live_region_auto)  // T218
         null -> AppStrings.get(R.string.common_off)
         else -> uiState.inferenceConfig.regionFilter ?: "?"
     }

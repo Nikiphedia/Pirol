@@ -635,4 +635,22 @@
     <string name="settings_list_to_watchlist_done">Watchlist: %1$s species</string>
     <string name="settings_open_list_editor">Open list editor</string>
     <string name="settings_open_list_editor_failed">List editor not available</string>
+    <!-- T218: Geomodel filter -->
+    <string name="live_region_auto">Auto</string>
+    <string name="live_geo_fallback_hinweis">Location/geomodel unavailable – fallback list active</string>
+    <string name="settings_geo_hint">Species filter from location and week (BirdNET+ geomodel). Species the model does not know are never filtered out.</string>
+    <string name="settings_geo_installiert">Geomodel installed (7.7 MB)</string>
+    <string name="settings_geo_fehlt">Geomodel not installed (7.7 MB download). Until then the fallback list applies.</string>
+    <string name="settings_geo_laden">Download geomodel</string>
+    <string name="settings_geo_entfernen">Remove</string>
+    <string name="settings_geo_fehler">Download failed: %1$s</string>
+    <string name="settings_geo_schwelle">Threshold (occurrence probability)</string>
+    <string name="settings_geo_kombination">Combination with list</string>
+    <string name="settings_geo_nur_geo">Geomodel only</string>
+    <string name="settings_geo_schnittmenge">List and geomodel</string>
+    <string name="settings_geo_vereinigung">List or geomodel</string>
+    <string name="settings_geo_liste">List (fallback without location, or to combine):</string>
+    <string name="settings_geo_jahresliste">Year list (whole year)</string>
+    <string name="settings_geo_jahresliste_hint">Off = current week only. On = maximum over all 48 weeks.</string>
+    <string name="settings_info_geomodel">BirdNET+ Geomodel V3.0.5: © 2026 The BirdNET Team, Apache License 2.0, doi:10.5281/zenodo.24362980</string>
 </resources>

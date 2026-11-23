@@ -636,4 +636,22 @@
     <string name="settings_list_to_watchlist_done">Watchlist: %1$s Arten</string>
     <string name="settings_open_list_editor">Listen-Editor öffnen</string>
     <string name="settings_open_list_editor_failed">Listen-Editor nicht verfügbar</string>
+    <!-- T218: Geomodel-Filter -->
+    <string name="live_region_auto">Auto</string>
+    <string name="live_geo_fallback_hinweis">Standort/Geomodel nicht verfügbar – Ersatzliste aktiv</string>
+    <string name="settings_geo_hint">Artenfilter aus Standort und Woche (BirdNET+ Geomodel). Arten, die das Modell nicht kennt, werden nie ausgefiltert.</string>
+    <string name="settings_geo_installiert">Geomodel installiert (7,7 MB)</string>
+    <string name="settings_geo_fehlt">Geomodel nicht installiert (Download 7,7 MB). Bis dahin gilt die Ersatzliste.</string>
+    <string name="settings_geo_laden">Geomodel laden</string>
+    <string name="settings_geo_entfernen">Entfernen</string>
+    <string name="settings_geo_fehler">Download fehlgeschlagen: %1$s</string>
+    <string name="settings_geo_schwelle">Schwelle (Vorkommenswahrscheinlichkeit)</string>
+    <string name="settings_geo_kombination">Verknüpfung mit Liste</string>
+    <string name="settings_geo_nur_geo">Nur Geomodel</string>
+    <string name="settings_geo_schnittmenge">Liste und Geomodel</string>
+    <string name="settings_geo_vereinigung">Liste oder Geomodel</string>
+    <string name="settings_geo_liste">Liste (Ersatz ohne Standort bzw. zur Verknüpfung):</string>
+    <string name="settings_geo_jahresliste">Jahresliste (ganzes Jahr)</string>
+    <string name="settings_geo_jahresliste_hint">Aus = nur die aktuelle Woche. An = Maximum über alle 48 Wochen.</string>
+    <string name="settings_info_geomodel">BirdNET+ Geomodel V3.0.5: © 2026 The BirdNET Team, Apache License 2.0, doi:10.5281/zenodo.24362980</string>
 </resources>

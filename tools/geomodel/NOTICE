@@ -1,0 +1,11 @@
+PIROL nutzt das BirdNET+ Geomodel V3.0.5 (Global 14K, FP16, ONNX).
+
+Quelle:   BirdNET-Team, "BirdNET+ V3.0 model files", Zenodo, doi:10.5281/zenodo.24362980
+Lizenz:   Apache License 2.0, Copyright (c) 2026 The BirdNET Team (Text: LICENSE-geomodel.txt)
+Aenderung: Die ONNX-Datei ist unveraendert; sie wird unter dem Namen geomodel_v305_fp16.onnx
+           als Release-Asset bereitgestellt. geomodel_v305_index.tsv ist ein Auszug (birdnet_id,
+           wissenschaftlicher Name) der Labels-CSV, erzeugt mit build_geo_index.py.
+
+Release-Assets (GitHub-Release geomodel-v3.0.5):
+  geomodel_v305_fp16.onnx   7729898 B  SHA-256 c42785b4fc984adb0e60ab76c8b01a5631d950092c62c568da4b954966d6d9d5
+  geomodel_v305_index.tsv    396423 B  SHA-256 5ea8ab9c1a3f326b2da7ac40a7996049e2e59902f2d548e69c70bea7045a0995

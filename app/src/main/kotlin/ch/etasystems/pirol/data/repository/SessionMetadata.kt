@@ -44,5 +44,24 @@ data class SessionMetadata(
     val gpsStats: GpsStats? = null,         // T53: nullable fuer Rueckwaertskompatibilitaet mit alten Sessions
     val recordingSegments: List<RecordingSegment>? = null,  // T57-B1: null bei Single-File (Rueckwaertskompatibilitaet)
     val note: String? = null,       // T109: Freitext-Bemerkung zur Session (null = keine; alte session.json ohne Feld)
-    val modelId: String? = null     // T103a: Profil-ID des Modells (z.B. "v3_final_fp16")
+    val modelId: String? = null,    // T103a: Profil-ID des Modells (z.B. "v3_final_fp16")
+    val speciesFilter: SpeciesFilterInfo? = null  // T218: Quelle des Filters "Automatisch (Standort + Woche)"
+)
+
+/**
+ * T218: Herkunft des Geomodel-Filters einer Session (additiv; nur bei Region "auto_geo").
+ * [source]: "gps" (frischer Fix), "saved" (gespeicherte Position), "fallback" (Ersatzliste, kein Geomodel).
+ * Koordinaten auf 2 Dezimalen gerundet (ca. 1 km).
+ */
+@Serializable
+data class SpeciesFilterInfo(
+    val source: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val week: Int? = null,
+    val threshold: Float? = null,
+    val combine: String? = null,
+    val yearly: Boolean = false,
+    val model: String? = null,
+    val fallbackRegion: String? = null
 )

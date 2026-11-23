@@ -40,7 +40,8 @@ val appModule = module {
     single<AudioClassifier> { BirdNetV3Classifier(get(), get(), get()) }  // T103a: + SpeciesNameResolver
 
     // Regionaler Artenfilter — Singleton, laedt DACH-Artenliste aus assets/regions/
-    single { RegionalSpeciesFilter(get(), get(), get()) }
+    single { RegionalSpeciesFilter(get(), get(), get(), get()) }  // T218: + AppPreferences
+    single { ch.etasystems.pirol.ml.GeoFilterController(androidContext(), get(), get()) }  // T218
 
     // MFCC-Feature-Extractor — Singleton, pure Kotlin (kein Context)
     single { MfccExtractor() }
@@ -125,7 +126,7 @@ val appModule = module {
             detectionListState = get(),
             session = ch.etasystems.pirol.audio.SessionManagerPipelineSession(get()),
             hooks = ch.etasystems.pirol.audio.AndroidPipelineHooks(
-                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()  // T191: + TrackRecorder
+                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()  // T191: + TrackRecorder; T218: + GeoFilterController
             )
         )
     }

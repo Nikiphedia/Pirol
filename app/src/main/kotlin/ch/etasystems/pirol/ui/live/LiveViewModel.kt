@@ -1141,6 +1141,12 @@ class LiveViewModel(
             }
         }
         viewModelScope.launch {
+            // T218: Geomodel-Filter ohne Position/Modell → Ersatzliste, einmal pro Session melden
+            pipeline.geoFallback.collect {
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_geo_fallback_hinweis)))
+            }
+        }
+        viewModelScope.launch {
             pipeline.storageFallback.collect { fb -> _uiState.update { it.copy(storageUnavailableFallback = fb) } }
         }
         viewModelScope.launch {
