@@ -36,6 +36,24 @@ class SpeciesNameResolver(private val context: Context) {
             "ja" to "日本語",
             "zh" to "中文"
         )
+
+        /**
+         * T220: Fallback-Kette Sprache, Modell-Sprache, Englisch, Modell-Englisch, Listenname, wiss. Name.
+         * Rein funktional, damit ohne Context testbar.
+         */
+        internal fun pickCommon(
+            scientificName: String,
+            names: Map<String, String>?,
+            modelNames: Map<String, String>?,
+            listName: String?,
+            language: String
+        ): String =
+            names?.get(language)
+                ?: modelNames?.get(language)
+                ?: names?.get("en")
+                ?: modelNames?.get("en")
+                ?: listName
+                ?: scientificName.replace('_', ' ')
     }
 
     // Lookup: scientificName (Unterstrich) → Map<langCode, commonName>
@@ -46,6 +64,9 @@ class SpeciesNameResolver(private val context: Context) {
 
     /** Aktuelle Sprache (Default: Deutsch) */
     var language: String = "de"
+
+    /** T220: true = Artnamen wissenschaftlich anzeigen (Landesname wird Untertitel) */
+    @Volatile var scientificNames: Boolean = false
 
     /**
      * species_master.json laden und Index aufbauen.
@@ -97,17 +118,21 @@ class SpeciesNameResolver(private val context: Context) {
      * Fallback: Englisch → scientificName falls nichts gefunden.
      */
     fun resolve(scientificName: String): String {
-        val key = scientificName.replace(' ', '_')
-        val names = namesMap[key]
-        // T103a: Rueckfall auf die Sprachspalten des aktiven Modells (3.0 final), z.B. fuer neue Taxonomie
-        val modelNames = modelNamesMap[key]
-        return names?.get(language)
-            ?: modelNames?.get(language)
-            ?: names?.get("en")
-            ?: modelNames?.get("en")
-            ?: listNamesMap[key]
-            ?: scientificName.replace('_', ' ')
+        if (scientificNames) return scientificName.replace('_', ' ')
+        return resolveCommon(scientificName)
     }
+
+    /** T220: Name in der Artnamen-Sprache, unabhaengig vom Schalter "wissenschaftlich anzeigen". */
+    fun resolveCommon(scientificName: String): String {
+        val key = scientificName.replace(' ', '_')
+        return pickCommon(
+            scientificName, namesMap[key], modelNamesMap[key], listNamesMap[key], language
+        )
+    }
+
+    /** T220: Untertitel zur Anzeige, immer der jeweils andere Name (Standard: wiss. Name; umgeschaltet: Landesname). */
+    fun subtitle(scientificName: String): String =
+        if (scientificNames) resolveCommon(scientificName) else scientificName.replace('_', ' ')
 
     // T103a: Namen aus der Label-Datei des aktiven Modells (Unterstrich-Schluessel → Sprache → Name)
     @Volatile private var modelNamesMap: Map<String, Map<String, String>> = emptyMap()

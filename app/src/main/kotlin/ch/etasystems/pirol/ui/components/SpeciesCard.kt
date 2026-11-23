@@ -195,6 +195,10 @@ fun SpeciesCard(
         VerificationStatus.UNVERIFIED -> null
     }
 
+    // T220: Namensanzeige (wissenschaftlich/Landessprache) aus dem Resolver
+    val nameResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
+    val sciMode = nameResolver.scientificNames
+
     // REJECTED / REPLACED: leicht ausgegraut
     val cardAlpha = if (detection.verificationStatus == VerificationStatus.REJECTED ||
                         detection.verificationStatus == VerificationStatus.REPLACED) 0.6f else 1f
@@ -303,7 +307,7 @@ fun SpeciesCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = detection.commonName,
+                        text = if (sciMode) nameResolver.resolve(detection.scientificName) else detection.commonName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -385,9 +389,9 @@ fun SpeciesCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = detection.scientificName,
+                    text = nameResolver.subtitle(detection.scientificName),
                     style = MaterialTheme.typography.bodySmall,
-                    fontStyle = FontStyle.Italic,
+                    fontStyle = if (sciMode) FontStyle.Normal else FontStyle.Italic,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -668,14 +672,14 @@ fun SpeciesCard(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = candidate.commonName,
+                                        text = if (sciMode) nameResolver.resolve(candidate.scientificName) else candidate.commonName,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = candidate.scientificName,
+                                        text = nameResolver.subtitle(candidate.scientificName),
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontStyle = FontStyle.Italic,
+                                        fontStyle = if (sciMode) FontStyle.Normal else FontStyle.Italic,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                     )
                                 }

@@ -1778,6 +1778,30 @@ fun SettingsScreen(
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
+            // T220: Artnamen wissenschaftlich anzeigen (Landesname als Untertitel)
+            var sciNames by remember { mutableStateOf(appPreferences.scientificNamesDisplay) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_artnamen_wiss))
+                    Text(
+                        AppStrings.get(R.string.settings_artnamen_wiss_hinweis),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = sciNames,
+                    onCheckedChange = {
+                        sciNames = it
+                        appPreferences.scientificNamesDisplay = it
+                        speciesNameResolver.scientificNames = it
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
             var compactCard by remember { mutableStateOf(appPreferences.compactSpeciesCard) }
