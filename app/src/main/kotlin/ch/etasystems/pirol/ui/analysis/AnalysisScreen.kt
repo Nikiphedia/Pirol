@@ -816,7 +816,7 @@ private fun SessionDetailContent(
                     }
                 }
                 // T229: Schnellknopf Artkarte kompakt/ausfuehrlich (unten rechts, oben sitzt "Gesamte Session")
-                ch.etasystems.pirol.ui.components.CompactCardToggleButton(Modifier.align(Alignment.BottomEnd))
+                ch.etasystems.pirol.ui.components.CompactCardToggleButton(Modifier.align(Alignment.BottomEnd).padding(bottom = 20.dp))
             }
             // T194: Uebersichtsleiste ueber die ganze Session (Segmente: Session-Gesamtdauer)
             Spacer(modifier = Modifier.height(4.dp))
