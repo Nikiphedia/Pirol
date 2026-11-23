@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,7 +55,8 @@ fun OccurrenceSection(
     onToggle: () -> Unit,
     playingStartSec: Float?,
     playEnabled: Boolean,
-    onPlay: (DetectionOccurrences.Episode) -> Unit
+    onPlay: (DetectionOccurrences.Episode) -> Unit,
+    onShare: (DetectionOccurrences.Episode) -> Unit
 ) {
     if (occurrences.size < 2) return
     val episodes = DetectionOccurrences.episodes(occurrences)
@@ -99,7 +101,8 @@ fun OccurrenceSection(
                         status = detection.verificationStatus,
                         isPlaying = isPlaying,
                         playEnabled = playEnabled,
-                        onPlay = { onPlay(ep) }
+                        onPlay = { onPlay(ep) },
+                        onShare = { onShare(ep) }
                     )
                 }
             }
@@ -117,7 +120,8 @@ private fun OccurrenceRow(
     status: VerificationStatus,
     isPlaying: Boolean,
     playEnabled: Boolean,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    onShare: () -> Unit
 ) {
     // Statusfarben wie in SpeciesCard (CLAUDE.md: nicht aendern)
     val statusColor = when (status) {
@@ -177,6 +181,10 @@ private fun OccurrenceRow(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
+        // T222: Episode einzeln teilen
+        IconButton(onClick = onShare, enabled = playEnabled, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.analysis_episode_teilen))
+        }
         IconButton(onClick = onPlay, enabled = playEnabled, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,

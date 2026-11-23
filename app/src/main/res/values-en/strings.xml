@@ -520,6 +520,7 @@
     <string name="map_move_live_hint">No running session: the new position only lasts until the app is closed.</string>
     <string name="analysis_vorkommen">%1$d occurrences</string>
     <string name="analysis_vorkommen_konfidenz_max">max. %1$d %%</string>
+    <string name="analysis_episode_teilen">Share episode</string>
     <string name="analysis_vorkommen_abspielen">Play occurrence</string>
     <string name="analysis_vorkommen_stop">Stop playback</string>
     <string name="analysis_vorkommen_episoden">%1$d occurrences in %2$d episodes</string>

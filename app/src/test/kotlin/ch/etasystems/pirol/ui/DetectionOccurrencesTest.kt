@@ -200,4 +200,28 @@ class DetectionOccurrencesTest {
         assertNull(occ[0].confidence)
         assertEquals(0.9f, occ[1].confidence!!, 0.001f)
     }
+
+    /** T222: Teilen einer Episode -> Ausschnitt nur dieser Episode (3 s davor, 5 s danach). */
+    @Test
+    fun forEpisode_excerptCoversOnlyThatEpisode() {
+        val d = det(start = 60f, ts = 1_000_000L)
+        // Fenster bei 60 s, 61 s (Episode 1) und 200 s (Episode 2), Fenster 3 s
+        val occ = DetectionOccurrences.of(
+            d, listOf(
+                DetectionOccurrences.MergeInfo(1_001_000L, null, 61f),
+                DetectionOccurrences.MergeInfo(1_140_000L, null, 200f)
+            )
+        )
+        val eps = DetectionOccurrences.episodes(occ)
+        assertEquals(2, eps.size)
+        val e2 = DetectionOccurrences.forEpisode(d, eps[1])
+        assertEquals(1_140_000L, e2.timestampMs)
+        val r2 = ch.etasystems.pirol.audio.export.DetectionExcerpt.compute(e2, 600f)
+        assertEquals(197f, r2.startSec, 0.001f)
+        assertEquals(208f, r2.endSec, 0.001f)
+        val e1 = DetectionOccurrences.forEpisode(d, eps[0])
+        val r1 = ch.etasystems.pirol.audio.export.DetectionExcerpt.compute(e1, 600f)
+        assertEquals(57f, r1.startSec, 0.001f)
+        assertEquals(69f, r1.endSec, 0.001f)  // 60 + 1 + 3 + 5
+    }
 }
