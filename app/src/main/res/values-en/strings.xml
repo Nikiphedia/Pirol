@@ -151,7 +151,6 @@
     <string name="map_anzeige">Display</string>
     <string name="common_all">All</string>
     <string name="map_nur_live">Live only</string>
-    <string name="map_arten_filtern">Filter species</string>
     <string name="map_nur_alarmarten">Alert species only</string>
     <string name="map_keine">None</string>
     <string name="map_letzte_3">Last 3</string>
