@@ -1,23 +1,21 @@
 package ch.etasystems.pirol.data.repository
 
 import android.content.Context
-import android.net.Uri
-import android.os.Environment
-import android.os.ParcelFileDescriptor
-import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.export.GpxExporter
 import ch.etasystems.pirol.data.export.RavenExporter
 import ch.etasystems.pirol.location.TrackLogic
 import ch.etasystems.pirol.location.TrackPoint
+import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.rescan.RescanFiles
+import ch.etasystems.pirol.ui.analysis.DetectionOccurrences
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -25,31 +23,21 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.FileWriter
-import java.io.OutputStreamWriter
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
-import ch.etasystems.pirol.audio.export.SegmentedRecording
 
-/**
- * Info ueber vorhandene Sessions am aktuellen Speicherort.
- * Wird vor der Migration im Bestaetigungsdialog angezeigt.
- */
+/** Info ueber vorhandene Sessions am aktuellen Speicherort (Bestaetigungsdialog vor der Migration). */
 data class MigrationInfo(
     val sessionCount: Int,
     val totalSizeBytes: Long
 )
 
-/**
- * Ergebnis einer Session-Migration.
- */
+/** Ergebnis einer Session-Migration. */
 data class MigrationResult(
     val sessionsCopied: Int,
     val bytesCopied: Long,
@@ -63,28 +51,29 @@ data class MigrationResult(
 /**
  * Verwaltet Aufnahme-Sessions (T51: SAF + Flat-Struktur + Tages-Unterordner).
  *
- * Neue Struktur ab T51:
  * [base]/PIROL/YYYY-MM-DD/{sessionId}/
- *   session.json, detections.jsonl, verifications.jsonl,
- *   recording.wav, recording.selections.txt
- *   track.jsonl, track.gpx (T191: Route, nur mit GPS-Spur)
+ *   session.json, detections.jsonl, verifications.jsonl, recording.wav, recording.selections.txt,
+ *   track.jsonl, track.gpx (T191), detections.updates.jsonl (T251, nur waehrend/nach unterbrochener Aufnahme)
  *
- * Kein audio/-Unterordner.
- *
- * Storage-Modi:
- * - SAF (storageBaseUri gesetzt): DocumentFile fuer Writes, File-API fuer Reads (primaerer Speicher)
- * - FileBased (kein SAF): File-API fuer alles; Basis = getExternalFilesDir/PIROL
+ * T251 (N7): Fassade. Aufgeteilt in [ActiveSession] (laufende Aufnahme: Writer, Rotation, Zusatzdatei),
+ * [SessionLocator] (Speicherort, Listen, Lookup), [SessionMigrator] (Migration), [SessionTextParser]
+ * (Auswertung), [DetectionUpdateLog] (Updates append-only, N2), [SessionJson] (JSON-Konfiguration).
+ * Alle Schreibzugriffe auf Session-Dateien laufen hier unter dem [fileMutex].
  *
  * Lifecycle: startSession() → appendDetections() / appendAudioSamples() → endSession()
  */
 class SessionManager(
     private val context: Context,
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    /** T251 (Zusatz T249, M1): Live-Liste der aktiven Session; Aenderungen von aussen setzen dort auf. */
+    private val liveDetections: DetectionListState? = null
 ) {
 
     companion object {
         private const val TAG = "SessionManager"
-        private const val PIROL_DIR = "PIROL"
+        private const val DETECTIONS_FILE = RescanFiles.DETECTIONS
+        private const val VERIFICATIONS_FILE = RescanFiles.VERIFICATIONS
+        private const val SESSION_JSON = ActiveSession.SESSION_JSON
 
         /** Dateiname fuer Segment-Index: 0 → "recording.wav", 1 → "recording-002.wav", ... */
         internal fun segmentFileName(index: Int): String =
@@ -131,7 +120,6 @@ class SessionManager(
             )
         }
 
-        /** Pure-Logic-Funktion fuer Unit-Tests (T60). */
         /** T117: Aktionstypen, die einen Verifikationsstatus setzen (Undo-faehig). null = Legacy. */
         private val STATUS_ACTIONS = setOf(
             null,
@@ -158,14 +146,12 @@ class SessionManager(
             } catch (_: Exception) { false }
         }
 
-        private val COMPANION_JSON = Json { ignoreUnknownKeys = true }
-
-        /**
-         * T237: JSONL-Text ohne das letzte Status-Ereignis von [detectionId]; null wenn keines vorhanden.
-         */
+        /** T237: JSONL-Text ohne das letzte Status-Ereignis von [detectionId]; null wenn keines vorhanden. */
         internal fun removeLastStatusEventText(text: String, detectionId: String, actionType: String? = null): String? {
             val lines = text.lines().filter { it.isNotBlank() }
-            val idx = indexOfLastStatusEvent(lines, detectionId, actionType) { COMPANION_JSON.decodeFromString<VerificationEvent>(it) }
+            val idx = indexOfLastStatusEvent(lines, detectionId, actionType) {
+                SessionJson.lenient.decodeFromString<VerificationEvent>(it)
+            }
             if (idx < 0) return null
             val kept = lines.filterIndexed { i, _ -> i != idx }
             return if (kept.isEmpty()) "" else kept.joinToString("\n") + "\n"
@@ -195,15 +181,7 @@ class SessionManager(
             enabled: Boolean
         ): Boolean = enabled && minSec > 0 && durationSec < minSec && detections == 0
 
-        /** T236 */
-        private const val DETECTIONS_FILE = "detections.jsonl"
-
-        private val companionJson = Json { prettyPrint = false }
-        private val companionJsonLenient = Json { ignoreUnknownKeys = true }
-
-        /**
-         * T93: Schreibt [content] atomar nach [target] (tmp-Datei + Move).
-         */
+        /** T93: Schreibt [content] atomar nach [target] (tmp-Datei + Move). */
         internal fun writeFileReplacing(target: File, content: String) {
             val tmp = File(target.parentFile, target.name + ".tmp")
             // T236: vor dem Move auf den Datentraeger bringen (sonst nach Stromausfall evtl. leere Datei)
@@ -219,174 +197,55 @@ class SessionManager(
                     java.nio.file.StandardCopyOption.ATOMIC_MOVE
                 )
             } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
-                java.nio.file.Files.move(
-                    tmp.toPath(), target.toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
-                )
+                java.nio.file.Files.move(tmp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             }
         }
 
-        /**
-         * T93: Ersetzt die Zeile mit der ID von [updated] in [file] (File-Modus).
-         * Gibt den Writer zurueck, der danach fuer Appends zu verwenden ist.
-         */
-        internal fun replaceDetectionInFile(
-            file: File,
-            updated: DetectionResult,
-            writer: java.io.Writer?,
-            onError: (Exception) -> Unit = {}
-        ): java.io.Writer? {
-            if (!file.exists()) return writer
-            val encodedLine = companionJson.encodeToString(updated)
-            val lines = try { file.readLines() } catch (_: Exception) { return writer }
-            val replaced = lines.map { raw ->
-                if (raw.isBlank()) raw
-                else try {
-                    if (companionJsonLenient.decodeFromString<DetectionResult>(raw).id == updated.id) encodedLine
-                    else raw
-                } catch (_: Exception) { raw }
-            }
-            // Offenen Writer vor dem Ersetzen schliessen (sonst zeigt er auf die alte Datei)
-            try { writer?.flush(); writer?.close() } catch (e: Exception) { onError(e) }
-            try {
-                writeFileReplacing(file, if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n")
-            } catch (e: Exception) {
-                onError(e)
-            }
-            // Immer wieder einen gueltigen Append-Writer liefern
-            return if (writer != null) java.io.FileWriter(file, true) else null
-        }
+        /** Lesen einer Session-Datei; detections.jsonl mit der Zusatzdatei zusammengefuehrt (T251, nur lesen). */
+        private fun readMerged(files: SessionFiles, name: String): String? =
+            if (name == DETECTIONS_FILE) DetectionUpdateLog.mergedText(files) else files.readText(name)
+
+        private fun findDetection(text: String, id: String): DetectionResult? =
+            text.lineSequence().lastOrNull { it.isNotBlank() && SessionFilesLogic.detectionIdOf(it) == id }
+                ?.let { runCatching { SessionJson.lenient.decodeFromString<DetectionResult>(it) }.getOrNull() }
     }
 
-    /** T93: Serialisiert alle Schreib-/Rewrite-Zugriffe auf detections.jsonl und verifications.jsonl. */
+    /** T93: Serialisiert alle Schreib-/Rewrite-Zugriffe auf die Session-Dateien. */
     private val fileMutex = Mutex()
 
-    /** T236: gesammelte Updates fuer detections.jsonl der aktiven Session (gebuendelter Rewrite) */
-    private val pendingUpdates = DetectionUpdateQueue()
+    /** T236/T251: vorgemerkte Detektions-Updates der aktiven Session (append-only in die Zusatzdatei) */
+    private val updates = DetectionUpdateLog()
 
-    private val json = Json { prettyPrint = false }
-    private val jsonLenient = Json { ignoreUnknownKeys = true }
+    private val locator = SessionLocator(context, appPreferences)
+    private val migrator = SessionMigrator(context, ::listSessions, ::docFor, ::accessFor)
 
-    // ── Aktive Session State ──────────────────────────────────────────
-
-    /** Aktives Session-Verzeichnis (File-Modus) */
-    private var activeSessionDir: File? = null
-    /** Aktives Session-Verzeichnis (SAF-Modus) */
-    private var activeSessionDoc: DocumentFile? = null
-    /** SAF-URI fuer detections.jsonl (SAF-Modus) */
-    private var activeDetectionsUri: Uri? = null
-    /** Offene PFD fuer detections.jsonl Appends (SAF-Modus) */
-    private var activeDetectionsFd: ParcelFileDescriptor? = null
-    private var activeMetadata: SessionMetadata? = null
-    private var detectionWriter: java.io.Writer? = null
-    private var recordingWriter: StreamingWavWriter? = null
-    private var detectionCounter: Int = 0
-
-    // T57-B1: Rotations-State (pro Session initialisiert in startSession*)
-    private var recordingSegmentIndex: Int = 0
-    private var sessionSegmentStartSec: Float = 0f
-    private val activeSegments = mutableListOf<RecordingSegment>()
-    private var totalSamplesCompleted: Long = 0L
-
-    // ── Session-ended Signal (T51: Analyse-Tab Auto-Refresh via Commit 8) ──
+    /** Laufende Aufnahme-Session oder null */
+    @Volatile private var active: ActiveSession? = null
 
     private val _sessionEnded = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
     /** Emittiert Unit nach jedem endSession()-Aufruf. Subscriber koennen loadSessions() aufrufen. */
     val sessionEnded: SharedFlow<Unit> = _sessionEnded.asSharedFlow()
 
     private val _unsavedUpdatesAtEnd = MutableSharedFlow<Int>(replay = 0, extraBufferCapacity = 1)
-    /** T249 (M3): Anzahl Detektions-Updates, die beim Session-Ende trotz Wiederholung nicht geschrieben wurden. */
+    /** T249 (M3): Anzahl Detektions-Updates, die beim Session-Ende trotz Wiederholung verloren gingen. */
     val unsavedUpdatesAtEnd: SharedFlow<Int> = _unsavedUpdatesAtEnd.asSharedFlow()
 
-    /** Ob gerade ein Session-Stop laeuft und der Speicherort nicht erreichbar war (Fallback). */
+    /** Ob beim letzten Start der Speicherort nicht erreichbar war (Fallback). */
     var lastStartUsedFallback: Boolean = false
         private set
 
-    /** Ob eine Session aktiv ist */
-    val isActive: Boolean get() = activeSessionDir != null || activeSessionDoc != null
+    val isActive: Boolean get() = active != null
 
-    /** T69: Aktives Session-Verzeichnis (File-Modus), lesbar fuer Memo-Pfad-Berechnung */
-    val currentSessionDir: File? get() = activeSessionDir
+    /** T69: Aktives Session-Verzeichnis (File-Modus) */
+    val currentSessionDir: File? get() = active?.dir
 
-    /** T69: Aktives Session-Dokument (SAF-Modus), lesbar fuer Memo-Pfad-Berechnung */
-    val currentSessionDoc: DocumentFile? get() = activeSessionDoc
-
-    // ── Storage-Aufloesung ────────────────────────────────────────────
-
-    /**
-     * Gibt das Basis-Verzeichnis zurueck (File-Modus).
-     * Fuer SAF-Modus gibt es kein File-Basisverzeichnis — nutze resolveBaseDocFile().
-     */
-    private fun resolveBaseFile(): File {
-        val safUri = appPreferences.storageBaseUri
-        if (safUri != null) {
-            // SAF-URI in Dateipfad umwandeln (nur primaerer Speicher)
-            val resolved = safUriToFile(Uri.parse(safUri))
-            if (resolved != null) return resolved
-        }
-        // Fallback: getExternalFilesDir
-        val base = context.getExternalFilesDir(null) ?: context.filesDir
-        return File(base, PIROL_DIR)
-    }
-
-    /**
-     * Gibt die DocumentFile-Basis fuer SAF-Schreiboperationen zurueck.
-     * Nur relevant wenn storageBaseUri gesetzt ist.
-     */
-    private fun resolveBaseDocFile(): DocumentFile? {
-        val safUri = appPreferences.storageBaseUri ?: return null
-        return DocumentFile.fromTreeUri(context, Uri.parse(safUri))
-    }
-
-    /**
-     * Konvertiert eine SAF-Tree-URI in einen File-Pfad (nur primaerer Speicher).
-     * Gibt null zurueck bei SD-Karte oder unbekanntem Schema.
-     */
-    private fun safUriToFile(uri: Uri): File? {
-        return try {
-            val docId = DocumentsContract.getTreeDocumentId(uri)
-            val parts = docId.split(":")
-            if (parts.size < 2) return null
-            val storageType = parts[0]
-            val relativePath = parts[1]
-            if (storageType.equals("primary", ignoreCase = true)) {
-                File(Environment.getExternalStorageDirectory(), relativePath)
-            } else {
-                null  // SD-Karte: kein direkter Pfad moeglich
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "SAF URI → File-Pfad fehlgeschlagen: $uri", e)
-            null
-        }
-    }
-
-    /**
-     * Gibt den Tages-Unterordner-Namen zurueck (YYYY-MM-DD, Lokalzeit)
-     * oder null wenn der Toggle deaktiviert ist.
-     */
-    private fun dailySubdirName(): String? {
-        if (!appPreferences.storageDailySubfolder) return null
-        return LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-    }
-
-    /**
-     * Findet oder erstellt ein DocumentFile-Unterverzeichnis.
-     */
-    private fun DocumentFile.findOrCreateDir(name: String): DocumentFile? {
-        return findFile(name) ?: createDirectory(name)
-    }
+    /** T69: Aktives Session-Dokument (SAF-Modus) */
+    val currentSessionDoc: DocumentFile? get() = active?.doc
 
     // ── Session-Lifecycle ─────────────────────────────────────────────
 
     /**
-     * Neue Session starten. Erstellt Ordnerstruktur + session.json.
-     * Unterstuetzt SAF- und File-Modus.
-     *
-     * @param sampleRate Sample Rate der Aufnahme
-     * @param latitude Startposition Breitengrad (kann null sein)
-     * @param longitude Startposition Laengengrad (kann null sein)
-     * @param regionFilter Artenfilter ("groups" = Gruppenfilter, null = keiner)
-     * @param confidenceThreshold Aktuelle Confidence-Schwelle
+     * Neue Session starten. Erstellt Ordnerstruktur + session.json (SAF- oder File-Modus).
      * @return Session-ID
      */
     suspend fun startSession(
@@ -399,17 +258,13 @@ class SessionManager(
         modelId: String? = null,  // T103a
         speciesFilter: SpeciesFilterInfo? = null  // T218
     ): String = withContext(Dispatchers.IO) {
-        // Alte Session sicherheitshalber schliessen
-        if (isActive) endSession()
+        if (isActive) endSession()  // alte Session sicherheitshalber schliessen
         lastStartUsedFallback = false
         // T236: Updates, die nach dem letzten Session-Ende noch eintrafen, gehoeren nicht zur neuen Session
-        pendingUpdates.clear()
+        fileMutex.withLock { updates.reset() }
 
-        // Session-ID: Ortszeit (T155) + UUID-Prefix
-        val sessionId = buildSessionId(LocalDateTime.now(), UUID.randomUUID().toString().take(6))
-
-        val daySubdir = dailySubdirName()
-
+        val sessionId = buildSessionId(LocalDateTime.now(), UUID.randomUUID().toString().take(6))  // T155
+        val daySubdir = locator.dailySubdirName()
         val metadata = SessionMetadata(
             sessionId = sessionId,
             startedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
@@ -424,153 +279,139 @@ class SessionManager(
         )
 
         val safUri = appPreferences.storageBaseUri
-        val baseDoc = if (safUri != null) resolveBaseDocFile() else null
-
-        if (baseDoc != null && baseDoc.canWrite()) {
-            // ── SAF-Modus ──────────────────────────────────────────────
-            startSessionSaf(sessionId, daySubdir, metadata, sampleRate, baseDoc)
+        val baseDoc = if (safUri != null) locator.resolveBaseDocFile() else null
+        active = if (baseDoc != null && baseDoc.canWrite()) {
+            val parentDoc = daySubdir?.let { baseDoc.findOrCreateDir(it) } ?: baseDoc
+            ActiveSession.openSaf(context, parentDoc, metadata, updates).also {
+                Log.i(TAG, "Session gestartet (SAF): $sessionId → ${it.doc?.uri}")
+            }
         } else {
-            // ── File-Modus (inkl. SAF-Fallback wenn canWrite() false) ──
             if (safUri != null && baseDoc?.canWrite() == false) {
                 Log.w(TAG, "SAF-URI nicht erreichbar — Fallback auf getExternalFilesDir")
                 lastStartUsedFallback = true
             }
-            startSessionFile(sessionId, daySubdir, metadata, sampleRate)
+            val base = locator.resolveBaseFile()
+            val sessionDir = File(if (daySubdir != null) File(base, daySubdir) else base, sessionId)
+            ActiveSession.openFile(context, sessionDir, metadata, updates).also {
+                Log.i(TAG, "Session gestartet (File): $sessionId → ${sessionDir.absolutePath}")
+            }
         }
-
         sessionId
     }
 
-    private fun startSessionFile(
-        sessionId: String,
-        daySubdir: String?,
-        metadata: SessionMetadata,
-        sampleRate: Int
-    ) {
-        val base = resolveBaseFile()
-        val parentDir = if (daySubdir != null) File(base, daySubdir) else base
-        val sessionDir = File(parentDir, sessionId)
-        sessionDir.mkdirs()
+    /**
+     * Aktive Session beenden: WAV und Writer schliessen, Detektions-Updates zusammenfuehren (T251),
+     * session.json aktualisieren, Raven- und GPX-Export, ggf. Auto-Delete.
+     * @param gpsStats GPS-Statistiken der Session (T53). Null wenn GPS nicht verwendet wurde.
+     */
+    suspend fun endSession(gpsStats: GpsStats? = null) = withContext(Dispatchers.IO) {
+        val a = active ?: return@withContext
+        val metadata = a.metadata
+        val (recordedSamples, segments) = a.closeRecording()
 
-        // session.json schreiben
-        val prettyJson = Json { prettyPrint = true }
-        File(sessionDir, "session.json").writeText(prettyJson.encodeToString(metadata))
+        val lost = fileMutex.withLock { finishDetectionsLocked(a) }
+        if (lost > 0) _unsavedUpdatesAtEnd.tryEmit(lost)
 
-        // JSONL-Writer oeffnen (append-Modus)
-        detectionWriter = FileWriter(File(sessionDir, "detections.jsonl"), true)
-
-        // Recording-WAV oeffnen (File-basierter Streaming-Writer)
-        val recordingFile = File(sessionDir, "recording.wav")
-        recordingWriter = StreamingWavWriter.forFile(recordingFile, sampleRate).also { it.open() }
-
-        activeSessionDir = sessionDir
-        activeMetadata = metadata
-        detectionCounter = 0
-        recordingSegmentIndex = 0
-        sessionSegmentStartSec = 0f
-        activeSegments.clear()
-        totalSamplesCompleted = 0L
-
-        Log.i(TAG, "Session gestartet (File): $sessionId → ${sessionDir.absolutePath}")
-    }
-
-    private fun startSessionSaf(
-        sessionId: String,
-        daySubdir: String?,
-        metadata: SessionMetadata,
-        sampleRate: Int,
-        baseDoc: DocumentFile
-    ) {
-        val parentDoc = if (daySubdir != null) baseDoc.findOrCreateDir(daySubdir) ?: baseDoc else baseDoc
-        val sessionDoc = parentDoc.createDirectory(sessionId)
-            ?: throw IllegalStateException("SAF: Session-Ordner konnte nicht erstellt werden: $sessionId")
-
-        // session.json schreiben
-        val jsonDocFile = sessionDoc.createFile("application/json", "session.json")
-            ?: throw IllegalStateException("SAF: session.json konnte nicht erstellt werden")
-        val prettyJson = Json { prettyPrint = true }
-        context.contentResolver.openOutputStream(jsonDocFile.uri, "wt")?.use { os ->
-            os.write(prettyJson.encodeToString(metadata).toByteArray(Charsets.UTF_8))
-        }
-
-        // detections.jsonl: Datei erstellen + im Append-Modus oeffnen
-        val detectionsDocFile = sessionDoc.createFile("application/jsonlines", "detections.jsonl")
-            ?: throw IllegalStateException("SAF: detections.jsonl konnte nicht erstellt werden")
-        val detectionsFd = context.contentResolver.openFileDescriptor(detectionsDocFile.uri, "wa")
-            ?: throw IllegalStateException("SAF: detections.jsonl nicht beschreibbar")
-        val detectionsWriter = OutputStreamWriter(
-            java.io.FileOutputStream(detectionsFd.fileDescriptor), Charsets.UTF_8
+        val updatedMetadata = metadata.copy(
+            endedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+            totalRecordedSamples = recordedSamples,
+            totalDetections = a.detectionCounter,
+            gpsStats = gpsStats,  // T53
+            recordingSegments = segments  // T57-B1: null bei Single-File
         )
+        try {
+            // T251 (Zusatz T249): auch im SAF-Modus sicher ersetzen (Schattenkopie), File: temp + Move
+            fileMutex.withLock { a.files().writeReplacing(SESSION_JSON, SessionJson.pretty.encodeToString(updatedMetadata)) }
+        } catch (e: Exception) {
+            Log.e(TAG, "session.json beim Session-Ende nicht geschrieben: ${metadata.sessionId}", e)
+        }
+        Log.i(TAG, "Session beendet: ${metadata.sessionId} ($recordedSamples samples, ${a.detectionCounter} Detektionen)")
 
-        // recording.wav: Datei erstellen + SAF-Writer
-        val wavDocFile = sessionDoc.createFile("audio/wav", "recording.wav")
-            ?: throw IllegalStateException("SAF: recording.wav konnte nicht erstellt werden")
-        val wavWriter = StreamingWavWriter.forSaf(context, wavDocFile.uri, sampleRate).also { it.open() }
+        // Auto-Raven-Export (T51); T249 (M2): derselbe Exportweg wie der manuelle Export
+        val sessionDirForExport = a.dir ?: a.doc?.let { d ->
+            locator.resolveSessionDirFromDoc(d) ?: d.name?.let { SessionFilesLogic.safKey(null, it) }
+        }
+        if (sessionDirForExport != null) {
+            try {
+                val out = writeRavenTable(sessionDirForExport, appPreferences, variant = null,
+                    requireRecording = false, knownMeta = updatedMetadata)
+                Log.i(TAG, "Auto-Raven-Export: ${out?.name}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
+            }
+        }
 
-        activeSessionDoc = sessionDoc
-        activeDetectionsUri = detectionsDocFile.uri
-        activeDetectionsFd = detectionsFd
-        detectionWriter = detectionsWriter
-        recordingWriter = wavWriter
-        activeMetadata = metadata
-        detectionCounter = 0
-        recordingSegmentIndex = 0
-        sessionSegmentStartSec = 0f
-        activeSegments.clear()
-        totalSamplesCompleted = 0L
+        // T191: Route als track.gpx (aus track.jsonl, nur wenn Punkte vorhanden)
+        try {
+            val n = GpxExporter.exportFrom(a.files(), metadata.sessionId)
+            if (n > 0) Log.i(TAG, "GPX-Export: ${GpxExporter.GPX_FILE} ($n Punkte)")
+        } catch (e: Exception) {
+            Log.e(TAG, "GPX-Export fehlgeschlagen", e)
+        }
 
-        Log.i(TAG, "Session gestartet (SAF): $sessionId → ${sessionDoc.uri}")
+        // Auto-Delete kurzer leerer Sessions (T60)
+        val minSec = appPreferences.autoDeleteMinSeconds
+        val durationSec = if (updatedMetadata.sampleRate > 0)
+            updatedMetadata.totalRecordedSamples.toDouble() / updatedMetadata.sampleRate else 0.0
+        if (shouldAutoDelete(durationSec, updatedMetadata.totalDetections, minSec, appPreferences.autoDeleteShortEmptySessions)) {
+            Log.i(TAG, "Auto-Delete: Session=${updatedMetadata.sessionId} " +
+                "dauer=${"%.1f".format(durationSec)}s detections=0 < ${minSec}s")
+            deleteSessionFolder(a.dir, a.doc)
+        }
+
+        active = null
+        _sessionEnded.tryEmit(Unit)  // T51: Analyse-Tab Auto-Refresh
     }
 
     /**
-     * Detektionen an JSONL anhaengen.
-     * Wird vom LiveViewModel nach jeder Inference aufgerufen.
+     * T251 (N2, Zusatz T249): Letzte Updates in die Zusatzdatei, Writer schliessen, Zusatzdatei einmal in
+     * detections.jsonl zusammenfuehren. Scheitert das Zusammenfuehren, bleibt die Zusatzdatei liegen und wird
+     * beim naechsten Oeffnen nachgeholt (nichts verloren). War schon die Zusatzdatei nicht beschreibbar, gehen
+     * die restlichen Updates direkt ins Zusammenfuehren. Aufrufer haelt den fileMutex.
+     * @return Anzahl endgueltig verlorener Updates
      */
-    suspend fun appendDetections(detections: List<DetectionResult>) = withContext(Dispatchers.IO) {
-        fileMutex.withLock {
-            val writer = detectionWriter ?: return@withLock
-            // T236: liegt schon ein Update fuer eine neue Detektion vor, gleich die neue Fassung anhaengen
-            for (detection in pendingUpdates.takeForAppend(detections)) {
-                val line = json.encodeToString(detection)
-                writer.append(line)
-                writer.append('\n')
-                detectionCounter++
-            }
-            writer.flush()
+    private suspend fun finishDetectionsLocked(a: ActiveSession): Int {
+        val sideError = retryFlush(END_FLUSH_ATTEMPTS, END_FLUSH_RETRY_MS) { a.flushUpdatesLocked() }
+        a.closeDetectionWritersLocked()
+        val extra = if (sideError != null) updates.pendingWithLine() else emptyMap()
+        val withoutLine = updates.size() - extra.size
+        val mergeError = retryFlush(END_FLUSH_ATTEMPTS, END_FLUSH_RETRY_MS) {
+            try { DetectionUpdateLog.consolidate(a.files(), extra); null } catch (e: Exception) { e }
+        }
+        updates.reset()
+        if (withoutLine > 0) {
+            // Zeile nie angehaengt (z.B. Detektion nach dem letzten Append verworfen): nichts zu ersetzen
+            Log.w(TAG, "Session-Ende: $withoutLine Updates ohne Zeile in detections.jsonl verworfen")
+        }
+        if (mergeError == null) return 0
+        return if (extra.isNotEmpty()) {
+            Log.e(TAG, "Session-Ende: ${extra.size} Updates nach $END_FLUSH_ATTEMPTS Versuchen nicht geschrieben", mergeError)
+            extra.size
+        } else {
+            Log.w(TAG, "Session-Ende: ${DetectionUpdateLog.FILE} bleibt, wird beim naechsten Oeffnen zusammengefuehrt", mergeError)
+            0
         }
     }
 
-    /**
-     * Schreibt ein Verifikations-Event in verifications.jsonl.
-     * Separate Datei von detections.jsonl (append-only, crash-sicher).
-     */
+    // ── Aktive Session: Detektionen und Verifikationen ────────────────
+
+    /** Detektionen an detections.jsonl anhaengen (nach jeder Inferenz). */
+    suspend fun appendDetections(detections: List<DetectionResult>) = withContext(Dispatchers.IO) {
+        fileMutex.withLock { active?.appendDetectionsLocked(detections) }
+        Unit
+    }
+
+    /** Verifikations-Event an verifications.jsonl der aktiven Session anhaengen (append-only). */
     suspend fun appendVerification(event: VerificationEvent) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            val line = json.encodeToString(event) + "\n"
-            val sessionDoc = activeSessionDoc
-            if (sessionDoc != null) {
-                // SAF-Modus: verifications.jsonl via ContentResolver appendieren
-                val veriFile = sessionDoc.findFile("verifications.jsonl")
-                    ?: sessionDoc.createFile("application/jsonlines", "verifications.jsonl")
-                veriFile?.let { docFile ->
-                    context.contentResolver.openOutputStream(docFile.uri, "wa")?.use { os ->
-                        os.write(line.toByteArray(Charsets.UTF_8))
-                    }
-                }
-            } else {
-                // File-Modus
-                val sessionDir = activeSessionDir ?: return@withLock
-                File(sessionDir, "verifications.jsonl").appendText(line)
-            }
+            active?.appendLocked(VERIFICATIONS_FILE, SessionJson.compact.encodeToString(event) + "\n")
         }
+        Unit
     }
 
     /**
-     * Entfernt den letzten Verifikations-Eintrag fuer eine Detection-ID aus verifications.jsonl.
-     * T117: nur Status-Ereignisse (Bestaetigen/Ablehnen/...), nie CLUSTER_MERGED, Bemerkung usw. —
-     * sonst loeschte ein Undo eine zwischenzeitlich angehaengte Cluster-Zusammenfuehrung.
-     * Idempotent: kein Fehler falls kein Eintrag fuer die ID vorhanden.
-     * Wird fuer Undo im Live-Tab verwendet (T52).
+     * Letztes Status-Ereignis einer Detektion aus verifications.jsonl der aktiven Session entfernen (Undo
+     * Live-Tab, T52/T117). Idempotent, Fehler werden geloggt.
      */
     suspend fun removeLastVerification(
         detectionId: String,
@@ -578,238 +419,128 @@ class SessionManager(
         actionType: String? = null
     ) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            val access: SessionFiles = activeSessionDoc?.let { DocSessionFiles(context, it) }
-                ?: activeSessionDir?.let { FileSessionFiles(it) }
-                ?: return@withLock
+            val a = active ?: return@withLock
             try {
-                val text = access.readText("verifications.jsonl") ?: return@withLock
-                val out = removeLastStatusEventText(text, detectionId, actionType) ?: return@withLock
-                // File: temp + atomarer Move (T93), SAF: Schattenkopie (T236)
-                access.writeReplacing("verifications.jsonl", out)
+                removeLastStatusEventLocked(a.files(), VERIFICATIONS_FILE, detectionId, actionType)
             } catch (e: Exception) {
                 Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
             }
         }
     }
 
+    /** T237/T251 (N7): eine Fassung fuer Live und Analyse; schreibt atomar (File temp + Move, SAF Schattenkopie). */
+    private fun removeLastStatusEventLocked(files: SessionFiles, name: String, detectionId: String, actionType: String?) {
+        val text = files.readText(name) ?: return
+        val out = removeLastStatusEventText(text, detectionId, actionType) ?: return
+        files.writeReplacing(name, out)
+    }
+
     /**
      * T236: Update einer bereits geschriebenen Detektion vormerken (Zweitmodell, Cluster-Merge, GPS-Fix).
-     * Kein Dateizugriff. Geschrieben wird gebuendelt in einem Rewrite: [flushDetectionUpdates]
-     * (Pipeline ca. alle 10 s), beim Session-Ende, vor Lesezugriffen auf die aktive Session und mit
-     * jedem [replaceDetection]. Pro ID gilt der zuletzt gemeldete Stand.
+     * Kein Dateizugriff. Geschrieben wird gebuendelt mit [flushDetectionUpdates] (Pipeline ca. alle 10 s),
+     * T251: append-only in die Zusatzdatei. Pro ID gilt der zuletzt gemeldete Stand.
      */
     fun queueDetectionUpdate(updated: DetectionResult) {
         if (!isActive) return
-        pendingUpdates.put(updated)
+        updates.put(updated)
     }
 
     /** T236: Gesammelte Updates jetzt schreiben (no-op ohne Updates). */
     suspend fun flushDetectionUpdates() = withContext(Dispatchers.IO) {
-        if (pendingUpdates.isEmpty()) return@withContext
-        fileMutex.withLock { flushPendingLocked() }
+        if (updates.isEmpty()) return@withContext
+        fileMutex.withLock { active?.flushUpdatesLocked() }
         Unit
     }
 
     /**
      * T249 (M1): Nutzer-Aktionen im Live-Tab. Der Aufrufer merkt den aktuellen Listenstand vorher unter der
-     * Listen-Sperre vor (`detectionListState.withCurrent(id) { queueDetectionUpdate(it) }`), dann wird hier
-     * sofort geschrieben. So ueberholt nie ein aelterer Stand einen neueren (Merge, Zweitmodell).
-     * Bei Fehler bleibt das Update vorgemerkt (naechster Flush) und der Fehler wird geworfen.
+     * Listen-Sperre vor, dann wird hier sofort geschrieben. Bei Fehler bleibt das Update vorgemerkt und der
+     * Fehler wird geworfen.
      */
     suspend fun flushDetectionUpdatesOrThrow() = withContext(Dispatchers.IO) {
-        if (pendingUpdates.isEmpty()) return@withContext
-        fileMutex.withLock { flushPendingLocked() }?.let { throw it }
+        if (updates.isEmpty()) return@withContext
+        fileMutex.withLock { active?.flushUpdatesLocked() }?.let { throw it }
         Unit
     }
 
     /**
-     * Ersetzt eine Detektion in detections.jsonl sofort (Nutzer-Aktionen), zusammen mit allen gesammelten
-     * Updates in einem Rewrite. File-Modus: temp-File + atomarer Move. SAF-Modus: Schattenkopie mit
-     * Fertig-Marke ([ShadowReplace]). Der Append-Writer wird dabei geschlossen und neu geoeffnet.
+     * Detektion der aktiven Session sofort ersetzen (zusammen mit allen gesammelten Updates).
      * Silent no-op ohne aktive Session; ist die Zeile noch nicht angehaengt, bleibt das Update vorgemerkt.
      */
     suspend fun replaceDetection(updated: DetectionResult) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            if (!isActive) return@withLock
-            pendingUpdates.put(updated)
-            flushPendingLocked()
-            Unit
+            val a = active ?: return@withLock
+            updates.put(updated)
+            a.flushUpdatesLocked()
         }
+        Unit
     }
 
-    /**
-     * T236: Gesammelte Updates in EINEM Rewrite schreiben. Aufrufer haelt den fileMutex.
-     * Geschriebene Eintraege verlassen die Warteschlange; bei Fehler bleiben sie fuer den naechsten Versuch.
-     * @return Fehler oder null
-     */
-    private fun flushPendingLocked(): Exception? {
-        if (pendingUpdates.isEmpty()) return null
-        val sessionDoc = activeSessionDoc
-        val sessionDir = activeSessionDir
-        return try {
-            if (sessionDoc != null) {
-                val access = DocSessionFiles(context, sessionDoc)
-                pendingUpdates.flush({ access.readText(DETECTIONS_FILE) }) { text ->
-                    withDetectionWriterClosed(reopen = { reopenSafWriterLocked(sessionDoc) }) {
-                        // SAF: Schattenkopie mit Fertig-Marke statt "wt"-Rewrite
-                        access.writeReplacing(DETECTIONS_FILE, text)
-                    }
-                }
-            } else if (sessionDir != null) {
-                val file = File(sessionDir, DETECTIONS_FILE)
-                pendingUpdates.flush({ file.takeIf { it.exists() }?.readText() }) { text ->
-                    withDetectionWriterClosed(reopen = { detectionWriter = FileWriter(file, true) }) {
-                        writeFileReplacing(file, text)  // temp-File + atomarer Move
-                    }
-                }
-            }
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "detections.jsonl: ${pendingUpdates.size()} Updates nicht geschrieben (neuer Versuch beim naechsten Schreiben)", e)
-            e
-        }
-    }
+    // ── Zugriffe auf beliebige Session-Ordner (Analyse, Karte, Rescan) ────
+    // Laufen ueber denselben fileMutex wie die Live-Pfade. Fehler werden geworfen (Aufrufer: Rollback + Meldung).
 
-    /**
-     * Append-Writer fuer den Rewrite schliessen (er zeigt sonst auf die alte Datei bzw. schreibt mitten hinein)
-     * und danach IMMER wieder oeffnen, falls einer offen war.
-     */
-    private inline fun withDetectionWriterClosed(reopen: () -> Unit, block: () -> Unit) {
-        val hadWriter = detectionWriter != null
-        closeDetectionWriterLocked()
-        try {
-            block()
-        } finally {
-            if (hadWriter) {
-                try { reopen() } catch (e: Exception) { Log.e(TAG, "detections.jsonl konnte nicht neu geoeffnet werden", e) }
-            }
-        }
-    }
-
-    /** SAF: Append-PFD + Writer auf detections.jsonl neu oeffnen. */
-    private fun reopenSafWriterLocked(sessionDoc: DocumentFile) {
-        val detFile = sessionDoc.findFile(DETECTIONS_FILE) ?: return
-        val fd = context.contentResolver.openFileDescriptor(detFile.uri, "wa") ?: return
-        activeDetectionsFd = fd
-        detectionWriter = OutputStreamWriter(java.io.FileOutputStream(fd.fileDescriptor), Charsets.UTF_8)
-    }
-
-    /** Append-Writer (und SAF-PFD) schliessen. Aufrufer haelt den fileMutex. */
-    private fun closeDetectionWriterLocked() {
-        try { detectionWriter?.close() } catch (e: Exception) { Log.e(TAG, "Detection-Writer close failed", e) }
-        detectionWriter = null
-        try { activeDetectionsFd?.close() } catch (e: Exception) { Log.e(TAG, "Detections-PFD close failed", e) }
-        activeDetectionsFd = null
-    }
-
-    // ── T93b: Zugriffe von aussen (Analyse-Tab) auf beliebige Session-Ordner ──────────
-    // Laufen ueber denselben fileMutex wie die Live-Pfade. Ist sessionDir die gerade aktive
-    // File-Session, wird deren offener detections-Writer verwendet bzw. neu geoeffnet.
-    // Fehler werden geworfen (Aufrufer macht Rollback + Fehlermeldung).
-
-    private fun isActiveDir(sessionDir: File): Boolean =
-        SessionFilesLogic.isSameSession(
-            activeSessionDir?.absolutePath, activeSessionDoc?.name, sessionDir.absolutePath, sessionDir.name
-        )
-
-    // ── T131: SAF-Sessions (Analyse-Tab) ──────────────────────────────
-    // SAF-Sessions werden im Analyse-Tab ueber einen synthetischen File-Schluessel (/saf/...) identifiziert;
-    // safSessions bildet den Schluessel auf das DocumentFile ab. Die aktive SAF-Session wird ueber ihren
-    // Ordnernamen erkannt (auch wenn sie als echter File-Pfad gelistet wird).
-
-    private val safSessions = java.util.concurrent.ConcurrentHashMap<String, DocumentFile>()
+    private fun isActiveDir(sessionDir: File): Boolean = active?.matches(sessionDir) == true
 
     /** DocumentFile der Session, falls SAF-Session (gelistet oder aktiv); sonst null. */
     fun docFor(sessionDir: File): DocumentFile? =
-        safSessions[sessionDir.path]
-            ?: activeSessionDoc?.takeIf { it.name == sessionDir.name }
-
-    // ── T181: Dokument-IDs fuer die Pruefung des Verschiebe-Ziels ─────
-
-    /** Dateipfad auf dem primaeren Speicher als SAF-Dokument-ID (`primary:Download/PIROL/...`). */
-    private fun fileToDocId(file: File): String? {
-        val root = Environment.getExternalStorageDirectory().absolutePath.trimEnd('/', '\\')
-        val path = file.absolutePath.replace('\\', '/')
-        if (path != root && !path.startsWith("$root/")) return null
-        return "primary:" + path.removePrefix(root).trimStart('/')
-    }
-
-    /** Dokument-IDs der PIROL-Basis (SAF-Basis und/oder Datei-Basis). */
-    fun baseDocumentIds(): List<String> {
-        val ids = mutableListOf<String>()
-        appPreferences.storageBaseUri?.let { u ->
-            runCatching { DocumentsContract.getTreeDocumentId(Uri.parse(u)) }.getOrNull()?.let { ids += it }
-        }
-        fileToDocId(resolveBaseFile())?.let { ids += it }
-        return ids
-    }
-
-    /** Dokument-ID des Session-Ordners (SAF-Dokument oder Dateipfad), null wenn nicht ermittelbar. */
-    fun sessionDocumentId(sessionDir: File): String? {
-        docFor(sessionDir)?.let { doc ->
-            runCatching { DocumentsContract.getDocumentId(doc.uri) }.getOrNull()?.let { return it }
-        }
-        return fileToDocId(sessionDir)
-    }
-
-    /**
-     * T249 (H2): Datei einer Session lesen; Lesen schreibt nie (SAF: [ShadowReplace.read]).
-     * Die aktive Session wird unter dem fileMutex gelesen (nie mitten in einem Ersetzen), detections.jsonl
-     * dann mit vorher geschriebenen Updates (T236). Nicht unter dem fileMutex aufrufen (nicht reentrant).
-     */
-    private suspend fun readSessionText(sessionDir: File, name: String): String? {
-        if (isActive && isActiveDir(sessionDir)) {
-            return fileMutex.withLock {
-                if (name == DETECTIONS_FILE) flushPendingLocked()
-                accessFor(sessionDir).readText(name)
-            }
-        }
-        return accessFor(sessionDir).readText(name)
-    }
+        locator.listedDoc(sessionDir) ?: active?.doc?.takeIf { it.name == sessionDir.name }
 
     /** Dateizugriff passend zum Speichermodus der Session. */
     private fun accessFor(sessionDir: File): SessionFiles =
         docFor(sessionDir)?.let { DocSessionFiles(context, it) } ?: FileSessionFiles(sessionDir)
 
+    /** Dokument-IDs der PIROL-Basis (SAF-Basis und/oder Datei-Basis), T181. */
+    fun baseDocumentIds(): List<String> = locator.baseDocumentIds()
+
+    /** Dokument-ID des Session-Ordners (SAF-Dokument oder Dateipfad), null wenn nicht ermittelbar. */
+    fun sessionDocumentId(sessionDir: File): String? = locator.sessionDocumentId(sessionDir, docFor(sessionDir))
+
     /**
-     * T221: Zugriff auf die Dateien einer Session unter dem fileMutex (Rescan-Varianten schreiben/loeschen).
+     * T249 (H2): Datei einer Session lesen; Lesen schreibt nie. detections.jsonl kommt mit den Updates
+     * der Zusatzdatei (T251). Aktive Session: unter dem fileMutex, vorher eigene Updates anhaengen.
+     * T251 (Zusatz T249): SAF-Sessions ebenfalls unter dem fileMutex — sonst kann ein Leser zwischen
+     * Marken-Pruefung und Lesen ein gerade ueberschriebenes Original halb sehen. File-Modus ersetzt per
+     * atomarem Move, dort genuegt Lesen ohne Sperre. Nicht unter dem fileMutex aufrufen (nicht reentrant).
      */
+    private suspend fun readSessionText(sessionDir: File, name: String): String? {
+        val a = active
+        if (a != null && a.matches(sessionDir)) {
+            return fileMutex.withLock {
+                if (name == DETECTIONS_FILE) a.flushUpdatesLocked()
+                a.flushWritersLocked()
+                readMerged(a.files(), name)
+            }
+        }
+        val access = accessFor(sessionDir)
+        return if (access is DocSessionFiles) fileMutex.withLock { readMerged(access, name) } else readMerged(access, name)
+    }
+
+    /** T221: Zugriff auf die Dateien einer Session unter dem fileMutex (Rescan-Varianten schreiben/loeschen). */
     suspend fun <T> withSessionFiles(sessionDir: File, block: (SessionFiles) -> T): T = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            if (isActive && isActiveDir(sessionDir)) flushPendingLocked()  // T236: Rescan liest den aktuellen Stand
+            active?.takeIf { it.matches(sessionDir) }?.flushUpdatesLocked()
             block(accessFor(sessionDir))
         }
     }
 
-    /**
-     * Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session an.
-     * T221: [variant] = Rescan-Variante (eigene Datei), null = Original.
-     */
+    /** Fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session (T221: oder Variante) anhaengen. */
     suspend fun appendVerificationLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
         fileMutex.withLock { accessFor(sessionDir).append(RescanFiles.verifications(variant), line) }
     }
 
-    /** Haengt eine fertige JSONL-Zeile (inkl. Zeilenende) an detections.jsonl der Session (T221: oder der Variante) an. */
+    /** Fertige JSONL-Zeile an detections.jsonl der Session (T221: oder der Variante) anhaengen. */
     suspend fun appendDetectionLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            val writer = detectionWriter
-            if (variant != null) {
-                accessFor(sessionDir).append(RescanFiles.detections(variant), line)
-            } else if (writer != null && isActiveDir(sessionDir)) {
-                // aktive Session (File oder SAF): offenen Writer verwenden
-                writer.append(line)
-                writer.flush()
-                detectionCounter++
-            } else {
-                accessFor(sessionDir).append("detections.jsonl", line)
+            val a = active
+            when {
+                variant != null -> accessFor(sessionDir).append(RescanFiles.detections(variant), line)
+                a != null && a.matches(sessionDir) && a.appendDetectionLineLocked(line) -> Unit  // offener Writer
+                else -> accessFor(sessionDir).append(DETECTIONS_FILE, line)
             }
         }
     }
 
-    /**
-     * T237: Letztes Status-Ereignis einer Detektion aus verifications.jsonl der Session (T221: oder Variante)
-     * entfernen (Undo im Analyse-Tab). Schreibt atomar (File: temp + Move, SAF: Schattenkopie).
-     */
+    /** T237: Letztes Status-Ereignis aus verifications.jsonl der Session (T221: oder Variante) entfernen (Analyse-Undo). */
     suspend fun removeLastVerificationIn(
         sessionDir: File,
         detectionId: String,
@@ -818,51 +549,58 @@ class SessionManager(
         actionType: String? = null
     ) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            val access = accessFor(sessionDir)
-            val name = RescanFiles.verifications(variant)
-            val text = access.readText(name) ?: return@withLock
-            val out = removeLastStatusEventText(text, detectionId, actionType) ?: return@withLock
-            access.writeReplacing(name, out)
+            removeLastStatusEventLocked(accessFor(sessionDir), RescanFiles.verifications(variant), detectionId, actionType)
         }
     }
 
-    /** Ersetzt die Detektion mit gleicher ID in detections.jsonl der Session (T221: oder der Variante). No-op falls Datei fehlt. */
-    suspend fun replaceDetectionIn(sessionDir: File, updated: DetectionResult, variant: String? = null) = withContext(Dispatchers.IO) {
+    /**
+     * T251 (Zusatz T249, M1): Detektion [id] der Session (T221: oder Variante) aendern. [transform] wird auf
+     * den AKTUELLEN Stand unter der Sperre angewendet, nie auf eine aeltere Kopie des Aufrufers:
+     * - aktive Session: auf die Live-Liste (falls dort vorhanden), sonst auf Warteschlange/Zusatzdatei/Datei;
+     *   geschrieben append-only in die Zusatzdatei
+     * - andere Session: auf den gelesenen Stand, ein Rewrite (Zusatzdatei wird dabei mit uebernommen)
+     * @return neue Fassung oder null (Datei/Detektion fehlt)
+     */
+    suspend fun modifyDetectionIn(
+        sessionDir: File,
+        id: String,
+        variant: String? = null,
+        transform: (DetectionResult) -> DetectionResult
+    ): DetectionResult? = withContext(Dispatchers.IO) {
         fileMutex.withLock {
+            val a = active
+            if (variant == null && a != null && a.matches(sessionDir)) {
+                val list = liveDetections
+                val live = list?.modifyDetection(id) { transform(it) }
+                val next = if (list != null && live != null) {
+                    // Listenstand unter der Listen-Sperre vormerken (Reihenfolge wie die Pipeline, T236)
+                    list.withCurrent(id) { updates.put(it) }
+                    live
+                } else {
+                    a.currentLocked(id)?.let(transform)?.also { updates.put(it) } ?: return@withLock null
+                }
+                a.flushUpdatesLocked()?.let { throw it }
+                return@withLock next
+            }
+            val access = accessFor(sessionDir)
             if (variant != null) {
                 // T221: Variante wird nie live geschrieben -> Text ersetzen (File atomar, SAF Schattenkopie)
-                val access = accessFor(sessionDir)
                 val name = RescanFiles.detections(variant)
-                val text = access.readText(name) ?: return@withLock
-                access.writeReplacing(name, SessionFilesLogic.replaceDetectionInText(text, updated))
-                return@withLock
+                val text = access.readText(name) ?: return@withLock null
+                val next = findDetection(text, id)?.let(transform) ?: return@withLock null
+                access.writeReplacing(name, SessionFilesLogic.replaceDetectionInText(text, next))
+                return@withLock next
             }
-            if (isActive && isActiveDir(sessionDir)) {
-                // T131/T236: aktive Session (File oder SAF) -> zusammen mit den gesammelten Updates schreiben
-                pendingUpdates.put(updated)
-                flushPendingLocked()?.let { throw it }
-                return@withLock
-            }
-            val doc = docFor(sessionDir)
-            if (doc != null) {
-                val access = DocSessionFiles(context, doc)
-                val text = access.readText(DETECTIONS_FILE) ?: return@withLock
-                access.writeReplacing(DETECTIONS_FILE, SessionFilesLogic.replaceDetectionInText(text, updated))
-                return@withLock
-            }
-            var error: Exception? = null
-            replaceDetectionInFile(File(sessionDir, DETECTIONS_FILE), updated, null) { e -> error = e }
-            error?.let { throw it }
+            val text = DetectionUpdateLog.mergedText(access) ?: return@withLock null
+            val next = findDetection(text, id)?.let(transform) ?: return@withLock null
+            DetectionUpdateLog.consolidate(access, mapOf(id to next))
+            next
         }
     }
 
     /** T191: Fertige Zeile an track.jsonl der aktiven Session anhaengen (no-op ohne Session). */
     suspend fun appendTrackLine(line: String) = withContext(Dispatchers.IO) {
-        fileMutex.withLock {
-            val doc = activeSessionDoc
-            if (doc != null) DocSessionFiles(context, doc).append(TrackLogic.TRACK_FILE, line)
-            else activeSessionDir?.let { File(it, TrackLogic.TRACK_FILE).appendText(line) }
-        }
+        fileMutex.withLock { active?.appendLocked(TrackLogic.TRACK_FILE, line) }
         Unit
     }
 
@@ -880,27 +618,11 @@ class SessionManager(
         Unit
     }
 
-    // ── T69: Voice-Memo Pfad-Helpers ─────────────────────────────────
-
-    /**
-     * Gibt den File-Pfad fuer ein Sprach-Memo zurueck (File-Modus).
-     * Erstellt das memos/-Verzeichnis falls noetig.
-     *
-     * @param sessionDir Session-Verzeichnis (File-Modus)
-     * @param detectionId ID der Detektion
-     * @return File-Handle fuer <sessionDir>/memos/<detectionId>.wav
-     */
+    /** T69: File-Pfad fuer ein Sprach-Memo (File-Modus); erstellt memos/ falls noetig. */
     fun memoFile(sessionDir: File, detectionId: String): File =
         File(sessionDir, "memos/$detectionId.wav").apply { parentFile?.mkdirs() }
 
-    /**
-     * Gibt das DocumentFile fuer ein Sprach-Memo zurueck (SAF-Modus).
-     * Erstellt den memos/-Ordner und die WAV-Datei falls noetig.
-     *
-     * @param sessionDoc Session-DocumentFile (SAF-Modus)
-     * @param detectionId ID der Detektion
-     * @return DocumentFile oder null bei Fehler
-     */
+    /** T69: DocumentFile fuer ein Sprach-Memo (SAF-Modus); erstellt memos/ und die WAV-Datei falls noetig. */
     fun memoDocFile(sessionDoc: DocumentFile, detectionId: String): DocumentFile? {
         val memos = sessionDoc.findFile("memos")
             ?: sessionDoc.createDirectory("memos") ?: return null
@@ -908,280 +630,31 @@ class SessionManager(
             ?: memos.createFile("audio/wav", "$detectionId.wav")
     }
 
-    /**
-     * Audio-Samples an recording.wav anhaengen.
-     * Wird vom LiveViewModel fuer jeden Chunk aufgerufen (Daueraufnahme, T51).
-     *
-     * @param samples Audio-Daten als ShortArray (16-bit PCM)
-     */
+    // ── Audio ─────────────────────────────────────────────────────────
+
+    /** Audio-Samples an die WAV der aktiven Session anhaengen (Daueraufnahme, T51; Rotation T57-B1). */
     suspend fun appendAudioSamples(samples: ShortArray) = withContext(Dispatchers.IO) {
-        recordingWriter?.append(samples)
-        // T57-B1: Rotation auf Chunk-Grenze pruefen
-        val sampleRate = activeMetadata?.sampleRate?.toFloat() ?: return@withContext
-        val maxSec = appPreferences.maxRecordingMinutes * 60f
-        val writerSec = (recordingWriter?.sampleCount ?: 0L) / sampleRate
-        if (writerSec >= maxSec) {
-            rotateRecordingSync()
-        }
+        active?.appendAudio(samples, appPreferences.maxRecordingMinutes * 60f)
+        Unit
     }
 
-    /** T118: Bisher in die WAV-Segmente der aktiven Session geschriebene Samples (fuer T118_STATS). */
-    val recordedSampleCount: Long
-        get() = totalSamplesCompleted + (recordingWriter?.sampleCount ?: 0L)
+    /** T118: Bisher in die WAV-Segmente der aktiven Session geschriebene Samples. */
+    val recordedSampleCount: Long get() = active?.recordedSampleCount ?: 0L
+
+    /** Aktueller Schreib-Offset der Session in Sekunden (T130: session-relativ ueber alle Segmente); 0 ohne Session. */
+    fun getCurrentRecordingOffsetSec(): Float = active?.offsetSec() ?: 0f
+
+    // ── Listen, Loeschen, Wiederherstellen ────────────────────────────
+
+    /** Alle vorhandenen Session-Ordner (neueste zuerst). */
+    fun listSessions(): List<File> = locator.listSessions()
 
     /**
-     * Aktueller Schreib-Offset der Session in Sekunden (T130: Session-relativ ueber alle
-     * WAV-Segmente, vorher nur im aktuellen Segment → nach einer Rotation falsche Positionen).
-     * Wird VOR appendAudioSamples() aufgerufen fuer korrekte Detection-Zeitstempel.
-     *
-     * @return Offset in Sekunden, oder 0f wenn keine Session aktiv
+     * T251 (M5): Session-Ordner zu einer Session-ID (Ordnername = Session-ID), ohne alle session.json zu lesen.
+     * null = nicht gefunden.
      */
-    fun getCurrentRecordingOffsetSec(): Float {
-        val writer = recordingWriter ?: return 0f
-        val sampleRate = activeMetadata?.sampleRate ?: return 0f
-        return sessionOffsetSec(totalSamplesCompleted, writer.sampleCount, sampleRate)
-    }
-
-    /**
-     * Aktive Session beenden. Schliesst WAV-Writer + Writer, aktualisiert session.json.
-     * Schreibt automatisch recording.selections.txt (Auto-Raven-Export, T51).
-     *
-     * @param gpsStats GPS-Statistiken der Session (T53). Null wenn GPS nicht verwendet wurde.
-     */
-    suspend fun endSession(gpsStats: GpsStats? = null) = withContext(Dispatchers.IO) {
-        val dir = activeSessionDir
-        val doc = activeSessionDoc
-        val metadata = activeMetadata ?: return@withContext
-
-        // T57-B1: Letztes Segment abschliessen und Gesamt-Samples summieren
-        val writer = recordingWriter
-        if (writer != null) {
-            val sampleRate = metadata.sampleRate.toFloat()
-            val durationSec = writer.sampleCount.toFloat() / sampleRate
-            activeSegments.add(RecordingSegment(segmentFileName(recordingSegmentIndex), sessionSegmentStartSec, durationSec))
-            totalSamplesCompleted += writer.sampleCount
-        }
-        val recordedSamples = totalSamplesCompleted
-
-        // WAV-Writer schliessen
-        try { recordingWriter?.close() } catch (e: Exception) { Log.e(TAG, "WAV close failed", e) }
-        recordingWriter = null
-
-        // JSONL-Writer schliessen
-        fileMutex.withLock {  // T93: nicht parallel zu append/replace schliessen
-            // T236: gesammelte Updates zuletzt schreiben. T249 (M3): Fehler nicht still verwerfen, erneut versuchen
-            val flushError = retryFlush(END_FLUSH_ATTEMPTS, END_FLUSH_RETRY_MS) { flushPendingLocked() }
-            val dropped = pendingUpdates.clear()
-            if (flushError != null) {
-                Log.e(TAG, "Session-Ende: $dropped Updates nach $END_FLUSH_ATTEMPTS Versuchen nicht in detections.jsonl geschrieben", flushError)
-                _unsavedUpdatesAtEnd.tryEmit(dropped)
-            } else if (dropped > 0) {
-                // Zeile nie angehaengt (z.B. Detektion nach dem letzten Append verworfen): nichts zu ersetzen
-                Log.w(TAG, "Session-Ende: $dropped Updates ohne Zeile in detections.jsonl verworfen")
-            }
-            closeDetectionWriterLocked()
-        }
-
-        // session.json aktualisieren (endedAt, Zaehler, gpsStats)
-        val updatedMetadata = metadata.copy(
-            endedAt = ZonedDateTime.now(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-            totalRecordedSamples = recordedSamples,
-            totalDetections = detectionCounter,
-            gpsStats = gpsStats,  // T53: GPS-Statistiken
-            recordingSegments = if (activeSegments.size > 1) activeSegments.toList() else null  // T57-B1: null bei Single-File
-        )
-        val prettyJson = Json { prettyPrint = true }
-        val updatedJson = prettyJson.encodeToString(updatedMetadata)
-
-        if (doc != null) {
-            // SAF-Modus: session.json ueberschreiben
-            val jsonFile = doc.findFile("session.json")
-            jsonFile?.let { context.contentResolver.openOutputStream(it.uri, "wt")?.use { os ->
-                os.write(updatedJson.toByteArray(Charsets.UTF_8))
-            }}
-        } else if (dir != null) {
-            File(dir, "session.json").writeText(updatedJson)
-        }
-
-        Log.i(TAG, "Session beendet: ${metadata.sessionId} ($recordedSamples samples, $detectionCounter Detektionen)")
-
-        // Auto-Raven-Export (T51): recording.selections.txt schreiben.
-        // T249 (M2): derselbe Exportweg und dieselbe Feldliste wie der manuelle Export (inkl. Zweitmodell, Links)
-        val sessionDirForExport = dir ?: doc?.let { d ->
-            resolveSessionDirFromDoc(d) ?: d.name?.let { SessionFilesLogic.safKey(null, it) }
-        }
-        if (sessionDirForExport != null) {
-            try {
-                val out = writeRavenTable(sessionDirForExport, appPreferences, variant = null,
-                    requireRecording = false, knownMeta = updatedMetadata)
-                Log.i(TAG, "Auto-Raven-Export: ${out?.name}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
-            }
-        }
-
-        // T191: Route als track.gpx (aus track.jsonl, nur wenn Punkte vorhanden)
-        try {
-            val access: SessionFiles? = doc?.let { DocSessionFiles(context, it) } ?: dir?.let { FileSessionFiles(it) }
-            val n = access?.let { GpxExporter.exportFrom(it, metadata.sessionId) } ?: 0
-            if (n > 0) Log.i(TAG, "GPX-Export: ${GpxExporter.GPX_FILE} ($n Punkte)")
-        } catch (e: Exception) {
-            Log.e(TAG, "GPX-Export fehlgeschlagen", e)
-        }
-
-        // Auto-Delete kurzer leerer Sessions (T60)
-        val autoDeleteEnabled = appPreferences.autoDeleteShortEmptySessions
-        val minSec = appPreferences.autoDeleteMinSeconds
-        val durationSec = if (updatedMetadata.sampleRate > 0)
-            updatedMetadata.totalRecordedSamples.toDouble() / updatedMetadata.sampleRate
-        else 0.0
-        if (shouldAutoDelete(durationSec, updatedMetadata.totalDetections, minSec, autoDeleteEnabled)) {
-            Log.i(TAG, "Auto-Delete: Session=${updatedMetadata.sessionId} " +
-                "dauer=${"%.1f".format(durationSec)}s detections=0 < ${minSec}s")
-            deleteSessionFolder(dir, doc)
-        }
-
-        // State zuruecksetzen
-        activeSessionDir = null
-        activeSessionDoc = null
-        activeDetectionsUri = null
-        activeMetadata = null
-        detectionCounter = 0
-        recordingSegmentIndex = 0
-        sessionSegmentStartSec = 0f
-        activeSegments.clear()
-        totalSamplesCompleted = 0L
-
-        // Signal fuer AnalysisViewModel (T51, Commit 8)
-        _sessionEnded.tryEmit(Unit)
-    }
-
-    /**
-     * Leitet einen DocumentFile-Session-Ordner zu einem File-Pfad auf (primaerer Speicher).
-     * Nur fuer Auto-Raven-Export nach endSession() benoetigt.
-     */
-    private fun resolveSessionDirFromDoc(sessionDoc: DocumentFile): File? {
-        val safUri = appPreferences.storageBaseUri ?: return null
-        val baseFile = safUriToFile(Uri.parse(safUri)) ?: return null
-        // Session-Name aus DocumentFile-Name extrahieren
-        val sessionName = sessionDoc.name ?: return null
-        // Alle Tagesdirs durchsuchen
-        val allDirs = mutableListOf<File>()
-        if (appPreferences.storageDailySubfolder) {
-            baseFile.listFiles()?.forEach { dayDir ->
-                if (dayDir.isDirectory) allDirs.add(File(dayDir, sessionName))
-            }
-        } else {
-            allDirs.add(File(baseFile, sessionName))
-        }
-        return allDirs.firstOrNull { it.exists() }
-    }
-
-    // ── WAV-Rotation (T57-B1) ─────────────────────────────────────────
-
-    private fun segmentFileName(index: Int): String = Companion.segmentFileName(index)
-
-    /**
-     * Schliesst den aktuellen WAV-Writer, speichert das abgeschlossene Segment,
-     * und oeffnet eine neue WAV-Datei. Laeuft auf Dispatchers.IO (kein suspend noetig).
-     */
-    private fun rotateRecordingSync() {
-        val meta = activeMetadata ?: return
-        val writer = recordingWriter ?: return
-        val sampleRate = meta.sampleRate.toFloat()
-
-        // Aktuelles Segment abschliessen
-        val durationSec = writer.sampleCount.toFloat() / sampleRate
-        activeSegments.add(RecordingSegment(segmentFileName(recordingSegmentIndex), sessionSegmentStartSec, durationSec))
-        totalSamplesCompleted += writer.sampleCount
-        try { writer.close() } catch (e: Exception) { Log.e(TAG, "WAV rotate close failed", e) }
-
-        // Naechstes Segment starten
-        recordingSegmentIndex++
-        sessionSegmentStartSec += durationSec
-        val newName = segmentFileName(recordingSegmentIndex)
-        val dir = activeSessionDir
-        val doc = activeSessionDoc
-        recordingWriter = when {
-            dir != null -> StreamingWavWriter.forFile(File(dir, newName), meta.sampleRate).also { it.open() }
-            doc != null -> {
-                val wavDoc = doc.createFile("audio/wav", newName)
-                    ?: throw IllegalStateException("SAF: $newName konnte nicht erstellt werden")
-                StreamingWavWriter.forSaf(context, wavDoc.uri, meta.sampleRate).also { it.open() }
-            }
-            else -> { Log.e(TAG, "rotateRecordingSync: kein aktives Verzeichnis"); return }
-        }
-        Log.i(TAG, "WAV-Rotation: Segment $recordingSegmentIndex gestartet → $newName")
-    }
-
-    // ── Listierungs- und Lese-Methoden ────────────────────────────────
-
-    /**
-     * Gibt alle vorhandenen Session-Ordner zurueck (neueste zuerst).
-     * Scannt neue Struktur (PIROL/YYYY-MM-DD/sessionId) + alte Sessions fuer Rueckwaertskompatibilitaet.
-     */
-    fun listSessions(): List<File> {
-        val results = mutableListOf<File>()
-
-        // 0. T131: SAF-Basis (Downloads/PIROL via Tree-URI) ueber DocumentFile listen. File-Zugriff auf
-        //    diese Ordner ist unter Scoped Storage nicht garantiert -> Doc-Sessions haben Vorrang.
-        val safNames = mutableSetOf<String>()
-        listSafSessions().forEach { (key, doc) ->
-            safSessions[key.path] = doc
-            safNames += key.name
-            results += key
-        }
-
-        // 1. Neue Struktur: [base]/PIROL/YYYY-MM-DD/{sessionId}/
-        val base = resolveBaseFile()
-        if (base.exists()) {
-            if (appPreferences.storageDailySubfolder || base.listFiles()?.any { it.isDirectory && looksLikeDateDir(it.name) } == true) {
-                // Mit Tages-Unterordnern: tief scannen
-                base.listFiles()?.forEach { dayDir ->
-                    if (dayDir.isDirectory) {
-                        dayDir.listFiles()?.filter { it.isDirectory }?.let { results.addAll(it) }
-                    }
-                }
-            }
-            // Direkt im base liegende Session-Dirs (kein Tages-Unterordner)
-            base.listFiles()?.filter { it.isDirectory && !looksLikeDateDir(it.name) }
-                ?.let { results.addAll(it) }
-        }
-
-        // Duplikate entfernen: File-Sessions, die schon als SAF-Session gelistet sind, fallen weg
-        val (safKeys, fileSessions) = results.partition { safSessions.containsKey(it.path) }
-        return (safKeys + SessionFilesLogic.dropListedNames(fileSessions, safNames))
-            .distinctBy { it.absolutePath }
-            .sortedByDescending { it.name }
-    }
-
-    /** T131: Sessions unter der SAF-Basis (mit/ohne Tages-Unterordner) als (Schluessel, DocumentFile). */
-    private fun listSafSessions(): List<Pair<File, DocumentFile>> {
-        if (appPreferences.storageBaseUri == null) return emptyList()
-        val base = try { resolveBaseDocFile() } catch (_: Exception) { null } ?: return emptyList()
-        if (!base.canRead()) return emptyList()
-        val out = mutableListOf<Pair<File, DocumentFile>>()
-        try {
-            for (child in base.listFiles()) {
-                val childName = child.name ?: continue
-                if (!child.isDirectory) continue
-                if (looksLikeDateDir(childName)) {
-                    for (s in child.listFiles()) {
-                        val n = s.name ?: continue
-                        if (s.isDirectory) out += SessionFilesLogic.safKey(childName, n) to s
-                    }
-                } else {
-                    out += SessionFilesLogic.safKey(null, childName) to child
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "SAF-Sessions listen fehlgeschlagen", e)
-        }
-        return out
-    }
-
-    private fun looksLikeDateDir(name: String): Boolean {
-        return name.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))
+    suspend fun findSessionDir(sessionId: String): File? = withContext(Dispatchers.IO) {
+        locator.findBySessionId(sessionId)
     }
 
     /** Loescht Session-Folder im File- oder SAF-Modus (T60: Auto-Delete). */
@@ -1196,83 +669,69 @@ class SessionManager(
     }
 
     /** T180: true, wenn [sessionDir] die gerade laufende Aufnahme-Session ist (nicht loesch-/verschiebbar). */
-    fun isActiveSession(sessionDir: File): Boolean =
-        isActive && (activeSessionDir?.path == sessionDir.path || activeSessionDoc?.name == sessionDir.name)
-
-    /** T180: Entfernt leere Tagesordner (YYYY-MM-DD) in der Basis (SAF und File) nach Verschieben/Loeschen. */
-    suspend fun removeEmptyDayDirs() = withContext(Dispatchers.IO) {
-        try {
-            if (appPreferences.storageBaseUri != null) {
-                resolveBaseDocFile()?.takeIf { it.canRead() }?.listFiles()?.forEach { d ->
-                    val n = d.name ?: return@forEach
-                    if (d.isDirectory && looksLikeDateDir(n) && d.listFiles().isEmpty()) d.delete()
-                }
-            }
-            resolveBaseFile().listFiles()?.forEach { d ->
-                if (d.isDirectory && looksLikeDateDir(d.name) && d.listFiles()?.isEmpty() == true) d.delete()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Leere Tagesordner entfernen fehlgeschlagen", e)
-        }
+    fun isActiveSession(sessionDir: File): Boolean {
+        val a = active ?: return false
+        return a.dir?.path == sessionDir.path || a.doc?.name == sessionDir.name
     }
 
-    /** Loescht eine Session (Ordner + alle Dateien) */
+    /** T180: Entfernt leere Tagesordner (YYYY-MM-DD) in der Basis (SAF und File). */
+    suspend fun removeEmptyDayDirs() = withContext(Dispatchers.IO) { locator.removeEmptyDayDirs() }
+
+    /** Loescht eine Session (Ordner + alle Dateien). */
     suspend fun deleteSession(sessionDir: File): Boolean = withContext(Dispatchers.IO) {
         // T131: SAF-Session (gelistet) ueber DocumentFile loeschen
-        docFor(sessionDir)?.takeIf { activeSessionDoc?.name != it.name }?.let { doc ->
+        docFor(sessionDir)?.takeIf { active?.doc?.name != it.name }?.let { doc ->
             val ok = doc.delete()
-            safSessions.remove(sessionDir.path)
+            locator.forget(sessionDir)
             return@withContext ok
         }
         if (!sessionDir.exists()) return@withContext false
         val deleted = sessionDir.deleteRecursively()
+        locator.forget(sessionDir)
         Log.i(TAG, "Session geloescht: ${sessionDir.name} (erfolg=$deleted)")
         deleted
     }
 
     /**
-     * T65: Crash-Recovery — finalisiert verwaiste Sessions (endedAt == null) beim App-Start.
-     *
-     * Fuer jede Session ohne endedAt:
-     * - WAV-Header wird via StreamingWavWriter.finalizeHeader() repariert
-     * - session.json erhaelt endedAt = last-modified-Zeit der WAV-Datei
-     * - Session bleibt in der Liste sichtbar (kein stiller Skip, AC6)
-     *
+     * T65: Crash-Recovery beim Analyse-Start (nie fuer die aktive Session):
+     * - T249 (H2): Reste unterbrochener Schattenkopien (SAF) aufraeumen
+     * - T251 (N2): liegengebliebene Zusatzdatei der Detektions-Updates in detections.jsonl uebernehmen
+     * - verwaiste Sessions (endedAt == null): WAV-Header reparieren, session.json mit endedAt (T130)
      * @return Anzahl reparierter Sessions
      */
     suspend fun recoverOrphanSessions(): Int = withContext(Dispatchers.IO) {
         var recovered = 0
         val sessions = listSessions()
-        // T249 (H2): Reste unterbrochener Schattenkopien (SAF) einmalig hier aufraeumen statt bei jedem Lesen:
-        // unter dem fileMutex und nie fuer die aktive Session
         for (sessionDir in sessions) {
-            val doc = docFor(sessionDir) ?: continue
             try {
-                val n = fileMutex.withLock {
-                    if (isActiveDir(sessionDir)) 0 else DocSessionFiles(context, doc).recoverAll()
+                fileMutex.withLock {
+                    if (isActiveDir(sessionDir)) return@withLock
+                    val access = accessFor(sessionDir)
+                    val n = (access as? DocSessionFiles)?.recoverAll() ?: 0
+                    if (n > 0) Log.i(TAG, "recoverOrphan: $n unterbrochene Ersetzungen aufgeloest: ${sessionDir.name}")
+                    if (access.exists(DetectionUpdateLog.FILE)) {
+                        DetectionUpdateLog.consolidate(access)
+                        Log.i(TAG, "recoverOrphan: Detektions-Updates zusammengefuehrt: ${sessionDir.name}")
+                    }
                 }
-                if (n > 0) Log.i(TAG, "recoverOrphan: $n unterbrochene Ersetzungen aufgeloest: ${sessionDir.name}")
             } catch (e: Exception) {
-                Log.w(TAG, "recoverOrphan: Schattenkopien pruefen fehlgeschlagen: ${sessionDir.name}", e)
+                Log.w(TAG, "recoverOrphan: Reste pruefen fehlgeschlagen: ${sessionDir.name}", e)
             }
         }
         sessions.forEach { sessionDir ->
-            val jsonFile = File(sessionDir, "session.json")
+            val jsonFile = File(sessionDir, SESSION_JSON)
             if (!jsonFile.exists()) return@forEach
             val metadata = try {
-                jsonLenient.decodeFromString<SessionMetadata>(jsonFile.readText())
+                SessionJson.lenient.decodeFromString<SessionMetadata>(jsonFile.readText())
             } catch (e: Exception) {
                 Log.w(TAG, "recoverOrphan: session.json nicht lesbar: ${sessionDir.name}", e)
                 return@forEach
             }
-            if (metadata.endedAt != null) return@forEach  // Normal beendet — nichts zu tun
+            if (metadata.endedAt != null) return@forEach  // Normal beendet
             // T130: laufende Session (Analyse-Tab waehrend der Aufnahme geoeffnet) nicht anfassen
-            if (isActiveDir(sessionDir) || activeMetadata?.sessionId == metadata.sessionId) return@forEach
+            if (isActiveDir(sessionDir) || active?.metadata?.sessionId == metadata.sessionId) return@forEach
 
-            // Verwaiste Session gefunden
             Log.i(TAG, "recoverOrphan: verwaiste Session gefunden: ${sessionDir.name}")
-
-            // WAV-Header finalisieren (alle Segment-Files)
             val wavFiles = sessionDir.listFiles { f -> f.name.endsWith(".wav") } ?: emptyArray()
             for (wav in wavFiles) {
                 try {
@@ -1282,19 +741,15 @@ class SessionManager(
                     Log.e(TAG, "recoverOrphan: WAV-Header Fehler: ${wav.name}", e)
                 }
             }
-
             // T130: endedAt, Gesamtsamples, Segmentliste und Detektionszahl aus den Dateien
-            // (endSession() lief nicht → session.json kennt weder Rotation noch Dauer)
             val detectionLines = runCatching {
-                File(sessionDir, "detections.jsonl").takeIf { it.exists() }
+                File(sessionDir, DETECTIONS_FILE).takeIf { it.exists() }
                     ?.useLines { lines -> lines.count { it.isNotBlank() } }
             }.getOrNull()
             val recoveredMeta = recoverMetadata(metadata, SegmentedRecording.segmentFiles(sessionDir), detectionLines)
-            val endedAt = recoveredMeta.endedAt
             try {
-                val prettyJson = Json { prettyPrint = true }
-                jsonFile.writeText(prettyJson.encodeToString(recoveredMeta))
-                Log.i(TAG, "recoverOrphan: session.json repariert: ${sessionDir.name} → endedAt=$endedAt")
+                writeFileReplacing(jsonFile, SessionJson.pretty.encodeToString(recoveredMeta))
+                Log.i(TAG, "recoverOrphan: session.json repariert: ${sessionDir.name} → endedAt=${recoveredMeta.endedAt}")
                 recovered++
             } catch (e: Exception) {
                 Log.e(TAG, "recoverOrphan: session.json Schreiben fehlgeschlagen: ${sessionDir.name}", e)
@@ -1303,15 +758,13 @@ class SessionManager(
         recovered
     }
 
-    /**
-     * Laedt Metadaten einer Session aus session.json.
-     */
+    // ── Lesen ─────────────────────────────────────────────────────────
+
+    /** Metadaten einer Session aus session.json (T249: Lesen schreibt nie). */
     suspend fun loadMetadata(sessionDir: File): SessionMetadata? = withContext(Dispatchers.IO) {
         try {
-            // T249 (H2): Lesen schreibt nie; Reste werden beim App-Start (recoverOrphanSessions) bzw. vor dem
-            // naechsten Schreiben unter fileMutex aufgeraeumt
-            val text = readSessionText(sessionDir, "session.json") ?: return@withContext null
-            jsonLenient.decodeFromString<SessionMetadata>(text)
+            val text = readSessionText(sessionDir, SESSION_JSON) ?: return@withContext null
+            SessionJson.lenient.decodeFromString<SessionMetadata>(text)
         } catch (e: Exception) {
             Log.e(TAG, "session.json parsen fehlgeschlagen: ${sessionDir.name}", e)
             null
@@ -1319,10 +772,8 @@ class SessionManager(
     }
 
     /**
-     * T109: Aendert die Bemerkung einer bestehenden Session (File-Modus: session.json atomar ersetzen).
-     * Die Analyse arbeitet ausschliesslich mit File-Session-Ordnern (listSessions/resolveSessionDirFromDoc);
-     * ein reiner SAF-Schreibpfad ist daher hier nicht noetig. Schreibt bei vorhandener
-     * recording.selections.txt diese neu (Spalte Session-Bemerkung).
+     * T109: Bemerkung einer bestehenden Session aendern (session.json atomar ersetzen, File oder SAF).
+     * Schreibt eine vorhandene recording.selections.txt neu (Spalte Session-Bemerkung).
      * @return aktualisierte Metadaten oder null bei Fehler / fehlender session.json
      */
     suspend fun updateSessionNote(
@@ -1334,143 +785,51 @@ class SessionManager(
         val updated = meta.copy(note = note?.trim()?.ifEmpty { null })
         val access = accessFor(sessionDir)
         try {
-            // T131: File- oder SAF-Session; Schreiben unter dem fileMutex (T93)
-            fileMutex.withLock {
-                access.writeReplacing("session.json", Json { prettyPrint = true }.encodeToString(updated))
-            }
+            fileMutex.withLock { access.writeReplacing(SESSION_JSON, SessionJson.pretty.encodeToString(updated)) }
         } catch (e: Exception) {
             Log.e(TAG, "updateSessionNote: session.json Schreiben fehlgeschlagen: ${sessionDir.name}", e)
             return@withContext null
         }
-        // Raven-Datei nur neu schreiben, wenn schon eine existiert (Auto-Export bei Stop)
-        if (access.exists("recording.selections.txt")) {
+        if (access.exists(RescanFiles.RAVEN)) {
             try { exportRavenSelectionTable(sessionDir, appPreferences) }
             catch (e: Exception) { Log.e(TAG, "updateSessionNote: Raven-Re-Export fehlgeschlagen", e) }
         }
         updated
     }
 
-    /**
-     * Laedt alle Detektionen einer Session aus detections.jsonl.
-     */
+    /** Alle Detektionen einer Session (T251: inkl. Updates der Zusatzdatei). */
     suspend fun loadDetections(sessionDir: File, variant: String? = null): List<DetectionResult> = withContext(Dispatchers.IO) {
-        // T236: aktive Session -> gesammelte Updates vorher schreiben (in readSessionText, unter fileMutex)
         try {
-            (readSessionText(sessionDir, RescanFiles.detections(variant)) ?: return@withContext emptyList())
-                .lines()
-                .filter { it.isNotBlank() }
-                .mapNotNull { line ->
-                    try { jsonLenient.decodeFromString<DetectionResult>(line) }
-                    catch (_: Exception) { null }
-                }
+            readSessionText(sessionDir, RescanFiles.detections(variant))?.let { SessionTextParser.detections(it) } ?: emptyList()
         } catch (e: Exception) {
             Log.e(TAG, "detections.jsonl lesen fehlgeschlagen: ${sessionDir.name}", e)
             emptyList()
         }
     }
 
-    /**
-     * Laedt Verifikations-Events und wendet sie auf Detektionen an.
-     */
+    private suspend fun readVerifications(sessionDir: File, variant: String?): String? =
+        try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
+
+    /** Detektionen mit angewendeten Verifikations-Events. */
     suspend fun loadDetectionsWithVerifications(sessionDir: File, variant: String? = null): List<DetectionResult> =
         withContext(Dispatchers.IO) {
-            val detections = loadDetections(sessionDir, variant).toMutableList()
-            val veriText = try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
-                ?: return@withContext detections
-
-            val verifications = try {
-                veriText.lines()
-                    .filter { it.isNotBlank() }
-                    .mapNotNull { line ->
-                        try { jsonLenient.decodeFromString<VerificationEvent>(line) }
-                        catch (_: Exception) { null }
-                    }
-            } catch (_: Exception) { emptyList() }
-
-            for (v in verifications) {
-                val idx = detections.indexOfFirst { it.id == v.detectionId }
-                if (idx >= 0) {
-                    // T165: POSITION_MOVED setzt nur die Position, nicht den Verifikationsstatus
-                    val moved = ch.etasystems.pirol.ui.map.MapPositionMove.parse(v)
-                    if (moved != null) {
-                        detections[idx] = detections[idx].copy(latitude = moved.first, longitude = moved.second)
-                        continue
-                    }
-                    if (v.actionType == VerificationEvent.ACTION_POSITION_MOVED) continue
-                    detections[idx] = detections[idx].copy(
-                        verificationStatus = v.status,
-                        correctedSpecies = v.correctedSpecies,
-                        verifiedAtMs = v.verifiedAtMs
-                    )
-                }
-            }
-            detections
+            val detections = loadDetections(sessionDir, variant)
+            val veriText = readVerifications(sessionDir, variant) ?: return@withContext detections
+            SessionTextParser.applyVerifications(detections, SessionTextParser.events(veriText))
         }
 
-    /**
-     * T167: Wanduhr-Zeiten der absorbierten Fenster je Anker-Detektion (aus CLUSTER_MERGED-Events).
-     */
-    suspend fun loadMergeTimestamps(sessionDir: File, variant: String? = null): Map<String, List<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>> = withContext(Dispatchers.IO) {
-        val veriText = try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
-            ?: return@withContext emptyMap()
-        val map = mutableMapOf<String, MutableList<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>>()
-        veriText.lineSequence().forEach { line ->
-            if (line.isBlank()) return@forEach
-            val event = runCatching { jsonLenient.decodeFromString<VerificationEvent>(line) }.getOrNull()
-                ?: return@forEach
-            if (event.actionType != VerificationEvent.ACTION_CLUSTER_MERGED) return@forEach
-            val info = ch.etasystems.pirol.ui.analysis.DetectionOccurrences
-                .parseMergeInfo(event.correctedSpecies) ?: return@forEach
-            map.getOrPut(event.detectionId) { mutableListOf() }.add(info)
+    /** T167: Wanduhr-Zeiten der absorbierten Fenster je Anker-Detektion (aus CLUSTER_MERGED-Events). */
+    suspend fun loadMergeTimestamps(sessionDir: File, variant: String? = null): Map<String, List<DetectionOccurrences.MergeInfo>> =
+        withContext(Dispatchers.IO) {
+            readVerifications(sessionDir, variant)?.let { SessionTextParser.mergeTimestamps(it) } ?: emptyMap()
         }
-        map
-    }
 
-    /**
-     * T85: Laedt alle Simultanlink-Events aus verifications.jsonl und baut eine
-     * Map von DetectionId → SimultaneousLinkSummary (simultaneous / probable / sameIndividual).
-     */
-    private suspend fun loadSimultaneousLinkMap(
-        sessionDir: File,
-        variant: String? = null
-    ): Map<String, RavenExporter.SimultaneousLinkSummary> = withContext(Dispatchers.IO) {
-        val veriText = try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
-            ?: return@withContext emptyMap()
-
-        val map = mutableMapOf<String, RavenExporter.SimultaneousLinkSummary>()
-        veriText.lineSequence().forEach { line ->
-            val event = runCatching {
-                jsonLenient.decodeFromString<VerificationEvent>(line)
-            }.getOrNull() ?: return@forEach
-
-            val otherId = event.newValue ?: return@forEach
-            val detId = event.detectionId
-            val existing = map.getOrDefault(detId, RavenExporter.SimultaneousLinkSummary())
-            map[detId] = when (event.actionType) {
-                VerificationEvent.ACTION_SIMULTANEOUS_LINK ->
-                    existing.copy(simultaneous = existing.simultaneous + otherId)
-                VerificationEvent.ACTION_PROBABLE_LINK ->
-                    existing.copy(probable = existing.probable + otherId)
-                VerificationEvent.ACTION_SAME_INDIVIDUAL ->
-                    existing.copy(sameIndividual = existing.sameIndividual + otherId)
-                else -> existing
-            }
-        }
-        map
-    }
-
-    /**
-     * Gibt die Recording-Datei einer Session zurueck.
-     */
+    /** Recording-Datei einer Session (File-Modus). */
     fun getRecordingFile(sessionDir: File): File? =
         File(sessionDir, "recording.wav").takeIf { it.exists() }
 
-    /**
-     * T130: Alle WAV-Segmente einer Session als eine Zeitachse (Wiedergabe, Sonogramm, Ausschnitte).
-     * null = keine Aufnahme.
-     */
+    /** T130: Alle WAV-Segmente einer Session als eine Zeitachse; null = keine Aufnahme. */
     suspend fun loadRecording(sessionDir: File): SegmentedRecording? = withContext(Dispatchers.IO) {
-        // T131: File- und SAF-Segmente (content://) ueber SessionFiles
         accessFor(sessionDir).recording()
     }
 
@@ -1485,25 +844,19 @@ class SessionManager(
     }
 
     /**
-     * Fuehrt veraltete RIFF-/data-Groessen aller Aufnahme-Segmente nach (T130, Prozess-Kill-Recovery).
-     * Dateien mit passendem Header bleiben unveraendert.
-     *
-     * @return Anzahl reparierter Dateien
+     * T130: Veraltete RIFF-/data-Groessen aller Segmente nachfuehren (Prozess-Kill). SAF-Sessions und die
+     * laufende Session werden nicht angefasst. @return Anzahl reparierter Dateien
      */
     suspend fun repairRecordingHeaders(sessionDir: File): Int = withContext(Dispatchers.IO) {
-        // T131: SAF-Sessions werden nicht repariert (kein RandomAccess-Schreibzugriff via ContentResolver);
-        // SegmentedRecording liest die Laenge aus der Dateigroesse und ist gegen alte Header robust.
         if (docFor(sessionDir) != null) return@withContext 0
-        val candidates = (sessionDir.listFiles { f ->
+        if (isActiveDir(sessionDir)) return@withContext 0
+        val candidates = sessionDir.listFiles { f ->
             f.isFile && f.name.startsWith("recording") && f.name.endsWith(".wav")
-        }?.toList() ?: emptyList())
+        }?.toList() ?: emptyList()
         var repaired = 0
-        // T130: Segmente der laufenden Session werden noch geschrieben → nicht anfassen
-        val active = isActiveDir(sessionDir)
         for (file in candidates) {
             try {
-                if (!active && WavWriter.headerSizesStale(file)) {
-                    // T130: nach Prozess-Kill veraltete RIFF-/data-Groessen aus der Dateilaenge setzen
+                if (WavWriter.headerSizesStale(file)) {
                     StreamingWavWriter.finalizeHeader(file)
                     repaired++
                     Log.w(TAG, "WAV-Groessen nachgefuehrt: ${sessionDir.name}/${file.name}")
@@ -1515,11 +868,11 @@ class SessionManager(
         repaired
     }
 
+    // ── Raven-Export ──────────────────────────────────────────────────
+
     /**
-     * Schreibt eine Raven Selection Table neben recording.wav (fuer manuellen Re-Export).
-     * Laedt session.json fuer startedAt + recordingSegments (T57-B3).
-     * T78: appPreferences optional — steuert welche Felder exportiert werden.
-     * @return Pfad zur erzeugten Datei oder null wenn keine Aufnahme vorhanden
+     * Raven Selection Table neben recording.wav schreiben (manueller Re-Export, T57-B3, T78).
+     * @return erzeugte Datei oder null wenn keine Aufnahme vorhanden
      */
     suspend fun exportRavenSelectionTable(
         sessionDir: File,
@@ -1544,18 +897,16 @@ class SessionManager(
         val isDoc = access is DocSessionFiles
         val ravenName = RescanFiles.raven(variant)
         // SAF: erst in eine Cache-Datei exportieren, dann in den Session-Ordner schreiben
-        val outputFile = if (isDoc) File(context.cacheDir, ravenName)
-                         else File(sessionDir, ravenName)
+        val outputFile = if (isDoc) File(context.cacheDir, ravenName) else File(sessionDir, ravenName)
         val detections = loadDetectionsWithVerifications(sessionDir, variant)
-        // Metadaten fuer startedAt + recordingSegments laden (T57-B3)
         val meta = knownMeta ?: runCatching {
-            val jsonText = readSessionText(sessionDir, "session.json") ?: error("session.json fehlt")
-            jsonLenient.decodeFromString<SessionMetadata>(jsonText)
+            val jsonText = readSessionText(sessionDir, SESSION_JSON) ?: error("session.json fehlt")
+            SessionJson.lenient.decodeFromString<SessionMetadata>(jsonText)
         }.getOrNull()
         val startedAt = meta?.startedAt ?: "1970-01-01T00:00:00+00:00"
         // T78/T249: enabledFields aus AppPreferences (eine Liste); null = alle Felder (Fallback)
         val enabledFields: Set<String>? = appPreferences?.let { RavenExporter.enabledFields(it) }
-        val linkMap = loadSimultaneousLinkMap(sessionDir, variant)
+        val linkMap = readVerifications(sessionDir, variant)?.let { SessionTextParser.simultaneousLinks(it) } ?: emptyMap()
         RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note)
         if (isDoc) {
             fileMutex.withLock { access.writeReplacing(ravenName, outputFile.readText()) }
@@ -1569,191 +920,34 @@ class SessionManager(
         runCatching { readSessionText(sessionDir, RescanFiles.raven(variant)) }.getOrNull()
     }
 
-    // ── Migrations-Methoden (T41, erweitert T51) ──────────────────────
-
-    // ── Migrations-Methoden (T41, T51, neu T141) ──────────────────────
+    // ── Migration (T41, T51, T141) ────────────────────────────────────
 
     /** Standard-Basisordner im App-Speicher (Ziel "zurueck auf App-Speicher"). */
-    fun defaultBaseDir(): File = File(context.getExternalFilesDir(null) ?: context.filesDir, PIROL_DIR)
+    fun defaultBaseDir(): File = locator.defaultBaseDir()
 
-    /** Eine Datei einer Quell-Session (relativer Pfad, Laenge, Stream-Oeffner). */
-    private class SrcEntry(val rel: String, val length: Long, val open: () -> java.io.InputStream)
+    /** Zaehlt Sessions und Gesamtgroesse am aktuellen Speicherort (blockierend, IO-Dispatcher). */
+    fun getMigrationInfo(): MigrationInfo = migrator.info()
 
-    private fun collectEntries(sessionDir: File): List<SrcEntry> {
-        val doc = docFor(sessionDir)
-        val out = mutableListOf<SrcEntry>()
-        if (doc != null) {
-            val cr = context.contentResolver
-            fun walk(dir: DocumentFile, prefix: String) {
-                for (child in dir.listFiles()) {
-                    val n = child.name ?: continue
-                    if (!child.isDirectory && ShadowReplace.isShadowFile(n)) continue  // T240
-                    if (child.isDirectory) walk(child, "$prefix$n/")
-                    else out += SrcEntry("$prefix$n", child.length(), {
-                        cr.openInputStream(child.uri) ?: throw java.io.IOException("Nicht lesbar: $n")
-                    })
-                }
-            }
-            walk(doc, "")
-        } else {
-            sessionDir.walkTopDown().filter { it.isFile && !ShadowReplace.isShadowFile(it.name) }.forEach { f ->
-                out += SrcEntry(f.relativeTo(sessionDir).path.replace('\\', '/'), f.length(), { f.inputStream() })
-            }
-        }
-        return out
-    }
-
-    /**
-     * Zaehlt Sessions und berechnet Gesamtgroesse am aktuellen Speicherort (File und SAF).
-     * Blockierend — vom IO-Dispatcher aufrufen.
-     */
-    fun getMigrationInfo(): MigrationInfo {
-        val sessions = listSessions()
-        val totalSize = sessions.sumOf { dir -> collectEntries(dir).sumOf { it.length } }
-        return MigrationInfo(sessions.size, totalSize)
-    }
-
-    /** Ziel-Schreiber einer Migration (File oder SAF). */
-    private interface MigrationSink {
-        /** Legt den Session-Ordner an; false = Session existiert am Ziel schon. */
-        fun begin(sessionName: String, dayDir: String?): Boolean
-        /** Schreibt eine Datei und verifiziert die Groesse; liefert geschriebene Bytes. */
-        fun write(entry: SrcEntry): Long
-        /** Verwirft die angefangene Session am Ziel. */
-        fun rollback()
-    }
-
-    private class FileSink(private val base: File) : MigrationSink {
-        private var dir: File? = null
-        override fun begin(sessionName: String, dayDir: String?): Boolean {
-            val parent = if (dayDir != null) File(base, dayDir) else base
-            val d = File(parent, sessionName)
-            if (d.exists()) return false
-            if (!d.mkdirs()) throw java.io.IOException("Verzeichnis nicht erstellbar")
-            dir = d
-            return true
-        }
-        override fun write(entry: SrcEntry): Long {
-            val f = File(dir!!, entry.rel)
-            f.parentFile?.mkdirs()
-            val n = entry.open().use { i -> f.outputStream().use { o -> i.copyTo(o) } }
-            if (f.length() != n || (entry.length > 0 && n != entry.length))
-                throw java.io.IOException("${entry.rel}: Groessenabweichung (${f.length()} != ${entry.length})")
-            return n
-        }
-        override fun rollback() { dir?.deleteRecursively() }
-    }
-
-    private inner class TreeSink(private val root: DocumentFile) : MigrationSink {
-        private var dir: DocumentFile? = null
-        private val cr = context.contentResolver
-        override fun begin(sessionName: String, dayDir: String?): Boolean {
-            val parent = if (dayDir != null) root.findOrCreateDir(dayDir)
-                ?: throw java.io.IOException("Tagesordner nicht erstellbar") else root
-            if (parent.findFile(sessionName)?.isDirectory == true) return false
-            dir = parent.createDirectory(sessionName) ?: throw java.io.IOException("Verzeichnis nicht erstellbar")
-            return true
-        }
-        override fun write(entry: SrcEntry): Long {
-            var d = dir!!
-            val parts = entry.rel.split('/')
-            for (p in parts.dropLast(1)) d = d.findOrCreateDir(p) ?: throw java.io.IOException("$p: Ordner nicht erstellbar")
-            val fileName = parts.last()
-            val mime = when {
-                fileName.endsWith(".json") -> "application/json"
-                fileName.endsWith(".wav") -> "audio/wav"
-                fileName.endsWith(".txt") -> "text/plain"
-                else -> "application/octet-stream"
-            }
-            val dest = d.createFile(mime, fileName) ?: throw java.io.IOException("$fileName: Datei nicht erstellbar")
-            val n = entry.open().use { i ->
-                (cr.openOutputStream(dest.uri) ?: throw java.io.IOException("$fileName: nicht beschreibbar"))
-                    .use { o -> i.copyTo(o) }
-            }
-            val destSize = cr.openFileDescriptor(dest.uri, "r")?.use { it.statSize } ?: dest.length()
-            if (destSize != n || (entry.length > 0 && n != entry.length))
-                throw java.io.IOException("$fileName: Groessenabweichung ($destSize != ${entry.length})")
-            return n
-        }
-        override fun rollback() { dir?.delete() }
-    }
-
-    /**
-     * T141: Kopiert alle Sessions (File- oder SAF-Quelle) an das Ziel (File oder SAF), mit Groessenpruefung
-     * pro Datei. Segmente (recording-00N.wav) und Unterordner (memos/) werden mitkopiert.
-     * - Session am Ziel schon vorhanden: uebersprungen (Idempotenz)
-     * - Fehler: Zielordner dieser Session wird verworfen, die Quelle bleibt unveraendert
-     * - deleteSource: Originale werden erst am Ende und nur geloescht, wenn KEINE Session fehlgeschlagen ist
-     * Waehrend einer aktiven Aufnahme wird nichts getan.
-     */
+    /** T141: Alle Sessions an das Ziel kopieren (siehe [SessionMigrator.migrate]); nicht waehrend einer Aufnahme. */
     suspend fun migrateSessions(
         target: MigrationTarget,
         deleteSource: Boolean = false,
         onProgress: (MigrationProgress) -> Unit = {}
     ): MigrationResult = withContext(Dispatchers.IO) {
-        if (this@SessionManager.isActive) return@withContext MigrationResult(0, 0L, listOf("Aufnahme laeuft"), 0, 0)
-        val sink: MigrationSink = when (target) {
-            is MigrationTarget.Dir -> { target.base.mkdirs(); FileSink(target.base) }
-            is MigrationTarget.Tree -> {
-                val root = DocumentFile.fromTreeUri(context, target.uri)
-                    ?: return@withContext MigrationResult(0, 0L, listOf("Zielordner nicht erreichbar"), 0, 0)
-                TreeSink(root)
-            }
-        }
-        val sessionDirs = listSessions()
-        var copied = 0
-        var skipped = 0
-        var bytesCopied = 0L
-        val errors = mutableListOf<String>()
-        val copiedSources = mutableListOf<File>()
-        onProgress(MigrationProgress(0, sessionDirs.size, 0L))
-
-        sessionDirs.forEachIndexed { index, sessionDir ->
-            try {
-                if (!sink.begin(sessionDir.name, SessionMigrationLogic.dayDirOf(sessionDir))) {
-                    skipped++
-                } else {
-                    try {
-                        var bytes = 0L
-                        for (e in collectEntries(sessionDir)) {
-                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                            bytes += sink.write(e)
-                        }
-                        bytesCopied += bytes
-                        copied++
-                        copiedSources += sessionDir
-                    } catch (e: Exception) {
-                        sink.rollback()
-                        throw e
-                    }
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                errors.add("${sessionDir.name}: ${e.message}")
-                Log.e(TAG, "Session-Migration fehlgeschlagen: ${sessionDir.name}", e)
-            }
-            onProgress(MigrationProgress(index + 1, sessionDirs.size, bytesCopied))
-        }
-
-        if (SessionMigrationLogic.shouldDeleteSources(deleteSource, errors.size)) {
-            for (src in copiedSources) {
-                try { accessFor(src).deleteAll() } catch (e: Exception) { Log.w(TAG, "Original nicht geloescht: ${src.name}", e) }
-            }
-        }
-        MigrationResult(copied, bytesCopied, errors, skipped, errors.size)
+        if (isActive) return@withContext MigrationResult(0, 0L, listOf("Aufnahme laeuft"), 0, 0)
+        migrator.migrate(target, deleteSource, onProgress)
     }
 
-    /**
-     * Schreibt ein POSITION_MOVED-Event fuer eine historische Detektion in die
-     * verifications.jsonl der betreffenden Session.
-     * Wird von MapViewModel.confirmPositionMove() aufgerufen (T79).
-     *
-     * @param sessionId   ID der Session (aus SessionMetadata.sessionId)
-     * @param detectionId ID der Detektion (aus DetectionResult.id)
-     * @param newLat      Neuer Breitengrad (WGS84)
-     * @param newLon      Neuer Laengengrad (WGS84)
-     */
+    // ── Karte (T79, T85) ──────────────────────────────────────────────
+
+    /** Events an verifications.jsonl der Session mit [sessionId] anhaengen (T251: auch SAF). */
+    private suspend fun appendEventsTo(sessionId: String, events: List<VerificationEvent>) {
+        val dir = findSessionDir(sessionId) ?: return
+        val text = events.joinToString("") { SessionJson.compact.encodeToString(it) + "\n" }
+        fileMutex.withLock { accessFor(dir).append(VERIFICATIONS_FILE, text) }  // T93b
+    }
+
+    /** POSITION_MOVED fuer eine historische Detektion (MapViewModel, T79). */
     suspend fun recordPositionMoved(
         sessionId: String,
         detectionId: String,
@@ -1761,8 +955,6 @@ class SessionManager(
         newLon: Double,
         status: VerificationStatus = VerificationStatus.UNVERIFIED
     ) = withContext(Dispatchers.IO) {
-        val dir = listSessions().firstOrNull { loadMetadata(it)?.sessionId == sessionId }
-            ?: return@withContext
         val event = VerificationEvent(
             detectionId = detectionId,
             status = status,
@@ -1770,49 +962,26 @@ class SessionManager(
             actionType = VerificationEvent.ACTION_POSITION_MOVED,
             newValue = "$newLat,$newLon"
         )
-        try {
-            fileMutex.withLock {  // T93b
-                File(dir, "verifications.jsonl").appendText(json.encodeToString(event) + "\n")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "recordPositionMoved fehlgeschlagen: $detectionId", e)
-        }
+        try { appendEventsTo(sessionId, listOf(event)) }
+        catch (e: Exception) { Log.e(TAG, "recordPositionMoved fehlgeschlagen: $detectionId", e) }
     }
 
+    /** Simultanlink zwischen zwei Detektionen (beide Richtungen, T85). */
     suspend fun recordSimultaneousLink(
         sessionId: String,
         detectionId1: String,
         detectionId2: String,
         actionType: String
     ) = withContext(Dispatchers.IO) {
-        val dir = listSessions().firstOrNull { loadMetadata(it)?.sessionId == sessionId }
-            ?: return@withContext
         val now = System.currentTimeMillis()
-        val event1 = VerificationEvent(
-            detectionId = detectionId1,
-            status = VerificationStatus.UNVERIFIED,
-            verifiedAtMs = now,
-            actionType = actionType,
-            newValue = detectionId2
+        val events = listOf(
+            VerificationEvent(detectionId1, VerificationStatus.UNVERIFIED, verifiedAtMs = now, actionType = actionType, newValue = detectionId2),
+            VerificationEvent(detectionId2, VerificationStatus.UNVERIFIED, verifiedAtMs = now, actionType = actionType, newValue = detectionId1)
         )
-        val event2 = VerificationEvent(
-            detectionId = detectionId2,
-            status = VerificationStatus.UNVERIFIED,
-            verifiedAtMs = now,
-            actionType = actionType,
-            newValue = detectionId1
-        )
-        try {
-            fileMutex.withLock {  // T93b
-                File(dir, "verifications.jsonl").appendText(json.encodeToString(event1) + "\n")
-                File(dir, "verifications.jsonl").appendText(json.encodeToString(event2) + "\n")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "recordSimultaneousLink fehlgeschlagen: $detectionId1/$detectionId2", e)
-        }
+        try { appendEventsTo(sessionId, events) }
+        catch (e: Exception) { Log.e(TAG, "recordSimultaneousLink fehlgeschlagen: $detectionId1/$detectionId2", e) }
     }
 }
-
 
 /** T155: Session-ID im Format `yyyy-MM-dd'T'HH-mm-ss_uuid6`, Zeit = Ortszeit (wie Tages-Unterordner). */
 internal fun buildSessionId(localNow: LocalDateTime, uuidShort: String): String =

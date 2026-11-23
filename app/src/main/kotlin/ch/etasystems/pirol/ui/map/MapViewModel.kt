@@ -316,11 +316,12 @@ class MapViewModel(
             verificationMutex.withLock {
                 runCatching {
                     if (target.isLive) {
-                        val det = detectionListState.getDetections().firstOrNull { it.id == target.detectionId }
-                            ?: return@runCatching false
-                        detectionListState.updateDetection(det.copy(latitude = lat, longitude = lon))
+                        // T251 (M1): Liste atomar aendern, dann den aktuellen Listenstand schreiben (keine alte Kopie)
+                        val det = detectionListState.modifyDetection(target.detectionId) {
+                            it.copy(latitude = lat, longitude = lon)
+                        } ?: return@runCatching false
                         if (sessionManager.isActive) {
-                            sessionManager.replaceDetection(det.copy(latitude = lat, longitude = lon))
+                            runCatching { persistCurrent(det.id) }  // Fehler: bleibt vorgemerkt (naechster Flush)
                             sessionManager.appendVerification(
                                 VerificationEvent(
                                     detectionId = det.id, status = det.verificationStatus,
@@ -365,9 +366,7 @@ class MapViewModel(
             return
         }
         viewModelScope.launch(Dispatchers.IO) {
-            val dir = sessionManager.listSessions().firstOrNull {
-                sessionManager.loadMetadata(it)?.sessionId == marker.sessionId
-            } ?: return@launch
+            val dir = sessionManager.findSessionDir(marker.sessionId) ?: return@launch  // T251 (M5)
             val det = sessionManager.loadDetectionsWithVerifications(dir)
                 .firstOrNull { it.id == marker.detectionId } ?: return@launch
             _uiState.update { it.copy(editTarget = marker, editDetection = det) }
@@ -382,8 +381,9 @@ class MapViewModel(
         fun patch(m: MapMarker) =
             if (m.detectionId == marker.detectionId) m.copy(count = count, atlasCode = atlasCode) else m
         if (marker.isLive) {
-            // Live: Liste aktualisieren (triggert liveMarkers-Neuaufbau), Datei nur bei laufender Session
-            detectionListState.updateDetection(updated)
+            // Live: Liste aktualisieren (triggert liveMarkers-Neuaufbau), Datei nur bei laufender Session.
+            // T251 (M1): nur die eigenen Felder atomar auf den aktuellen Listenstand
+            detectionListState.modifyDetection(det.id) { it.copy(count = count, atlasCode = atlasCode, note = note) }
             _uiState.update { state ->
                 state.copy(
                     selectedCluster = state.selectedCluster?.let { c -> c.copy(items = c.items.map(::patch)) },
@@ -393,7 +393,7 @@ class MapViewModel(
             }
             if (!sessionManager.isActive) return
             viewModelScope.launch(Dispatchers.IO) {
-                sessionManager.replaceDetection(updated)
+                runCatching { persistCurrent(det.id) }  // T251 (M1)
                 val now = System.currentTimeMillis()
                 if (det.count != count) sessionManager.appendVerification(
                     VerificationEvent(det.id, det.verificationStatus, verifiedAtMs = now,
@@ -409,10 +409,11 @@ class MapViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             // Historisch: in die Datei der Marker-Session schreiben (replaceDetection trifft nur die aktive Session)
-            val dir = sessionManager.listSessions().firstOrNull {
-                sessionManager.loadMetadata(it)?.sessionId == marker.sessionId
+            // T251 (M5): Lookup ueber den Ordnernamen; (M1) nur die eigenen Felder auf den aktuellen Stand
+            val dir = sessionManager.findSessionDir(marker.sessionId)
+            if (dir != null) sessionManager.modifyDetectionIn(dir, marker.detectionId) {
+                it.copy(count = count, atlasCode = atlasCode, note = note)
             }
-            if (dir != null) sessionManager.replaceDetectionIn(dir, updated)
             else sessionManager.replaceDetection(updated)
             _uiState.update { state ->
                 state.copy(
@@ -436,8 +437,12 @@ class MapViewModel(
     private val verificationMutex = Mutex()
     private val verifyJson = Json { encodeDefaults = true }
 
-    private suspend fun findSessionDir(sessionId: String) = sessionManager.listSessions().firstOrNull {
-        sessionManager.loadMetadata(it)?.sessionId == sessionId
+    private suspend fun findSessionDir(sessionId: String) = sessionManager.findSessionDir(sessionId)  // T251 (M5)
+
+    /** T251 (M1): aktuellen Listenstand unter der Listen-Sperre vormerken und sofort schreiben (wie LiveViewModel). */
+    private suspend fun persistCurrent(detectionId: String) {
+        detectionListState.withCurrent(detectionId) { sessionManager.queueDetectionUpdate(it) }
+        sessionManager.flushDetectionUpdatesOrThrow()
     }
 
     /** Aktualisiert Marker in Hauptliste + offenem Cluster; abgelehnte verschwinden (T108). */

@@ -49,4 +49,20 @@ object AlternativeSelection {
         secondaryTopSpecies = before.secondaryTopSpecies,
         secondaryTopConfidence = before.secondaryTopConfidence
     )
+
+    /**
+     * T251 (Zusatz T249): Undo der Alternative. Wie [revert], aber wurde seit [applied] neu verifiziert
+     * (z.B. "Unsicher"), bleibt dieser Status: Das Undo entfernt in verifications.jsonl nur das
+     * ALTERNATIVE_CONFIRMED (T249, M6), die spaetere Verifikation gilt dort weiter.
+     */
+    fun undo(current: DetectionResult, before: DetectionResult, applied: DetectionResult): DetectionResult {
+        val reverted = revert(current, before)
+        val verifiedSince = current.verificationStatus != applied.verificationStatus ||
+            current.verifiedAtMs != applied.verifiedAtMs || current.correctedSpecies != applied.correctedSpecies
+        return if (!verifiedSince) reverted else reverted.copy(
+            verificationStatus = current.verificationStatus,
+            correctedSpecies = current.correctedSpecies,
+            verifiedAtMs = current.verifiedAtMs
+        )
+    }
 }

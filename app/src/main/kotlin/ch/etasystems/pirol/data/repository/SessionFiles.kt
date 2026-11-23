@@ -5,7 +5,6 @@ import ch.etasystems.pirol.audio.export.SegmentSource
 import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.ml.DetectionResult
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
@@ -57,8 +56,8 @@ class FileSessionFiles(val dir: File) : SessionFiles {
 
 /** Reine Hilfsfunktionen (Pfad-/Namenslogik, JVM-testbar). */
 object SessionFilesLogic {
-    private val json = Json { prettyPrint = false }
-    private val jsonLenient = Json { ignoreUnknownKeys = true }
+    private val json get() = SessionJson.compact
+    private val jsonLenient get() = SessionJson.lenient
 
     /** Wurzel fuer synthetische Session-Schluessel von SAF-Sessions (nur Identitaet, nie Dateizugriff). */
     const val SAF_KEY_ROOT = "/saf"
@@ -93,16 +92,23 @@ object SessionFilesLogic {
      * Die ID wird per Praefix `{"id":"…"` gelesen (so schreibt kotlinx die Zeilen); nur abweichende Zeilen
      * werden voll dekodiert. Ersetzte Zeilen = [json].encodeToString (Format unveraendert).
      */
-    fun replaceDetectionsInText(text: String, updates: Map<String, DetectionResult>): ReplaceResult {
-        if (updates.isEmpty()) return ReplaceResult(text, emptySet())
-        val lines = text.lines().let { if (it.lastOrNull() == "") it.dropLast(1) else it }
+    fun replaceDetectionsInText(text: String, updates: Map<String, DetectionResult>): ReplaceResult =
+        replaceLinesById(text, updates.mapValues { json.encodeToString(it.value) })
+
+    /**
+     * T251 (N2): wie [replaceDetectionsInText], aber mit fertigen Zeilen (ID -> JSONL-Zeile ohne Zeilenende),
+     * z.B. aus der Zusatzdatei. Die Zeilen wurden mit [SessionJson.compact] geschrieben (Format unveraendert).
+     */
+    fun replaceLinesById(text: String, lines: Map<String, String>): ReplaceResult {
+        if (lines.isEmpty()) return ReplaceResult(text, emptySet())
+        val all = text.lines().let { if (it.lastOrNull() == "") it.dropLast(1) else it }
         val matched = mutableSetOf<String>()
-        val replaced = lines.map { raw ->
+        val replaced = all.map { raw ->
             if (raw.isBlank()) return@map raw
             val id = detectionIdOf(raw) ?: return@map raw
-            val upd = updates[id] ?: return@map raw
+            val line = lines[id] ?: return@map raw
             matched += id
-            json.encodeToString(upd)
+            line
         }
         val out = if (replaced.isEmpty()) "" else replaced.joinToString("\n") + "\n"
         return ReplaceResult(out, matched)

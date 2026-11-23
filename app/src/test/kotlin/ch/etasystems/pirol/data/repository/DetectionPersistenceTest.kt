@@ -42,13 +42,20 @@ class DetectionPersistenceTest {
         writer.flush()
     }
 
+    /** T251 (N7): Ersatz fuer replaceDetectionInFile — gemeinsamer Weg ueber SessionFiles (Writer zu, ersetzen, neu oeffnen) */
+    private fun replace(d: DetectionResult, writer: Writer?): Writer {
+        writer?.close()
+        FileSessionFiles(dir).writeReplacing(file.name, SessionFilesLogic.replaceDetectionInText(file.readText(), d))
+        return FileWriter(file, true)
+    }
+
     private fun readDetections(): List<DetectionResult> =
         file.readLines().filter { it.isNotBlank() }.map { json.decodeFromString<DetectionResult>(it) }
 
     @Test fun appendReplaceAppend_keepsReplacementAndLaterAppend() {
         var writer: Writer? = FileWriter(file, true)
         append(writer!!, det("A"))
-        writer = SessionManager.replaceDetectionInFile(file, det("A", count = 5), writer)
+        writer = replace(det("A", count = 5), writer)
         append(writer!!, det("B"))
         writer.close()
 
@@ -61,7 +68,7 @@ class DetectionPersistenceTest {
         var writer: Writer? = FileWriter(file, true)
         for (i in 0 until 30) {
             append(writer!!, det("D$i"))
-            if (i % 3 == 0) writer = SessionManager.replaceDetectionInFile(file, det("D$i", count = 7), writer)
+            if (i % 3 == 0) writer = replace(det("D$i", count = 7), writer)
         }
         writer!!.close()
 

@@ -798,12 +798,14 @@ class LiveViewModel(
      */
     fun selectAlternative(detectionId: String, candidate: DetectionCandidate) {
         val before = detectionListState.selectAlternative(detectionId, candidate) ?: return
+        // T251: gesetzter Stand (Status/Zeit der Wahl) fuer das Undo
+        val applied = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return
         val persist = sessionManager.isActive
         viewModelScope.launch {
             _snackbarChannel.send(SnackbarEvent(
                 message = AppStrings.get(R.string.live_alternative_gewaehlt, candidate.commonName),
                 actionLabel = AppStrings.get(R.string.common_undo),
-                onAction = { undoAlternative(before) }
+                onAction = { undoAlternative(before, applied) }
             ))
         }
         if (!persist) return
@@ -836,8 +838,9 @@ class LiveViewModel(
      * T249 (M6): entfernt genau das ALTERNATIVE_CONFIRMED-Ereignis, nicht "das letzte Status-Ereignis"
      * (sonst ginge ein zwischenzeitliches Unsicher/Ablehnen verloren und die Alternative bliebe bestaetigt).
      */
-    private fun undoAlternative(before: DetectionResult) {
-        detectionListState.modifyDetection(before.id) { AlternativeSelection.revert(it, before) } ?: return
+    private fun undoAlternative(before: DetectionResult, applied: DetectionResult) {
+        // T251 (Zusatz T249): zwischenzeitliche Verifikation (z.B. Unsicher) bleibt, wie in verifications.jsonl
+        detectionListState.modifyDetection(before.id) { AlternativeSelection.undo(it, before, applied) } ?: return
         if (!sessionManager.isActive) return
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
