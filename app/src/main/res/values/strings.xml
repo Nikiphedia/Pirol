@@ -734,4 +734,6 @@
     <string name="setup_extra_full">volle Artkarte</string>
     <string name="setup_extra_yearly">Jahresliste</string>
     <string name="setup_start">Einrichtung starten</string>
+    <string name="settings_expert_mode">Experteneinstellungen</string>
+    <string name="settings_expert_mode_hint">Zeigt alle Feineinstellungen. Aus: nur das Wichtigste.</string>
 </resources>

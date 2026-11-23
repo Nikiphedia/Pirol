@@ -15,6 +15,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -32,7 +33,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileOpen
@@ -47,6 +50,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
+import ch.etasystems.pirol.ml.ModelTableRow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -131,6 +136,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var expert by remember { mutableStateOf(appPreferences.expertMode) }  // T227
 
     // Lokaler State fuer Recomposition bei Toggle-Aenderung
     var wifiOnly by remember { mutableStateOf(uploadManager.wifiOnly) }
@@ -289,6 +295,22 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
         ) { Text(stringResource(R.string.setup_start)) }
         Spacer(modifier = Modifier.height(12.dp))
+        // T227: Einfach/Experte; Experte zeigt zusaetzlich alle Feineinstellungen
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_expert_mode), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_expert_mode_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = expert, onCheckedChange = { expert = it; appPreferences.expertMode = it })
+        }
+        Spacer(modifier = Modifier.height(12.dp))
 
         SettingsSection(
             sectionKey = "lang",
@@ -349,161 +371,163 @@ fun SettingsScreen(
             appPreferences = appPreferences,
             defaultExpanded = false
         ) {
-            Text(stringResource(R.string.settings_audio), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.settings_48_khz_16_bit_mono),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Preroll-Puffer Toggle + Laenge (T35)
-            var prerollEnabled by remember { mutableStateOf(appPreferences.prerollEnabled) }
-            var prerollDuration by remember { mutableIntStateOf(appPreferences.prerollDurationSec) }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_preroll_puffer))
-                    Text(
-                        AppStrings.get(R.string.settings_zeichnet_vor_dem_aufnahmestart_auf),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = prerollEnabled,
-                    onCheckedChange = {
-                        prerollEnabled = it
-                        appPreferences.prerollEnabled = it
-                    }
-                )
-            }
-
-            if (prerollEnabled) {
+            if (expert) {
+                Text(stringResource(R.string.settings_audio), style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(stringResource(R.string.settings_laenge), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = stringResource(R.string.settings_48_khz_16_bit_mono),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Preroll-Puffer Toggle + Laenge (T35)
+                var prerollEnabled by remember { mutableStateOf(appPreferences.prerollEnabled) }
+                var prerollDuration by remember { mutableIntStateOf(appPreferences.prerollDurationSec) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_preroll_puffer))
+                        Text(
+                            AppStrings.get(R.string.settings_zeichnet_vor_dem_aufnahmestart_auf),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = prerollEnabled,
+                        onCheckedChange = {
+                            prerollEnabled = it
+                            appPreferences.prerollEnabled = it
+                        }
+                    )
+                }
+
+                if (prerollEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(stringResource(R.string.settings_laenge), style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(5 to "5s", 10 to "10s", 30 to "30s").forEach { (sec, label) ->
+                            FilterChip(
+                                selected = prerollDuration == sec,
+                                onClick = {
+                                    prerollDuration = sec
+                                    appPreferences.prerollDurationSec = sec
+                                },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(5 to "5s", 10 to "10s", 30 to "30s").forEach { (sec, label) ->
-                        FilterChip(
-                            selected = prerollDuration == sec,
+                Text(
+                    text = stringResource(R.string.settings_aenderungen_wirken_nach_neustart_der),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                // --- Ueberlappung der Analysefenster (T110) ---
+                Spacer(modifier = Modifier.height(12.dp))
+                var selectedOverlap by remember { mutableIntStateOf(appPreferences.overlapPercent) }
+                Text(stringResource(R.string.settings_ueberlappung), style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(R.string.settings_mehr_ueberlappung_erkennt_kurze_rufe),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val overlapOptions = listOf(
+                    Triple(0, "0 %", AppStrings.get(R.string.settings_fenster_alle_3_s_standard)),
+                    Triple(50, "50 %", AppStrings.get(R.string.settings_fenster_alle_1_5_s)),
+                    Triple(67, "67 %", AppStrings.get(R.string.settings_fenster_jede_sekunde))
+                )
+                overlapOptions.forEach { (percent, label, description) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedOverlap = percent
+                                appPreferences.overlapPercent = percent
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedOverlap == percent,
                             onClick = {
-                                prerollDuration = sec
-                                appPreferences.prerollDurationSec = sec
-                            },
-                            label = { Text(label) }
+                                selectedOverlap = percent
+                                appPreferences.overlapPercent = percent
+                            }
                         )
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
-            }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(stringResource(R.string.settings_energieprofil), style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.settings_laengere_intervalle_sparen_akku_erke),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.settings_aenderungen_wirken_nach_neustart_der),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            // --- Ueberlappung der Analysefenster (T110) ---
-            Spacer(modifier = Modifier.height(12.dp))
-            var selectedOverlap by remember { mutableIntStateOf(appPreferences.overlapPercent) }
-            Text(stringResource(R.string.settings_ueberlappung), style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = stringResource(R.string.settings_mehr_ueberlappung_erkennt_kurze_rufe),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            val overlapOptions = listOf(
-                Triple(0, "0 %", AppStrings.get(R.string.settings_fenster_alle_3_s_standard)),
-                Triple(50, "50 %", AppStrings.get(R.string.settings_fenster_alle_1_5_s)),
-                Triple(67, "67 %", AppStrings.get(R.string.settings_fenster_jede_sekunde))
-            )
-            overlapOptions.forEach { (percent, label, description) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            selectedOverlap = percent
-                            appPreferences.overlapPercent = percent
-                        }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selectedOverlap == percent,
-                        onClick = {
-                            selectedOverlap = percent
-                            appPreferences.overlapPercent = percent
-                        }
-                    )
-                    Column(modifier = Modifier.padding(start = 4.dp)) {
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                val profiles = listOf(
+                    Triple(AppStrings.get(R.string.settings_genau), 3000L, AppStrings.get(R.string.settings_jeder_3s_chunk_wird_analysiert)),
+                    Triple(AppStrings.get(R.string.settings_standard), 6000L, AppStrings.get(R.string.settings_erkennung_alle_6s_guter_kompromiss)),
+                    Triple(AppStrings.get(R.string.settings_sparsam), 15000L, AppStrings.get(R.string.settings_erkennung_alle_15s_fuer_lange)),
+                    Triple(AppStrings.get(R.string.settings_ultra_sparsam), 30000L, AppStrings.get(R.string.settings_erkennung_alle_30s_maximale_laufzeit))
+                )
+
+                profiles.forEach { (name, interval, description) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedInterval = interval
+                                appPreferences.inferenceIntervalMs = interval
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedInterval == interval,
+                            onClick = {
+                                selectedInterval = interval
+                                appPreferences.inferenceIntervalMs = interval
+                            }
                         )
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(name, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(stringResource(R.string.settings_energieprofil), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.settings_laengere_intervalle_sparen_akku_erke),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val profiles = listOf(
-                Triple(AppStrings.get(R.string.settings_genau), 3000L, AppStrings.get(R.string.settings_jeder_3s_chunk_wird_analysiert)),
-                Triple(AppStrings.get(R.string.settings_standard), 6000L, AppStrings.get(R.string.settings_erkennung_alle_6s_guter_kompromiss)),
-                Triple(AppStrings.get(R.string.settings_sparsam), 15000L, AppStrings.get(R.string.settings_erkennung_alle_15s_fuer_lange)),
-                Triple(AppStrings.get(R.string.settings_ultra_sparsam), 30000L, AppStrings.get(R.string.settings_erkennung_alle_30s_maximale_laufzeit))
-            )
-
-            profiles.forEach { (name, interval, description) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            selectedInterval = interval
-                            appPreferences.inferenceIntervalMs = interval
-                        }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selectedInterval == interval,
-                        onClick = {
-                            selectedInterval = interval
-                            appPreferences.inferenceIntervalMs = interval
-                        }
-                    )
-                    Column(modifier = Modifier.padding(start = 4.dp)) {
-                        Text(name, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
             Text(stringResource(R.string.settings_speicherort), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -782,73 +806,46 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
-            SettingsAdvancedBlock(sectionKey = "adv_rec", appPreferences = appPreferences) {
-                // T57-B1: Max. Aufnahmelaenge pro WAV
-                Spacer(modifier = Modifier.height(12.dp))
-
-                var maxRecordingMinutes by remember { mutableIntStateOf(appPreferences.maxRecordingMinutes) }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_max_aufnahmelaenge_pro_wav), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(R.string.settings_laengere_sessions_werden_automatisch),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            if (expert) {
+                SettingsAdvancedBlock(sectionKey = "adv_rec", appPreferences = appPreferences) {
+                    MaxRecordingSetting(appPreferences)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // T116: Max. Laenge des Detektions-Ausschnitts
+                    Spacer(modifier = Modifier.height(12.dp))
+                    var excerptMaxSec by remember { mutableIntStateOf(appPreferences.excerptMaxSec) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_max_laenge_detektions_ausschnitt), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = stringResource(R.string.settings_wiedergabe_zoom_und_teilen_einer),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("$excerptMaxSec s", style = MaterialTheme.typography.bodyMedium)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.settings_min, maxRecordingMinutes), style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = excerptMaxSec.toFloat(),
+                        onValueChange = { v ->
+                            val s = (v / 5f).roundToInt() * 5
+                            excerptMaxSec = s
+                            appPreferences.excerptMaxSec = s
+                        },
+                        valueRange = 10f..120f,
+                        steps = 21  // 10,15,...,120 = 23 Positionen
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ResamplerSetting()
                 }
-                Slider(
-                    value = maxRecordingMinutes.toFloat(),
-                    onValueChange = { v ->
-                        val mins = v.roundToInt()
-                        maxRecordingMinutes = mins
-                        appPreferences.maxRecordingMinutes = mins
-                    },
-                    valueRange = 10f..80f,
-                    steps = 13  // 10,15,20,...,80 = 15 Positionen → 13 Zwischenschritte
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(16.dp))
-                // T116: Max. Laenge des Detektions-Ausschnitts
-                Spacer(modifier = Modifier.height(12.dp))
-                var excerptMaxSec by remember { mutableIntStateOf(appPreferences.excerptMaxSec) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_max_laenge_detektions_ausschnitt), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(R.string.settings_wiedergabe_zoom_und_teilen_einer),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("$excerptMaxSec s", style = MaterialTheme.typography.bodyMedium)
-                }
-                Slider(
-                    value = excerptMaxSec.toFloat(),
-                    onValueChange = { v ->
-                        val s = (v / 5f).roundToInt() * 5
-                        excerptMaxSec = s
-                        appPreferences.excerptMaxSec = s
-                    },
-                    valueRange = 10f..120f,
-                    steps = 21  // 10,15,...,120 = 23 Positionen
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(16.dp))
-                ResamplerSetting()
-            }
+            } else MaxRecordingSetting(appPreferences)
         }
         Spacer(modifier = Modifier.height(12.dp))
         SettingsSection(
@@ -965,17 +962,30 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Text(
+                    text = stringResource(R.string.settings_kein_modell_installiert),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
 
-                // T223: Modelltabelle mit Primaer (Radio), Sekundaer (Checkbox) und Loeschen
+            run {
+                // T223: Modelltabelle mit Primaer (Radio), Sekundaer (Checkbox) und Loeschen;
+                // T227: nicht geladene Katalogmodelle als Zeile mit Lade-Symbol, Sekundaer nur im Expertenmodus
+                val downloadingFile by modelManager.downloadingFile.collectAsState()
                 val recording by recordingPipeline.runningState.collectAsState()
                 var secondaryFile by remember { mutableStateOf(appPreferences.secondaryModelFileName) }
                 var secondaryConf by remember { mutableFloatStateOf(appPreferences.secondaryConfidenceThreshold) }
                 var secondaryOverlap by remember { mutableIntStateOf(appPreferences.secondaryOverlapPercent) }
                 val primaryFile = installedModels.firstOrNull { it.isActive }?.fileName ?: ""
+                val anyDownload = isDownloading || runningDownload != null
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Spacer(modifier = Modifier.weight(1f))
                     Text(stringResource(R.string.model_col_primary), style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Text(stringResource(R.string.model_col_secondary), style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    if (expert) {
+                        Text(stringResource(R.string.model_col_secondary), style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
                     Spacer(modifier = Modifier.width(48.dp))
                 }
                 installedModels.forEach { model ->
@@ -1024,17 +1034,21 @@ fun SettingsScreen(
                                 }
                             )
                         }
-                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Checkbox(
-                                checked = secondaryFile == model.fileName,
-                                enabled = !model.isActive,
-                                onCheckedChange = {
-                                    secondaryFile = ModelRoles.toggleSecondary(primaryFile, secondaryFile, model.fileName)
-                                    appPreferences.secondaryModelFileName = secondaryFile
-                                }
-                            )
+                        if (expert) {
+                            Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                Checkbox(
+                                    checked = secondaryFile == model.fileName,
+                                    enabled = ModelTableRow.secondaryEnabled(true, model.isActive),
+                                    onCheckedChange = {
+                                        secondaryFile = ModelRoles.toggleSecondary(primaryFile, secondaryFile, model.fileName)
+                                        appPreferences.secondaryModelFileName = secondaryFile
+                                    }
+                                )
+                            }
                         }
-                        IconButton(enabled = block == ModelRoles.DeleteBlock.NONE, onClick = { deleteCandidate = model }) {
+                        // T227: installiert -> Papierkorb (nie gleichzeitig mit Lade-Symbol)
+                        val trailing = ModelTableRow.trailing(true, false, false, block)
+                        IconButton(enabled = trailing == ModelTableRow.Trailing.DELETE, onClick = { deleteCandidate = model }) {
                             Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.model_delete))
                         }
                     }
@@ -1053,9 +1067,85 @@ fun SettingsScreen(
                     }
                 }
 
-                // Einstellungen je Rolle: Sekundaer nur bei gewaehltem Sekundaermodell
+                // T227: nicht geladene Katalogmodelle mit Lade-Symbol (ersetzt die frueheren Download-Knoepfe)
+                ModelTableRow.missingCatalog(ModelProfile.CATALOG, installedModels.map { it.fileName }.toSet()).forEach { model ->
+                    val downloadingThis = downloadingFile == model.fileName
+                    val partialBytes = remember(model, partialTick, runningDownload) { modelManager.getPartialBytes(model) }
+                    val trailing = ModelTableRow.trailing(false, downloadingThis, anyDownload && !downloadingThis, ModelRoles.DeleteBlock.NONE)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(model.name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = if (partialBytes > 0L) AppStrings.get(R.string.settings_fortsetzen_von_mb, model.name, partialBytes / 1_000_000, model.expectedSizeMB)
+                                       else stringResource(R.string.onboarding_mb_klassen, model.expectedSizeMB, model.speciesCount, model.fileName),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                            RadioButton(selected = false, enabled = ModelTableRow.primaryEnabled(false), onClick = {})
+                        }
+                        if (expert) {
+                            Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                Checkbox(checked = false, enabled = ModelTableRow.secondaryEnabled(false, false), onCheckedChange = {})
+                            }
+                        }
+                        if (trailing == ModelTableRow.Trailing.PROGRESS) {
+                            // Abbrechen behaelt die Teildatei zum Fortsetzen (T104)
+                            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(progress = { runningDownload ?: downloadProgress }, modifier = Modifier.size(32.dp))
+                                IconButton(onClick = { modelManager.cancelDownload() }) {
+                                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        } else {
+                            IconButton(
+                                enabled = trailing == ModelTableRow.Trailing.DOWNLOAD,
+                                onClick = {
+                                    isDownloading = true
+                                    modelError = null
+                                    scope.launch {
+                                        val success = modelManager.downloadModel(model) { progress ->
+                                            downloadProgress = progress
+                                        }
+                                        isDownloading = false
+                                        if (success) {
+                                            classifier.resetSession()
+                                            installedModels = modelManager.listInstalledModels()
+                                            Toast.makeText(context, AppStrings.get(R.string.settings_heruntergeladen, model.name), Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            modelError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) AppStrings.get(R.string.onboarding_download_abgebrochen_teil_bleibt_zum)
+                                                else AppStrings.get(R.string.onboarding_download_fehlgeschlagen) + (modelManager.lastDownloadError ?: AppStrings.get(R.string.onboarding_internetverbindung_pruefen))  // T121/T104
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Filled.Download, contentDescription = stringResource(R.string.settings_modell_herunterladen))
+                            }
+                        }
+                    }
+                    if (downloadingThis) {
+                        LinearProgressIndicator(progress = { runningDownload ?: downloadProgress }, modifier = Modifier.fillMaxWidth())
+                        Text(
+                            text = "${((runningDownload ?: downloadProgress) * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else if (partialBytes > 0L && trailing == ModelTableRow.Trailing.DOWNLOAD) {
+                        TextButton(onClick = {
+                            modelManager.discardPartialDownload(model)
+                            partialTick++
+                        }) {
+                            Text(stringResource(R.string.settings_angefangenen_download_verwerfen))
+                        }
+                    }
+                }
+
+                // Einstellungen je Rolle: Sekundaer nur bei gewaehltem Sekundaermodell (Expertenmodus)
                 val secondaryModel = installedModels.firstOrNull { it.fileName == secondaryFile }
-                if (secondaryModel != null) {
+                if (expert && secondaryModel != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         stringResource(R.string.model_secondary_settings, secondaryModel.name),
@@ -1090,88 +1180,19 @@ fun SettingsScreen(
                         }
                     }
                 }
-            } else {
-                Text(
-                    text = stringResource(R.string.settings_kein_modell_installiert),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Download-Sektion
-            if (isDownloading || runningDownload != null) {
-                Text(stringResource(R.string.onboarding_wird_heruntergeladen), style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.height(4.dp))
-                LinearProgressIndicator(
-                    progress = { runningDownload ?: downloadProgress },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${((runningDownload ?: downloadProgress) * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // T104: Abbrechen behaelt die Teildatei zum Fortsetzen
-                OutlinedButton(onClick = { modelManager.cancelDownload() }) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-            } else if (isImporting) {
+            // Import eigener Modelle (Expertenmodus); Download-Fortschritt steht in der Tabellenzeile
+            if (isImporting) {
                 Text(stringResource(R.string.settings_wird_importiert), style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(4.dp))
                 LinearProgressIndicator(
                     progress = { importProgress },
                     modifier = Modifier.fillMaxWidth()
                 )
-            } else {
-                // Modell-Download Buttons
-                Text(stringResource(R.string.settings_modell_herunterladen), style = MaterialTheme.typography.bodySmall)
-                Spacer(modifier = Modifier.height(4.dp))
-                ModelProfile.CATALOG.filter { it.downloadUrl != null }.forEach { model ->
-                    val alreadyInstalled = installedModels.any { it.fileName == model.fileName }
-                    val partialBytes = remember(model, partialTick, runningDownload) { modelManager.getPartialBytes(model) }
-                    OutlinedButton(
-                        onClick = {
-                            isDownloading = true
-                            modelError = null
-                            scope.launch {
-                                val success = modelManager.downloadModel(model) { progress ->
-                                    downloadProgress = progress
-                                }
-                                isDownloading = false
-                                if (success) {
-                                    classifier.resetSession()
-                                    installedModels = modelManager.listInstalledModels()
-                                    Toast.makeText(context, AppStrings.get(R.string.settings_heruntergeladen, model.name), Toast.LENGTH_SHORT).show()
-                                } else {
-                                    modelError = if (modelManager.lastDownloadError == ModelManager.ERROR_CANCELLED) AppStrings.get(R.string.onboarding_download_abgebrochen_teil_bleibt_zum)
-                                        else AppStrings.get(R.string.onboarding_download_fehlgeschlagen) + (modelManager.lastDownloadError ?: AppStrings.get(R.string.onboarding_internetverbindung_pruefen))  // T121/T104
-                                }
-                            }
-                        },
-                        enabled = !alreadyInstalled,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                    ) {
-                        Text(
-                            if (alreadyInstalled) "${model.name} ✓"
-                            else if (partialBytes > 0L) AppStrings.get(R.string.settings_fortsetzen_von_mb, model.name, partialBytes / 1_000_000, model.expectedSizeMB)
-                            else "${model.name} (${model.expectedSizeMB} MB)"
-                        )
-                    }
-                    if (partialBytes > 0L && !alreadyInstalled) {
-                        TextButton(onClick = {
-                            modelManager.discardPartialDownload(model)
-                            partialTick++
-                        }) {
-                            Text(stringResource(R.string.settings_angefangenen_download_verwerfen))
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
+            } else if (expert) {
                 // SAF-Import Button
                 OutlinedButton(onClick = {
                     modelImportLauncher.launch(arrayOf("*/*"))
@@ -1214,346 +1235,285 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            if (expert) {
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // TopK-Slider (Anzahl Arten pro Chunk)
-            Text(stringResource(R.string.settings_max_arten_pro_chunk_topk, selectedTopK))
-            Slider(
-                value = selectedTopK.toFloat(),
-                onValueChange = {
-                    selectedTopK = it.roundToInt()
-                    appPreferences.topK = selectedTopK
-                },
-                valueRange = 1f..5f,
-                steps = 3  // 1,2,3,4,5 = 4 Schritte zwischen Endpunkten
-            )
-            Text(
-                text = if (selectedTopK == 1) stringResource(R.string.settings_topk_1_nur_top_art)
-                       else stringResource(R.string.settings_topk_bis_zu_arten_gleichzeitig, selectedTopK, selectedTopK),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+                // TopK-Slider (Anzahl Arten pro Chunk)
+                Text(stringResource(R.string.settings_max_arten_pro_chunk_topk, selectedTopK))
+                Slider(
+                    value = selectedTopK.toFloat(),
+                    onValueChange = {
+                        selectedTopK = it.roundToInt()
+                        appPreferences.topK = selectedTopK
+                    },
+                    valueRange = 1f..5f,
+                    steps = 3  // 1,2,3,4,5 = 4 Schritte zwischen Endpunkten
+                )
+                Text(
+                    text = if (selectedTopK == 1) stringResource(R.string.settings_topk_1_nur_top_art)
+                           else stringResource(R.string.settings_topk_bis_zu_arten_gleichzeitig, selectedTopK, selectedTopK),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // T225: Untergrenze fuer Alternativen
-            Text(stringResource(R.string.settings_alternativen_ab, (selectedAltFloor * 100).roundToInt()))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0.05f, 0.10f, 0.20f, 0.30f).forEach { v ->
-                    FilterChip(
-                        selected = kotlin.math.abs(selectedAltFloor - v) < 0.001f,
-                        onClick = {
-                            selectedAltFloor = v
-                            appPreferences.alternativesFloor = v
-                        },
-                        label = { Text("${(v * 100).roundToInt()} %") }
-                    )
-                }
-            }
-            Text(
-                text = stringResource(R.string.settings_alternativen_ab_hinweis),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            // Presets
-            Text(stringResource(R.string.settings_voreinstellungen), style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    InferenceConfig.SENSITIVE to AppStrings.get(R.string.settings_sensitiv),
-                    InferenceConfig.DEFAULT to AppStrings.get(R.string.settings_standard),
-                    InferenceConfig.STRICT to AppStrings.get(R.string.settings_strikt)
-                ).forEach { (preset, label) ->
-                    OutlinedButton(onClick = {
-                        selectedConfidence = preset.confidenceThreshold
-                        selectedAltFloor = preset.alternativesFloor
-                        appPreferences.alternativesFloor = preset.alternativesFloor
-                        appPreferences.confidenceThreshold = preset.confidenceThreshold
-                        selectedTopK = preset.topK
-                        appPreferences.topK = preset.topK
-                    }) {
-                        Text(label)
+                // T225: Untergrenze fuer Alternativen
+                Text(stringResource(R.string.settings_alternativen_ab, (selectedAltFloor * 100).roundToInt()))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0.05f, 0.10f, 0.20f, 0.30f).forEach { v ->
+                        FilterChip(
+                            selected = kotlin.math.abs(selectedAltFloor - v) < 0.001f,
+                            onClick = {
+                                selectedAltFloor = v
+                                appPreferences.alternativesFloor = v
+                            },
+                            label = { Text("${(v * 100).roundToInt()} %") }
+                        )
                     }
                 }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            // T52: Artvorschlaege (Top-N Kandidaten) Toggle
-            var showTopNCandidates by remember { mutableStateOf(appPreferences.showTopNCandidates) }
+                Text(
+                    text = stringResource(R.string.settings_alternativen_ab_hinweis),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                // Presets
+                Text(stringResource(R.string.settings_voreinstellungen), style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_artvorschlaege_anzeigen))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        InferenceConfig.SENSITIVE to AppStrings.get(R.string.settings_sensitiv),
+                        InferenceConfig.DEFAULT to AppStrings.get(R.string.settings_standard),
+                        InferenceConfig.STRICT to AppStrings.get(R.string.settings_strikt)
+                    ).forEach { (preset, label) ->
+                        OutlinedButton(onClick = {
+                            selectedConfidence = preset.confidenceThreshold
+                            selectedAltFloor = preset.alternativesFloor
+                            appPreferences.alternativesFloor = preset.alternativesFloor
+                            appPreferences.confidenceThreshold = preset.confidenceThreshold
+                            selectedTopK = preset.topK
+                            appPreferences.topK = preset.topK
+                        }) {
+                            Text(label)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                // T52: Artvorschlaege (Top-N Kandidaten) Toggle
+                var showTopNCandidates by remember { mutableStateOf(appPreferences.showTopNCandidates) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_artvorschlaege_anzeigen))
+                        Text(
+                            AppStrings.get(R.string.settings_alternativen_unter_jeder_detektion_a),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showTopNCandidates,
+                        onCheckedChange = {
+                            showTopNCandidates = it
+                            appPreferences.showTopNCandidates = it
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsAdvancedBlock(sectionKey = "adv_model", appPreferences = appPreferences) {
+                    // T34: Hochpassfilter Toggle
+                    var highpassEnabled by remember { mutableStateOf(appPreferences.highpassEnabled) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_hochpassfilter_200_hz))
+                            Text(
+                                AppStrings.get(R.string.settings_filtert_wind_und_trittschall),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = highpassEnabled,
+                            onCheckedChange = {
+                                highpassEnabled = it
+                                appPreferences.highpassEnabled = it
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        AppStrings.get(R.string.settings_alternativen_unter_jeder_detektion_a),
+                        text = stringResource(R.string.settings_aenderungen_wirken_nach_neustart_der),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-                Switch(
-                    checked = showTopNCandidates,
-                    onCheckedChange = {
-                        showTopNCandidates = it
-                        appPreferences.showTopNCandidates = it
-                    }
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingsAdvancedBlock(sectionKey = "adv_model", appPreferences = appPreferences) {
-                // T34: Hochpassfilter Toggle
-                var highpassEnabled by remember { mutableStateOf(appPreferences.highpassEnabled) }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.settings_detektions_cluster), style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_hochpassfilter_200_hz))
-                        Text(
-                            AppStrings.get(R.string.settings_filtert_wind_und_trittschall),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    // Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                AppStrings.get(R.string.settings_detektionen_raeumlich_zeitlich_zusam),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_ohne_gps_fix_wird_nur),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = clusterEnabled,
+                            onCheckedChange = { clusterEnabled = it; appPreferences.clusterEnabled = it }
                         )
                     }
-                    Switch(
-                        checked = highpassEnabled,
-                        onCheckedChange = {
-                            highpassEnabled = it
-                            appPreferences.highpassEnabled = it
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Radius-Slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_cluster_radius_m), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = stringResource(R.string.settings_0_kein_radius_check_nur),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.settings_aenderungen_wirken_nach_neustart_der),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(stringResource(R.string.settings_detektions_cluster), style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            AppStrings.get(R.string.settings_detektionen_raeumlich_zeitlich_zusam),
+                            text = if (clusterRadiusM == 0) stringResource(R.string.common_off) else "$clusterRadiusM m",
                             style = MaterialTheme.typography.bodyMedium
                         )
-                        Text(
-                            text = stringResource(R.string.settings_ohne_gps_fix_wird_nur),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
-                    Switch(
-                        checked = clusterEnabled,
-                        onCheckedChange = { clusterEnabled = it; appPreferences.clusterEnabled = it }
+                    Slider(
+                        value = clusterRadiusM.toFloat(),
+                        onValueChange = { clusterRadiusM = it.roundToInt() },
+                        onValueChangeFinished = { appPreferences.clusterRadiusM = clusterRadiusM },
+                        valueRange = 0f..50f,
+                        enabled = clusterEnabled
                     )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // Radius-Slider
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_cluster_radius_m), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(R.string.settings_0_kein_radius_check_nur),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (clusterRadiusM == 0) stringResource(R.string.common_off) else "$clusterRadiusM m",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Slider(
-                    value = clusterRadiusM.toFloat(),
-                    onValueChange = { clusterRadiusM = it.roundToInt() },
-                    onValueChangeFinished = { appPreferences.clusterRadiusM = clusterRadiusM },
-                    valueRange = 0f..50f,
-                    enabled = clusterEnabled
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Zeitfenster-Slider
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_cluster_zeitfenster_min), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(R.string.settings_0_kein_zeit_check),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (clusterTimeWindowMin == 0) stringResource(R.string.common_off) else stringResource(R.string.settings_min, clusterTimeWindowMin),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Slider(
-                    value = clusterTimeWindowMin.toFloat(),
-                    onValueChange = { clusterTimeWindowMin = it.roundToInt() },
-                    onValueChangeFinished = { appPreferences.clusterTimeWindowMin = clusterTimeWindowMin },
-                    valueRange = 0f..30f,
-                    enabled = clusterEnabled
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(stringResource(R.string.settings_section_similar_refs), style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_aehnliche_arten_anzeigen), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(R.string.settings_embedding_aehnlichkeitssuche_aktivie),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = similarEnabled,
-                        onCheckedChange = { similarEnabled = it; appPreferences.similarEnabled = it }
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                val linesLabel = when {
-                    similarLines == 0f -> AppStrings.get(R.string.settings_0_aus)
-                    similarLines == 0.5f -> AppStrings.get(R.string.settings_0_5_laufschrift)
-                    else -> similarLines.toInt().toString()
-                }
-                Text(
-                    text = stringResource(R.string.settings_anzahl_zeilen, linesLabel),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Slider(
-                    value = similarLines,
-                    onValueChange = { similarLines = it; appPreferences.similarLines = it },
-                    valueRange = 0f..10f,
-                    steps = 19,
-                    enabled = similarEnabled
-                )
-                Text(
-                    text = stringResource(R.string.settings_0_aus_0_5_laufschrift),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // T97: Obergrenze der Embedding-DB (1'000–20'000 in 1'000er-Schritten, ~4 KB pro Eintrag)
-                Text(
-                    text = stringResource(R.string.settings_gespeicherte_vergleichsaufnahmen_max, embeddingDbMaxEntries, embeddingDbMaxEntries * 4 / 1000),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Slider(
-                    value = embeddingDbMaxEntries.toFloat(),
-                    onValueChange = {
-                        val v = (it / 1000f).roundToInt() * 1000
-                        embeddingDbMaxEntries = v
-                        appPreferences.embeddingDbMaxEntries = v
-                    },
-                    valueRange = 1000f..20000f,
-                    steps = 18
-                )
-                Text(
-                    text = stringResource(R.string.settings_aeltere_eintraege_fallen_heraus_soba),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (entries.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.settings_arten_2, watchlistManager.name, entries.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Artenliste mit Loeschen-Buttons (T21 AP-4)
-                    entries.forEach { entry ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    // Zeitfenster-Slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_cluster_zeitfenster_min), style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                text = entry.commonName.ifEmpty { entry.scientificName.replace('_', ' ') },
+                                text = stringResource(R.string.settings_0_kein_zeit_check),
                                 style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(
-                                text = entry.priority.name,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = when (entry.priority) {
-                                    WatchlistPriority.high -> MaterialTheme.colorScheme.error
-                                    WatchlistPriority.normal -> MaterialTheme.colorScheme.primary
-                                    WatchlistPriority.low -> MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                            IconButton(onClick = {
-                                scope.launch {
-                                    watchlistManager.removeSpecies(entry.scientificName)
-                                }
-                            }) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = stringResource(R.string.settings_entfernen),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (clusterTimeWindowMin == 0) stringResource(R.string.common_off) else stringResource(R.string.settings_min, clusterTimeWindowMin),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
-                } else {
+                    Slider(
+                        value = clusterTimeWindowMin.toFloat(),
+                        onValueChange = { clusterTimeWindowMin = it.roundToInt() },
+                        onValueChangeFinished = { appPreferences.clusterTimeWindowMin = clusterTimeWindowMin },
+                        valueRange = 0f..30f,
+                        enabled = clusterEnabled
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.settings_section_similar_refs), style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_aehnliche_arten_anzeigen), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = stringResource(R.string.settings_embedding_aehnlichkeitssuche_aktivie),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = similarEnabled,
+                            onCheckedChange = { similarEnabled = it; appPreferences.similarEnabled = it }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val linesLabel = when {
+                        similarLines == 0f -> AppStrings.get(R.string.settings_0_aus)
+                        similarLines == 0.5f -> AppStrings.get(R.string.settings_0_5_laufschrift)
+                        else -> similarLines.toInt().toString()
+                    }
                     Text(
-                        text = stringResource(R.string.settings_keine_watchlist_geladen),
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = stringResource(R.string.settings_anzahl_zeilen, linesLabel),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Slider(
+                        value = similarLines,
+                        onValueChange = { similarLines = it; appPreferences.similarLines = it },
+                        valueRange = 0f..10f,
+                        steps = 19,
+                        enabled = similarEnabled
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_0_aus_0_5_laufschrift),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // T97: Obergrenze der Embedding-DB (1'000–20'000 in 1'000er-Schritten, ~4 KB pro Eintrag)
+                    Text(
+                        text = stringResource(R.string.settings_gespeicherte_vergleichsaufnahmen_max, embeddingDbMaxEntries, embeddingDbMaxEntries * 4 / 1000),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Slider(
+                        value = embeddingDbMaxEntries.toFloat(),
+                        onValueChange = {
+                            val v = (it / 1000f).roundToInt() * 1000
+                            embeddingDbMaxEntries = v
+                            appPreferences.embeddingDbMaxEntries = v
+                        },
+                        valueRange = 1000f..20000f,
+                        steps = 18
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_aeltere_eintraege_fallen_heraus_soba),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.settings_auto_import_downloads_pirol_watchlis),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = if (entries.isNotEmpty()) stringResource(R.string.settings_geladen) else stringResource(R.string.settings_keine_datei_gefunden),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (entries.isNotEmpty())
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.error
-                )
-
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -1607,25 +1567,27 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.error
                 )
             }
-            // T190: Saison der Artenliste beachten (Default aus)
-            var respectSeason by remember { mutableStateOf(appPreferences.respectListSeason) }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_list_season_title), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = stringResource(R.string.settings_list_season_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (expert) {
+                // T190: Saison der Artenliste beachten (Default aus)
+                var respectSeason by remember { mutableStateOf(appPreferences.respectListSeason) }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_list_season_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = stringResource(R.string.settings_list_season_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = respectSeason,
+                        onCheckedChange = { respectSeason = it; appPreferences.respectListSeason = it }
                     )
                 }
-                Switch(
-                    checked = respectSeason,
-                    onCheckedChange = { respectSeason = it; appPreferences.respectListSeason = it }
-                )
             }
             // T190: gewaehlte eigene Liste in die Watchlist uebernehmen
             val selectedCustom = selectedRegion?.let { id -> customRegions.firstOrNull { it.id == id } }
@@ -1643,32 +1605,34 @@ fun SettingsScreen(
             Text(stringResource(R.string.ui_watchlist), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Alarm-Pause-Slider (T58)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_alarm_pause), style = MaterialTheme.typography.bodyMedium)
+            if (expert) {
+                // Alarm-Pause-Slider (T58)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_alarm_pause), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = stringResource(R.string.settings_pause_zwischen_alarmen_derselben_art),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = stringResource(R.string.settings_pause_zwischen_alarmen_derselben_art),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = if (cooldownMinutes == 0) stringResource(R.string.common_off) else stringResource(R.string.settings_min, cooldownMinutes),
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (cooldownMinutes == 0) stringResource(R.string.common_off) else stringResource(R.string.settings_min, cooldownMinutes),
-                    style = MaterialTheme.typography.bodyMedium
+                Slider(
+                    value = cooldownMinutes.toFloat(),
+                    onValueChange = { cooldownMinutes = it.roundToInt() },
+                    onValueChangeFinished = { appPreferences.alarmCooldownMinutes = cooldownMinutes },
+                    valueRange = 0f..60f
                 )
+                Spacer(modifier = Modifier.height(8.dp))
             }
-            Slider(
-                value = cooldownMinutes.toFloat(),
-                onValueChange = { cooldownMinutes = it.roundToInt() },
-                onValueChangeFinished = { appPreferences.alarmCooldownMinutes = cooldownMinutes },
-                valueRange = 0f..60f
-            )
-            Spacer(modifier = Modifier.height(8.dp))
 
             // --- Alarm-Ausgaenge (T124) ---
             Text(stringResource(R.string.settings_alarm_ausgabe), style = MaterialTheme.typography.bodyMedium)
@@ -1707,12 +1671,14 @@ fun SettingsScreen(
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { alarmService.triggerTestAlarm() }) {
-                    Text(stringResource(R.string.settings_alarm_testen))
-                }
-                OutlinedButton(onClick = { alarmService.triggerTestAlarm(5_000L) }) {
-                    Text(stringResource(R.string.settings_alarm_testen_5s))
+            if (expert) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { alarmService.triggerTestAlarm() }) {
+                        Text(stringResource(R.string.settings_alarm_testen))
+                    }
+                    OutlinedButton(onClick = { alarmService.triggerTestAlarm(5_000L) }) {
+                        Text(stringResource(R.string.settings_alarm_testen_5s))
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -1780,53 +1746,120 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            if (entries.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.settings_arten_2, watchlistManager.name, entries.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Artenliste mit Loeschen-Buttons (T21 AP-4)
+                entries.forEach { entry ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = entry.commonName.ifEmpty { entry.scientificName.replace('_', ' ') },
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = entry.priority.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = when (entry.priority) {
+                                WatchlistPriority.high -> MaterialTheme.colorScheme.error
+                                WatchlistPriority.normal -> MaterialTheme.colorScheme.primary
+                                WatchlistPriority.low -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                        IconButton(onClick = {
+                            scope.launch {
+                                watchlistManager.removeSpecies(entry.scientificName)
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.settings_entfernen),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = stringResource(R.string.settings_keine_watchlist_geladen),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.settings_auto_import_downloads_pirol_watchlis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = if (entries.isNotEmpty()) stringResource(R.string.settings_geladen) else stringResource(R.string.settings_keine_datei_gefunden),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (entries.isNotEmpty())
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Art hinzufuegen Button (AP-4)
             OutlinedButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.settings_art_hinzufuegen))
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingsAdvancedBlock(sectionKey = "adv_species", appPreferences = appPreferences) {
-                Text(stringResource(R.string.settings_saisonalitaet_seltenheit), style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
+            if (expert) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsAdvancedBlock(sectionKey = "adv_species", appPreferences = appPreferences) {
+                    Text(stringResource(R.string.settings_saisonalitaet_seltenheit), style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_saison_seltenheits_hervorhebung_akti), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = if (phenologyEntryCount == 0) stringResource(R.string.settings_datei_leer_kein_effekt)
-                                   else stringResource(R.string.settings_arten_geladen, phenologyEntryCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_saison_seltenheits_hervorhebung_akti), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = if (phenologyEntryCount == 0) stringResource(R.string.settings_datei_leer_kein_effekt)
+                                       else stringResource(R.string.settings_arten_geladen, phenologyEntryCount),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = phenologyEnabled,
+                            onCheckedChange = {
+                                phenologyEnabled = it
+                                appPreferences.phenologyEnabled = it
+                            }
                         )
                     }
-                    Switch(
-                        checked = phenologyEnabled,
-                        onCheckedChange = {
-                            phenologyEnabled = it
-                            appPreferences.phenologyEnabled = it
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(onClick = {
+                        scope.launch {
+                            phenologyRepository.reload()
+                            phenologyEntryCount = phenologyRepository.entryCount()
+                            Toast.makeText(context, AppStrings.get(R.string.settings_phenology_json_neu_geladen), Toast.LENGTH_SHORT).show()
                         }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TextButton(onClick = {
-                    scope.launch {
-                        phenologyRepository.reload()
-                        phenologyEntryCount = phenologyRepository.entryCount()
-                        Toast.makeText(context, AppStrings.get(R.string.settings_phenology_json_neu_geladen), Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.settings_phenology_json_neu_laden))
                     }
-                }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.settings_phenology_json_neu_laden))
                 }
             }
         }
@@ -1837,53 +1870,55 @@ fun SettingsScreen(
             appPreferences = appPreferences,
             defaultExpanded = false
         ) {
-            Text(stringResource(R.string.settings_artennamen), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+            if (expert) {
+                Text(stringResource(R.string.settings_artennamen), style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
 
-            var langExpanded by remember { mutableStateOf(false) }
-            // "" = folgt der App-Sprache (nicht explizit gesetzt)
-            var selectedLang by remember {
-                mutableStateOf(if (appPreferences.speciesLanguageExplicit) appPreferences.speciesLanguage else "")
-            }
-            val followAppLabel = stringResource(R.string.settings_wie_app_sprache)
+                var langExpanded by remember { mutableStateOf(false) }
+                // "" = folgt der App-Sprache (nicht explizit gesetzt)
+                var selectedLang by remember {
+                    mutableStateOf(if (appPreferences.speciesLanguageExplicit) appPreferences.speciesLanguage else "")
+                }
+                val followAppLabel = stringResource(R.string.settings_wie_app_sprache)
 
-            ExposedDropdownMenuBox(
-                expanded = langExpanded,
-                onExpandedChange = { langExpanded = it }
-            ) {
-                @Suppress("DEPRECATION")
-                OutlinedTextField(
-                    value = SpeciesNameResolver.AVAILABLE_LANGUAGES
-                        .find { it.first == selectedLang }?.second ?: followAppLabel,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text(stringResource(R.string.settings_sprache)) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(langExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                ExposedDropdownMenu(
+                ExposedDropdownMenuBox(
                     expanded = langExpanded,
-                    onDismissRequest = { langExpanded = false }
+                    onExpandedChange = { langExpanded = it }
                 ) {
-                    (listOf("" to followAppLabel) + SpeciesNameResolver.AVAILABLE_LANGUAGES).forEach { (code, name) ->
-                        DropdownMenuItem(
-                            text = { Text(name) },
-                            onClick = {
-                                selectedLang = code
-                                if (code.isEmpty()) {
-                                    appPreferences.speciesLanguageExplicit = false
-                                } else {
-                                    appPreferences.speciesLanguage = code
-                                    appPreferences.speciesLanguageExplicit = true
+                    @Suppress("DEPRECATION")
+                    OutlinedTextField(
+                        value = SpeciesNameResolver.AVAILABLE_LANGUAGES
+                            .find { it.first == selectedLang }?.second ?: followAppLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.settings_sprache)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(langExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = langExpanded,
+                        onDismissRequest = { langExpanded = false }
+                    ) {
+                        (listOf("" to followAppLabel) + SpeciesNameResolver.AVAILABLE_LANGUAGES).forEach { (code, name) ->
+                            DropdownMenuItem(
+                                text = { Text(name) },
+                                onClick = {
+                                    selectedLang = code
+                                    if (code.isEmpty()) {
+                                        appPreferences.speciesLanguageExplicit = false
+                                    } else {
+                                        appPreferences.speciesLanguage = code
+                                        appPreferences.speciesLanguageExplicit = true
+                                    }
+                                    speciesNameResolver.language = appPreferences.effectiveSpeciesLanguage()
+                                    langExpanded = false
                                 }
-                                speciesNameResolver.language = appPreferences.effectiveSpeciesLanguage()
-                                langExpanded = false
-                            }
-                        )
+                            )
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
             // T220: Artnamen wissenschaftlich anzeigen (Landesname als Untertitel)
             var sciNames by remember { mutableStateOf(appPreferences.scientificNamesDisplay) }
             Row(
@@ -1949,59 +1984,61 @@ fun SettingsScreen(
                 }
                 Switch(checked = fullscreen, onCheckedChange = { appPreferences.fullscreen = it })
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
+            if (expert) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // SpectrogramConfig Chips: Voegel / Fledermaus / Breitband
-            var selectedSpecConfig by remember { mutableStateOf(appPreferences.spectrogramConfigName) }
+                // SpectrogramConfig Chips: Voegel / Fledermaus / Breitband
+                var selectedSpecConfig by remember { mutableStateOf(appPreferences.spectrogramConfigName) }
 
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "BIRDS" to AppStrings.get(R.string.live_voegel),
-                    "BATS" to AppStrings.get(R.string.live_fledermaus),
-                    "WIDEBAND" to AppStrings.get(R.string.live_breitband)
-                ).forEach { (configName, label) ->
-                    FilterChip(
-                        selected = selectedSpecConfig == configName,
-                        onClick = {
-                            selectedSpecConfig = configName
-                            appPreferences.spectrogramConfigName = configName
-                        },
-                        label = { Text(label) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "BIRDS" to AppStrings.get(R.string.live_voegel),
+                        "BATS" to AppStrings.get(R.string.live_fledermaus),
+                        "WIDEBAND" to AppStrings.get(R.string.live_breitband)
+                    ).forEach { (configName, label) ->
+                        FilterChip(
+                            selected = selectedSpecConfig == configName,
+                            onClick = {
+                                selectedSpecConfig = configName
+                                appPreferences.spectrogramConfigName = configName
+                            },
+                            label = { Text(label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
-                    )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            // T107: Darstellung (Palette, Kontrast, Gamma, Deckel, Frequenz, Zeitfenster) —
-            // dieselben Regler und derselbe Zustand wie im Langdruck-Panel von Live- und Analyse-Tab.
-            val specRepo: SpectrogramSettingsRepository = koinInject()
-            val specSettings by specRepo.settings.collectAsState()
-            val specConfig = when (selectedSpecConfig) {
-                "BATS" -> SpectrogramConfig.BATS
-                "WIDEBAND" -> SpectrogramConfig.WIDEBAND
-                else -> SpectrogramConfig.BIRDS
+                // T107: Darstellung (Palette, Kontrast, Gamma, Deckel, Frequenz, Zeitfenster) —
+                // dieselben Regler und derselbe Zustand wie im Langdruck-Panel von Live- und Analyse-Tab.
+                val specRepo: SpectrogramSettingsRepository = koinInject()
+                val specSettings by specRepo.settings.collectAsState()
+                val specConfig = when (selectedSpecConfig) {
+                    "BATS" -> SpectrogramConfig.BATS
+                    "WIDEBAND" -> SpectrogramConfig.WIDEBAND
+                    else -> SpectrogramConfig.BIRDS
+                }
+                Text(
+                    text = stringResource(R.string.settings_tipp_langdruck_auf_das_sonogramm),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SpectrogramSettingsPanel(
+                    repository = specRepo,
+                    settings = specSettings,
+                    config = specConfig,
+                    showWindow = true,
+                    onClose = null,
+                    maxHeight = Dp.Infinity
+                )
             }
-            Text(
-                text = stringResource(R.string.settings_tipp_langdruck_auf_das_sonogramm),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            SpectrogramSettingsPanel(
-                repository = specRepo,
-                settings = specSettings,
-                config = specConfig,
-                showWindow = true,
-                onClose = null,
-                maxHeight = Dp.Infinity
-            )
         }
         Spacer(modifier = Modifier.height(12.dp))
         SettingsSection(
@@ -2074,95 +2111,97 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.tertiary
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingsAdvancedBlock(sectionKey = "adv_geo", appPreferences = appPreferences) {
-                // GPS-Intervall
-                var selectedGpsInterval by remember { mutableIntStateOf(appPreferences.gpsIntervalSeconds) }
-                Text(stringResource(R.string.settings_gps_intervall), style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = stringResource(R.string.settings_kuerzere_intervalle_genauere_positio),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(2 to "2s", 5 to "5s", 10 to "10s", 20 to "20s", 60 to "60s").forEach { (sec, label) ->
-                        FilterChip(
-                            selected = selectedGpsInterval == sec,
-                            enabled = !gpsOnDetection,
-                            onClick = {
-                                selectedGpsInterval = sec
-                                appPreferences.gpsIntervalSeconds = sec
-                            },
-                            label = { Text(label) }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.settings_wirkt_ab_naechster_aufnahme),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Accuracy-Filter
-                var gpsMaxAccuracy by remember { mutableFloatStateOf(appPreferences.gpsMaxAccuracyMeters) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_max_gps_ungenauigkeit), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = stringResource(R.string.settings_fixes_ungenauer_als_dieser_wert),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
+            if (expert) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsAdvancedBlock(sectionKey = "adv_geo", appPreferences = appPreferences) {
+                    // GPS-Intervall
+                    var selectedGpsInterval by remember { mutableIntStateOf(appPreferences.gpsIntervalSeconds) }
+                    Text(stringResource(R.string.settings_gps_intervall), style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${gpsMaxAccuracy.roundToInt()} m",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = stringResource(R.string.settings_kuerzere_intervalle_genauere_positio),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-                Slider(
-                    value = gpsMaxAccuracy,
-                    onValueChange = { v ->
-                        gpsMaxAccuracy = v
-                        appPreferences.gpsMaxAccuracyMeters = v
-                    },
-                    valueRange = 10f..200f,
-                    steps = 18  // 10 m Raster
-                )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(2 to "2s", 5 to "5s", 10 to "10s", 20 to "20s", 60 to "60s").forEach { (sec, label) ->
+                            FilterChip(
+                                selected = selectedGpsInterval == sec,
+                                enabled = !gpsOnDetection,
+                                onClick = {
+                                    selectedGpsInterval = sec
+                                    appPreferences.gpsIntervalSeconds = sec
+                                },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.settings_wirkt_ab_naechster_aufnahme),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                // GPS-Smoothing Toggle
-                var gpsSmoothingEnabled by remember { mutableStateOf(appPreferences.gpsSmoothingEnabled) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_gps_smoothing), style = MaterialTheme.typography.bodyMedium)
+                    // Accuracy-Filter
+                    var gpsMaxAccuracy by remember { mutableFloatStateOf(appPreferences.gpsMaxAccuracyMeters) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_max_gps_ungenauigkeit), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = stringResource(R.string.settings_fixes_ungenauer_als_dieser_wert),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = stringResource(R.string.settings_median_ueber_5_fixes_reduziert),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${gpsMaxAccuracy.roundToInt()} m",
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
-                    Switch(
-                        checked = gpsSmoothingEnabled,
-                        onCheckedChange = {
-                            gpsSmoothingEnabled = it
-                            appPreferences.gpsSmoothingEnabled = it
-                        }
+                    Slider(
+                        value = gpsMaxAccuracy,
+                        onValueChange = { v ->
+                            gpsMaxAccuracy = v
+                            appPreferences.gpsMaxAccuracyMeters = v
+                        },
+                        valueRange = 10f..200f,
+                        steps = 18  // 10 m Raster
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // GPS-Smoothing Toggle
+                    var gpsSmoothingEnabled by remember { mutableStateOf(appPreferences.gpsSmoothingEnabled) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_gps_smoothing), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = stringResource(R.string.settings_median_ueber_5_fixes_reduziert),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = gpsSmoothingEnabled,
+                            onCheckedChange = {
+                                gpsSmoothingEnabled = it
+                                appPreferences.gpsSmoothingEnabled = it
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -2173,159 +2212,163 @@ fun SettingsScreen(
             appPreferences = appPreferences,
             defaultExpanded = false
         ) {
-            var ravenFieldsExpanded by remember { mutableStateOf(false) }
+            if (expert) {
+                var ravenFieldsExpanded by remember { mutableStateOf(false) }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { ravenFieldsExpanded = !ravenFieldsExpanded }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_raven_export_felder),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = if (ravenFieldsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (ravenFieldsExpanded) stringResource(R.string.settings_einklappen) else stringResource(R.string.settings_aufklappen)
-                )
-            }
-
-            AnimatedVisibility(visible = ravenFieldsExpanded) {
-                Column {
-                    Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { ravenFieldsExpanded = !ravenFieldsExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = stringResource(R.string.settings_spalten_die_in_recording_selections),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = stringResource(R.string.settings_raven_export_felder),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    var ravenBeginTime     by remember { mutableStateOf(appPreferences.ravenFieldBeginTime) }
-                    var ravenEndTime       by remember { mutableStateOf(appPreferences.ravenFieldEndTime) }
-                    var ravenLowFreq       by remember { mutableStateOf(appPreferences.ravenFieldLowFreq) }
-                    var ravenHighFreq      by remember { mutableStateOf(appPreferences.ravenFieldHighFreq) }
-                    var ravenSpecies       by remember { mutableStateOf(appPreferences.ravenFieldSpecies) }
-                    var ravenConfidence    by remember { mutableStateOf(appPreferences.ravenFieldConfidence) }
-                    var ravenBeginFile     by remember { mutableStateOf(appPreferences.ravenFieldBeginFile) }
-                    var ravenBeginDateTime by remember { mutableStateOf(appPreferences.ravenFieldBeginDateTime) }
-                    var ravenLat           by remember { mutableStateOf(appPreferences.ravenFieldLat) }
-                    var ravenLon           by remember { mutableStateOf(appPreferences.ravenFieldLon) }
-                    var ravenSimultan      by remember { mutableStateOf(appPreferences.ravenFieldSimultan) }
-                    var ravenMoeglich      by remember { mutableStateOf(appPreferences.ravenFieldMoeglich) }
-                    var ravenGleich        by remember { mutableStateOf(appPreferences.ravenFieldGleich) }
-                    var ravenSecondary     by remember { mutableStateOf(appPreferences.ravenFieldSecondary) }  // T224
-
-                    listOf(
-                        Triple("Begin Time (s)",   ravenBeginTime,     { v: Boolean -> ravenBeginTime = v;     appPreferences.ravenFieldBeginTime = v }),
-                        Triple("End Time (s)",      ravenEndTime,       { v: Boolean -> ravenEndTime = v;       appPreferences.ravenFieldEndTime = v }),
-                        Triple("Low Freq (Hz)",     ravenLowFreq,       { v: Boolean -> ravenLowFreq = v;       appPreferences.ravenFieldLowFreq = v }),
-                        Triple("High Freq (Hz)",    ravenHighFreq,      { v: Boolean -> ravenHighFreq = v;      appPreferences.ravenFieldHighFreq = v }),
-                        Triple("Species",           ravenSpecies,       { v: Boolean -> ravenSpecies = v;       appPreferences.ravenFieldSpecies = v }),
-                        Triple("Confidence",        ravenConfidence,    { v: Boolean -> ravenConfidence = v;    appPreferences.ravenFieldConfidence = v }),
-                        Triple("Begin File",        ravenBeginFile,     { v: Boolean -> ravenBeginFile = v;     appPreferences.ravenFieldBeginFile = v }),
-                        Triple("Begin Date Time",   ravenBeginDateTime, { v: Boolean -> ravenBeginDateTime = v; appPreferences.ravenFieldBeginDateTime = v }),
-                        Triple("Lat",               ravenLat,           { v: Boolean -> ravenLat = v;           appPreferences.ravenFieldLat = v }),
-                        Triple("Lon",               ravenLon,           { v: Boolean -> ravenLon = v;           appPreferences.ravenFieldLon = v }),
-                        Triple("Second Model",      ravenSecondary,     { v: Boolean -> ravenSecondary = v;     appPreferences.ravenFieldSecondary = v })  // T224
-                    ).forEach { (label, checked, onToggle) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Switch(
-                                checked = checked,
-                                onCheckedChange = onToggle
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.settings_wirkt_beim_naechsten_export),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icon(
+                        imageVector = if (ravenFieldsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (ravenFieldsExpanded) stringResource(R.string.settings_einklappen) else stringResource(R.string.settings_aufklappen)
                     )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Text(
-                        AppStrings.get(R.string.settings_simultanbeobachtungen),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                    )
-                    listOf(
-                        Triple(AppStrings.get(R.string.settings_simultan), ravenSimultan, { v: Boolean -> ravenSimultan = v; appPreferences.ravenFieldSimultan = v }),
-                        Triple(AppStrings.get(R.string.settings_moeglich),  ravenMoeglich, { v: Boolean -> ravenMoeglich = v; appPreferences.ravenFieldMoeglich = v }),
-                        Triple(AppStrings.get(R.string.settings_gleich),    ravenGleich,   { v: Boolean -> ravenGleich   = v; appPreferences.ravenFieldGleich   = v })
-                    ).forEach { (label, checked, onToggle) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                            Switch(checked = checked, onCheckedChange = onToggle)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(stringResource(R.string.settings_export), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
 
-            // WLAN-only Toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.settings_nur_bei_wlan_exportieren), modifier = Modifier.weight(1f))
-                Switch(
-                    checked = wifiOnly,
-                    onCheckedChange = {
-                        wifiOnly = it
-                        uploadManager.wifiOnly = it
-                        appPreferences.wifiOnly = it
+                AnimatedVisibility(visible = ravenFieldsExpanded) {
+                    Column {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.settings_spalten_die_in_recording_selections),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        var ravenBeginTime     by remember { mutableStateOf(appPreferences.ravenFieldBeginTime) }
+                        var ravenEndTime       by remember { mutableStateOf(appPreferences.ravenFieldEndTime) }
+                        var ravenLowFreq       by remember { mutableStateOf(appPreferences.ravenFieldLowFreq) }
+                        var ravenHighFreq      by remember { mutableStateOf(appPreferences.ravenFieldHighFreq) }
+                        var ravenSpecies       by remember { mutableStateOf(appPreferences.ravenFieldSpecies) }
+                        var ravenConfidence    by remember { mutableStateOf(appPreferences.ravenFieldConfidence) }
+                        var ravenBeginFile     by remember { mutableStateOf(appPreferences.ravenFieldBeginFile) }
+                        var ravenBeginDateTime by remember { mutableStateOf(appPreferences.ravenFieldBeginDateTime) }
+                        var ravenLat           by remember { mutableStateOf(appPreferences.ravenFieldLat) }
+                        var ravenLon           by remember { mutableStateOf(appPreferences.ravenFieldLon) }
+                        var ravenSimultan      by remember { mutableStateOf(appPreferences.ravenFieldSimultan) }
+                        var ravenMoeglich      by remember { mutableStateOf(appPreferences.ravenFieldMoeglich) }
+                        var ravenGleich        by remember { mutableStateOf(appPreferences.ravenFieldGleich) }
+                        var ravenSecondary     by remember { mutableStateOf(appPreferences.ravenFieldSecondary) }  // T224
+
+                        listOf(
+                            Triple("Begin Time (s)",   ravenBeginTime,     { v: Boolean -> ravenBeginTime = v;     appPreferences.ravenFieldBeginTime = v }),
+                            Triple("End Time (s)",      ravenEndTime,       { v: Boolean -> ravenEndTime = v;       appPreferences.ravenFieldEndTime = v }),
+                            Triple("Low Freq (Hz)",     ravenLowFreq,       { v: Boolean -> ravenLowFreq = v;       appPreferences.ravenFieldLowFreq = v }),
+                            Triple("High Freq (Hz)",    ravenHighFreq,      { v: Boolean -> ravenHighFreq = v;      appPreferences.ravenFieldHighFreq = v }),
+                            Triple("Species",           ravenSpecies,       { v: Boolean -> ravenSpecies = v;       appPreferences.ravenFieldSpecies = v }),
+                            Triple("Confidence",        ravenConfidence,    { v: Boolean -> ravenConfidence = v;    appPreferences.ravenFieldConfidence = v }),
+                            Triple("Begin File",        ravenBeginFile,     { v: Boolean -> ravenBeginFile = v;     appPreferences.ravenFieldBeginFile = v }),
+                            Triple("Begin Date Time",   ravenBeginDateTime, { v: Boolean -> ravenBeginDateTime = v; appPreferences.ravenFieldBeginDateTime = v }),
+                            Triple("Lat",               ravenLat,           { v: Boolean -> ravenLat = v;           appPreferences.ravenFieldLat = v }),
+                            Triple("Lon",               ravenLon,           { v: Boolean -> ravenLon = v;           appPreferences.ravenFieldLon = v }),
+                            Triple("Second Model",      ravenSecondary,     { v: Boolean -> ravenSecondary = v;     appPreferences.ravenFieldSecondary = v })  // T224
+                        ).forEach { (label, checked, onToggle) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = checked,
+                                    onCheckedChange = onToggle
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.settings_wirkt_beim_naechsten_export),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Text(
+                            AppStrings.get(R.string.settings_simultanbeobachtungen),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                        listOf(
+                            Triple(AppStrings.get(R.string.settings_simultan), ravenSimultan, { v: Boolean -> ravenSimultan = v; appPreferences.ravenFieldSimultan = v }),
+                            Triple(AppStrings.get(R.string.settings_moeglich),  ravenMoeglich, { v: Boolean -> ravenMoeglich = v; appPreferences.ravenFieldMoeglich = v }),
+                            Triple(AppStrings.get(R.string.settings_gleich),    ravenGleich,   { v: Boolean -> ravenGleich   = v; appPreferences.ravenFieldGleich   = v })
+                        ).forEach { (label, checked, onToggle) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                Switch(checked = checked, onCheckedChange = onToggle)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
             }
+            if (expert) {
+                Text(stringResource(R.string.settings_export), style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Spacer(modifier = Modifier.height(4.dp))
+                // WLAN-only Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.settings_nur_bei_wlan_exportieren), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = wifiOnly,
+                        onCheckedChange = {
+                            wifiOnly = it
+                            uploadManager.wifiOnly = it
+                            appPreferences.wifiOnly = it
+                        }
+                    )
+                }
 
-            // Auto-Upload Toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.settings_automatisch_nach_aufnahme), modifier = Modifier.weight(1f))
-                Switch(
-                    checked = autoUpload,
-                    onCheckedChange = {
-                        autoUpload = it
-                        uploadManager.autoUpload = it
-                        appPreferences.autoUpload = it
-                    }
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Auto-Upload Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.settings_automatisch_nach_aufnahme), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = autoUpload,
+                        onCheckedChange = {
+                            autoUpload = it
+                            uploadManager.autoUpload = it
+                            appPreferences.autoUpload = it
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = stringResource(R.string.settings_automatischer_upload_findet_nur_mit),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.height(8.dp))
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = stringResource(R.string.settings_automatischer_upload_findet_nur_mit),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
             UploadSettingsSection(appPreferences)
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -2365,102 +2408,104 @@ fun SettingsScreen(
                     }
                 }
             ) { Text(stringResource(R.string.settings_open_list_editor)) }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingsAdvancedBlock(sectionKey = "adv_info", appPreferences = appPreferences) {
-                Text(stringResource(R.string.settings_diagnose), style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.settings_misst_die_birdnet_inference_des),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    enabled = !benchmarkRunning,
-                    onClick = {
-                        val modelFile = modelManager.getActiveModelFile()
-                        if (modelFile == null) {
-                            benchmarkReport = AppStrings.get(R.string.settings_kein_modell_installiert_2)
-                        } else {
-                            benchmarkRunning = true
-                            benchmarkReport = ""
-                            scope.launch {
-                                benchmarkReport = try {
-                                    val p = modelManager.getActiveProfile()  // T151a: Eingang/Fenster laut Profil
-                                    OnnxBenchmark.run(modelFile, p.windowSamples, p.inputName, p.windowMs) { benchmarkProgress = it }
-                                } catch (e: Exception) {
-                                    AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
-                                }
-                                benchmarkRunning = false
-                            }
-                        }
-                    }
-                ) {
-                    Text(if (benchmarkRunning) stringResource(R.string.settings_laeuft, benchmarkProgress) else stringResource(R.string.settings_inference_benchmark_starten))
-                }
-                if (benchmarkReport.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SelectionContainer {
-                        Text(
-                            text = benchmarkReport,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-                // T146: Benchmark fuer eine beliebige ONNX-Datei
+            if (expert) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.settings_bench_datei_hinweis),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                val genericBenchContext = LocalContext.current
-                val genericBenchLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument()
-                ) { uri ->
-                    if (uri != null) {
-                        genericBenchRunning = true
-                        genericBenchReport = ""
-                        scope.launch {
-                            val tmp = File(genericBenchContext.cacheDir, "t146_bench.onnx")
-                            genericBenchReport = try {
-                                genericBenchProgress = AppStrings.get(R.string.settings_bench_datei_kopiere)
-                                val name = withContext(Dispatchers.IO) {
-                                    genericBenchContext.contentResolver.openInputStream(uri)!!.use { input ->
-                                        tmp.outputStream().use { input.copyTo(it) }
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsAdvancedBlock(sectionKey = "adv_info", appPreferences = appPreferences) {
+                    Text(stringResource(R.string.settings_diagnose), style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.settings_misst_die_birdnet_inference_des),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        enabled = !benchmarkRunning,
+                        onClick = {
+                            val modelFile = modelManager.getActiveModelFile()
+                            if (modelFile == null) {
+                                benchmarkReport = AppStrings.get(R.string.settings_kein_modell_installiert_2)
+                            } else {
+                                benchmarkRunning = true
+                                benchmarkReport = ""
+                                scope.launch {
+                                    benchmarkReport = try {
+                                        val p = modelManager.getActiveProfile()  // T151a: Eingang/Fenster laut Profil
+                                        OnnxBenchmark.run(modelFile, p.windowSamples, p.inputName, p.windowMs) { benchmarkProgress = it }
+                                    } catch (e: Exception) {
+                                        AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
                                     }
-                                    genericBenchContext.contentResolver.query(
-                                        uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
-                                    )?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "model.onnx"
+                                    benchmarkRunning = false
                                 }
-                                OnnxBenchmark.runGeneric(tmp, name) { genericBenchProgress = it }
-                            } catch (e: Throwable) {
-                                AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
-                            } finally {
-                                tmp.delete()
                             }
-                            genericBenchRunning = false
+                        }
+                    ) {
+                        Text(if (benchmarkRunning) stringResource(R.string.settings_laeuft, benchmarkProgress) else stringResource(R.string.settings_inference_benchmark_starten))
+                    }
+                    if (benchmarkReport.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SelectionContainer {
+                            Text(
+                                text = benchmarkReport,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace
+                            )
                         }
                     }
-                }
-                OutlinedButton(
-                    enabled = !genericBenchRunning && !benchmarkRunning,
-                    onClick = { genericBenchLauncher.launch(arrayOf("*/*")) }
-                ) {
-                    Text(if (genericBenchRunning) stringResource(R.string.settings_laeuft, genericBenchProgress) else stringResource(R.string.settings_bench_datei_waehlen))
-                }
-                if (genericBenchReport.isNotEmpty()) {
+                    // T146: Benchmark fuer eine beliebige ONNX-Datei
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.settings_bench_datei_hinweis),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    SelectionContainer {
-                        Text(
-                            text = genericBenchReport,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace
-                        )
+                    val genericBenchContext = LocalContext.current
+                    val genericBenchLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) {
+                            genericBenchRunning = true
+                            genericBenchReport = ""
+                            scope.launch {
+                                val tmp = File(genericBenchContext.cacheDir, "t146_bench.onnx")
+                                genericBenchReport = try {
+                                    genericBenchProgress = AppStrings.get(R.string.settings_bench_datei_kopiere)
+                                    val name = withContext(Dispatchers.IO) {
+                                        genericBenchContext.contentResolver.openInputStream(uri)!!.use { input ->
+                                            tmp.outputStream().use { input.copyTo(it) }
+                                        }
+                                        genericBenchContext.contentResolver.query(
+                                            uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
+                                        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "model.onnx"
+                                    }
+                                    OnnxBenchmark.runGeneric(tmp, name) { genericBenchProgress = it }
+                                } catch (e: Throwable) {
+                                    AppStrings.get(R.string.settings_benchmark_fehlgeschlagen, e.message)
+                                } finally {
+                                    tmp.delete()
+                                }
+                                genericBenchRunning = false
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        enabled = !genericBenchRunning && !benchmarkRunning,
+                        onClick = { genericBenchLauncher.launch(arrayOf("*/*")) }
+                    ) {
+                        Text(if (genericBenchRunning) stringResource(R.string.settings_laeuft, genericBenchProgress) else stringResource(R.string.settings_bench_datei_waehlen))
+                    }
+                    if (genericBenchReport.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SelectionContainer {
+                            Text(
+                                text = genericBenchReport,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             }
@@ -2671,6 +2716,40 @@ private fun SettingsAdvancedBlock(
             }
         }
     }
+}
+
+/** T227: Max. Aufnahmelaenge pro WAV (T57-B1); im Einfach-Modus direkt, im Expertenmodus im Erweitert-Block. */
+@Composable
+private fun MaxRecordingSetting(appPreferences: AppPreferences) {
+        Spacer(modifier = Modifier.height(12.dp))
+
+        var maxRecordingMinutes by remember { mutableIntStateOf(appPreferences.maxRecordingMinutes) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_max_aufnahmelaenge_pro_wav), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = stringResource(R.string.settings_laengere_sessions_werden_automatisch),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(R.string.settings_min, maxRecordingMinutes), style = MaterialTheme.typography.bodyMedium)
+        }
+        Slider(
+            value = maxRecordingMinutes.toFloat(),
+            onValueChange = { v ->
+                val mins = v.roundToInt()
+                maxRecordingMinutes = mins
+                appPreferences.maxRecordingMinutes = mins
+            },
+            valueRange = 10f..80f,
+            steps = 13  // 10,15,20,...,80 = 15 Positionen → 13 Zwischenschritte
+        )
 }
 
 /** T134: Resampler-Auswahl (48 -> 32 kHz). Liest/schreibt direkt "pirol_resampler_mode" (POLYPHASE/LINEAR). */
