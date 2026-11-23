@@ -17,11 +17,11 @@ data class InferenceConfig(
     val topK: Int = 3,
 
     /**
-     * Detection-Threshold fuer den TopK-Classifier (T71: Multi-Label).
-     * Tiefer als confidenceThreshold → mehr Kandidaten, Cluster-Logik filtert weiter.
-     * 0.3f = Standardwert, 0.2f = sensitiv, 0.5f = strikt.
+     * T225: Untergrenze fuer Alternativen (Kandidaten). Arten zwischen dieser Grenze und
+     * confidenceThreshold erscheinen als Alternativen der Detektionen desselben Fensters
+     * (hoechstens topK). Ersetzt topKThreshold; wirkt nie ueber confidenceThreshold hinaus.
      */
-    val topKThreshold: Float = 0.3f,
+    val alternativesFloor: Float = 0.10f,
 
     /** Region-ID fuer Artenfilter (null = kein Filter, z.B. "ch_breeding", "central_europe") */
     val regionFilter: String? = "ch_breeding",
@@ -46,14 +46,18 @@ data class InferenceConfig(
         fun effectiveThreshold(global: Float, modelMin: Float?): Float =
             if (modelMin != null && modelMin > global) modelMin else global
 
+        /** T225: Classifier-Schwelle = Untergrenze der Alternativen (hoechstens Detektionsschwelle), mind. Modell-Minimum */
+        fun classifierThreshold(confidence: Float, alternativesFloor: Float, modelMin: Float?): Float =
+            effectiveThreshold(minOf(alternativesFloor, confidence), modelMin)
+
         /** Standard-Konfiguration: ausgewogen (TopK=3, Threshold=0.3) */
         val DEFAULT = InferenceConfig()
 
         /** Sensitiv: niedrige Schwelle, mehr Ergebnisse – fuer stille Umgebungen */
-        val SENSITIVE = InferenceConfig(confidenceThreshold = 0.3f, topK = 5, topKThreshold = 0.2f)
+        val SENSITIVE = InferenceConfig(confidenceThreshold = 0.3f, topK = 5, alternativesFloor = 0.05f)
 
         /** Strikt: hohe Schwelle, wenige Ergebnisse – fuer laute Umgebungen */
-        val STRICT = InferenceConfig(confidenceThreshold = 0.7f, topK = 3, topKThreshold = 0.5f)
+        val STRICT = InferenceConfig(confidenceThreshold = 0.7f, topK = 3, alternativesFloor = 0.20f)
 
         /** Sparsam: Inference alle 15s – spart Akku im Feld */
         val POWER_SAVE = InferenceConfig(inferenceIntervalMs = 15000L)

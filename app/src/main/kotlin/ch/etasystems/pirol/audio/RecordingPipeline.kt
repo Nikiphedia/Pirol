@@ -153,11 +153,21 @@ class RecordingPipeline(
          * T207/T211: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
          * Detektion, auch die Top-Art; liegt keine Art darueber, entsteht keine Detektion.
          * Arten unter der Schwelle haengen als Kandidaten (T27) an den Detektionen desselben Fensters.
+         * T225: Kandidaten nur ab [alternativesFloor] (auf [threshold] begrenzt), hoechstens [maxAlternatives];
+         * [maxDetections] begrenzt die Detektionen (Verhalten wie topK vor T225).
          */
-        internal fun splitByThreshold(detections: List<DetectionResult>, threshold: Float): List<DetectionResult> {
+        internal fun splitByThreshold(
+            detections: List<DetectionResult>,
+            threshold: Float,
+            alternativesFloor: Float = 0f,
+            maxDetections: Int = Int.MAX_VALUE,
+            maxAlternatives: Int = Int.MAX_VALUE
+        ): List<DetectionResult> {
             val sorted = detections.sortedByDescending { it.confidence }
-            val (primary, rest) = sorted.partition { it.confidence >= threshold }
-            val candidates = rest.map { alt ->
+            val (above, rest) = sorted.partition { it.confidence >= threshold }
+            val primary = above.take(maxDetections)
+            val floor = minOf(alternativesFloor, threshold)
+            val candidates = rest.filter { it.confidence >= floor }.take(maxAlternatives).map { alt ->
                 DetectionCandidate(
                     scientificName = alt.scientificName,
                     commonName = alt.commonName,
@@ -584,7 +594,10 @@ class RecordingPipeline(
         val config = inferenceWorker.config
         val topWithCandidates = splitByThreshold(
             locDetections,
-            InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence)
+            InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence),
+            alternativesFloor = config.alternativesFloor,
+            maxDetections = config.topK,
+            maxAlternatives = config.topK
         )
         // T26/T27: Artnamen in gewaehlter Sprache
         val geoDetections = topWithCandidates.map { det -> withResolvedNames(det) { hooks.resolveName(it) } }
