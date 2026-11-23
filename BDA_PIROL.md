@@ -2,7 +2,7 @@
 
 Akustische Echtzeit-Artenerkennung fuer Android, gedacht fuer die Feldarbeit.
 
-*Gilt ab Version v0.0.10 (Stand 2026-11-21). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.0.11 (Stand 2026-11-23). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
 
 Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**.
 
@@ -19,7 +19,7 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 
 **Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Aenderungen der Version. Er kann jederzeit in den Einstellungen unter "Info" erneut aufgerufen werden.
 
-**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 und v0.0.9 auf v0.0.10 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
+**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 bis v0.0.10 auf v0.0.11 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Achtung bei v0.0.11: Die Konfidenz-Schwelle ist neu eine gemeinsame Schwelle fuer alle Arten (Kapitel 2 und 13), den Regler danach pruefen. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
 
 ---
 
@@ -58,6 +58,9 @@ Erkannte Arten erscheinen als Karten unter dem Sonogramm:
 
 **Zusammenfassen:** Detektionen derselben Art werden raeumlich und zeitlich zu einem Eintrag zusammengefasst (Radius und Zeitfenster einstellbar, Settings > Modell & Erkennung).
 
+### Mehrfacherkennung und Konfidenz-Schwelle
+Im selben 3-s-Fenster werden alle Arten erkannt, die die Schwelle erreichen, nicht nur die oberste. Der Regler heisst "Konfidenz-Schwelle (alle Arten)" (Settings > Modell & Erkennung, Standard 50 %) und gilt fuer alle Arten gleich. Arten darunter, aber ueber der Kandidaten-Grenze, bleiben als Kandidaten bei den Detektionen des Fensters. Frueher steuerte der Regler eine andere Schwelle (TopK, Standard 0.3); deshalb nach dem Update pruefen. Watchlist-Alarme loesen erst ab der Schwelle aus.
+
 ### Preroll
 Wenn aktiviert, wird Audio **vor** dem Aufnahmestart mitgespeichert (Laenge einstellbar) und auch analysiert. Der Preroll steht lueckenlos am Anfang von `recording.wav`. Das Sonogramm zeigt davon hoechstens 5 s.
 
@@ -72,9 +75,11 @@ Der Hochpassfilter (200 Hz) filtert Wind und Trittschall, standardmaessig an. Er
 
 ---
 
-## 3. Sonogramm
+## 3. Anzeige: Sonogramm, Spektrum, Oszillogramm
 
-Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt wird bis **12 kHz** (Voreinstellung fuer Voegel).
+Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt wird standardmaessig bis **12 kHz** (Voreinstellung fuer Voegel), einstellbar bis **24 kHz**. Die Pegel des Sonogramms sind in dBFS.
+
+**Anzeige-Modi (Live-Tab):** Im Anzeige-Panel (Langdruck) schaltet man zwischen **Sonogramm**, **Spektrum** und **Oszillogramm** um. Das Spektrum zeigt die Lautstaerke je Frequenz mit echter FFT (dBFS, Mittelung, Peak-Halten mit verblassenden Spitzen, Cursor). Das Oszillogramm zeigt den Zeitverlauf mit Pegelanzeige (Peak/RMS), Bandpass und roter Markierung bei Uebersteuerung. Frequenz, Dynamik und Farbmuster gelten fuer alle drei Ansichten gemeinsam. In der Analyse stehen Spektrum und Oszillogramm ebenfalls zur Verfuegung.
 
 **Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) oeffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Sonogramm. Das Panel gilt fuer Live, Analyse und Settings gemeinsam. Oben im Panel steht "Fertig" in einer eigenen Zeile; Voreinstellungen und Farbpaletten sind Kacheln, die bei Platzmangel umbrechen.
 
@@ -148,6 +153,12 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 - **Wiedergabe:** Es spielt immer nur ein Eintrag. Ein zweiter Tipp auf denselben Knopf stoppt, ein Tipp auf einen anderen Eintrag wechselt, und ein Tab-Wechsel beendet die Wiedergabe. Das gilt in der ganzen App (Live, Analyse, Karte, Referenzen, Sprach-Memos).
 - **Verifizieren, korrigieren, Art hinzufuegen:** wie im Live-Tab, auch nachtraeglich.
 - **Vergleich:** Detektion und Referenz nebeneinander, mit synchroner Wiedergabe.
+- **Suche:** Das Such-Symbol in der Session-Liste filtert nach Artname (Teilwort, deutscher oder wissenschaftlicher Name). In einer geoeffneten Aufnahme filtert die Suche die Detektionsliste.
+- **Kopfzeile und Wiedergabeleiste:** Zurueck, Datum und Kennung, Play mit Positionsanzeige, Suche, Raven und Upload. Mit vorige/naechste Detektion springt man zwischen den Eintraegen.
+- **Navigation:** Tippen im Sonogramm oder Oszillogramm springt an die Stelle; laeuft keine Wiedergabe, merkt sich PIROL die Startposition (cyanfarbener Zeiger) fuer das naechste Play.
+- **Spektrum und Oszillogramm:** wie im Live-Tab; im Oszillogramm zeigt ein Zeiger die Abspielposition.
+- **+ Art:** uebernimmt die Zeit aus der Abspielposition (+/-10 s). Der Ort laesst sich ueber "Auf Karte waehlen" bestimmen.
+- **Uebersicht:** Eine Uebersichtsleiste zeigt die Detektionen ueber die ganze Aufnahme; die Raven-Tabelle listet sie als Tabelle.
 - **Raven-Datei neu erzeugen**, z.B. nach nachtraeglicher Verifikation.
 
 **Mehrere Aufnahmen auswaehlen:** Langdruck auf eine Aufnahme in der Session-Liste startet den Auswahlmodus; weitere Aufnahmen werden per Tipp gewaehlt. Die Kopfleiste zeigt "N ausgewaehlt" mit den Aktionen "Alle", "Verschieben" und "Loeschen"; das X oder die Zurueck-Taste beendet den Modus. Die gerade laufende Aufnahme ist nicht auswaehlbar.
@@ -176,6 +187,8 @@ Georeferenzierte Detektionen auf einer Karte. Das Menue oeffnet sich per Wisch v
 - **Punkt antippen:** Ein Tipp auf einen Punkt oeffnet ein Menue mit Verifizieren (Bestaetigen, Unsicher, Ablehnen), "Bearbeiten", "Position verschieben" und Abspielen (Play bzw. "Wiedergabe stoppen"). Ein Langdruck oeffnet dasselbe Menue und erlaubt zusaetzlich, Beobachtungen als Simultanbeobachtung zu verknuepfen. Abgespielt wird der Ausschnitt der Detektion aus der Session-Aufnahme; fehlt sie, erscheint eine Meldung.
 - **Mehrere Punkte uebereinander (Cluster):** Ein Tipp auf einen Cluster zeigt die Liste der Detektionen. Pro Eintrag gibt es Verifizieren, Abspielen und "Position verschieben".
 - **Position verschieben:** Die Karte zeigt oben den Hinweis "Karte verschieben: Fadenkreuz auf die neue Position von ..., dann Uebernehmen." Die Karte so schieben, dass das Fadenkreuz in der Mitte auf der neuen Position liegt, dann unten "Uebernehmen" (oder "Abbrechen"). Danach erscheint eine Snackbar mit **Rueckgaengig**. Das Verschieben geht auch fuer Live-Punkte; laeuft keine Session, gilt die neue Position nur bis zum Schliessen der App.
+- **Legende und Filter:** Der Trichter-Knopf oben links oeffnet den Artfilter: "Nur Alarmarten" oder einzelne Arten ausblenden (Alle/Keine). Der Filter gilt bis zum Schliessen der App; Routen bleiben sichtbar.
+- **Route:** Eine waehrend der Aufnahme aufgezeichnete Route erscheint als Linie (bei Modus "Nur bei Detektion" gestrichelt, nur an Detektionspunkten). Siehe Kapitel 14.
 - **Standort-Knopf:** Zentriert die Karte auf die eigene Position und zoomt so, dass die sichtbare Kartenhoehe etwa 200 m betraegt.
 
 ---
@@ -236,6 +249,8 @@ Settings > Modell & Erkennung > Modell:
 
 Das aktive Modell wird per Auswahl umgeschaltet, ab der naechsten Analyse. Die Artenzahl neben dem Modell stimmt nach dem Wechsel sofort. Modelle koennen heruntergeladen (abbrechen und fortsetzen moeglich), importiert und geloescht werden. Jede Session merkt sich das verwendete Modell.
 
+**Konfidenz-Schwelle:** Der Regler "Konfidenz-Schwelle (alle Arten)" gilt fuer alle Arten gleich (Standard 50 %). Watchlist-Alarme loesen erst ab dieser Schwelle aus.
+
 **Mindest-Konfidenz:** Die Erkennungs-Schwelle ist global einstellbar. Ein Modell kann zusaetzlich eine eigene Mindest-Konfidenz mitbringen (z.B. 80 % fuer Perch). Es gilt der hoehere Wert; das Modell zeigt ihn an.
 
 ### Eigene und weitere Modelle importieren
@@ -251,7 +266,7 @@ Geprueft sind **BirdNET 2.4** (6'522 Arten, 48 kHz, etwa halbe Rechenzeit von 3.
 
 ## 14. GPS
 
-Settings > Aufnahme & Speicher:
+Settings > Karte & GPS (bis v0.0.10: Aufnahme & Speicher):
 
 | Einstellung | Bedeutung |
 |-------------|-----------|
@@ -261,6 +276,12 @@ Settings > Aufnahme & Speicher:
 | GPS-Smoothing | Median ueber 5 Fixes, glaettet Ausreisser |
 
 Jede Detektion erhaelt einen frischen Standort, auch bei ausgeschaltetem Bildschirm. Aenderungen wirken ab der naechsten Aufnahme.
+
+**Start-Fix:** Beim Programmstart und beim Zoomen der Karte holt PIROL ohne laufende Aufnahme einmalig einen Standort (kein Dauertracking).
+
+**Route:** Die Route ("Route aufzeichnen", Standard an) wird waehrend der Aufnahme mitgeschrieben (`track.jsonl`) und beim Stopp als `track.gpx` neben die Aufnahme gelegt (Zeiten in UTC).
+
+**Gemeinde:** Der Knopf "Gemeinde einfuegen" traegt die Gemeinde aus der Position in die Bemerkung ein (im Detail-Dialog, in der Session-Bemerkung und in der Analyse). Die Gemeindedaten liegen offline in der App.
 
 ---
 
@@ -306,17 +327,17 @@ Die Settings sind in einklappbare Sektionen gegliedert; der Zustand wird gemerkt
 | Sektion | Inhalt |
 |---------|--------|
 | Sprache | App-Sprache, Artennamen-Sprache |
-| Modell & Erkennung | Modelle (Download, Import, Loeschen), Region/Artfilter, Erkennungs-Schwelle, Max. Arten pro Fenster, Hochpassfilter, Artvorschlaege, Energieprofil, Ueberlappung, Resampler, Zusammenfassen von Detektionen |
-| Sonogramm | Modus (Voegel/Fledermaus/Breitband), Voreinstellung, Kontrast, Gamma, Deckel, Palette, Frequenz, Zeitfenster |
-| Aufnahme & Speicher | Preroll, Max. Aufnahmelaenge pro WAV, Max. Laenge Detektions-Ausschnitt, GPS (Modus, Intervall, Genauigkeit, Smoothing), Speicherort, Tages-Unterordner, Auto-Loeschen, Sessions verschieben |
-| Analyse & Export | Raven-Export Felder, Simultanbeobachtungen |
-| Watchlist & Alarm | Watchlist, PIROL-Ordner, Saisonalitaet und Seltenheit, Alarm-Pause, Alarm-Ausgabe, Alarm testen |
-| Aehnliche Arten & Referenzen | Aehnlichkeitssuche, Zeilenzahl, Obergrenze Referenzen |
-| Upload | Ziel (Ordner/NAS), Passwort, Verbindung testen, nur WLAN |
-| Diagnose | Inferenz-Benchmark |
-| Was ist neu | Aenderungen der aktuellen Version (Dialog nach einem Update, hier jederzeit abrufbar) |
+| Aufnahme | Audio-Info, Preroll, Ueberlappung, Energieprofil, Speicherort (Ordner, Tages-Unterordner, Auto-Loeschen, Sessions verschieben), Max. Aufnahmelaenge und Ausschnittlaenge, Resampler |
+| Modell & Erkennung | Modelle (Download, Import, Loeschen), Erkennungs-Schwelle (alle Arten), Max. Arten pro Fenster, Voreinstellungen, Artvorschlaege, Zusammenfassen von Detektionen, Aehnliche Arten und Embedding-Limit |
+| Arten & Alarm | Regionaler Filter und eigene Listen, Watchlist, Alarm-Pause und -Ausgabe, Alarm testen, PIROL-Ordner, Saisonalitaet und Seltenheit |
+| Anzeige | Artnamen-Sprache, Vollbild, Sonogramm (Modus, Voreinstellung, Kontrast, Gamma, Deckel, Palette, Frequenz, Zeitfenster), kompakte Artkarte |
+| Karte & GPS | GPS-Modus, Route aufzeichnen, GPS-Intervall, Genauigkeit und Glaettung |
+| Export & Upload | Raven-Export-Felder, Upload (Ziel Ordner/NAS, Passwort, Verbindungstest, nur WLAN) |
+| Info | Version, Quellen, Was ist neu, Diagnose (Benchmark) |
 
-**Resampler:** Polyphase (empfohlen) filtert Stoergeraeusche ueber 16 kHz, die sonst als Geistersignale erscheinen koennen. "Linear" ist die alte Methode.
+Seltene Optionen stehen im einklappbaren Unterblock "Erweitert" der jeweiligen Sektion (z.B. Hochpassfilter, Detektions-Cluster, Phaenologie, Max. Aufnahmelaenge).
+
+**Resampler:** Polyphase (empfohlen) filtert Stoergeraeusche ueber 16 kHz, die sonst als Geistersignale erscheinen koennen. "Linear" ist die alte Methode. Die Umschaltung zeigt einen Hinweis und wirkt ohne Neustart der Aufnahme.
 
 **Diagnose:** Der Benchmark misst die Rechenzeit des aktiven Modells mit 1/2/4 Threads (1-3 Minuten, nicht waehrend einer Aufnahme). Mit "ONNX-Datei waehlen und messen" laesst sich auch ein beliebiges Modell vor dem Import testen.
 
@@ -337,4 +358,4 @@ Die Liste der Aenderungen pro Version steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.0.10 — ETA Systems — Stand 2026-11-21*
+*PIROL v0.0.11 — ETA Systems — Stand 2026-11-23*

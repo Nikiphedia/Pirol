@@ -1,5 +1,48 @@
 # Changelog PIROL
 
+## v0.0.11 — 2026-11-23
+
+Update ueber v0.0.10 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu" (auch unter Einstellungen > Info).
+
+### Hauptunterschied zu v0.0.10
+**Mehrfacherkennung und neue Anzeige:** Im selben 3-s-Fenster werden alle Arten erkannt, die die Konfidenz-Schwelle erreichen. Die Live-Anzeige wechselt zwischen Sonogramm, Spektrum und Oszillogramm. **Achtung:** Die Schwelle gilt neu gemeinsam fuer alle Arten (Standard 50 %). Den Regler "Konfidenz-Schwelle (alle Arten)" nach dem Update pruefen; Watchlist-Alarme loesen erst ab dieser Schwelle aus.
+
+### Live-Tab
+- Mehrfacherkennung: alle Arten im Fenster, die die gemeinsame Konfidenz-Schwelle erreichen (T207, T211)
+- Anzeige-Modi Sonogramm, Spektrum und Oszillogramm, umschaltbar im Anzeige-Panel (T193)
+- Spektrum mit echter FFT: dBFS, lineare kHz-Skala, Cursor, Mittelung, Peak-Halten mit verblassenden Spitzen (T198, T201)
+- Oszillogramm mit Pegelmodi, Bandpass, Peak/RMS, rote Markierung bei Uebersteuerung, Cursor und Einfrieren (T200, T201)
+- Sonogramm in dBFS und bis 24 kHz; Frequenz, Dynamik und Farbmuster gelten fuer alle drei Ansichten gemeinsam (T199, T200)
+- Option "Artkarte kompakt" mit einer Zeile und "+"-Menue fuer seltene Aktionen (T192)
+
+### Analyse
+- Artsuche in der Session-Liste und innerhalb einer Aufnahme (T202)
+- Kopfzeile mit Wiedergabe-Position, Play, Raven und Upload; Wiedergabeleiste mit vorige/naechste Detektion (T202)
+- Tippen im Sonogramm oder Oszillogramm springt zur Stelle; ohne laufende Wiedergabe wird die Startposition gemerkt (T210)
+- Spektrum und Oszillogramm wie im Live-Tab, mit Abspielzeiger im Oszillogramm (T205, T211)
+- "+ Art" uebernimmt die Zeit aus der Abspielposition (+/-10 s); der Ort laesst sich auf der Karte waehlen (T203)
+- Uebersichtsleiste und Raven-Tabelle (T194)
+- Mehrfach erkannte Arten zeigen das beste Fenster fuer Raven-Export und Zeitangaben (T186)
+
+### Karte
+- Legende als Filter: einzelne Arten ausblenden oder "Nur Alarmarten" (T204, T204b)
+
+### GPS und Route
+- Route wird waehrend der Aufnahme mitgeschrieben (`track.jsonl`) und beim Stopp als `track.gpx` (Zeiten UTC) abgelegt (T191)
+- GPS-Standort beim Programmstart und beim Karten-Zoom, ohne laufende Aufnahme (T206)
+- Gemeinde per Knopf in Bemerkung einfuegen: im Detail-Dialog, in der Session-Bemerkung und in der Analyse (T195, T197)
+
+### Einstellungen
+- Neu in 8 Sektionen gegliedert, seltene Optionen im einklappbaren Unterblock "Erweitert" (T209)
+- Vollbild-Anzeige (T195)
+- Resampler-Umschaltung mit Hinweis (T208)
+
+### Installation und Technik
+- Modell wird 45 s nach dem Wechsel in den Hintergrund freigegeben und bei Bedarf neu geladen; spart Akku (T187)
+- Embedding-Datenbank robust: eine defekte Datei wird als `.corrupt` beiseitegelegt (T196)
+- Embeddings nur noch fuer Fenster ueber der Schwelle (weniger Rechenaufwand) (T211)
+- Artenlisten-Format v4 (Spezifikation `tools/SPECIES_LIST_FORMAT.md`) (T188)
+
 ## v0.0.10 — 2026-11-21
 
 Update ueber v0.0.9 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu" (auch unter Einstellungen > Info).

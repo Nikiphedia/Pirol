@@ -550,16 +550,15 @@
     <string name="settings_whats_new_button">Was ist neu</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Live-Ansicht auf dem Smartphone kompakter, hoch und quer: Knöpfe auf einer Zeile, schmale Navigation, mehr Arten sichtbar</item>
-        <item>Detektion direkt auf der Artkarte anhören (Play); ein zweiter Tipp stoppt, ein neuer Eintrag stoppt den alten</item>
-        <item>Mikrofon ist während der Wiedergabe über Lautsprecher stumm (keine Selbst-Erkennung); mit Kopfhörer bleibt es an</item>
-        <item>Erneut erkannte Art: Karte blinkt kurz auf</item>
-        <item>Bestätigen/Ablehnen ohne Popup, Rückgängig direkt auf der Karte</item>
-        <item>Sonogramm: Zeitfenster bis 30 s, wird nach Tab-Wechsel sofort nachgerechnet, braucht deutlich weniger Akku bei eingeschaltetem Bildschirm; Einstellungen als Kacheln</item>
-        <item>Analyse: mehrfach erkannte Arten aufklappbar, zusammenhängende Rufe als Episode am Stück abspielbar</item>
-        <item>Aufnahmen mehrfach auswählen (Langdruck), verschieben oder löschen</item>
-        <item>Karte: Punkt antippen zum Verschieben oder Anhören; Standort-Knopf zeigt 200 m Ausschnitt</item>
-        <item>Neues App-Symbol, kleinere Installationsdatei</item>
+        <item>Mehrfacherkennung: Alle Arten im 3-s-Fenster, die die Konfidenz-Schwelle erreichen, werden erkannt. Die Schwelle gilt jetzt für alle Arten (Standard 50 %), bitte Regler prüfen</item>
+        <item>Live-Anzeige umschaltbar: Sonogramm, Spektrum (FFT mit Peak-Halten) oder Oszillogramm (mit Pegel, Bandpass, rot bei Übersteuerung)</item>
+        <item>Analyse: Arten suchen, Wiedergabeleiste mit Play und Sprung zur vorigen/nächsten Detektion, Tippen im Sonogramm springt</item>
+        <item>"+ Art" übernimmt die Zeit aus der Abspielposition (±10 s), der Ort lässt sich auf der Karte wählen</item>
+        <item>Karte: Legende filtert Arten, "Nur Alarmarten"; Route wird aufgezeichnet (GPX beim Stopp)</item>
+        <item>GPS-Standort beim Programmstart; Gemeinde per Knopf in die Bemerkung einfügen</item>
+        <item>Einstellungen in 8 Sektionen gegliedert, seltene Optionen unter "Erweitert"</item>
+        <item>Resampler umschaltbar mit Hinweis; Modell wird im Hintergrund freigegeben (weniger Akku)</item>
+        <item>Raven-Export und Zeitangaben nutzen das beste Fenster einer Art</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts verschoben.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewaehlte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>
