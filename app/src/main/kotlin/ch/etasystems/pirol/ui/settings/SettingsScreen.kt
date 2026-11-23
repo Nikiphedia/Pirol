@@ -201,11 +201,12 @@ fun SettingsScreen(
     // Art-Vorschlagsliste fuer Dialog: einmalig geladen, ausserhalb des if-Blocks (Compose-Regel)
     var allWatchlistSpecies by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     LaunchedEffect(Unit) {
-        if (regionalFilter.getSpeciesList().isEmpty()) {
-            regionalFilter.loadRegion(RegionalSpeciesFilter.GROUPS_ID)  // T232
+        // T238: Live-Filter nur lesen; ist er (noch) leer, die Arten der Gruppenwahl ohne Umladen ermitteln (IO)
+        val species = withContext(Dispatchers.IO) {
+            regionalFilter.getSpeciesList().ifEmpty { regionalFilter.previewGroupSpecies() }
         }
         speciesNameResolver.load()
-        allWatchlistSpecies = regionalFilter.getSpeciesList().sorted().map { scientific ->
+        allWatchlistSpecies = species.sorted().map { scientific ->
             Pair(scientific, speciesNameResolver.displayName(scientific))
         }
     }

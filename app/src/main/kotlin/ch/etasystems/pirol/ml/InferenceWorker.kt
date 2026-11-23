@@ -65,6 +65,17 @@ class InferenceWorker(
             AudioDspUtils.brickwallLimit(resampled, 1.0f)
             return resampled
         }
+
+        /**
+         * T238 (#13): Anzahl Treffer, die der Classifier liefern soll. Mit aktivem Regionsfilter (nur plausible)
+         * alle ueber der Untergrenze, damit der Filter VOR der TopK-Auswahl wirkt (laute ausgeschlossene
+         * Gruppen verdraengen sonst plausible Arten). Gekappt wird danach mit [resultLimit].
+         */
+        internal fun classifierTopK(config: InferenceConfig): Int =
+            if (config.regionFilter != null && config.showOnlyFiltered) Int.MAX_VALUE else resultLimit(config)
+
+        /** T225: topK Detektionen plus topK Alternativen; splitByThreshold begrenzt wieder */
+        internal fun resultLimit(config: InferenceConfig): Int = config.topK * 2
     }
 
     /** Fenster inkl. Zuordnung zur Aufnahme, wird an die Analyse-Coroutine uebergeben */
@@ -235,17 +246,18 @@ class InferenceWorker(
     private fun logUnmappedRegionSpecies() {
         val labelNames = classifier.labelScientificNames
         if (labelNames.isEmpty()) return
-        val key = "${classifier.modelId}|${regionalFilter.getCurrentRegionId()}"
+        val snap = regionalFilter.snapshot()  // T238: Region-ID und Arten aus demselben Zustand
+        val key = "${classifier.modelId}|${snap.regionId}"
         if (key == unmappedStatsKey) return
         unmappedStatsKey = key
-        val region = regionalFilter.getSpeciesList()
+        val region = snap.species
         val before = region.filter { it !in labelNames }
         // T105: nach Alias-Aufloesung beide Seiten ueber den kanonischen Schluessel vergleichen
         val labelKeys = labelNames.mapTo(HashSet()) { SpeciesKey.of(it) }
         val after = region.filter { SpeciesKey.of(it) !in labelKeys }
-        Log.i(TAG, "T103_STATS model=${classifier.modelId} region=${regionalFilter.getCurrentRegionId()} " +
+        Log.i(TAG, "T103_STATS model=${classifier.modelId} region=${snap.regionId} " +
             "unmapped=${before.size}/${region.size} examples=${before.take(5)}")
-        Log.i(TAG, "T105_STATS model=${classifier.modelId} region=${regionalFilter.getCurrentRegionId()} " +
+        Log.i(TAG, "T105_STATS model=${classifier.modelId} region=${snap.regionId} " +
             "region_unmapped_before=${before.size} after=${after.size} aliases=${SpeciesKey.aliasCount()} " +
             "examples_after=${after.take(5)}")
     }
@@ -294,14 +306,14 @@ class InferenceWorker(
             val output = classifier.classifyWithEmbedding(
                 samples = resampled,
                 sampleRate = targetRate,
-                // T225: topK Detektionen plus topK Alternativen; splitByThreshold begrenzt wieder
-                topK = config.topK * 2,
+                // T225: topK Detektionen plus topK Alternativen; T238: bei Regionsfilter erst nach dem Filter gekappt
+                topK = classifierTopK(config),
                 // T211/T225: Untergrenze der Alternativen, nie ueber der Detektionsschwelle
                 threshold = InferenceConfig.classifierThreshold(config.confidenceThreshold, config.alternativesFloor, classifier.minConfidence)
             )
             embedding = output.embedding
             logUnmappedRegionSpecies()
-            detections = mapResults(filterRegional(output.results, job), job)
+            detections = mapResults(filterRegional(output.results, job).take(resultLimit(config)), job)
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)
         }

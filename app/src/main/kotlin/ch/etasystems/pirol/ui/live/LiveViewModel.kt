@@ -267,6 +267,17 @@ class LiveViewModel(
     // T198: FFT-Spektrum aus Rohsamples; wird nur gefuellt, solange der Spektrum-Modus angezeigt wird.
     private val spectrumState = ch.etasystems.pirol.ui.components.SpectrumState()
 
+    // T238: Filter-Laden auf IO, in Aufrufreihenfolge (eine Region nach der anderen, letzte gewinnt)
+    private val filterDispatcher = Dispatchers.IO.limitedParallelism(1)
+
+    /** T238: Region im Hintergrund laden (liest Assets/Listen, nie auf dem Main-Thread) */
+    private fun loadRegionAsync(regionId: String) {
+        viewModelScope.launch(filterDispatcher) {
+            regionalFilter.loadRegion(regionId)
+            Log.d(TAG, "Regionaler Filter geladen: ${regionalFilter.getCurrentRegionId()} (${regionalFilter.getSpeciesList().size} Arten)")
+        }
+    }
+
     init {
         // Modell-Verfuegbarkeit pruefen
         val modelAvailable = classifier.isModelAvailable()
@@ -281,8 +292,7 @@ class LiveViewModel(
 
         // Region laden (aus gespeicherter Config)
         val region = savedConfig.regionFilter ?: "ch_breeding"
-        regionalFilter.loadRegion(region)
-        Log.d(TAG, "Regionaler Filter geladen: ${regionalFilter.getCurrentRegionId()} (${regionalFilter.getSpeciesList().size} Arten)")
+        loadRegionAsync(region)  // T238: IO statt Main
 
         // Artennamen-Sprache laden + species_master.json parsen (T26, T32-Fix)
         // T95: Im Hintergrund laden (species_master.json ist ~10 MB) statt den Main-Thread zu blockieren.
@@ -914,7 +924,7 @@ class LiveViewModel(
     /** Regionalen Artenfilter setzen oder deaktivieren */
     fun setRegionFilter(regionId: String?) {
         if (regionId != null) {
-            regionalFilter.loadRegion(regionId)
+            loadRegionAsync(regionId)
         }
         val newConfig = _uiState.value.inferenceConfig.copy(regionFilter = regionId)
         setInferenceConfig(newConfig)
@@ -924,7 +934,7 @@ class LiveViewModel(
     fun setInferenceConfig(config: InferenceConfig) {
         // Region laden falls geaendert
         if (config.regionFilter != null && config.regionFilter != _uiState.value.inferenceConfig.regionFilter) {
-            regionalFilter.loadRegion(config.regionFilter)
+            loadRegionAsync(config.regionFilter)
         }
         pipeline.setInferenceConfig(config)  // T94: Worker lebt in der Pipeline (T110: Overlap aus Prefs)
         _uiState.update { it.copy(inferenceConfig = config) }

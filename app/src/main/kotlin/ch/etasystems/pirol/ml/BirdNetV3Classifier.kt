@@ -107,10 +107,9 @@ class BirdNetV3Classifier(
     }
 
     // Lazy-initialisiert beim ersten classify()-Aufruf
-    private var ortSession: OrtSession? = null
+    // T187/T238: Session + laufende Inferenzen; schliesst nie waehrend run(), ersetzt nie ohne zu schliessen
+    private val sessions = SessionGuard<OrtSession> { it.close() }
     private var sessionFailed = false
-    // T187: laufende Inferenzen (geschuetzt durch this); verhindert close() waehrend run()
-    private var activeRuns = 0
     private var labels: List<Pair<String, String>> = emptyList() // (scientific, common)
     @Volatile private var labelNameSet: Set<String> = emptySet()
 
@@ -277,43 +276,39 @@ class BirdNetV3Classifier(
      */
     @Synchronized
     override fun releaseIfIdle(): Boolean {
-        if (activeRuns > 0 || ortSession == null) return false
-        close()
+        if (!sessions.releaseIfIdle()) return false
+        sessionFailed = false
+        Log.i(TAG, "ONNX Session geschlossen (frei)")
         return true
     }
 
-    /** T187: Session holen und Lauf zaehlen (atomar zu releaseIfIdle) */
+    /** T187: Session holen und Lauf zaehlen (atomar zu releaseIfIdle/resetSession) */
     @Synchronized
     private fun acquireSession(): OrtSession? {
-        val s = ensureSession()
-        if (s != null) activeRuns++
-        return s
+        if (ensureSession() == null) return null
+        return sessions.begin()
     }
 
+    /** T238: Lauf beenden; eine waehrenddessen abgegebene Session wird jetzt geschlossen */
+    private fun endRun() = sessions.end()
+
+    /** ONNX Session und Ressourcen freigeben (T238: laeuft gerade eine Inferenz, nach deren Ende) */
     @Synchronized
-    private fun endRun() {
-        if (activeRuns > 0) activeRuns--
-    }
-
-    /** ONNX Session und Ressourcen freigeben */
     fun close() {
-        try {
-            ortSession?.close()
-            ortSession = null
-            sessionFailed = false
-            Log.i(TAG, "ONNX Session geschlossen")
-        } catch (e: Exception) {
-            Log.e(TAG, "Fehler beim Schliessen der ONNX Session", e)
-        }
+        val had = sessions.detach()
+        sessionFailed = false
+        if (had) Log.i(TAG, "ONNX Session geschlossen" + if (sessions.pendingClose > 0) " (nach laufender Inferenz)" else "")
     }
 
     /**
      * Zuruecksetzen wenn Modell nachtraeglich installiert wurde.
      * Ermoeglicht erneuten Session-Aufbau beim naechsten classify()-Aufruf.
      */
+    @Synchronized
     override fun resetSession() {
-        ortSession?.close()
-        ortSession = null
+        // T238: synchronisiert mit ensureSession (sonst konnte eine gerade entstehende Session verwaisen)
+        // und nie waehrend einer laufenden Inferenz geschlossen
+        sessions.detach()
         sessionFailed = false
         // T103a: neues Profil sofort uebernehmen (modelId/Embedding-DB), Labels beim naechsten Aufruf
         profile = currentProfile()
@@ -329,7 +324,7 @@ class BirdNetV3Classifier(
      */
     @Synchronized
     private fun ensureSession(): OrtSession? {
-        if (ortSession != null) return ortSession
+        sessions.session?.let { return it }
         // T103a: fehlten nur die Labels und sind sie inzwischen da (Nachladen beim Start), neu versuchen
         if (sessionFailed && labelsMissing && modelManager.getLabelFile(profile) != null) {
             sessionFailed = false
@@ -362,7 +357,7 @@ class BirdNetV3Classifier(
                 Log.i(TAG, "Modell geladen via ModelManager: ${activeFile.absolutePath} " +
                         "(${activeFile.length() / 1_000_000} MB)")
                 val session = env.createSession(activeFile.absolutePath, opts)
-                ortSession = session
+                sessions.install(session)
                 logSessionInfo(session)
                 return session
             }
@@ -377,7 +372,7 @@ class BirdNetV3Classifier(
 
             val modelBytes = context.assets.open(ASSETS_MODEL_PATH).use { it.readBytes() }
             val session = env.createSession(modelBytes, opts)
-            ortSession = session
+            sessions.install(session)
             logSessionInfo(session)
             session
         } catch (e: Exception) {
