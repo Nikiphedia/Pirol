@@ -79,6 +79,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import android.net.Uri
 import ch.etasystems.pirol.audio.AudioPlayer
 import ch.etasystems.pirol.audio.VoiceMemoRecorder
@@ -156,6 +158,8 @@ fun SpeciesCard(
     blinkSignalMs: Long = 0L,
     blinkHandledMs: Long = 0L,
     onBlinkPlayed: (Long) -> Unit = {},
+    // T224: Name des Hauptmodells fuer die Modellzeile der vollen Karte (null = ohne Namen)
+    primaryModelLabel: String? = null,
     // T192: kompakte Einzeiler-Darstellung (Default folgt der Einstellung)
     compact: Boolean = rememberCompactCardSetting(),
     modifier: Modifier = Modifier
@@ -260,8 +264,6 @@ fun SpeciesCard(
         // T164: breite Karten (Tablet) zeigen alle Aktionen inline, schmale (Telefon) nutzen das Ueberlauf-Menue
         BoxWithConstraints {
         val inline = maxWidth >= INLINE_ACTIONS_MIN_WIDTH
-        val hasActionRow = onConfirm != null || onMarkUncertain != null || onReject != null ||
-            onCorrect != null || onPlay != null || onShare != null
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -463,6 +465,12 @@ fun SpeciesCard(
                 color = confidenceColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
+            // T224: Modellzeile "Hauptmodell % · Zweitmodell %" (nur Anzeige, neutrale Farben)
+            ModelScoreRow(
+                detection = detection,
+                primaryModelLabel = primaryModelLabel,
+                resolveName = { sci -> nameResolver.resolve(sci) }
+            )
 
             // Zeile 3 (T164): Aktionsleiste in EINER Zeile, 48-dp-Tap-Targets.
             // Auf schmalen Breiten wandern Referenz/Vergleichen/Teilen/Alternativen ins Ueberlauf-Menue.
@@ -472,7 +480,7 @@ fun SpeciesCard(
                 val status = detection.verificationStatus
                 val showReference = onSaveAsReference != null &&
                     (status == VerificationStatus.CONFIRMED || status == VerificationStatus.CORRECTED)
-                val hasCandidates = showTopNCandidates && detection.candidates.isNotEmpty()
+                // T224: volle Karte zeigt die Kandidaten immer → kein Umschalter im Menue
                 var overflowOpen by remember { mutableStateOf(false) }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -582,13 +590,13 @@ fun SpeciesCard(
                         )
                     }
                     // Ueberlauf-Menue (nur schmale Karte, nur wenn es etwas zu zeigen gibt)
-                    if (!inline && (showReference || onCompare != null || onShare != null || hasCandidates)) {
+                    if (!inline && (showReference || onCompare != null || onShare != null)) {
                         Box {
                             CardActionButton(
                                 onClick = { overflowOpen = true },
                                 icon = Icons.Filled.MoreVert,
                                 description = AppStrings.get(R.string.ui_mehr_aktionen),
-                                containerColor = if (candidatesExpanded) MaterialTheme.colorScheme.secondaryContainer else neutralContainer,
+                                containerColor = neutralContainer,
                                 contentColor = neutralContent
                             )
                             DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
@@ -613,19 +621,6 @@ fun SpeciesCard(
                                         onClick = { overflowOpen = false; onShare() }
                                     )
                                 }
-                                if (hasCandidates) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
-                                                else if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
-                                                else stringResource(R.string.ui_alternativen, detection.candidates.size)
-                                            )
-                                        },
-                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
-                                        onClick = { overflowOpen = false; candidatesExpanded = !candidatesExpanded }
-                                    )
-                                }
                             }
                         }
                     }
@@ -636,22 +631,18 @@ fun SpeciesCard(
 
             // Zeile 5: Aufklappbare Kandidaten-Liste (T27, T52: showTopNCandidates-Guard)
             if (showTopNCandidates && detection.candidates.isNotEmpty()) {
-                // Schmal + Aktionsleiste: Umschalter steckt im Ueberlauf-Menue (spart eine Zeile)
-                if (!compact && (inline || !hasActionRow)) {
-                    TextButton(
-                        onClick = { candidatesExpanded = !candidatesExpanded },
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Text(
-                            text = if (candidatesExpanded) stringResource(R.string.ui_alternativen_ausblenden)
-                                   else if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
-                                   else stringResource(R.string.ui_alternativen, detection.candidates.size),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
+                // T224: volle Karte zeigt die Kandidaten immer (mit Titelzeile), kompakte Karte klappt auf (T192)
+                if (!compact) {
+                    Text(
+                        text = if (onSelectAlternative != null) stringResource(R.string.ui_alternative_waehlen, detection.candidates.size)
+                               else stringResource(R.string.ui_alternativen, detection.candidates.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp, start = 4.dp)
+                    )
                 }
 
-                AnimatedVisibility(visible = candidatesExpanded) {
+                AnimatedVisibility(visible = !compact || candidatesExpanded) {
                     Column(modifier = Modifier.animateContentSize()) {
                         detection.candidates.forEach { candidate ->
                             Row(
@@ -972,5 +963,71 @@ private fun CardActionButton(
         )
     ) {
         Icon(imageVector = icon, contentDescription = description, modifier = Modifier.size(24.dp))
+    }
+}
+
+/**
+ * T224: Modellzeile der vollen Artkarte: "Hauptmodell 82 % · Zweitmodell 64 %".
+ * Zweitmodell unbekannte Art → "nicht pruefbar"; andere Top-Art → dezent umrandet (neutrale Farbe,
+ * keine Verifikationsfarben). Ohne Zweitmodell-Ergebnis nur das Hauptmodell.
+ */
+@Composable
+private fun ModelScoreRow(
+    detection: DetectionResult,
+    primaryModelLabel: String?,
+    resolveName: (String) -> String
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val style = MaterialTheme.typography.labelSmall
+    val primaryPercent = (detection.confidence * 100).toInt()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = if (primaryModelLabel != null) stringResource(R.string.card_model_score, primaryModelLabel, primaryPercent)
+                   else "$primaryPercent %",
+            style = style,
+            color = muted,
+            maxLines = 1
+        )
+        val status = detection.secondaryStatus ?: return@Row
+        val secLabel = ch.etasystems.pirol.ml.SecondaryCheck.modelLabel(detection.secondaryModelId) ?: "?"
+        Text(text = "·", style = style, color = muted)
+        when (status) {
+            ch.etasystems.pirol.ml.SecondaryCheck.STATUS_NOT_CHECKABLE -> Text(
+                text = stringResource(R.string.card_secondary_not_checkable, secLabel),
+                style = style,
+                color = muted,
+                fontStyle = FontStyle.Italic,
+                maxLines = 1
+            )
+            else -> {
+                val secPercent = ((detection.secondaryConfidence ?: 0f) * 100).toInt()
+                Text(
+                    text = stringResource(R.string.card_model_score, secLabel, secPercent),
+                    style = style,
+                    color = muted,
+                    maxLines = 1
+                )
+                val top = detection.secondaryTopSpecies
+                if (status == ch.etasystems.pirol.ml.SecondaryCheck.STATUS_DISAGREES && top != null) {
+                    val topPercent = ((detection.secondaryTopConfidence ?: 0f) * 100).toInt()
+                    val cd = stringResource(R.string.card_secondary_disagrees_cd)
+                    Text(
+                        text = stringResource(R.string.card_secondary_disagrees, resolveName(top), topPercent),
+                        style = style,
+                        color = muted,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp)
+                            .semantics { contentDescription = cd }
+                    )
+                }
+            }
+        }
     }
 }

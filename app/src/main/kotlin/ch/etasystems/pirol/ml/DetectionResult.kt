@@ -66,7 +66,14 @@ data class DetectionResult(
     // T186: bestes Fenster eines Clusters (hoechste Konfidenz); null = erstes Fenster ist das beste.
     // chunkStartSec/chunkEndSec bleiben das ERSTE Fenster (Cluster-Beginn, Basis fuer Episoden/Ausschnitt).
     val bestStartSec: Float? = null,
-    val bestEndSec: Float? = null
+    val bestEndSec: Float? = null,
+    // T224: Zweitmodell (nur Anzeige, kein Einfluss auf Alarm/Filter/Cluster); null = nicht gerechnet.
+    // Status-Werte siehe SecondaryCheck (CHECKED / NOT_CHECKABLE / DISAGREES).
+    val secondaryModelId: String? = null,
+    val secondaryStatus: String? = null,
+    val secondaryConfidence: Float? = null,      // Score der Detektionsart im Zweitmodell (null bei NOT_CHECKABLE)
+    val secondaryTopSpecies: String? = null,     // nur bei DISAGREES: Top-Art des Zweitmodells (wiss. Name)
+    val secondaryTopConfidence: Float? = null
 ) {
     /** T186: Start des repraesentativen (besten) Fensters in der Session-Aufnahme */
     val bestWindowStartSec: Float get() = bestStartSec ?: chunkStartSec

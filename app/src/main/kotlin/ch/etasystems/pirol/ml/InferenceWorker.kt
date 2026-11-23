@@ -45,6 +45,26 @@ class InferenceWorker(
         private const val TAG = "InferenceWorker"
         private const val STATS_EVERY_WINDOWS = 20
         private const val MAX_ANCHORS = 16
+
+        /**
+         * Resampling + DSP-Vorverarbeitung eines Fensters (T34/T133), identisch fuer Haupt- und
+         * Zweitmodell (T224): Hochpass 200 Hz (optional), Peak-Normalisierung, Limiter.
+         */
+        internal fun prepareInput(
+            pcm: ShortArray,
+            sampleRate: Int,
+            targetRate: Int,
+            mode: AudioResampler.Mode,
+            highpass: Boolean
+        ): FloatArray {
+            val resampled = AudioResampler.resample(pcm, sampleRate, targetRate, mode)
+            if (highpass) {
+                AudioDspUtils.highpassFilter(resampled, targetRate, 200f)
+            }
+            AudioDspUtils.peakNormalize(resampled, 0.95f)
+            AudioDspUtils.brickwallLimit(resampled, 1.0f)
+            return resampled
+        }
     }
 
     /** Fenster inkl. Zuordnung zur Aufnahme, wird an die Analyse-Coroutine uebergeben */
@@ -258,14 +278,8 @@ class InferenceWorker(
                 val taps = if (mode == AudioResampler.Mode.POLYPHASE) AudioResampler.tapsFor(window.sampleRate, targetRate) else 0
                 Log.i(TAG, "T133 resampler=$mode in=${window.sampleRate} out=$targetRate taps=$taps")
             }
-            val resampled = AudioResampler.resample(window.pcm, window.sampleRate, targetRate, mode)
-
-            // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34)
-            if (config.highpassEnabled) {
-                AudioDspUtils.highpassFilter(resampled, targetRate, 200f)
-            }
-            AudioDspUtils.peakNormalize(resampled, 0.95f)
-            AudioDspUtils.brickwallLimit(resampled, 1.0f)
+            // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34); T224: gemeinsam mit dem Zweitmodell
+            val resampled = prepareInput(window.pcm, window.sampleRate, targetRate, mode, config.highpassEnabled)
 
             // 2. Klassifizierung (T71: topKThreshold, T61: Embedding aus demselben Durchlauf)
             val output = classifier.classifyWithEmbedding(

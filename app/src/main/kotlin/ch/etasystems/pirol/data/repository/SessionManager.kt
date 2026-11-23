@@ -1444,6 +1444,7 @@ class SessionManager(
                 if (p.ravenFieldSimultan)       add(RavenExporter.FIELD_SIMULTAN)
                 if (p.ravenFieldMoeglich)       add(RavenExporter.FIELD_MOEGLICH)
                 if (p.ravenFieldGleich)         add(RavenExporter.FIELD_GLEICH)
+                if (p.ravenFieldSecondary)      add(RavenExporter.FIELD_SECONDARY)  // T224
             }
         }
         val linkMap = loadSimultaneousLinkMap(sessionDir, variant)
