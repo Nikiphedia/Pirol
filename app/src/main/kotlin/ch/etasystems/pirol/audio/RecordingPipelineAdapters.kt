@@ -166,6 +166,11 @@ class AndroidPipelineHooks(
     private val context: Context? = null,  // T224: Zweitmodell
     private val modelManager: ch.etasystems.pirol.ml.ModelManager? = null  // T224
 ) : PipelineHooks {
+    private companion object {
+        /** T239: Wartezeit fuer das Nachladen der Label-CSV des Zweitmodells */
+        const val SECONDARY_LABELS_TIMEOUT_MS = 8_000L
+    }
+
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
     override fun maxHopMs(): Int = appPreferences.maxHopMs  // T231
@@ -181,6 +186,10 @@ class AndroidPipelineHooks(
         return stats
     }
     override suspend fun awaitSpeciesNames() = speciesNameResolver.load()
+    override suspend fun awaitSpeciesFilter() {
+        if (regionalFilter.isLoaded()) return
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { regionalFilter.ensureLoaded() }
+    }
     override fun resolveName(scientificName: String): String = speciesNameResolver.commonName(scientificName)
     override fun clusterEnabled(): Boolean = appPreferences.clusterEnabled
     override fun clusterRadiusM(): Int = appPreferences.clusterRadiusM
@@ -247,13 +256,26 @@ class AndroidPipelineHooks(
             Log.w("RecordingPipeline", "T224 Zweitmodell $fileName nicht vorhanden")
             return null
         }
+        // T239: fehlende Label-CSV eines Katalogmodells nachladen (kleine Datei, begrenzte Wartezeit)
+        mm.getModelFile(fileName)?.let { f ->
+            val profile = ch.etasystems.pirol.ml.ModelProfile.resolve(f.name, f.length())
+            if (profile.labelAssetPath == null && mm.getLabelFile(profile) == null) {
+                val ok = try {
+                    kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                        kotlinx.coroutines.withTimeoutOrNull(SECONDARY_LABELS_TIMEOUT_MS) { mm.ensureLabels(profile) } ?: false
+                    }
+                } catch (e: Exception) { false }
+                if (!ok) Log.w("RecordingPipeline", "T239 Labels fuer Zweitmodell $fileName nicht verfuegbar")
+            }
+        }
         val cls = ch.etasystems.pirol.ml.BirdNetV3Classifier(ctx, mm, null, fileName)
         if (!cls.isModelAvailable()) return null
+        mm.markInUse(fileName)  // T239: Datei waehrend der Aufnahme nicht loeschbar
         return SecondaryModel(
             classifier = cls,
             threshold = appPreferences.secondaryConfidenceThreshold,
             overlapPercent = appPreferences.secondaryOverlapPercent,
-            close = { cls.close() }
+            close = { cls.close(); mm.unmarkInUse(fileName) }
         )
     }
 }

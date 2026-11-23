@@ -909,9 +909,10 @@ fun SettingsScreen(
                     confirmButton = {
                         TextButton(onClick = {
                             deleteCandidate = null
-                            modelManager.deleteModel(model.fileName)
+                            val deleted = modelManager.deleteModel(model.fileName)
                             installedModels = modelManager.listInstalledModels()
-                            Toast.makeText(context, AppStrings.get(R.string.model_deleted, model.name), Toast.LENGTH_SHORT).show()
+                            // T239: bei gesperrtem Modell (Aufnahme/Rescan) keine falsche Erfolgsmeldung
+                            if (deleted) Toast.makeText(context, AppStrings.get(R.string.model_deleted, model.name), Toast.LENGTH_SHORT).show()
                         }) { Text(stringResource(R.string.common_delete)) }
                     },
                     dismissButton = {

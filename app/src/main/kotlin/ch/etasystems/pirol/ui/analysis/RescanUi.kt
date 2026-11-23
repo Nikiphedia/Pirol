@@ -42,6 +42,7 @@ import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.rescan.RescanInfo
 import ch.etasystems.pirol.rescan.RescanOptions
+import ch.etasystems.pirol.ui.settings.SpeciesGroupSettings
 import ch.etasystems.pirol.ui.AppStrings
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -131,8 +132,11 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
 internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
     val defaults = remember { viewModel.rescanDefaults() } ?: return
     val models = remember { viewModel.rescanModels() }
-    var customRegions by remember { mutableStateOf<List<RegionInfo>>(emptyList()) }
-    LaunchedEffect(Unit) { customRegions = viewModel.rescanCustomRegions() }
+    var allRegions by remember { mutableStateOf<List<RegionInfo>>(emptyList()) }
+    LaunchedEffect(Unit) { allRegions = viewModel.rescanRegions() }
+    val customRegions = allRegions.filter { it.isCustom }
+    // T239: Gruppenwahl der Session (Voreinstellung), im Dialog aenderbar
+    var groups by remember { mutableStateOf(defaults.groups ?: viewModel.currentSpeciesGroups()) }
 
     var model by remember { mutableStateOf(defaults.modelFileName) }
     var region by remember { mutableStateOf(defaults.regionFilter) }
@@ -176,6 +180,9 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                             FilterChip(selected = region == id, onClick = { region = id }, label = { Text(label) })
                         }
                 }
+                if (region == ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID) {
+                    SpeciesGroupSettings(groups, allRegions) { groups = it }
+                }
                 Spacer(Modifier.height(8.dp))
                 Text(
                     stringResource(R.string.analysis_rescan_schwelle, (threshold * 100).roundToInt()),
@@ -200,7 +207,7 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                 enabled = models.any { it.fileName == model },
                 onClick = {
                     onDismiss()
-                    viewModel.startRescan(RescanOptions(model, region, threshold, overlap))
+                    viewModel.startRescan(RescanOptions(model, region, threshold, overlap, groups))
                 }
             ) { Text(stringResource(R.string.analysis_rescan_starten)) }
         },

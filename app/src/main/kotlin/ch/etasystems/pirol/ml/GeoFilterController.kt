@@ -43,6 +43,13 @@ class GeoFilterController(
     /** T232: Quelle je Gruppe fuer session.json (null ohne Gruppenmodus) */
     private fun groups(): Map<String, String>? = if (groupMode()) prefs.speciesGroups.toMap() else null
 
+    /** T239: Im Gruppenmodus gibt es keine Verknuepfung (Auto ignoriert sie) -> nicht in session.json schreiben */
+    private fun combineName(c: GeoCombine): String? = if (groupMode()) null else c.name
+
+    /** T239: Ersatzliste fuer session.json; im Gruppenmodus die der Voegel (nie die Heuschrecken-Liste) */
+    private fun companionRegion(): String =
+        if (groupMode()) RegionalSpeciesFilter.birdsFallbackId(prefs.geoCompanionRegion) else prefs.geoCompanionRegion
+
     /** Session-Start: immer rechnen (nach dem Startfix). null = weder Geomodel- noch Gruppenfilter. */
     suspend fun prepare(fresh: LocationData?, nowMs: Long): SpeciesFilterInfo? =
         mutex.withLock { compute(fresh, nowMs, force = true) }
@@ -64,7 +71,7 @@ class GeoFilterController(
         }
         if (force) prefs.regionFilter?.let { filter.loadRegion(it) }  // Einstellungen (Gruppen bzw. Begleitliste)
         val combine = GeoCombine.parse(prefs.geoCombine)
-        val companion = prefs.geoCompanionRegion
+        val companion = companionRegion()
         val date = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()).toLocalDate()
         val week = GeoLogic.birdnetWeek(date)
 
@@ -99,7 +106,7 @@ class GeoFilterController(
             SpeciesFilterInfo(
                 source = if (source == GeoLogic.PositionSource.GPS) "gps" else "saved",
                 latitude = round2(lat), longitude = round2(lon), week = if (yearly) null else week,
-                threshold = threshold, combine = combine.name, yearly = yearly,
+                threshold = threshold, combine = combineName(combine), yearly = yearly,
                 model = GeoModelFiles.VERSION, fallbackRegion = companion, groups = groups()
             ).also { info = it }
         } catch (e: Exception) {
@@ -126,12 +133,15 @@ class GeoFilterController(
      * Einstellungen (Schwelle, Jahr, Verknuepfung, Begleitliste) wie live. Aendert weder den Live-Filter
      * noch die gespeicherte Position. Ohne Position oder Modell: Begleitliste als Ersatz.
      */
-    suspend fun applyForRescan(target: RegionalSpeciesFilter, lat: Double?, lon: Double?, atMs: Long): SpeciesFilterInfo {
+    suspend fun applyForRescan(
+        target: RegionalSpeciesFilter, lat: Double?, lon: Double?, atMs: Long,
+        groupSelection: SpeciesGroupSelection? = null
+    ): SpeciesFilterInfo {
         // T232: Gruppenmodus behaelt die geladenen Gruppenregeln, sonst wie bisher "auto_geo"
         if (target.getCurrentRegionId() != RegionalSpeciesFilter.GROUPS_ID) target.loadRegion(GeoLogic.REGION_ID)
-        val groups = if (target.getCurrentRegionId() == RegionalSpeciesFilter.GROUPS_ID) prefs.speciesGroups.toMap() else null
+        val groups = if (target.getCurrentRegionId() == RegionalSpeciesFilter.GROUPS_ID) (groupSelection ?: prefs.speciesGroups).toMap() else null
         val combine = GeoCombine.parse(prefs.geoCombine)
-        val companion = prefs.geoCompanionRegion
+        val companion = companionRegion()
         if (lat == null || lon == null || !GeoModelFiles.isInstalled(context)) {
             target.setGeoMask(null, combine)
             return SpeciesFilterInfo(source = "fallback", fallbackRegion = companion, groups = groups)
@@ -143,7 +153,7 @@ class GeoFilterController(
             target.setGeoMask(computeMask(lat, lon, week, yearly, threshold), combine)
             SpeciesFilterInfo(
                 source = "session", latitude = round2(lat), longitude = round2(lon), week = if (yearly) null else week,
-                threshold = threshold, combine = combine.name, yearly = yearly,
+                threshold = threshold, combine = if (groups != null) null else combine.name, yearly = yearly,
                 model = GeoModelFiles.VERSION, fallbackRegion = companion, groups = groups
             )
         } catch (e: Exception) {
