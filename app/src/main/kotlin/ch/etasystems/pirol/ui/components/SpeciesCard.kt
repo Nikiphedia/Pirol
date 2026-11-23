@@ -874,6 +874,12 @@ private fun CompactRow(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("$confidencePercent%", style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold, color = confidenceColor)
+                // T247: Zweitmodell-Wert kurz ("82 · 64 %"), wenn geprueft
+                if (detection.secondaryStatus != null &&
+                    detection.secondaryStatus != ch.etasystems.pirol.ml.SecondaryCheck.STATUS_NOT_CHECKABLE) {
+                    Text("· ${((detection.secondaryConfidence ?: 0f) * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall, color = neutralContent)
+                }
                 if (inline) {
                     Text(timestamp, style = MaterialTheme.typography.labelSmall, color = neutralContent)
                 }

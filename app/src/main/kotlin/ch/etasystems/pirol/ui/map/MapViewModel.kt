@@ -126,6 +126,7 @@ class MapViewModel(
         val lockedSpecies: Set<String> = emptySet(),
         val focusMode: Boolean = false,
         val focusSpecies: String? = null,
+        val focusKey: String? = null,  // T247: SpeciesKey der Fokus-Art (Vergleich statt Anzeigename)
         val linkAnchor: MapMarker? = null,
         val linkTarget: MapMarker? = null,
         val simultaneousLinks: List<SimultaneousLink> = emptyList(),
@@ -555,6 +556,7 @@ class MapViewModel(
             it.copy(
                 focusMode = true,
                 focusSpecies = anchor.species,
+                focusKey = MapSpeciesFilter.keyOf(anchor),
                 linkAnchor = anchor,
                 longPressTarget = null
             )
@@ -603,6 +605,7 @@ class MapViewModel(
             it.copy(
                 focusMode = false,
                 focusSpecies = null,
+                focusKey = null,
                 linkAnchor = null,
                 linkTarget = null
             )

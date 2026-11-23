@@ -3,7 +3,12 @@ package ch.etasystems.pirol.ml
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -99,6 +104,21 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
     private fun emitFlows() {
         _watchedSpeciesFlow.value = watchedSpecies
         _entriesFlow.value = entries
+        scheduleExpiry()
+    }
+
+    // T247: Abzeichen verschwindet beim Ablauf eines 24-h-Alarms sofort (ein Job fuer den naechsten Ablauf)
+    private val expiryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var expiryJob: Job? = null
+
+    private fun scheduleExpiry() {
+        expiryJob?.cancel()
+        val next = watchlist.species.mapNotNull { it.expiresAtMs }.minOrNull() ?: return
+        val wait = (next - System.currentTimeMillis()).coerceAtLeast(0L) + 100L
+        expiryJob = expiryScope.launch {
+            delay(wait)
+            refreshExpired()
+        }
     }
 
     /** T244: abgelaufene Eintraege dauerhaft entfernen (beim Laden/Pruefen, kein Timer) */
