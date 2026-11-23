@@ -151,11 +151,13 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isLoading = true) }
             val dirs = sessionManager.listSessions()
+            val speciesIndex = HashMap<String, List<String>>()
             val summaries = dirs.mapNotNull { dir ->
                 val meta = sessionManager.loadMetadata(dir) ?: return@mapNotNull null
                 val detections = sessionManager.loadDetectionsWithVerifications(dir)
                 // T52: WAV-Dateigrösse ermitteln (T130: Summe aller Segmente)
                 val wavBytes = sessionManager.recordingSizeBytes(dir)  // T131: File + SAF
+                speciesIndex[meta.sessionId] = detections.map { it.scientificName }
                 SessionSummary(
                     sessionDir = dir,
                     metadata = meta,
@@ -166,8 +168,13 @@ class AnalysisViewModel(
                     recordingSizeBytes = wavBytes
                 )
             }
-            _uiState.update { it.copy(sessions = summaries, isLoading = false) }
+            _uiState.update { it.copy(sessions = summaries, sessionSpecies = speciesIndex, isLoading = false) }
         }
+    }
+
+    /** T202: Suchtext der Session-Liste */
+    fun setSessionSearch(query: String) {
+        _uiState.update { it.copy(sessionSearch = query) }
     }
 
     /** Session loeschen (mit anschliessendem Neuladen der Liste) */

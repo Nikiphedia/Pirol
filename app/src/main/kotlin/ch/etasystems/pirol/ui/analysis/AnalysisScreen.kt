@@ -33,6 +33,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -166,6 +171,15 @@ private fun SessionListView(
         }
     }
     val selectedCount = state.selectedIds.size
+    // T202: Artsuche (Trefferzahl je Session aus dem beim Laden aufgebauten Index)
+    val nameResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
+    var searchOpen by remember { mutableStateOf(state.sessionSearch.isNotEmpty()) }
+    val searchCounts: Map<String, Int>? = remember(state.sessionSearch, state.sessionSpecies) {
+        if (state.sessionSearch.isBlank()) null
+        else state.sessionSpecies.mapValues { (_, names) ->
+            SpeciesSearch.countMatches(state.sessionSearch, names) { nameResolver.resolve(it) }
+        }
+    }
 
     if (showBatchDeleteDialog) {
         AlertDialog(
@@ -290,13 +304,20 @@ private fun SessionListView(
         } else
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = stringResource(R.string.analysis_aufnahmen),
                 style = MaterialTheme.typography.headlineSmall
             )
+            // T202: Artsuche gleich neben der Ueberschrift (Feld klappt per Icon auf)
+            IconButton(onClick = {
+                searchOpen = !searchOpen
+                if (!searchOpen) viewModel.setSessionSearch("")
+            }) {
+                Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.analysis_suche_art))
+            }
+            Spacer(modifier = Modifier.weight(1f))
             if (state.sessions.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.analysis_ses, state.sessions.size),
@@ -304,6 +325,15 @@ private fun SessionListView(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+        if (searchOpen) {
+            OutlinedTextField(
+                value = state.sessionSearch,
+                onValueChange = { viewModel.setSessionSearch(it) },
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.analysis_suche_art)) },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -331,15 +361,24 @@ private fun SessionListView(
                     )
                 }
             }
+            searchCounts != null && searchCounts.values.none { it > 0 } -> {
+                Text(
+                    text = stringResource(R.string.analysis_keine_treffer),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             else -> {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
-                        items = state.sessions,
+                        items = if (searchCounts == null) state.sessions
+                        else state.sessions.filter { (searchCounts[it.metadata.sessionId] ?: 0) > 0 },
                         key = { it.metadata.sessionId }
                     ) { summary ->
                         val active = sessionManager.isActiveSession(summary.sessionDir)
+                        Column {
                         SessionCard(
                             summary = summary,
                             onClick = {
@@ -352,6 +391,15 @@ private fun SessionListView(
                             selectable = !active,
                             onLongClick = { viewModel.startSelection(summary) }
                         )
+                        searchCounts?.get(summary.metadata.sessionId)?.let { n ->
+                            Text(
+                                text = stringResource(R.string.analysis_treffer, n),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 12.dp, top = 2.dp)
+                            )
+                        }
+                        }
                     }
                 }
             }
@@ -398,6 +446,10 @@ private fun SessionDetailContent(
     val context = LocalContext.current
     var showAddManualDialog by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
+    // T202: Artsuche im Session-Detail (filtert die Detektionsliste)
+    val detailResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
+    var detailSearchOpen by remember { mutableStateOf(false) }
+    var detailSearch by remember { mutableStateOf("") }
 
     // T74: Phenology
     val phenologyRepository: ch.etasystems.pirol.ml.PhenologyRepository = org.koin.compose.koinInject()
@@ -447,21 +499,59 @@ private fun SessionDetailContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            // T194: Raven-Tabelle + Upload in der Kopfzeile (Icon-Buttons, 48 dp)
+            // T202: Kopfzeile mit Wiedergabe (Play + Position), Suche, Raven; Upload im Ueberlaufmenue (je 48 dp)
             val uploadStatus by viewModel.uploadStatus.collectAsState()
+            if (state.hasRecording) {
+                IconButton(onClick = { viewModel.playCurrentChunk() }) {  // T173: Start/Stopp-Umschalter
+                    Icon(
+                        imageVector = if (state.playingKey == PlaybackKeys.SESSION)
+                            Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(R.string.common_play)
+                    )
+                }
+                Text(
+                    text = formatSecondsAsMinSec(state.playbackPositionSec ?: 0f) + " / " +
+                        formatSecondsAsMinSec(state.recordingDurationSec),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = {
+                detailSearchOpen = !detailSearchOpen
+                if (!detailSearchOpen) detailSearch = ""
+            }) {
+                Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.analysis_suche_art))
+            }
             IconButton(onClick = { viewModel.openRavenTable() }) {
                 Icon(Icons.Filled.TableChart, contentDescription = stringResource(R.string.analysis_raven_oeffnen))
             }
-            IconButton(
-                onClick = { viewModel.uploadSession() },
-                enabled = !(uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress)
-            ) {
-                if (uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Filled.Upload, contentDescription = stringResource(R.string.analysis_session_hochladen))
+            Box {
+                var menuOpen by remember { mutableStateOf(false) }
+                IconButton(onClick = { menuOpen = true }) {
+                    if (uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.analysis_mehr))
+                    }
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.analysis_session_hochladen)) },
+                        leadingIcon = { Icon(Icons.Filled.Upload, contentDescription = null) },
+                        enabled = !(uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress),
+                        onClick = { menuOpen = false; viewModel.uploadSession() }
+                    )
                 }
             }
+        }
+        if (detailSearchOpen) {
+            OutlinedTextField(
+                value = detailSearch,
+                onValueChange = { detailSearch = it },
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.analysis_suche_art)) },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         // T109: Session-Bemerkung (editierbar)
@@ -545,23 +635,6 @@ private fun SessionDetailContent(
 
         // Sonogramm + Aufnahme-Wiedergabe
         if (state.hasRecording) {
-            // Play/Stop fuer gesamte Aufnahme (Chunk-Navigation entfernt in T46, kommt in T48)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = {
-                    viewModel.playCurrentChunk()  // T173: Start/Stopp-Umschalter
-                }) {
-                    Icon(
-                        imageVector = if (state.playingKey == PlaybackKeys.SESSION)
-                            Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = stringResource(R.string.common_play)
-                    )
-                }
-            }
-
             // Sonogramm (T107: gemeinsame Einstellungen, Langdruck oeffnet das Panel darunter)
             val specRepo: SpectrogramSettingsRepository = org.koin.compose.koinInject()
             val settings by specRepo.settings.collectAsState()
@@ -711,8 +784,10 @@ private fun SessionDetailContent(
             }
 
             // T73: Lock-First sortieren, dann nach lastSeenAtMs desc (AC6)
-            val sortedDetections = remember(state.detections) {
-                state.detections.sortedWith(
+            val sortedDetections = remember(state.detections, detailSearch) {
+                state.detections.filter {
+                    SpeciesSearch.matches(detailSearch, detailResolver.resolve(it.scientificName), it.scientificName)
+                }.sortedWith(
                     compareByDescending<ch.etasystems.pirol.ml.DetectionResult> { it.lockSpecies }
                         .thenByDescending { it.lastSeenAtMs }
                 )

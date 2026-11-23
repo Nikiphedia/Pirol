@@ -604,4 +604,8 @@
     <string name="waveform_band_hint">The frequency range acts as a band-pass on the waveform.</string>
     <string name="waveform_peak_label">Peak</string>
     <string name="waveform_clip_label">Clipping</string>
+    <string name="analysis_suche_art">Search species</string>
+    <string name="analysis_treffer">%1$d matches</string>
+    <string name="analysis_keine_treffer">No recording contains this species.</string>
+    <string name="analysis_mehr">More</string>
 </resources>
