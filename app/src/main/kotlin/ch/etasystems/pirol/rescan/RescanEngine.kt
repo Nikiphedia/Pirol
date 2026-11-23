@@ -19,8 +19,18 @@ import ch.etasystems.pirol.ml.SecondaryChecker
 import ch.etasystems.pirol.ml.SpeciesKey
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.util.parseInstantCompat
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -67,6 +77,57 @@ class RescanEngine(
     val recording: StateFlow<Boolean> get() = pipeline.runningState
 
     private val busy = Mutex()
+
+    // T250/M4: Der Rescan laeuft im Scope dieses Singletons, nicht im ViewModel. Verlaesst der Nutzer die
+    // Analyse (ViewModel verworfen), laeuft er weiter; ein neues ViewModel haengt sich an [active] an.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var job: Job? = null
+
+    /** Laufender Rescan (Session-Ordner + Fortschritt 0..1), null = keiner */
+    data class Active(val sessionDir: File, val progress: Float)
+    private val _active = MutableStateFlow<Active?>(null)
+    val active: StateFlow<Active?> = _active.asStateFlow()
+
+    /** Ende eines Rescans: Erfolg, Abbruch oder Fehler (Ausnahme zur Meldungswahl) */
+    sealed class Outcome {
+        abstract val sessionDir: File
+        data class Done(override val sessionDir: File, val info: RescanInfo) : Outcome()
+        data class Cancelled(override val sessionDir: File) : Outcome()
+        data class Failed(override val sessionDir: File, val error: Throwable) : Outcome()
+    }
+    private val _outcomes = MutableSharedFlow<Outcome>(extraBufferCapacity = 4)
+    val outcomes: SharedFlow<Outcome> = _outcomes.asSharedFlow()
+
+    /** Rescan im Engine-Scope starten; ignoriert, wenn bereits einer laeuft. */
+    fun start(sessionDir: File, options: RescanOptions) {
+        synchronized(this) {
+            if (job?.isActive == true || _active.value != null) return
+            _active.value = Active(sessionDir, 0f)
+            job = scope.launch {
+                var lastPct = -1
+                val outcome = try {
+                    Outcome.Done(sessionDir, run(sessionDir, options) { p ->
+                        val pct = (p * 100).toInt()
+                        if (pct != lastPct) {
+                            lastPct = pct
+                            _active.value = Active(sessionDir, p)
+                        }
+                    })
+                } catch (e: CancellationException) {
+                    Outcome.Cancelled(sessionDir)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Rescan fehlgeschlagen", e)
+                    Outcome.Failed(sessionDir, e)
+                } finally {
+                    _active.value = null
+                }
+                _outcomes.tryEmit(outcome)
+            }
+        }
+    }
+
+    /** Laufenden Rescan abbrechen (nichts wird geschrieben, ausser er ist schon im Schreiben) */
+    fun cancel() { job?.cancel() }
 
     /** Installierte Modelle (aktives zuerst) */
     fun models(): List<ModelManager.InstalledModel> = modelManager.listInstalledModels()

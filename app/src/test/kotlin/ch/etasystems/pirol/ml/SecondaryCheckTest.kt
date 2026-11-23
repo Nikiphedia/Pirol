@@ -181,4 +181,31 @@ class SecondaryCheckTest {
         assertTrue(line.contains("\"secondaryStatus\":\"DISAGREES\""))
         assertEquals(d, jsonLenient.decodeFromString<DetectionResult>(line))
     }
+
+    // ── T250 ──
+
+    @Test
+    fun appliesTo_requiresSameSpecies_N1() {
+        val d = det(start = 0f)
+        assertTrue(SecondaryCheck.appliesTo(d, "Turdus_merula", 0f))
+        // Alternative gewaehlt: Detektion traegt eine andere Art, spaetes Ergebnis der alten Art wird verworfen
+        assertFalse(SecondaryCheck.appliesTo(d.copy(scientificName = "Parus major"), "Turdus_merula", 0f))
+    }
+
+    @Test
+    fun evaluateScores_matchesEvaluate_N3() {
+        val names = listOf("Turdus_merula", "Parus_major", "Erithacus_rubecula")
+        val idx = SecondaryCheck.keyIndex(names)
+        val scores = floatArrayOf(0.1f, 0.8f, 0.3f)
+        val results = names.indices.map { cr(names[it], scores[it]) }.sortedByDescending { it.confidence }
+        for (species in listOf("Turdus merula", "Parus major", "Aquila chrysaetos")) {
+            val a = SecondaryCheck.evaluate(species, results, idx.keys, 0.5f)
+            val b = SecondaryCheck.evaluateScores(species, scores, names, idx, 0.5f)
+            assertEquals(species, a, b)
+        }
+        // Regionsfilter: Top-Art nicht plausibel -> naechste plausible
+        val b = SecondaryCheck.evaluateScores("Turdus merula", scores, names, idx, 0.2f) { it != "Parus_major" }
+        assertEquals("Erithacus_rubecula", b!!.topSpecies)
+        assertNull(SecondaryCheck.evaluateScores("Turdus merula", floatArrayOf(Float.NaN, Float.NaN, Float.NaN), names, idx, 0.5f))
+    }
 }

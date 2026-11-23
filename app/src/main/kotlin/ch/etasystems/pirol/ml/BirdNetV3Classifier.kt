@@ -114,6 +114,7 @@ class BirdNetV3Classifier(
     private var sessionFailed = false
     private var labels: List<Pair<String, String>> = emptyList() // (scientific, common)
     @Volatile private var labelNameSet: Set<String> = emptySet()
+    @Volatile private var labelNameList: List<String> = emptyList()  // T250/N3: einmal je Labelladen
 
     // T103a: Profil, mit dem Session und Labels geladen wurden (wechselt nur ueber resetSession)
     @Volatile private var profile: ModelProfile = currentProfile()
@@ -167,6 +168,27 @@ class BirdNetV3Classifier(
         threshold: Float
     ): List<AudioClassifier.ClassifierResult> =
         classifyWithEmbedding(samples, sampleRate, topK, threshold).results
+
+    /** T250/N3: alle Scores direkt aus dem Ausgang, ohne Ergebnisobjekte und Sortierung */
+    override fun scoreAll(samples: FloatArray, sampleRate: Int): AudioClassifier.ScoreTable? {
+        if (samples.isEmpty()) return null
+        val session = acquireSession() ?: return null
+        return try {
+            val p = profile
+            val resampled = if (sampleRate != p.sampleRate) {
+                AudioResampler.resample(samples, sampleRate, p.sampleRate, AudioResampler.defaultMode)
+            } else samples
+            val result = runInferenceRaw(session, prepareChunk(resampled)) ?: return null
+            val scores = result.use { res -> extractPredictions(res, session) }
+            val names = labelNameList
+            if (names.size != scores.size) null else AudioClassifier.ScoreTable(scores, names)
+        } catch (e: Exception) {
+            Log.e(TAG, "Score-Abfrage fehlgeschlagen", e)
+            null
+        } finally {
+            endRun()
+        }
+    }
 
     /**
      * Klassifiziert einen Audio-Chunk und liefert das Embedding aus DEMSELBEN Modell-Durchlauf (T61).
@@ -439,6 +461,7 @@ class BirdNetV3Classifier(
             val languages = SpeciesNameResolver.AVAILABLE_LANGUAGES.mapTo(HashSet()) { it.first }
             val parsed = ModelLabelParser.parse(text, p.labelFormat, languages, p.genericLabels)
             labels = parsed.map { it.scientificName to it.commonName }
+            labelNameList = parsed.map { it.scientificName }
             labelNameSet = parsed.mapTo(HashSet(parsed.size * 2)) { it.scientificName.replace(' ', '_') }
             labelsProfileId = p.id
             if (labels.size != p.speciesCount) {

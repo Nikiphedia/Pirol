@@ -28,6 +28,12 @@ interface AudioClassifier {
         threshold: Float = 0.5f
     ): ClassificationOutput = ClassificationOutput(classify(samples, sampleRate, topK, threshold), null)
 
+    /**
+     * T250/N3: alle Scores direkt als Array (ohne je Art ein Ergebnisobjekt, ohne Sortierung).
+     * null = nicht unterstuetzt (Aufrufer faellt auf [classify] zurueck) oder Fehler.
+     */
+    fun scoreAll(samples: FloatArray, sampleRate: Int): ScoreTable? = null
+
     /** Embedding extrahieren (null wenn nicht unterstuetzt) */
     fun extractEmbedding(samples: FloatArray, sampleRate: Int): FloatArray?
 
@@ -60,6 +66,9 @@ interface AudioClassifier {
 
     /** T103a: wissenschaftliche Namen aller Labels (Unterstrich-Format), leer wenn nicht geladen */
     val labelScientificNames: Set<String> get() = emptySet()
+
+    /** T250/N3: Scores je Label-Index; [names] = wissenschaftliche Namen (gleiche Reihenfolge, wiederverwendet) */
+    class ScoreTable(val scores: FloatArray, val names: List<String>)
 
     /** Ergebnis von [classifyWithEmbedding]: Treffer + optionales Embedding (roh, nicht normalisiert) */
     class ClassificationOutput(

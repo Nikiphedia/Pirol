@@ -98,4 +98,23 @@ class SecondaryCheckerTest {
         assertTrue(checker.process(window(0f, "Turdus merula")).isEmpty())
         assertEquals(1, checker.checked)
     }
+
+    /** T250/N4: Fehler im Callback beenden die Schleife nicht */
+    @Test
+    fun runLoop_survivesCallbackException() = runBlocking {
+        val fake = FakeClassifier(listOf(cr("Turdus_merula", 0.6f)))
+        val seen = Collections.synchronizedList(mutableListOf<Float>())
+        val done = CompletableDeferred<Unit>()
+        val checker = SecondaryChecker(fake, 0.5f, capacity = 4) { w, _ ->
+            seen += w.windowStartSec
+            if (w.windowStartSec == 0f) throw IllegalStateException("kaputt")
+            done.complete(Unit)
+        }
+        checker.submit(window(0f, "Turdus merula"))
+        checker.submit(window(3f, "Turdus merula"))
+        val job = launch(Dispatchers.Default) { checker.runLoop() }
+        withTimeout(5_000) { done.await() }
+        job.cancelAndJoin()
+        assertEquals(listOf(0f, 3f), seen.toList())
+    }
 }

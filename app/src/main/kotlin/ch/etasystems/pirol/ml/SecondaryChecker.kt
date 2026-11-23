@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ml
 
 import android.util.Log
 import ch.etasystems.pirol.audio.dsp.AudioResampler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -60,6 +61,7 @@ class SecondaryChecker(
     private val droppedCount = AtomicInteger(0)
     private val checkedCount = AtomicInteger(0)
     @Volatile private var labelKeys: Set<String> = emptySet()
+    @Volatile private var keyIndexCache: Pair<List<String>, Map<String, Int>>? = null  // T250/N3
 
     /** Fensterlaenge des Zweitmodells (ms) */
     val windowMs: Int get() = classifier.windowMs
@@ -87,9 +89,16 @@ class SecondaryChecker(
         while (true) {
             currentCoroutineContext().ensureActive()
             val window = queue.receive()
-            val context = contextFor(window)
-            val results = process(window, context)
-            onResult(window, results)
+            // T250/N4: ein Fehler beendet die Schleife nicht (sonst bleibt das Zweitmodell stumm)
+            try {
+                val context = contextFor(window)
+                val results = process(window, context)
+                onResult(window, results)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Zweitmodell: Fenster uebersprungen", e)
+            }
         }
     }
 
@@ -133,6 +142,15 @@ class SecondaryChecker(
                 targetSamples = SecondaryCheck.windowSamplesAt(classifier.windowMs, window.sampleRate))
             val samples = InferenceWorker.prepareInput(fitted, window.sampleRate, targetRate,
                 AudioResampler.defaultMode, window.highpass)
+            // T250/N3: Scores direkt aus dem Array (Klassifizierer ohne scoreAll: bisheriger Weg)
+            val table = classifier.scoreAll(samples, targetRate)
+            if (table != null) {
+                val cached = keyIndexCache?.takeIf { it.first === table.names }
+                    ?: (table.names to SecondaryCheck.keyIndex(table.names)).also { keyIndexCache = it }
+                window.targets.mapNotNull { t ->
+                    SecondaryCheck.evaluateScores(t.scientificName, table.scores, table.names, cached.second, threshold, isPlausible)?.let { t to it }
+                }
+            } else {
             // Alle Scores (Schwelle 0): die Detektionsart braucht ihren Score auch unter jeder Schwelle
             val results = classifier.classify(samples, targetRate, topK = Int.MAX_VALUE, threshold = 0f)
             if (labelKeys.isEmpty()) {
@@ -140,6 +158,7 @@ class SecondaryChecker(
             }
             window.targets.mapNotNull { t ->
                 SecondaryCheck.evaluate(t.scientificName, results, labelKeys, threshold, isPlausible)?.let { t to it }
+            }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Zweitmodell fehlgeschlagen", e)

@@ -59,6 +59,45 @@ object SecondaryCheck {
         }
     }
 
+    /** T250/N3: Index-Map Artschluessel -> Label-Index (einmal je Modell aufbauen) */
+    fun keyIndex(names: List<String>): Map<String, Int> {
+        val map = HashMap<String, Int>(names.size * 2)
+        for (i in names.indices) map.putIfAbsent(SpeciesKey.of(names[i]), i)
+        return map
+    }
+
+    /**
+     * T250/N3: wie [evaluate], aber direkt auf dem Score-Array (kein Objekt je Label, keine Sortierung).
+     * Die Regionsfilter-Pruefung laeuft nur fuer Kandidaten, die die bisher beste Art uebertreffen.
+     */
+    fun evaluateScores(
+        species: String,
+        scores: FloatArray,
+        names: List<String>,
+        keyIndex: Map<String, Int>,
+        threshold: Float,
+        isPlausible: (String) -> Boolean = { true }
+    ): Outcome? {
+        if (scores.isEmpty() || scores.all { it.isNaN() }) return null
+        val key = SpeciesKey.of(species)
+        val idx = keyIndex[key] ?: return Outcome(STATUS_NOT_CHECKABLE, null)
+        val score = scores[idx].let { if (it.isNaN()) 0f else it }
+        var best = -1
+        var bestScore = Float.NEGATIVE_INFINITY
+        for (i in scores.indices) {
+            val v = scores[i]
+            if (v.isNaN() || v < 0f || v <= bestScore) continue
+            if (isPlausible(names[i])) { best = i; bestScore = v }
+        }
+        return if (best >= 0 && best != idx && SpeciesKey.of(names[best]) != key &&
+            bestScore >= threshold && bestScore > score
+        ) {
+            Outcome(STATUS_DISAGREES, score, names[best], bestScore)
+        } else {
+            Outcome(STATUS_CHECKED, score)
+        }
+    }
+
     /**
      * Fensterzuordnung im Cluster (T70/T186): das Ergebnis eines Fensters gilt fuer die Detektion, wenn
      * es ihr bestes Fenster ist oder sie noch kein Ergebnis hat. So traegt ein Cluster das Ergebnis
@@ -66,6 +105,10 @@ object SecondaryCheck {
      */
     fun shouldApply(detection: DetectionResult, windowStartSec: Float): Boolean =
         detection.secondaryStatus == null || abs(detection.bestWindowStartSec - windowStartSec) < WINDOW_EPS_SEC
+
+    /** T250/N1: Ergebnis gilt nur, wenn die Detektion noch die Art des Ziels traegt und das Fenster passt */
+    fun appliesTo(detection: DetectionResult, targetSpecies: String, windowStartSec: Float): Boolean =
+        SpeciesKey.of(detection.scientificName) == SpeciesKey.of(targetSpecies) && shouldApply(detection, windowStartSec)
 
     /** Felder des Zweitmodells setzen (alle anderen Felder bleiben) */
     fun apply(detection: DetectionResult, modelId: String?, outcome: Outcome): DetectionResult =

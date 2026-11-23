@@ -88,7 +88,15 @@ object ExportNames {
         baseName: String,
         reserved: Set<String>,
         exists: (String) -> Boolean
-    ): String = stored ?: uniqueName(baseName, "zip") { it in reserved || exists(it) }
+    ): String = stored?.takeIf { storedMatchesBase(it, baseName) }
+        ?: uniqueName(baseName, "zip") { it in reserved || exists(it) }
+
+    /**
+     * T250/N5: gemerkter Name gilt nur weiter, wenn er noch zum Basisnamen passt (`base.zip` oder `base-N.zip`);
+     * hat sich z.B. die Bemerkung der Session geaendert, wird neu gewaehlt.
+     */
+    fun storedMatchesBase(stored: String, baseName: String): Boolean =
+        stored == "$baseName.zip" || Regex("^" + Regex.escape(baseName) + "-\\d+\\.zip$").matches(stored)
 
     private fun join(vararg parts: String): String = parts.filter { it.isNotEmpty() }.joinToString("_")
 }

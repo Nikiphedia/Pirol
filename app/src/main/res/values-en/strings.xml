@@ -738,4 +738,17 @@
     <string name="ui_alarm_gesetzt_24h">Alarm active for %1$s (24 h)</string>
     <string name="ui_alarm_entfernt">Alarm removed for %1$s</string>
     <string name="settings_alarm_bis">until %1$s</string>
+    <string name="model_err_unreadable">File not readable</string>
+    <string name="model_err_too_small">File too small or invalid</string>
+    <string name="model_err_not_stored">File could not be saved</string>
+    <string name="model_err_labels_missing">Labels for %1$s are missing — check the internet connection or import the label CSV as well</string>
+    <string name="model_err_space">Not enough storage: %1$d MB free</string>
+    <string name="model_err_space_needed">Not enough storage: %1$d MB free, %2$d MB needed</string>
+    <string name="model_err_no_download">No download available for %1$s</string>
+    <string name="model_err_label_file">Label file not available</string>
+    <string name="model_err_http">Server responded with HTTP %1$d</string>
+    <string name="model_err_http_429">Server responded with HTTP 429 (too many requests, try again later)</string>
+    <string name="model_err_incomplete">Download incomplete (%1$d MB)</string>
+    <string name="model_err_corrupt">File corrupt (checksum does not match)</string>
+    <string name="analysis_rescan_hinweis">Screen stays on. Keep the app open until the re-analysis finishes.</string>
 </resources>

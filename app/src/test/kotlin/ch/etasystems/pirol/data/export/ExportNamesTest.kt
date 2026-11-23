@@ -80,4 +80,11 @@ class ExportNamesTest {
         // eigener gemerkter Name bleibt
         assertEquals("$base.zip", ExportNames.chooseZipName("$base.zip", base, reserved) { true })
     }
+
+    @Test fun `gemerkter Name gilt nur zum selben Basisnamen (T250 N5)`() {
+        assertEquals("a_b-2.zip", ExportNames.chooseZipName("a_b-2.zip", "a_b") { false })
+        // Bemerkung geaendert: neuer Basisname -> neu gewaehlt
+        assertEquals("a_neu.zip", ExportNames.chooseZipName("a_b-2.zip", "a_neu") { false })
+        assertEquals(false, ExportNames.storedMatchesBase("a_bc.zip", "a_b"))
+    }
 }

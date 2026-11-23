@@ -214,6 +214,8 @@ class RecordingPipeline(
     // T54-Fix: startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf
     // demselben Single-Thread-Kontext, damit endSession() niemals vor einem Append ausgefuehrt wird.
     private val sessionDispatcher = ioDispatcher.limitedParallelism(1)
+    /** T250/H1: Anzahl ausstehender endSession-Bloecke (Start im selben Moment darf nicht "laufende Session" annehmen) */
+    private val pendingEnds = java.util.concurrent.atomic.AtomicInteger(0)
 
     private var inferenceJob: Job? = null
     // T224: Zweitmodell (nur Anzeige), pro Aufnahme
@@ -340,7 +342,9 @@ class RecordingPipeline(
         // wenn die Session steht (sessionReady) - sonst wuerde der Preroll-Hop ohne Session verworfen.
         val sessionReady = CompletableDeferred<Unit>()
         var prerollToFeed: PrerollCapture? = null
-        if (!session.isActive) {
+        // T250/H1: Steht noch ein endSession aus, gilt die Session als beendet; der Start reiht sich
+        // auf dem sessionDispatcher hinter dem Ende ein (sonst lief die neue Aufnahme ohne Session)
+        if (!session.isActive || pendingEnds.get() > 0) {
             prerollToFeed = preroll
             persistedSamples.set(0L)
             prerollSamplesFed.set(0L)
@@ -461,7 +465,8 @@ class RecordingPipeline(
         val modelId = (secondary ?: return).modelId  // null = Aufnahme inzwischen beendet
         val changed = results.mapNotNull { (target, outcome) ->
             detectionListState.modifyDetection(target.id) { current ->
-                if (SecondaryCheck.shouldApply(current, window.windowStartSec)) SecondaryCheck.apply(current, modelId, outcome) else null
+                // T250/N1: nur, wenn die Detektion noch die Art des Ziels traegt (Alternative inzwischen gewaehlt)
+                if (SecondaryCheck.appliesTo(current, target.scientificName, window.windowStartSec)) SecondaryCheck.apply(current, modelId, outcome) else null
             }?.id
         }
         if (changed.isEmpty() || !session.isActive) return
@@ -550,7 +555,9 @@ class RecordingPipeline(
         // Detektionsliste leeren — jede Aufnahme startet frisch (T33-AP5)
         detectionListState.clear()
         _storageFallback.value = false
+        pendingEnds.incrementAndGet()  // T250/H1: bis zum Ende von endSession
         return scope.launch(sessionDispatcher) {
+          try {
             // T118: alle Appends (inkl. Preroll + Rest) liegen vor diesem Block auf sessionDispatcher
             Log.i(TAG, "T118_STATS preroll_samples=$statsPreroll live_samples=$statsLive wav_samples=${session.recordedSampleCount}")
             val finishedSessionId = currentSessionId
@@ -571,6 +578,9 @@ class RecordingPipeline(
                 Log.e(TAG, "Nacharbeiten Session-Ende fehlgeschlagen", e)
             }
             if (finishedSessionId != null) _lastSessionId.value = finishedSessionId
+          } finally {
+            pendingEnds.decrementAndGet()
+          }
         }
     }
 
