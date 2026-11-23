@@ -106,6 +106,11 @@ class AppPreferences(context: Context) {
             ch.etasystems.pirol.ui.AppLanguage.systemLanguage()
         )
 
+    /** T220: true = Artnamen wissenschaftlich anzeigen, Landesname als Untertitel (Default aus). */
+    var scientificNamesDisplay: Boolean
+        get() = prefs.getBoolean("pirol_scientific_names_display", false)
+        set(value) = prefs.edit().putBoolean("pirol_scientific_names_display", value).apply()
+
     // --- Top-N Kandidaten-Anzeige (T52) ---
     /** true = Alternativen in SpeciesCard aufklappbar; false = Expand-Bereich verborgen. */
     var showTopNCandidates: Boolean

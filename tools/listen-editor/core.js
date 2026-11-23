@@ -219,11 +219,40 @@
       (off < 0 ? '-' : '+') + pad2(Math.floor(a / 60)) + ':' + pad2(a % 60);
   }
 
+  /* T220: Gattung = erster Teil des Namens (Unterstrich oder Leerzeichen) */
+  function genusOf(name) { return String(name || '').split(/[_ ]/)[0]; }
+
+  /* T220: Eintraege {s,o,f} nach Ordnung/Familie/Gattung filtern. Leerer Filter = alle. */
+  function filterTaxa(entries, f) {
+    f = f || {};
+    return entries.filter(function (e) {
+      return (!f.order || e.o === f.order) && (!f.family || e.f === f.family) && (!f.genus || genusOf(e.s) === f.genus);
+    });
+  }
+
+  /* T220: sortierte, eindeutige Werte der Ebene 'order' | 'family' | 'genus' */
+  function taxonLevels(entries, level) {
+    var seen = {};
+    entries.forEach(function (e) {
+      var v = level === 'genus' ? genusOf(e.s) : level === 'family' ? e.f : e.o;
+      if (v) seen[v] = 1;
+    });
+    return sortNames(Object.keys(seen));
+  }
+
+  /* T220: Anzeigename: wissenschaftlich als Titel (Landesname als Untertitel) oder umgekehrt */
+  function displayNames(sci, common, scientificMode) {
+    var sn = String(sci).replace(/_/g, ' ');
+    if (scientificMode) return { title: sn, sub: common || '' };
+    return { title: common || sn, sub: sn };
+  }
+
   function toText(obj) { return JSON.stringify(obj, null, 2) + '\n'; }
 
   var api = { TAXON_GROUPS: TAXON_GROUPS, normalizeName: normalizeName, validFormat: validFormat, parseMD: parseMD,
     inSeason: inSeason, seasonLabel: seasonLabel, emptyState: emptyState, stateFromJson: stateFromJson,
-    buildExport: buildExport, validate: validate, isoLocal: isoLocal, toText: toText, pad2: pad2 };
+    buildExport: buildExport, validate: validate, isoLocal: isoLocal, toText: toText, pad2: pad2,
+    genusOf: genusOf, filterTaxa: filterTaxa, taxonLevels: taxonLevels, displayNames: displayNames };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ListCore = api;
 })(typeof window !== 'undefined' ? window : this);

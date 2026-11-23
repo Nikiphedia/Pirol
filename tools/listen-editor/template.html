@@ -86,12 +86,29 @@ ul{margin:4px 0;padding-left:20px}
 </section>
 
 <section>
+  <h2>Nach Ordnung, Familie, Gattung waehlen</h2>
+  <div class="row">
+    <select id="bO"></select>
+    <select id="bF"></select>
+    <select id="bG"></select>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span class="mut" id="bCount"></span>
+    <button id="bAddAll">Alle hinzufuegen</button>
+    <button id="bRmAll">Alle entfernen</button>
+  </div>
+  <p class="mut">Ganze Familie oder Gattung mit einem Klick. Familiennamen nur wissenschaftlich (keine offene Quelle fuer Landesnamen im Projekt).</p>
+  <div id="bList"></div>
+</section>
+
+<section>
   <h2>Arten suchen</h2>
   <div class="row">
     <input id="q" type="search" placeholder="Name, wiss. Name oder Teilwort" autocomplete="off">
     <select id="sGroup"></select>
     <select id="sLang"></select>
   </div>
+  <label style="display:block;margin:6px 0"><input type="checkbox" id="sciMode"> Artnamen wissenschaftlich anzeigen (Landesname als Untertitel)</label>
   <div id="results"></div>
   <div class="row" style="margin-top:8px">
     <input id="manual" placeholder="Art ohne Treffer: Genus_species" autocapitalize="none">
@@ -134,7 +151,7 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
   var $ = function (id) { return document.getElementById(id); };
   var state = C.emptyState();
   var loadedSets = null; // geparstes JSON einer Sammeldatei
-  var index = [], byKey = {}, aliases = EMBEDDED_ALIASES, modelKeys = null, lang = 'de';
+  var index = [], byKey = {}, aliases = EMBEDDED_ALIASES, modelKeys = null, lang = 'de', sciMode = false;
   var srcText = 'Eingebetteter Index';
   var DEBOUNCE;
 
@@ -159,7 +176,7 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
   }
   function loadEmbedded() {
     index = EMBEDDED_INDEX.map(function (r) {
-      return { s: r[0], g: r[1], n: { de: r[2], en: r[3] }, m: r[4] === 1 };
+      return { s: r[0], g: r[1], n: { de: r[2], en: r[3] }, m: r[4] === 1, o: r[5] || '', f: r[6] || '' };
     });
     modelKeys = {};
     index.forEach(function (e) { if (e.m) modelKeys[keyOf(e.s)] = 1; });
@@ -173,10 +190,12 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
       var name = C.normalizeName(t.scientific_name);
       if (!name) return;
       var e = byKey[keyOf(name)];
-      if (!e) { e = { s: name, g: mapGroup(t.taxon_group, t.order), n: {}, m: false }; index.push(e); byKey[keyOf(name)] = e; }
+      if (!e) { e = { s: name, g: mapGroup(t.taxon_group, t.order), n: {}, m: false, o: '', f: '' }; index.push(e); byKey[keyOf(name)] = e; }
       var cn = t.common_names || {};
       Object.keys(cn).forEach(function (l) { if (cn[l]) { e.n[l] = cn[l]; langs[l] = 1; } });
       if (e.g === 'other' || e.g === 'insecta') { var g2 = mapGroup(t.taxon_group, t.order); if (g2 !== 'other') e.g = g2; }
+      if (t.order) e.o = t.order;
+      if (t.family) e.f = t.family;
       if (t.classifier_support && t.classifier_support.length) e.m = true;
     });
     modelKeys = modelKeys || {};
@@ -197,7 +216,7 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
       if (!name) continue;
       keys[keyOf(name)] = 1; n++;
       if (!byKey[keyOf(name)]) {
-        var e = { s: name, g: mapGroup(f[iCls], f[iOrd]), n: { en: iCom >= 0 ? f[iCom] : '' }, m: true };
+        var e = { s: name, g: mapGroup(f[iCls], f[iOrd]), n: { en: iCom >= 0 ? f[iCom] : '' }, m: true, o: iOrd >= 0 ? (f[iOrd] || '').trim() : '', f: '' };
         index.push(e); byKey[keyOf(name)] = e; added++;
       } else if (iOrd >= 0) {
         var ex = byKey[keyOf(name)], g2 = mapGroup(f[iCls], f[iOrd]);
@@ -280,8 +299,8 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
     out = out.slice(0, 40).map(function (x) { return x.e; });
     if (!total) { box.innerHTML = '<p class="mut">Keine Treffer.</p>'; return; }
     box.innerHTML = out.map(function (e, k) {
-      var on = have[keyOf(e.s)];
-      return '<div class="item"><div class="nm"><b>' + esc(dispName(e) || e.s.replace(/_/g, ' ')) + '</b><small>' + esc(e.s.replace(/_/g, ' ')) + '</small> <span class="badge">' + esc(e.g) + '</span></div>' +
+      var on = have[keyOf(e.s)], dn2 = C.displayNames(e.s, dispName(e), sciMode);
+      return '<div class="item"><div class="nm"><b>' + esc(dn2.title) + '</b><small>' + esc(dn2.sub) + '</small> <span class="badge">' + esc(e.g) + '</span></div>' +
         '<button data-add="' + k + '"' + (on ? ' disabled' : '') + '>' + (on ? 'In Liste' : 'Hinzufuegen') + '</button></div>';
     }).join('') + (total > out.length ? '<p class="mut">' + total + ' Treffer, die ersten ' + out.length + ' angezeigt. Suche verfeinern.</p>' : '');
     box._items = out;
@@ -296,7 +315,7 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
     if (!e && name) info.common_name = name;
     var g = group || (e && e.g);
     if (g && g !== state.set.taxon_group) info.taxon_group = g;
-    renderList(); renderResults(); setMsg('', '');
+    renderList(); renderResults(); renderBrowse(); setMsg('', '');
   }
 
   /* ---------- Liste ---------- */
@@ -328,9 +347,9 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
       var nm = nameFor(sci);
       if (g && grp !== g) return;
       if (q && fold(sci.replace(/_/g, ' ') + ' ' + nm).indexOf(q) < 0) return;
-      var seas = C.seasonLabel(inf.season);
+      var seas = C.seasonLabel(inf.season), dn3 = C.displayNames(sci, nm, sciMode);
       html.push('<details class="ed" data-sci="' + esc(sci) + '"' + (openRows[sci] ? ' open' : '') + '><summary>' +
-        '<div class="nm" style="flex:1;min-width:0"><b>' + esc(nm || sci.replace(/_/g, ' ')) + '</b><br><small class="mut">' + esc(sci.replace(/_/g, ' ')) + '</small> <span class="badge">' + esc(grp) + '</span>' +
+        '<div class="nm" style="flex:1;min-width:0"><b>' + esc(dn3.title) + '</b><br><small class="mut">' + esc(dn3.sub) + '</small> <span class="badge">' + esc(grp) + '</span>' +
         (seas ? ' <span class="badge">Saison ' + esc(seas) + '</span>' : '') + '</div>' +
         '<button class="x" data-rm="1" aria-label="Entfernen">Entfernen</button></summary>' +
         '<div data-sci="' + esc(sci) + '">' +
@@ -364,7 +383,7 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
       ev.preventDefault();
       state.species = state.species.filter(function (n) { return n !== sci; });
       delete state.info[sci]; delete openRows[sci];
-      renderList(); renderResults();
+      renderList(); renderResults(); renderBrowse();
     } else if (t.closest('[data-addper]')) {
       state.info[sci].season.push({ from: '', to: '' }); openRows[sci] = true; renderList();
     } else if (t.closest('[data-delper]')) {
@@ -392,6 +411,60 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
   });
   $('q').addEventListener('input', function () { clearTimeout(DEBOUNCE); DEBOUNCE = setTimeout(renderResults, 150); });
   $('sGroup').addEventListener('change', renderResults);
+  $('sciMode').addEventListener('change', function () { sciMode = $('sciMode').checked; renderResults(); renderList(); renderBrowse(); });
+
+  /* ---------- T220: Ordnung / Familie / Gattung ---------- */
+  function opts(sel, label, vals, cur) {
+    sel.innerHTML = '<option value="">' + label + '</option>' + vals.map(function (v) { return '<option' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
+  }
+  function browseFilter() { return { order: $('bO').value, family: $('bF').value, genus: $('bG').value }; }
+  function browseHits() {
+    var f = browseFilter();
+    return (f.order || f.family || f.genus) ? C.filterTaxa(index, f) : [];
+  }
+  function renderBrowse(level) {
+    var f = browseFilter();
+    // tiefere Ebenen zuruecksetzen, wenn eine hoehere wechselt
+    if (level === 'order') { f.family = f.genus = ''; }
+    if (level === 'family') { f.genus = ''; }
+    var byO = C.filterTaxa(index, { order: f.order });
+    opts($('bO'), 'Alle Ordnungen', C.taxonLevels(index, 'order'), f.order);
+    opts($('bF'), 'Alle Familien', C.taxonLevels(byO, 'family'), f.family);
+    opts($('bG'), 'Alle Gattungen', C.taxonLevels(C.filterTaxa(index, { order: f.order, family: f.family }), 'genus'), f.genus);
+    var hits = browseHits(), have = {}, box = $('bList');
+    state.species.forEach(function (n) { have[keyOf(n)] = 1; });
+    var sel = !!(f.family || f.genus), n = hits.length, inList = hits.filter(function (e) { return have[keyOf(e.s)]; }).length;
+    $('bCount').textContent = n ? n + ' Arten (' + inList + ' in Liste)' : 'Ordnung, Familie oder Gattung waehlen';
+    $('bAddAll').disabled = !sel || inList === n; $('bRmAll').disabled = !sel || !inList;
+    var shown = hits.slice(0, 100);
+    box.innerHTML = shown.map(function (e, k) {
+      var dn = C.displayNames(e.s, dispName(e), sciMode), on = have[keyOf(e.s)];
+      return '<div class="item"><div class="nm"><b>' + esc(dn.title) + '</b><small>' + esc(dn.sub) + '</small></div>' +
+        '<button data-badd="' + k + '"' + (on ? ' disabled' : '') + '>' + (on ? 'In Liste' : 'Hinzufuegen') + '</button></div>';
+    }).join('') + (n > shown.length ? '<p class="mut">' + n + ' Arten, die ersten ' + shown.length + ' angezeigt. Familie oder Gattung waehlen.</p>' : '');
+    box._items = shown;
+  }
+  $('bO').addEventListener('change', function () { renderBrowse('order'); });
+  $('bF').addEventListener('change', function () { renderBrowse('family'); });
+  $('bG').addEventListener('change', function () { renderBrowse(); });
+  $('bList').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-badd]'); if (!b) return;
+    addSpecies($('bList')._items[+b.getAttribute('data-badd')].s);
+  });
+  $('bAddAll').addEventListener('click', function () {
+    browseHits().forEach(function (e) {
+      if (state.species.some(function (n) { return keyOf(n) === keyOf(e.s); })) return;
+      state.species.push(e.s);
+      var info = state.info[e.s] = { common_name: '', taxon_group: '', season: [], note: '', extra: {} };
+      if (e.g && e.g !== state.set.taxon_group) info.taxon_group = e.g;
+    });
+    renderList(); renderResults(); renderBrowse(); setMsg('', '');
+  });
+  $('bRmAll').addEventListener('click', function () {
+    var rm = {}; browseHits().forEach(function (e) { rm[keyOf(e.s)] = 1; });
+    state.species = state.species.filter(function (n) { if (rm[keyOf(n)]) { delete state.info[n]; return false; } return true; });
+    renderList(); renderResults(); renderBrowse();
+  });
   $('sLang').addEventListener('change', function () { lang = $('sLang').value; renderResults(); renderList(); });
   $('lq').addEventListener('input', function () { clearTimeout(DEBOUNCE); DEBOUNCE = setTimeout(renderList, 150); });
   $('lGroup').addEventListener('change', renderList);
@@ -416,14 +489,14 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
     state = res.state;
     // Name fuer Arten ohne Index-Eintrag bleibt aus species_info erhalten
     openRows = {};
-    headToUi(); renderList(); renderResults();
+    headToUi(); renderList(); renderResults(); renderBrowse();
     $('lGroup').value = '';
     setMsg(res.warnings.length ? res.warnings.join(' | ') : 'Liste geladen (' + state.species.length + ' Arten).', res.warnings.length ? 'warn' : 'mut');
   }
   $('bNew').addEventListener('click', function () {
     if (state.species.length && !confirm('Aktuelle Liste verwerfen?')) return;
     state = C.emptyState(); loadedSets = null; $('setPick').classList.add('hide');
-    headToUi(); renderList(); renderResults(); setMsg('Neue Liste.', 'mut');
+    headToUi(); renderList(); renderResults(); renderBrowse(); setMsg('Neue Liste.', 'mut');
   });
   $('bLoad').addEventListener('click', function () { $('fList').click(); });
   $('bMaster').addEventListener('click', function () { $('fMaster').click(); });
@@ -491,7 +564,7 @@ var EMBEDDED_ALIASES = /*ALIASES*/;
   fillGroup($('hGroup'), false); fillGroup($('sGroup'), true); fillGroup($('lGroup'), true);
   fillLangs(null);
   $('srcInfo').textContent = srcText;
-  headToUi(); renderList(); renderResults();
+  headToUi(); renderList(); renderResults(); renderBrowse();
 })();
 </script>
 </body>

@@ -73,6 +73,21 @@
     t('Alias- und Modellhinweis als Warnung', w.warnings.length >= 2 && w.errors.length === 0, w.warnings.join(';'));
     var s3 = clone(st); s3.species.push('turdus_X');
     t('Namensformat Warnung', C.validate(s3).warnings.length > 0);
+    // T220: Taxonomie-Auswahl und Namensumschaltung
+    var tx = [{ s: 'Parus_major', o: 'Passeriformes', f: 'Paridae' }, { s: 'Parus_ater', o: 'Passeriformes', f: 'Paridae' },
+      { s: 'Cyanistes_caeruleus', o: 'Passeriformes', f: 'Paridae' }, { s: 'Turdus_merula', o: 'Passeriformes', f: 'Turdidae' },
+      { s: 'Bubo_bubo', o: 'Strigiformes', f: 'Strigidae' }, { s: 'Roeseliana_roeselii', o: 'Orthoptera', f: '' }];
+    t('Gattung aus Name', C.genusOf('Parus_major') === 'Parus' && C.genusOf('Parus major') === 'Parus');
+    t('Ordnungen sortiert', eq(C.taxonLevels(tx, 'order'), ['Orthoptera', 'Passeriformes', 'Strigiformes']));
+    t('Familien ohne leere', eq(C.taxonLevels(tx, 'family'), ['Paridae', 'Strigidae', 'Turdidae']));
+    t('Gattungen einer Familie', eq(C.taxonLevels(C.filterTaxa(tx, { family: 'Paridae' }), 'genus'), ['Cyanistes', 'Parus']));
+    t('Filter Familie', C.filterTaxa(tx, { family: 'Paridae' }).length === 3);
+    t('Filter Gattung', eq(C.filterTaxa(tx, { genus: 'Parus' }).map(function (e) { return e.s; }), ['Parus_major', 'Parus_ater']));
+    t('Filter Ordnung+Familie', C.filterTaxa(tx, { order: 'Passeriformes', family: 'Turdidae' }).length === 1);
+    t('Leerer Filter = alle', C.filterTaxa(tx, {}).length === 6);
+    t('Name Landessprache', eq(C.displayNames('Parus_major', 'Kohlmeise', false), { title: 'Kohlmeise', sub: 'Parus major' }));
+    t('Name wissenschaftlich', eq(C.displayNames('Parus_major', 'Kohlmeise', true), { title: 'Parus major', sub: 'Kohlmeise' }));
+    t('Name ohne Landesname', eq(C.displayNames('X_y', '', false), { title: 'X y', sub: 'X y' }));
     return { results: res, example: out };
   }
   if (typeof module !== 'undefined' && module.exports) {

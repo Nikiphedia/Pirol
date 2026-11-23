@@ -25,7 +25,7 @@ for (const l of csv.slice(1)) {
   if (!l) continue;
   const f = l.split(';');
   const sci = f[iSci].trim().replace(/\s+/g, '_');
-  map.set(sci.toLowerCase(), [sci, mapGroup(f[iCls], f[iOrd]), '', f[iCom] || '', 1]);
+  map.set(sci.toLowerCase(), [sci, mapGroup(f[iCls], f[iOrd]), '', f[iCom] || '', 1, (f[iOrd] || '').trim(), '']);
 }
 for (const t of master.taxa) {
   const sci = t.scientific_name, k = sci.toLowerCase();
@@ -35,8 +35,10 @@ for (const t of master.taxa) {
     cur[2] = cn.de || '';
     if (cn.en) cur[3] = cn.en;
     if (cur[1] === 'other' || cur[1] === 'insecta') cur[1] = mapGroup(t.taxon_group, t.order);
+    if (t.order) cur[5] = t.order;
+    if (t.family) cur[6] = t.family;
   } else {
-    map.set(k, [sci, mapGroup(t.taxon_group, t.order), cn.de || '', cn.en || '', t.classifier_support && t.classifier_support.length ? 1 : 0]);
+    map.set(k, [sci, mapGroup(t.taxon_group, t.order), cn.de || '', cn.en || '', t.classifier_support && t.classifier_support.length ? 1 : 0, t.order || '', t.family || '']);
   }
 }
 const index = [...map.values()].sort((a, b) => (a[0] < b[0] ? -1 : 1));

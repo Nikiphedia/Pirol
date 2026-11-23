@@ -97,7 +97,7 @@ val appModule = module {
     single { SpectrogramSettingsRepository(get()) }
 
     // SpeciesNameResolver — Singleton, uebersetzt Artnamen in gewaehlte Sprache (T26)
-    single { SpeciesNameResolver(get()) }
+    single { SpeciesNameResolver(get()).also { it.scientificNames = get<AppPreferences>().scientificNamesDisplay } }  // T220
 
     // ModelManager — Singleton, Modell-Verfuegbarkeit + SAF-Import + Download (T22/T28/T37)
     single { ModelManager(get(), get()) }
