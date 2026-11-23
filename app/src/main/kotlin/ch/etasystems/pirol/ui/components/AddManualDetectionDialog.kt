@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -97,7 +98,8 @@ fun AddManualDetectionDialog(
 
     // T203: Kartenwahl
     var showMapPicker by remember { mutableStateOf(false) }
-    val gps = if (allowMapPick) koinInject<LocationProvider>().location.value else null
+    val gpsState = if (allowMapPick) koinInject<LocationProvider>().location.collectAsState() else null
+    val gps = gpsState?.value
 
     val canSave = selectedSpecies != null
 

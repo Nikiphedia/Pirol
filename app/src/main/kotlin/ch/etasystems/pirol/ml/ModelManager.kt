@@ -291,7 +291,7 @@ class ModelManager(
 
     /** Importierte CSV als Label-Datei von 3.0 final ablegen (Kopfzeile pruefen) */
     private fun importLabelFile(tempFile: File): ImportResult {
-        val header = tempFile.bufferedReader().use { it.readLine() }?.trimStart('﻿') ?: ""
+        val header = tempFile.bufferedReader().use { it.readLine() }?.trimStart('\uFEFF') ?: ""
         val profile = ModelProfile.CATALOG.firstOrNull {
             it.labelFormat == ModelProfile.LabelFormat.FINAL_CSV && it.labelFileName != null
         }

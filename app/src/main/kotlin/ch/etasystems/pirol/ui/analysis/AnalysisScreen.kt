@@ -310,7 +310,7 @@ private fun SessionListView(
                     )
                 }
             }
-        } else
+        } else {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -334,6 +334,7 @@ private fun SessionListView(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
         }
         if (searchOpen) {
             OutlinedTextField(

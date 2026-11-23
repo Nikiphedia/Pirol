@@ -37,7 +37,7 @@ object ModelLabelParser {
      * @throws IllegalArgumentException bei fehlender Spalte oder leerem wissenschaftlichem Namen
      */
     fun parseGeneric(text: String, spec: ModelProfile.GenericLabels): List<Label> {
-        val lines = text.trimStart('﻿').lineSequence().filter { it.isNotBlank() }.iterator()
+        val lines = text.trimStart('\uFEFF').lineSequence().filter { it.isNotBlank() }.iterator()
         if (!lines.hasNext()) return emptyList()
         val header = if (spec.header) splitCsvLine(lines.next(), spec.delimiter).map { it.trim() } else null
 
@@ -72,7 +72,7 @@ object ModelLabelParser {
             .drop(1)
             .filter { it.isNotBlank() }
             .map { line ->
-                val parts = line.trimStart('﻿').trim().split(";")
+                val parts = line.trimStart('\uFEFF').trim().split(";")
                 Label(parts.getOrElse(2) { "" }.trim(), parts.getOrElse(3) { "" }.trim())
             }
             .filter { it.scientificName.isNotEmpty() }
@@ -85,7 +85,7 @@ object ModelLabelParser {
      * Die Spalte `ix` bestimmt die Position; fehlt sie, gilt die Zeilenreihenfolge.
      */
     fun parseFinal(text: String, languages: Set<String>? = null): List<Label> {
-        val lines = text.trimStart('﻿').lineSequence().filter { it.isNotBlank() }.iterator()
+        val lines = text.trimStart('\uFEFF').lineSequence().filter { it.isNotBlank() }.iterator()
         if (!lines.hasNext()) return emptyList()
         val header = splitCsvLine(lines.next()).map { it.trim() }
         val ixCol = header.indexOf("ix")
