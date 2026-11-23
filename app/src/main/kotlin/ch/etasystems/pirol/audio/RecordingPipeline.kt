@@ -122,6 +122,26 @@ class RecordingPipeline(
         private const val TAG = "RecordingPipeline"
         /** T152: Timeout des Startfixes (Audio-Puffer des Service ist begrenzt) */
         private const val STARTUP_FIX_TIMEOUT_MS = 3_000L
+
+        /**
+         * T207: Ergebnisse eines Fensters aufteilen. Jede Art mit Konfidenz >= [threshold] wird eigene
+         * Detektion (Mehrfachdetektion); die Top-Art bleibt immer (wie bisher, auch unter der Schwelle).
+         * Arten unter der Schwelle haengen als Kandidaten (T27) an der Top-Art.
+         */
+        internal fun splitByThreshold(detections: List<DetectionResult>, threshold: Float): List<DetectionResult> {
+            if (detections.size <= 1) return detections
+            val sorted = detections.sortedByDescending { it.confidence }
+            val top = sorted.first()
+            val (primary, rest) = sorted.drop(1).partition { it.confidence >= threshold }
+            val candidates = rest.map { alt ->
+                DetectionCandidate(
+                    scientificName = alt.scientificName,
+                    commonName = alt.commonName,
+                    confidence = alt.confidence
+                )
+            }
+            return listOf(top.copy(candidates = candidates)) + primary
+        }
     }
 
     // T54-Fix: startSession, alle Audio-Appends (T118: inkl. Preroll) und endSession laufen auf
@@ -408,20 +428,12 @@ class RecordingPipeline(
         } else {
             detections
         }
-        // T27: Top-Ergebnis mit Kandidaten bestuecken, Rest wird zu Kandidaten
-        val topWithCandidates = if (locDetections.size > 1) {
-            val top = locDetections.first()
-            val candidates = locDetections.drop(1).map { alt ->
-                DetectionCandidate(
-                    scientificName = alt.scientificName,
-                    commonName = alt.commonName,
-                    confidence = alt.confidence
-                )
-            }
-            listOf(top.copy(candidates = candidates))
-        } else {
-            locDetections
-        }
+        // T27/T207: jede Art ueber der Schwelle wird eigene Detektion, Rest wird Kandidat der Top-Art
+        val config = inferenceWorker.config
+        val topWithCandidates = splitByThreshold(
+            locDetections,
+            InferenceConfig.effectiveThreshold(config.confidenceThreshold, classifier.minConfidence)
+        )
         // T26/T27: Artnamen in gewaehlter Sprache
         val geoDetections = topWithCandidates.map { det ->
             det.copy(

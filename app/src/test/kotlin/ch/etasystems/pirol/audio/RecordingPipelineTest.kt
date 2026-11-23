@@ -32,13 +32,16 @@ class RecordingPipelineTest {
 
     private val sr = 48000
 
-    private class FakeClassifier(private val hit: Boolean) : AudioClassifier {
-        override fun isModelAvailable() = true
-        override fun classify(samples: FloatArray, sampleRate: Int, topK: Int, threshold: Float) =
+    private class FakeClassifier(private val results: List<AudioClassifier.ClassifierResult>) : AudioClassifier {
+        constructor(hit: Boolean) : this(
             if (hit) listOf(
                 AudioClassifier.ClassifierResult("Turdus_merula", "Turdus merula", 0.9f, 0f, 3f),
                 AudioClassifier.ClassifierResult("Erithacus_rubecula", "Erithacus rubecula", 0.4f, 0f, 3f)
             ) else emptyList()
+        )
+        override fun isModelAvailable() = true
+        override fun classify(samples: FloatArray, sampleRate: Int, topK: Int, threshold: Float) =
+            results.filter { it.confidence >= threshold }.take(topK)
         override fun extractEmbedding(samples: FloatArray, sampleRate: Int): FloatArray? = null
         override fun resetSession() {}
         override val labelCount = 2
@@ -73,20 +76,23 @@ class RecordingPipelineTest {
         override suspend fun endSession(gpsStats: GpsStats?) { active = false; events += "end" }
     }
 
-    private class FakeHooks : PipelineHooks {
+    private class FakeHooks(
+        private val overlap: Int = 0,
+        private val cluster: Boolean = false
+    ) : PipelineHooks {
         val watchlistChecked: MutableList<String> = Collections.synchronizedList(mutableListOf())
         @Volatile var afterEndCalls = 0
         override fun loadInferenceConfig() = InferenceConfig(regionFilter = null, highpassEnabled = false)
-        override fun overlapPercent() = 0
+        override fun overlapPercent() = overlap
         override fun sessionNote(): String? = null
         override fun currentLocation() = LocationData(47.0, 8.0, null, 5f, 0L)
         override fun startLocation() {}
         override fun stopLocation(): GpsStats? = null
         override suspend fun awaitSpeciesNames() {}
         override fun resolveName(scientificName: String) = if (scientificName == "Turdus_merula") "Amsel" else scientificName
-        override fun clusterEnabled() = false
+        override fun clusterEnabled() = cluster
         override fun clusterRadiusM() = 0
-        override fun clusterTimeWindowMin() = 0
+        override fun clusterTimeWindowMin() = if (cluster) 5 else 0
         override fun checkWatchlist(detection: DetectionResult) { watchlistChecked += detection.scientificName }
         override suspend fun addEmbedding(block: AudioBlock, top: DetectionResult): FloatArray? = null
         override fun beforeSessionStart() {}
@@ -215,5 +221,74 @@ class RecordingPipelineTest {
         waitUntil("alle Samples eingespeist") { p.fedSamples() == (sr * 7).toLong() }
         p.onRecordingStopped()!!.join()
         assertEquals((sr * 7).toLong(), session.samples)  // genau einmal
+    }
+
+    // --- T207: Mehrfachdetektion im selben Fenster ---
+
+    private fun cr(name: String, conf: Float) = AudioClassifier.ClassifierResult(name, name.replace('_', ' '), conf, 0f, 3f)
+
+    /** Zwei Arten ueber der Schwelle (0.5) plus eine knapp darunter im selben Fenster. */
+    private val twoSpecies = listOf(
+        cr("Turdus_merula", 0.9f),
+        cr("Fringilla_coelebs", 0.7f),
+        cr("Erithacus_rubecula", 0.45f)
+    )
+
+    private suspend fun feed(flow: MutableSharedFlow<AudioChunk>, seconds: Int) {
+        var pos = 0
+        while (pos < sr * seconds) {
+            flow.emit(AudioChunk(pattern(pos, 4800), sr, 0L))
+            pos += 4800
+        }
+    }
+
+    @Test
+    fun twoSpeciesInSameWindow_bothDetectedAndPersisted() = runBlocking {
+        val session = FakeSession()
+        val hooks = FakeHooks()
+        val list = DetectionListState()
+        val p = RecordingPipeline(FakeClassifier(twoSpecies), dummyRegionFilter(), list, session, hooks, scope)
+        val flow = MutableSharedFlow<AudioChunk>(extraBufferCapacity = 64)
+        p.onRecordingStarted(flow, sr, null)
+        feed(flow, 4)  // genau ein 3-s-Fenster
+
+        waitUntil("Fenster persistiert") { session.detections.isNotEmpty() }
+        delay(200)
+        val listNames = list.getDetections().map { it.scientificName }.toSet()
+        assertEquals(setOf("Turdus_merula", "Fringilla_coelebs"), listNames)
+        val jsonlNames = session.detections.toList().map { it.scientificName }
+        assertEquals(listOf("Turdus_merula", "Fringilla_coelebs"), jsonlNames)
+        // Gleiches Fenster fuer beide
+        assertTrue(session.detections.all { it.chunkStartSec == 0f })
+        // Knapp unter der Schwelle: nur Kandidat der Top-Art, keine eigene Detektion
+        val top = list.getDetections().first { it.scientificName == "Turdus_merula" }
+        assertEquals(listOf("Erithacus_rubecula"), top.candidates.map { it.scientificName })
+        assertTrue(hooks.watchlistChecked.containsAll(listOf("Turdus_merula", "Fringilla_coelebs")))
+
+        p.onRecordingStopped()!!.join()
+    }
+
+    /** Overlap 50/67 %: gleiche Art in Nachbarfenstern wird zusammengefasst, verschiedene Arten nie. */
+    @Test
+    fun overlapWindows_sameSpeciesMerged_differentSpeciesKept() {
+        for (overlap in intArrayOf(50, 67)) runBlocking {
+            val session = FakeSession()
+            val hooks = FakeHooks(overlap = overlap, cluster = true)
+            val list = DetectionListState()
+            val p = RecordingPipeline(FakeClassifier(twoSpecies), dummyRegionFilter(), list, session, hooks, scope)
+            val flow = MutableSharedFlow<AudioChunk>(extraBufferCapacity = 64)
+            p.onRecordingStarted(flow, sr, null)
+            feed(flow, 6)  // mehrere ueberlappende Fenster
+
+            waitUntil("alle Samples eingespeist ($overlap %)") { p.fedSamples() == (sr * 6).toLong() }
+            waitUntil("Merge ueber mehrere Fenster ($overlap %)") {
+                list.getDetections().any { it.detectionCount >= 2 }
+            }
+            val dets = list.getDetections()
+            assertEquals("overlap=$overlap", setOf("Turdus_merula", "Fringilla_coelebs"), dets.map { it.scientificName }.toSet())
+            assertEquals("overlap=$overlap", 2, dets.size)
+            assertEquals("overlap=$overlap", 2, session.detections.size)
+            p.onRecordingStopped()!!.join()
+        }
     }
 }
