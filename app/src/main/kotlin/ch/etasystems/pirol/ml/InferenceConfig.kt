@@ -36,7 +36,10 @@ data class InferenceConfig(
     val highpassEnabled: Boolean = true,
 
     /** Ueberlappung der 3-s-Analysefenster in Prozent: 0 (Hop 3 s), 50 (1.5 s), 67 (1 s) — T110 */
-    val overlapPercent: Int = 0
+    val overlapPercent: Int = 0,
+
+    /** T190: Saison der Artenliste beachten (Default aus) */
+    val respectListSeason: Boolean = false
 ) {
     companion object {
         /** T156: wirksame Schwelle = max(globale Schwelle, Mindest-Konfidenz des Modells) */

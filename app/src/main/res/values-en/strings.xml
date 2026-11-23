@@ -624,4 +624,13 @@
     <string name="settings_section_export_upload">Export &amp; upload</string>
     <string name="settings_advanced">Advanced</string>
     <string name="settings_erkennungs_schwelle_hinweis">Applies to every species, including the strongest. Windows with no species above it produce no detection.</string>
+    <string name="settings_list_season_title">Respect species list season</string>
+    <string name="settings_list_season_hint">Applies to custom lists with season data: species outside their season are discarded (date = recording date). Off = season ignored.</string>
+    <string name="settings_list_to_watchlist">Copy to watchlist</string>
+    <string name="settings_list_to_watchlist_text">List \'%1$s\' (%2$s species): Merge keeps existing entries and adds the new ones. Replace replaces the whole watchlist.</string>
+    <string name="settings_list_merge">Merge</string>
+    <string name="settings_list_replace">Replace</string>
+    <string name="settings_list_to_watchlist_done">Watchlist: %1$s species</string>
+    <string name="settings_open_list_editor">Open list editor</string>
+    <string name="settings_open_list_editor_failed">List editor not available</string>
 </resources>

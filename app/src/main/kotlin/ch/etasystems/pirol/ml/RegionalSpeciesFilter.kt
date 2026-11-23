@@ -10,7 +10,12 @@ import org.json.JSONObject
  * Format identisch mit AMSEL Desktop (region_sets.json v3).
  * Artennamen verwenden Unterstrich-Konvention: "Turdus_merula" (BirdNET-Standard).
  */
-class RegionalSpeciesFilter(private val context: Context, private val pirolFolder: PirolFolder? = null) {
+class RegionalSpeciesFilter(
+    private val context: Context,
+    private val pirolFolder: PirolFolder? = null,
+    /** T190: erhaelt Anzeigenamen aus eigenen Listen (Rueckfall fuer Arten ohne species_master-Eintrag) */
+    private val speciesNames: SpeciesNameResolver? = null
+) {
 
     companion object {
         private const val TAG = "RegionalSpeciesFilter"
@@ -30,6 +35,10 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
     // T105: kanonische Schluessel der aktiven Region (Synonyme aufgeloest) fuer den Vergleich
     private var canonicalSet: Set<String> = emptySet()
     private var allSets: List<RegionInfo> = emptyList()
+
+    // T190: aktive eigene Liste (fuer Saison), null bei Asset-Region
+    @Volatile
+    private var activeCustom: CustomSpeciesList? = null
 
     // T129: eigene Listen aus <Ordner>/lists/NAME.json
     @Volatile
@@ -66,6 +75,7 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
                 if (text == null) { warnings.add("$name: nicht lesbar"); continue }
                 val r = CustomSpeciesLists.parse(name, text)
                 lists.addAll(r.lists)
+                warnings.addAll(r.warnings)
                 if (r.error != null) warnings.add("$name: ${r.error}")
             }
         } catch (e: Exception) {
@@ -73,12 +83,19 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
         }
         customLists = lists
         customWarnings = warnings
+        // T190: Namen aus allen Listen als Rueckfall an den Resolver
+        speciesNames?.setListNames(lists.fold(mutableMapOf<String, String>()) { acc, l ->
+            l.commonNames.forEach { (k, v) -> acc.putIfAbsent(k, v) }; acc
+        })
         // aktive eigene Liste neu laden, falls sie sich geaendert hat
         val cur = currentRegionId
         if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(cur)
     }
 
     fun getCustomWarnings(): List<String> = customWarnings
+
+    /** T190: eigene Liste per Region-ID (z.B. "list:beispiel") */
+    fun getCustomList(regionId: String): CustomSpeciesList? = customLists.firstOrNull { it.id == regionId }
 
     /**
      * Laedt die Region-Sets aus der JSON-Datei (einmalig beim ersten Aufruf).
@@ -99,6 +116,7 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
                 speciesSet = emptySet()
                 canonicalSet = emptySet()
                 currentRegionId = "all"
+                activeCustom = null
                 Log.i(TAG, "Region 'all' aktiviert — kein Artenfilter")
                 return
             }
@@ -110,6 +128,7 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
                 if (custom != null) {
                     speciesSet = custom.species
                     canonicalSet = custom.canonical()
+                    activeCustom = custom
                     currentRegionId = regionId
                     Log.i(TAG, "Eigene Liste '$regionId' geladen: ${custom.species.size} Arten")
                 } else {
@@ -133,6 +152,7 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
                     }
                     speciesSet = species
                     canonicalSet = canonicalize(species)
+                    activeCustom = null
                     currentRegionId = regionId
                     Log.i(TAG, "Region '$regionId' geladen: ${species.size} Arten")
                     return
@@ -154,9 +174,18 @@ class RegionalSpeciesFilter(private val context: Context, private val pirolFolde
      *
      * @return true wenn die Art in der Region vorkommt, oder wenn kein Filter aktiv ist
      */
-    fun isPlausible(scientificName: String): Boolean {
+    fun isPlausible(scientificName: String): Boolean = isPlausible(scientificName, false, null)
+
+    /**
+     * T190: Pruefung mit optionaler Saison der aktiven eigenen Liste.
+     * [respectSeason] aus = Saisonangaben ignoriert; [monthDay] = lokales Datum der Detektion.
+     */
+    fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean {
         // Kein Filter aktiv oder "all" gewaehlt; sonst Vergleich ueber kanonischen Schluessel (T105)
-        return matches(canonicalSet, scientificName)
+        if (!matches(canonicalSet, scientificName)) return false
+        val custom = activeCustom
+        if (!respectSeason || custom == null) return true
+        return ListSeason.isInSeason(custom.seasons[SpeciesKey.of(scientificName)], monthDay)
     }
 
     /** Alle Arten der aktuell geladenen Region */

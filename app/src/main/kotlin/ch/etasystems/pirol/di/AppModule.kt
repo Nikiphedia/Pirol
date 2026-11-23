@@ -40,7 +40,7 @@ val appModule = module {
     single<AudioClassifier> { BirdNetV3Classifier(get(), get(), get()) }  // T103a: + SpeciesNameResolver
 
     // Regionaler Artenfilter — Singleton, laedt DACH-Artenliste aus assets/regions/
-    single { RegionalSpeciesFilter(get(), get()) }
+    single { RegionalSpeciesFilter(get(), get(), get()) }
 
     // MFCC-Feature-Extractor — Singleton, pure Kotlin (kein Context)
     single { MfccExtractor() }

@@ -195,6 +195,31 @@ class WatchlistManager(private val context: Context, private val pirolFolder: Pi
         }
     }
 
+    /**
+     * T190: Artenliste in die Watchlist uebernehmen (Zusammenfuehren oder Ersetzen).
+     * @return Zustand vor der Uebernahme (fuer Undo ueber [restore])
+     */
+    suspend fun adoptFromList(
+        list: CustomSpeciesList,
+        merge: Boolean,
+        commonName: (String) -> String
+    ): Watchlist {
+        val previous = watchlist
+        val now = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        watchlist = WatchlistFromList.apply(previous, list, merge, commonName, now)
+        save()
+        emitFlows()
+        return previous
+    }
+
+    /** T190: Watchlist auf einen frueheren Zustand zuruecksetzen (Undo) */
+    suspend fun restore(previous: Watchlist) {
+        watchlist = previous
+        save()
+        emitFlows()
+    }
+
     /** Art entfernen */
     suspend fun removeSpecies(scientificName: String) {
         val current = watchlist.species.toMutableList()
