@@ -152,6 +152,18 @@ object DetectionOccurrences {
         val durationSec: Float get() = endSec - startSec
     }
 
+    /**
+     * T222: Detektion, die genau eine Episode beschreibt (Wiedergabe und Teilen nutzen dafuer
+     * dieselbe Ausschnitt-Logik wie fuer ganze Cluster). Wanduhr und Position gelten fuer das erste
+     * Fenster der Episode, lastSeenAtMs fuer das letzte; damit enthalten Dateiname und Bildtext die Episodenzeit.
+     */
+    fun forEpisode(detection: DetectionResult, episode: Episode): DetectionResult = detection.copy(
+        chunkStartSec = episode.startSec,
+        chunkEndSec = episode.startSec + episode.windowSec,
+        timestampMs = episode.timestampMs,
+        lastSeenAtMs = episode.lastTimestampMs
+    )
+
     /** Fasst Vorkommen (beliebige Reihenfolge) zu Episoden zusammen, zeitlich aufsteigend. */
     fun episodes(occurrences: List<Occurrence>): List<Episode> {
         val result = mutableListOf<Episode>()

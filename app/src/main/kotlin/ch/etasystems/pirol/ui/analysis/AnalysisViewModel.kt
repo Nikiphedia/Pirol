@@ -526,12 +526,7 @@ class AnalysisViewModel(
      */
     fun playEpisode(detection: DetectionResult, episode: DetectionOccurrences.Episode) {
         playDetection(
-            detection.copy(
-                chunkStartSec = episode.startSec,
-                chunkEndSec = episode.startSec + episode.windowSec,
-                timestampMs = episode.timestampMs,
-                lastSeenAtMs = episode.lastTimestampMs
-            ),
+            DetectionOccurrences.forEpisode(detection, episode),
             maxSec = Float.MAX_VALUE,
             key = PlaybackKeys.episode(detection.id, episode.startSec)
         )
@@ -580,6 +575,10 @@ class AnalysisViewModel(
             _uiState.update { it.copy(shareRequest = DetectionShareRequest(detection, f, note, recording)) }
         }
     }
+
+    /** T222: Share-Dialog fuer genau eine Episode (Zeitbereich der Episode statt des ganzen Clusters). */
+    fun requestShareEpisode(detection: DetectionResult, episode: DetectionOccurrences.Episode) =
+        requestShare(DetectionOccurrences.forEpisode(detection, episode))
 
     fun clearShareRequest() {
         _uiState.update { it.copy(shareRequest = null) }
