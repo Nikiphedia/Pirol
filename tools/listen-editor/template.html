@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIROL Listen-Editor</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1d2420;--mut:#5c6b62;--card:#fff;--bd:#cfd8d1;--ac:#2f6b45;--acf:#fff;--er:#b3261e;--wa:#9a5b00}
+@media (prefers-color-scheme:dark){:root{--bg:#161a17;--fg:#e4eae6;--mut:#9aa89f;--card:#1f2521;--bd:#36403a;--ac:#6fbf8b;--acf:#0d1a11;--er:#f2a29b;--wa:#e7b55c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+header{padding:12px 16px;background:var(--ac);color:var(--acf)}
+header h1{margin:0;font-size:1.2rem}
+main{max-width:900px;margin:0 auto;padding:12px}
+section{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:12px}
+h2{margin:0 0 8px;font-size:1.05rem}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;min-height:44px}
+input,textarea,select{width:100%}
+textarea{min-height:64px}
+button{cursor:pointer;width:auto}
+button.p{background:var(--ac);color:var(--acf);border-color:var(--ac)}
+button.x{color:var(--er)}
+label{display:block;font-size:.85rem;color:var(--mut);margin:8px 0 2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row>*{flex:1 1 140px}
+.row>button{flex:0 0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 12px}
+.item{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--bd)}
+.item .nm{flex:1;min-width:0}
+.item .nm b{display:block;overflow-wrap:anywhere}
+.item .nm small{color:var(--mut);overflow-wrap:anywhere}
+.badge{font-size:.72rem;border:1px solid var(--bd);border-radius:10px;padding:0 6px;color:var(--mut)}
+.mut{color:var(--mut);font-size:.9rem}
+.err{color:var(--er)}.warn{color:var(--wa)}
+details.ed{border-top:1px solid var(--bd)}
+details.ed>summary{list-style:none;cursor:pointer;padding:6px 0;display:flex;gap:8px;align-items:center}
+details.ed>summary::-webkit-details-marker{display:none}
+.per{display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin:4px 0}
+.per div{flex:1 1 80px}.per .d{flex:0 1 70px}
+.per label{margin:0}
+ul{margin:4px 0;padding-left:20px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header><h1>PIROL Listen-Editor</h1></header>
+<main>
+<section>
+  <h2>Datei</h2>
+  <div class="row">
+    <button id="bNew">Neue Liste</button>
+    <button id="bLoad">Liste laden (JSON)</button>
+    <button id="bMaster">species_master.json laden</button>
+    <button id="bCsv">Label-CSV laden</button>
+  </div>
+  <input type="file" id="fList" accept=".json,application/json" class="hide">
+  <input type="file" id="fMaster" accept=".json,application/json" class="hide">
+  <input type="file" id="fCsv" accept=".csv,text/csv,text/plain" class="hide">
+  <div id="setPick" class="hide">
+    <label for="selSet">Datei enthaelt mehrere Sets, Set waehlen (beim Export entsteht eine Einzel-Set-Datei)</label>
+    <select id="selSet"></select>
+  </div>
+  <p class="mut" id="srcInfo"></p>
+  <div id="loadMsg" class="mut"></div>
+</section>
+
+<section>
+  <details id="dHead" open>
+    <summary><b>Kopfdaten</b></summary>
+    <div class="grid">
+      <div><label for="hId">ID (a-z, 0-9, _; = Dateiname)</label><input id="hId" autocapitalize="none" placeholder="ch_be_breeding_aves"></div>
+      <div><label for="hNameDe">Name Deutsch</label><input id="hNameDe"></div>
+      <div><label for="hNameEn">Name Englisch</label><input id="hNameEn"></div>
+      <div><label for="hGroup">Tiergruppe der Liste</label><select id="hGroup"></select></div>
+      <div><label for="hAuthor">Autor/in</label><input id="hAuthor"></div>
+      <div><label for="hLicense">Lizenz</label><input id="hLicense" placeholder="CC BY 4.0"></div>
+      <div><label for="hRegion">Region / Quelle</label><input id="hRegion" placeholder="Atlas, Kanton Bern, eigene Beobachtung ..."></div>
+      <div><label for="hLang">Sprache der Namen/Beschreibung</label><select id="hLang"></select></div>
+      <div><label for="hTaxRef">Taxonomie Aves: Referenz</label><input id="hTaxRef"></div>
+      <div><label for="hTaxVer">Taxonomie Aves: Version</label><input id="hTaxVer"></div>
+    </div>
+    <label for="hDescDe">Beschreibung Deutsch</label><textarea id="hDescDe"></textarea>
+    <label for="hDescEn">Beschreibung Englisch</label><textarea id="hDescEn"></textarea>
+    <label for="hDescFile">Beschreibung der Datei (in der Sprache der Namen)</label><textarea id="hDescFile"></textarea>
+  </details>
+</section>
+
+<section>
+  <h2>Arten suchen</h2>
+  <div class="row">
+    <input id="q" type="search" placeholder="Name, wiss. Name oder Teilwort" autocomplete="off">
+    <select id="sGroup"></select>
+    <select id="sLang"></select>
+  </div>
+  <div id="results"></div>
+  <div class="row" style="margin-top:8px">
+    <input id="manual" placeholder="Art ohne Treffer: Genus_species" autocapitalize="none">
+    <input id="manualName" placeholder="Name (optional)">
+    <button id="bManual">Hinzufuegen</button>
+  </div>
+</section>
+
+<section>
+  <h2>Liste (<span id="cnt">0</span> Arten)</h2>
+  <div class="row">
+    <input id="lq" type="search" placeholder="In der Liste filtern" autocomplete="off">
+    <select id="lGroup"></select>
+  </div>
+  <div id="list"></div>
+</section>
+
+<section>
+  <h2>Export</h2>
+  <div id="vmsg" class="mut">Noch nicht geprueft.</div>
+  <div class="row" style="margin-top:8px">
+    <button id="bCheck">Pruefen</button>
+    <button id="bExport" class="p">Als v4-JSON herunterladen</button>
+  </div>
+</section>
+</main>
+
+<script>
+/*CORE*/
+</script>
+<script>
+var EMBEDDED_INDEX = /*INDEX*/;
+var EMBEDDED_ALIASES = /*ALIASES*/;
+</script>
+<script>
+(function () {
+  'use strict';
+  var C = ListCore;
+  var LANGS = ['de', 'en', 'fr', 'it', 'es', 'pt', 'nl', 'da', 'sv', 'fi', 'pl', 'cs', 'sk', 'hu', 'ro', 'bg', 'hr', 'sl', 'et', 'lv', 'lt', 'el', 'uk'];
+  var $ = function (id) { return document.getElementById(id); };
+  var state = C.emptyState();
+  var loadedSets = null; // geparstes JSON einer Sammeldatei
+  var index = [], byKey = {}, aliases = EMBEDDED_ALIASES, modelKeys = null, lang = 'de';
+  var srcText = 'Eingebetteter Index';
+  var DEBOUNCE;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fold(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss'); }
+  function keyOf(n) { return n.toLowerCase(); }
+
+  /* ---------- Artenindex ---------- */
+  function mapGroup(g, order) {
+    g = (g || '').toLowerCase(); order = (order || '').toLowerCase();
+    if (order === 'orthoptera' || g === 'orthoptera') return 'orthoptera';
+    if (order === 'chiroptera' || g === 'chiroptera') return 'chiroptera';
+    if (g === 'amphibia' || g === 'anura' || order === 'anura') return 'anura';
+    if (g === 'aves') return 'aves';
+    if (g === 'mammalia') return 'mammalia';
+    if (g === 'insecta') return 'insecta';
+    return 'other';
+  }
+  function rebuildMap() {
+    byKey = {};
+    index.forEach(function (e) { byKey[keyOf(e.s)] = e; });
+  }
+  function loadEmbedded() {
+    index = EMBEDDED_INDEX.map(function (r) {
+      return { s: r[0], g: r[1], n: { de: r[2], en: r[3] }, m: r[4] === 1 };
+    });
+    modelKeys = {};
+    index.forEach(function (e) { if (e.m) modelKeys[keyOf(e.s)] = 1; });
+    rebuildMap();
+    srcText = 'Eingebetteter Index (' + index.length + ' Arten, Namen de/en). Fuer weitere Sprachen species_master.json laden.';
+  }
+  function loadMaster(obj) {
+    if (!obj || !Array.isArray(obj.taxa)) throw new Error('Kein species_master.json (taxa fehlt)');
+    var langs = {};
+    obj.taxa.forEach(function (t) {
+      var name = C.normalizeName(t.scientific_name);
+      if (!name) return;
+      var e = byKey[keyOf(name)];
+      if (!e) { e = { s: name, g: mapGroup(t.taxon_group, t.order), n: {}, m: false }; index.push(e); byKey[keyOf(name)] = e; }
+      var cn = t.common_names || {};
+      Object.keys(cn).forEach(function (l) { if (cn[l]) { e.n[l] = cn[l]; langs[l] = 1; } });
+      if (e.g === 'other' || e.g === 'insecta') { var g2 = mapGroup(t.taxon_group, t.order); if (g2 !== 'other') e.g = g2; }
+      if (t.classifier_support && t.classifier_support.length) e.m = true;
+    });
+    modelKeys = modelKeys || {};
+    index.forEach(function (e) { if (e.m) modelKeys[keyOf(e.s)] = 1; });
+    srcText = 'species_master.json geladen (' + obj.taxa.length + ' Taxa, ' + Object.keys(langs).length + ' Sprachen).';
+    fillLangs(Object.keys(langs));
+  }
+  function loadCsv(text) {
+    var lines = text.split(/\r?\n/);
+    if (!lines.length) throw new Error('Leere Datei');
+    var head = lines[0].split(';'), iSci = head.indexOf('sci_name'), iCom = head.indexOf('com_name'), iCls = head.indexOf('class'), iOrd = head.indexOf('order');
+    if (iSci < 0) throw new Error('Spalte sci_name fehlt (Semikolon-CSV erwartet)');
+    var keys = {}, n = 0, added = 0;
+    for (var i = 1; i < lines.length; i++) {
+      if (!lines[i]) continue;
+      var f = lines[i].split(';');
+      var name = C.normalizeName(f[iSci]);
+      if (!name) continue;
+      keys[keyOf(name)] = 1; n++;
+      if (!byKey[keyOf(name)]) {
+        var e = { s: name, g: mapGroup(f[iCls], f[iOrd]), n: { en: iCom >= 0 ? f[iCom] : '' }, m: true };
+        index.push(e); byKey[keyOf(name)] = e; added++;
+      } else if (iOrd >= 0) {
+        var ex = byKey[keyOf(name)], g2 = mapGroup(f[iCls], f[iOrd]);
+        if (ex.g === 'other' || ex.g === 'insecta') ex.g = g2;
+      }
+    }
+    modelKeys = keys;
+    srcText = 'Label-CSV geladen (' + n + ' Arten, ' + added + ' neu im Index). Arten ohne Label werden beim Pruefen gemeldet.';
+  }
+
+  function dispName(e) { return e ? (e.n[lang] || e.n.en || e.n.de || '') : ''; }
+  function nameFor(sci) {
+    var inf = state.info[sci];
+    var e = byKey[keyOf(sci)];
+    return dispName(e) || (inf && inf.common_name) || '';
+  }
+
+  /* ---------- Selects ---------- */
+  function fillGroup(sel, withAll) {
+    var cur = sel.value;
+    sel.innerHTML = (withAll ? '<option value="">Alle Gruppen</option>' : '') +
+      C.TAXON_GROUPS.map(function (g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
+    sel.value = cur || (withAll ? '' : 'aves');
+  }
+  function fillLangs(list) {
+    var ls = LANGS.filter(function (l) { return !list || list.indexOf(l) >= 0 || l === 'de' || l === 'en'; });
+    (list || []).forEach(function (l) { if (ls.indexOf(l) < 0) ls.push(l); });
+    [$('sLang'), $('hLang')].forEach(function (sel) {
+      var cur = sel.value;
+      sel.innerHTML = ls.map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('');
+      sel.value = ls.indexOf(cur) >= 0 ? cur : (sel === $('hLang') ? state.head.display_language : lang);
+      if (!sel.value) sel.value = 'de';
+    });
+  }
+
+  /* ---------- Kopfdaten <-> State ---------- */
+  function headToUi() {
+    var h = state.head, s = state.set, tx = (h.taxonomy && h.taxonomy.aves) || {};
+    $('hId').value = s.id; $('hNameDe').value = s.name_de; $('hNameEn').value = s.name_en;
+    $('hGroup').value = s.taxon_group; if ($('hGroup').value !== s.taxon_group) {
+      var o = document.createElement('option'); o.value = o.textContent = s.taxon_group; $('hGroup').appendChild(o); $('hGroup').value = s.taxon_group;
+    }
+    $('hAuthor').value = h.author; $('hLicense').value = h.license; $('hRegion').value = s.source;
+    var hl = h.display_language || 'de';
+    if (![].some.call($('hLang').options, function (o) { return o.value === hl; })) {
+      var o2 = document.createElement('option'); o2.value = o2.textContent = hl; $('hLang').appendChild(o2);
+    }
+    $('hLang').value = hl;
+    $('hTaxRef').value = tx.reference || ''; $('hTaxVer').value = tx.version || '';
+    $('hDescDe').value = s.description_de; $('hDescEn').value = s.description_en; $('hDescFile').value = h.description;
+  }
+  function uiToHead() {
+    var h = state.head, s = state.set;
+    s.id = $('hId').value.trim(); s.name_de = $('hNameDe').value.trim(); s.name_en = $('hNameEn').value.trim();
+    s.taxon_group = $('hGroup').value; h.author = $('hAuthor').value.trim(); h.license = $('hLicense').value.trim();
+    s.source = $('hRegion').value.trim(); h.display_language = $('hLang').value;
+    var ref = $('hTaxRef').value.trim(), ver = $('hTaxVer').value.trim();
+    var tax = h.taxonomy || (h.taxonomy = {});
+    if (ref || ver) tax.aves = { reference: ref, version: ver }; else delete tax.aves;
+    s.description_de = $('hDescDe').value; s.description_en = $('hDescEn').value; h.description = $('hDescFile').value;
+  }
+
+  /* ---------- Suche ---------- */
+  function renderResults() {
+    var q = fold($('q').value.trim().replace(/_/g, ' ')), g = $('sGroup').value, box = $('results');
+    if (q.length < 2) { box.innerHTML = '<p class="mut">Mindestens 2 Zeichen eingeben.</p>'; return; }
+    var out = [], total = 0, have = {};
+    state.species.forEach(function (n) { have[keyOf(n)] = 1; });
+    for (var i = 0; i < index.length; i++) {
+      var e = index[i];
+      if (g && e.g !== g) continue;
+      var hit = fold(e.s.replace(/_/g, ' ')).indexOf(q) >= 0;
+      if (!hit) { var nm = e.n; for (var l in nm) { if (nm[l] && fold(nm[l]).indexOf(q) >= 0 && (l === lang || l === 'en' || l === 'de')) { hit = true; break; } } }
+      if (!hit) continue;
+      total++;
+      var dn = fold(dispName(e)), starts = dn.indexOf(q) === 0 || fold(e.s.replace(/_/g, " ")).indexOf(q) === 0;
+      out.push({ e: e, r: starts ? 0 : 1, k: dn || e.s });
+    }
+    out.sort(function (x, y) { return x.r - y.r || (x.k < y.k ? -1 : x.k > y.k ? 1 : 0); });
+    out = out.slice(0, 40).map(function (x) { return x.e; });
+    if (!total) { box.innerHTML = '<p class="mut">Keine Treffer.</p>'; return; }
+    box.innerHTML = out.map(function (e, k) {
+      var on = have[keyOf(e.s)];
+      return '<div class="item"><div class="nm"><b>' + esc(dispName(e) || e.s.replace(/_/g, ' ')) + '</b><small>' + esc(e.s.replace(/_/g, ' ')) + '</small> <span class="badge">' + esc(e.g) + '</span></div>' +
+        '<button data-add="' + k + '"' + (on ? ' disabled' : '') + '>' + (on ? 'In Liste' : 'Hinzufuegen') + '</button></div>';
+    }).join('') + (total > out.length ? '<p class="mut">' + total + ' Treffer, die ersten ' + out.length + ' angezeigt. Suche verfeinern.</p>' : '');
+    box._items = out;
+  }
+  function addSpecies(sci, name, group) {
+    sci = C.normalizeName(sci);
+    if (!sci) return;
+    if (state.species.some(function (n) { return keyOf(n) === keyOf(sci); })) { setMsg('Bereits in der Liste: ' + sci, 'warn'); return; }
+    state.species.push(sci);
+    var e = byKey[keyOf(sci)];
+    var info = state.info[sci] = { common_name: '', taxon_group: '', season: [], note: '', extra: {} };
+    if (!e && name) info.common_name = name;
+    var g = group || (e && e.g);
+    if (g && g !== state.set.taxon_group) info.taxon_group = g;
+    renderList(); renderResults(); setMsg('', '');
+  }
+
+  /* ---------- Liste ---------- */
+  var openRows = {};
+  function monthOpts(sel) {
+    var s = '<option value="">-</option>';
+    for (var m = 1; m <= 12; m++) s += '<option value="' + C.pad2(m) + '"' + (sel === C.pad2(m) ? ' selected' : '') + '>' + m + '</option>';
+    return s;
+  }
+  function periodHtml(sci, i, p) {
+    var f = C.parseMD(p.from) || {}, t = C.parseMD(p.to) || {};
+    var bad = (p.from && !C.parseMD(p.from)) || (p.to && !C.parseMD(p.to));
+    return '<div class="per" data-sci="' + esc(sci) + '" data-i="' + i + '">' +
+      '<div><label>von Monat</label><select data-f="fm">' + monthOpts(f.m ? C.pad2(f.m) : '') + '</select></div>' +
+      '<div class="d"><label>Tag</label><input data-f="fd" inputmode="numeric" maxlength="2" placeholder="-" value="' + (f.d || '') + '"></div>' +
+      '<div><label>bis Monat</label><select data-f="tm">' + monthOpts(t.m ? C.pad2(t.m) : '') + '</select></div>' +
+      '<div class="d"><label>Tag</label><input data-f="td" inputmode="numeric" maxlength="2" placeholder="-" value="' + (t.d || '') + '"></div>' +
+      '<button class="x" data-delper="1" aria-label="Zeitraum entfernen">x</button>' +
+      (bad ? '<span class="err">ungueltig</span>' : '') + '</div>';
+  }
+  function renderList() {
+    var q = fold($('lq').value.trim().replace(/_/g, ' ')), g = $('lGroup').value;
+    var names = state.species.slice().sort();
+    $('cnt').textContent = state.species.length;
+    var html = [];
+    names.forEach(function (sci) {
+      var inf = state.info[sci] || (state.info[sci] = { common_name: '', taxon_group: '', season: [], note: '', extra: {} });
+      var e = byKey[keyOf(sci)], grp = inf.taxon_group || (e && e.g) || state.set.taxon_group;
+      var nm = nameFor(sci);
+      if (g && grp !== g) return;
+      if (q && fold(sci.replace(/_/g, ' ') + ' ' + nm).indexOf(q) < 0) return;
+      var seas = C.seasonLabel(inf.season);
+      html.push('<details class="ed" data-sci="' + esc(sci) + '"' + (openRows[sci] ? ' open' : '') + '><summary>' +
+        '<div class="nm" style="flex:1;min-width:0"><b>' + esc(nm || sci.replace(/_/g, ' ')) + '</b><br><small class="mut">' + esc(sci.replace(/_/g, ' ')) + '</small> <span class="badge">' + esc(grp) + '</span>' +
+        (seas ? ' <span class="badge">Saison ' + esc(seas) + '</span>' : '') + '</div>' +
+        '<button class="x" data-rm="1" aria-label="Entfernen">Entfernen</button></summary>' +
+        '<div data-sci="' + esc(sci) + '">' +
+        '<label>Name in der Datei (nur noetig ohne Eintrag im Artenindex)</label><input data-f="cn" value="' + esc(inf.common_name) + '" placeholder="' + esc(nm) + '">' +
+        '<label>Tiergruppe dieser Art (leer = wie Liste)</label><select data-f="tg"><option value="">wie Liste</option>' + C.TAXON_GROUPS.map(function (x) { return '<option' + (inf.taxon_group === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+        '<label>Saison (leer = ganzjaehrig; Tag leer = ganzer Monat; "von" nach "bis" = ueber den Jahreswechsel)</label>' +
+        inf.season.map(function (p, i) { return periodHtml(sci, i, p); }).join('') +
+        '<button data-addper="1">Zeitraum hinzufuegen</button>' +
+        '<label>Bemerkung</label><input data-f="nt" value="' + esc(inf.note) + '">' +
+        '</div></details>');
+    });
+    $('list').innerHTML = html.join('') || '<p class="mut">Keine Arten.</p>';
+  }
+
+  /* ---------- Events ---------- */
+  function seasonFromRow(row) {
+    var v = function (f) { return row.querySelector('[data-f="' + f + '"]').value.trim(); };
+    function part(m, d) {
+      if (!m) return '';
+      if (!d) return m;
+      var dd = parseInt(d, 10);
+      return isNaN(dd) ? m : m + '-' + C.pad2(dd);
+    }
+    return { from: part(v('fm'), v('fd')), to: part(v('tm'), v('td')) };
+  }
+  $('list').addEventListener('click', function (ev) {
+    var t = ev.target, host = t.closest('[data-sci]');
+    if (!host) return;
+    var sci = host.getAttribute('data-sci');
+    if (t.closest('[data-rm]')) {
+      ev.preventDefault();
+      state.species = state.species.filter(function (n) { return n !== sci; });
+      delete state.info[sci]; delete openRows[sci];
+      renderList(); renderResults();
+    } else if (t.closest('[data-addper]')) {
+      state.info[sci].season.push({ from: '', to: '' }); openRows[sci] = true; renderList();
+    } else if (t.closest('[data-delper]')) {
+      var row = t.closest('.per');
+      state.info[sci].season.splice(+row.getAttribute('data-i'), 1); openRows[sci] = true; renderList();
+    }
+  });
+  $('list').addEventListener('toggle', function (ev) {
+    var d = ev.target; if (d.tagName === 'DETAILS') openRows[d.getAttribute('data-sci')] = d.open;
+  }, true);
+  $('list').addEventListener('change', function (ev) {
+    var t = ev.target, f = t.getAttribute('data-f');
+    var host = t.closest('[data-sci]'); if (!host || !f) return;
+    var sci = host.getAttribute('data-sci'), inf = state.info[sci];
+    if (f === 'cn') inf.common_name = t.value.trim();
+    else if (f === 'tg') inf.taxon_group = t.value;
+    else if (f === 'nt') inf.note = t.value.trim();
+    else { var row = t.closest('.per'); inf.season[+row.getAttribute('data-i')] = seasonFromRow(row); }
+    openRows[sci] = true; renderList();
+  });
+  $('results').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-add]'); if (!b) return;
+    var e = $('results')._items[+b.getAttribute('data-add')];
+    addSpecies(e.s);
+  });
+  $('q').addEventListener('input', function () { clearTimeout(DEBOUNCE); DEBOUNCE = setTimeout(renderResults, 150); });
+  $('sGroup').addEventListener('change', renderResults);
+  $('sLang').addEventListener('change', function () { lang = $('sLang').value; renderResults(); renderList(); });
+  $('lq').addEventListener('input', function () { clearTimeout(DEBOUNCE); DEBOUNCE = setTimeout(renderList, 150); });
+  $('lGroup').addEventListener('change', renderList);
+  $('bManual').addEventListener('click', function () {
+    var n = C.normalizeName($('manual').value);
+    if (!n) return;
+    addSpecies(n, $('manualName').value.trim());
+    $('manual').value = ''; $('manualName').value = '';
+  });
+  ['hId', 'hNameDe', 'hNameEn', 'hGroup', 'hAuthor', 'hLicense', 'hRegion', 'hLang', 'hTaxRef', 'hTaxVer', 'hDescDe', 'hDescEn', 'hDescFile'].forEach(function (id) {
+    $(id).addEventListener('change', uiToHead);
+  });
+
+  function setMsg(t, cls) { var m = $('loadMsg'); m.textContent = t; m.className = cls || 'mut'; }
+  function readFile(file, cb) {
+    var r = new FileReader();
+    r.onload = function () { cb(String(r.result)); };
+    r.onerror = function () { setMsg('Datei konnte nicht gelesen werden.', 'err'); };
+    r.readAsText(file, 'utf-8');
+  }
+  function applyState(res, setIdx) {
+    state = res.state;
+    // Name fuer Arten ohne Index-Eintrag bleibt aus species_info erhalten
+    openRows = {};
+    headToUi(); renderList(); renderResults();
+    $('lGroup').value = '';
+    setMsg(res.warnings.length ? res.warnings.join(' | ') : 'Liste geladen (' + state.species.length + ' Arten).', res.warnings.length ? 'warn' : 'mut');
+  }
+  $('bNew').addEventListener('click', function () {
+    if (state.species.length && !confirm('Aktuelle Liste verwerfen?')) return;
+    state = C.emptyState(); loadedSets = null; $('setPick').classList.add('hide');
+    headToUi(); renderList(); renderResults(); setMsg('Neue Liste.', 'mut');
+  });
+  $('bLoad').addEventListener('click', function () { $('fList').click(); });
+  $('bMaster').addEventListener('click', function () { $('fMaster').click(); });
+  $('bCsv').addEventListener('click', function () { $('fCsv').click(); });
+  $('fList').addEventListener('change', function () {
+    var f = this.files[0]; this.value = ''; if (!f) return;
+    readFile(f, function (txt) {
+      try {
+        var obj = JSON.parse(txt.replace(/^﻿/, ''));
+        var res = C.stateFromJson(obj, 0);
+        loadedSets = Array.isArray(obj.sets) && obj.sets.length > 1 ? obj : null;
+        var pick = $('setPick');
+        if (loadedSets) {
+          $('selSet').innerHTML = obj.sets.map(function (s, i) { return '<option value="' + i + '">' + esc(s.name_de || s.id || ('Set ' + (i + 1))) + ' (' + ((s.species || []).length) + ')</option>'; }).join('');
+          pick.classList.remove('hide');
+        } else pick.classList.add('hide');
+        applyState(res);
+      } catch (e) { setMsg('Fehler beim Laden: ' + e.message, 'err'); }
+    });
+  });
+  $('selSet').addEventListener('change', function () {
+    try { applyState(C.stateFromJson(loadedSets, +this.value)); } catch (e) { setMsg('Fehler: ' + e.message, 'err'); }
+  });
+  $('fMaster').addEventListener('change', function () {
+    var f = this.files[0]; this.value = ''; if (!f) return;
+    setMsg('Lese species_master.json ...', 'mut');
+    readFile(f, function (txt) {
+      try { loadMaster(JSON.parse(txt)); $('srcInfo').textContent = srcText; renderResults(); renderList(); setMsg('', ''); }
+      catch (e) { setMsg('Fehler: ' + e.message, 'err'); }
+    });
+  });
+  $('fCsv').addEventListener('change', function () {
+    var f = this.files[0]; this.value = ''; if (!f) return;
+    readFile(f, function (txt) {
+      try { loadCsv(txt); $('srcInfo').textContent = srcText; renderResults(); setMsg('', ''); }
+      catch (e) { setMsg('Fehler: ' + e.message, 'err'); }
+    });
+  });
+
+  /* ---------- Export ---------- */
+  function check() {
+    uiToHead();
+    var r = C.validate(state, { aliases: aliases, modelKeys: modelKeys });
+    var h = '';
+    if (r.errors.length) h += '<b class="err">Fehler (Export blockiert)</b><ul class="err">' + r.errors.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>';
+    if (r.warnings.length) h += '<b class="warn">Hinweise</b><ul class="warn">' + r.warnings.slice(0, 50).map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + (r.warnings.length > 50 ? '<li>... ' + (r.warnings.length - 50) + ' weitere</li>' : '') + '</ul>';
+    if (!h) h = 'Alles in Ordnung.';
+    $('vmsg').innerHTML = h;
+    return r;
+  }
+  $('bCheck').addEventListener('click', check);
+  $('bExport').addEventListener('click', function () {
+    var r = check();
+    if (r.errors.length) return;
+    var out = C.buildExport(state, C.isoLocal(new Date()));
+    var blob = new Blob([C.toText(out)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = state.set.id + '.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+
+  /* ---------- Start ---------- */
+  loadEmbedded();
+  fillGroup($('hGroup'), false); fillGroup($('sGroup'), true); fillGroup($('lGroup'), true);
+  fillLangs(null);
+  $('srcInfo').textContent = srcText;
+  headToUi(); renderList(); renderResults();
+})();
+</script>
+</body>
+</html>
