@@ -2,7 +2,7 @@
 
 Akustische Echtzeit-Artenerkennung fuer Android, gedacht fuer die Feldarbeit.
 
-*Gilt ab Version v0.0.11 (Stand 2026-11-23). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.1.1 (Stand 2026-11-23). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
 
 Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**.
 
@@ -10,8 +10,8 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 
 ## 1. Erster Start
 
-1. App oeffnen. Das Onboarding fuehrt durch Region, Modell und Berechtigungen (Mikrofon, GPS, Benachrichtigungen).
-2. **Region** waehlen (z.B. Schweizer Brutvoegel, Mitteleuropa oder alle Arten). Sie filtert die Artenliste auf plausible Arten.
+1. App oeffnen. Der Einrichtungsassistent fuehrt durch Sprache, Niveau (Einsteiger/Experte), Einsatzzweck, Artenliste, Modell (inkl. Geomodel), Berechtigungen (Mikrofon, GPS, Benachrichtigungen) und Zusammenfassung. Die Werte werden erst bei "Fertig" uebernommen.
+2. **Artenliste** waehlen (Kapitel 11): Die Artgruppen (Voegel, Heuschrecken, Amphibien, Saeugetiere, Andere) filtern die Erkennung auf plausible Arten. Spaeter aenderbar unter Settings > Arten & Alarm.
 3. **Modell** herunterladen: Es lassen sich mehrere Modelle auf einmal auswaehlen. Standard ist BirdNET 3.0 FP16 (empfohlen, ca. 170 MB). Der Download laeuft im Hintergrund weiter, kann abgebrochen und spaeter fortgesetzt werden. Alternativ eine Modell-Datei manuell auswaehlen.
 4. **Speicherort** pruefen (Settings > Aufnahme & Speicher). Standard: `Downloads/PIROL/`, per USB sichtbar.
 
@@ -19,7 +19,7 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 
 **Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Aenderungen der Version. Er kann jederzeit in den Einstellungen unter "Info" erneut aufgerufen werden.
 
-**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 bis v0.0.10 auf v0.0.11 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Achtung bei v0.0.11: Die Konfidenz-Schwelle ist neu eine gemeinsame Schwelle fuer alle Arten (Kapitel 2 und 13), den Regler danach pruefen. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
+**Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 bis v0.0.10 auf v0.0.11 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Achtung bei v0.0.11: Die Konfidenz-Schwelle ist neu eine gemeinsame Schwelle fuer alle Arten (Kapitel 2 und 13), den Regler danach pruefen. Von v0.0.11 auf v0.1.1 geht das Update ohne Deinstallation. Danach die Artgruppen (Kapitel 11) pruefen: alte Filter stehen auf Voegel Auto, Rest Aus. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
 
 ---
 
@@ -38,6 +38,8 @@ Erkannte Arten erscheinen als Karten unter dem Sonogramm:
 - Hinweise "Selten", "Saison-untypisch", Watchlist-Markierung
 - **Abspielen:** Der Play-Knopf auf der Karte spielt den Ausschnitt der Detektion (3 s davor, 5 s danach) ab, auch waehrend der Aufnahme. Ein zweiter Tipp stoppt die Wiedergabe.
 - **Blinken:** Wird eine Art erneut erkannt, blinkt ihre Karte kurz auf. Die Liste springt dabei nicht.
+- **Alarm-Glocke:** Im Menue der vollen Artkarte legt man die Art dauerhaft in die Alarmliste oder fuer 24 h an. 24-h-Alarme zeigen eine Glocke mit dem Abzeichen "24h"; nach Ablauf verschwindet es automatisch.
+- **Kompakt-Knopf:** Schaltet alle Artkarten zwischen kompakt und ausfuehrlich um. Auf dem Telefon sitzt er in der Statuszeile, auf dem Tablet in der Kopfzeile. Die Alternativen lassen sich ueber den Kopf der Karte auf- und zuklappen.
 
 **Kompakte Ansicht auf dem Telefon:** Im Hoch- und im Querformat nutzt der Live-Tab den Platz sparsam: keine Titelzeile, die Navigation besteht nur aus Icons, die Knopfzeile der Karten ist einzeilig. Auf schmalen Karten stehen Teilen, Referenz, Vergleichen und "Alternativen" im Menue "Weitere Aktionen" (Symbol mit drei Punkten); auf dem Tablet bleiben alle Knoepfe sichtbar. Im Querformat liegen links Sonogramm und Knoepfe, rechts die Artkarten. Das Panel "Aehnliche Arten" ist auf dem Telefon eingeklappt und laesst sich aufklappen.
 
@@ -61,11 +63,14 @@ Erkannte Arten erscheinen als Karten unter dem Sonogramm:
 ### Mehrfacherkennung und Konfidenz-Schwelle
 Im selben 3-s-Fenster werden alle Arten erkannt, die die Schwelle erreichen, nicht nur die oberste. Der Regler heisst "Konfidenz-Schwelle (alle Arten)" (Settings > Modell & Erkennung, Standard 50 %) und gilt fuer alle Arten gleich. Arten darunter, aber ueber der Kandidaten-Grenze, bleiben als Kandidaten bei den Detektionen des Fensters. Frueher steuerte der Regler eine andere Schwelle (TopK, Standard 0.3); deshalb nach dem Update pruefen. Watchlist-Alarme loesen erst ab der Schwelle aus.
 
+### Zweitmodell (Experten-Modus)
+Ein Zweitmodell (z.B. Perch v2 oder BirdNET 2.4, Kapitel 13) rechnet dieselben Fenster noch einmal. Die Karte zeigt dann neben der Konfidenz des Hauptmodells die Zahl des Zweitmodells: in Prozent, bei Perch als Rang ("Perch #2"). Arten, die das Zweitmodell nicht kennt, sind als nicht pruefbar markiert. Das Zweitmodell beeinflusst weder Alarm noch Filter oder Zusammenfassung. Die Schwelle "Alternativen ab" (5/10/20/30 %, Settings > Modell & Erkennung) bestimmt, ab welcher Konfidenz Alternativen gelistet werden.
+
 ### Preroll
 Wenn aktiviert, wird Audio **vor** dem Aufnahmestart mitgespeichert (Laenge einstellbar) und auch analysiert. Der Preroll steht lueckenlos am Anfang von `recording.wav`. Das Sonogramm zeigt davon hoechstens 5 s.
 
 ### Ueberlappung
-Analysefenster koennen sich ueberlappen: 0 % (Standard, Fenster alle 3 s), 50 % (alle 1.5 s) oder 67 % (jede Sekunde). Mehr Ueberlappung erkennt kurze Rufe an Fenstergrenzen besser, braucht aber mehr Rechenzeit und Akku. Ist das Geraet zu langsam, reduziert PIROL die Ueberlappung automatisch und meldet das einmal pro Session in einer Snackbar.
+Analysefenster koennen sich ueberlappen: 0 % (Standard, Fenster alle 3 s), 50 % (alle 1.5 s) oder 67 % (jede Sekunde). Mehr Ueberlappung erkennt kurze Rufe an Fenstergrenzen besser, braucht aber mehr Rechenzeit und Akku. Ist das Geraet zu langsam, reduziert PIROL die Ueberlappung automatisch und meldet das einmal pro Session in einer Snackbar. Bei Modellen mit laengerem Fenster (Perch, 5 s) begrenzt der Regler "Max. Schrittweite" (3, 4 oder 5 s) den Abstand zwischen zwei Fenstern.
 
 ### Lange Aufnahmen (Segmente)
 Nach der eingestellten Maximaldauer (Standard 60 min, einstellbar 10-80 min) beginnt automatisch eine neue Datei (`recording-002.wav` usw.). Die Aufnahme laeuft ohne Unterbruch weiter. Zeitangaben in `detections.jsonl` und Raven gelten ab Session-Start. Der WAV-Kopf wird alle 5 s nachgefuehrt: Wird die App hart beendet, gehen hoechstens ca. 3 s Audio verloren.
@@ -111,7 +116,7 @@ Pro Detektion stehen diese Aktionen zur Verfuegung (Live-Tab, Analyse-Tab und Ka
 | Unsicher (?) | Unsicher | oranger Rand |
 | Ablehnen | Abgelehnt | ausgegraut |
 | Korrigieren | Korrigiert | Name durch eigene Eingabe ersetzt |
-| Alternative waehlen | Ersetzt | Original ausgegraut mit rotem Rand, Alternative erscheint als neue Detektion |
+| Alternative waehlen | Bestaetigt | Die Art der Detektion wird durch die Alternative ersetzt (gleiche Zeile, Zeit und Position); die alte Art bleibt als Kandidat. Rueckgaengig in der Snackbar |
 
 Im **Live-Tab** gibt es beim Verifizieren keine Snackbar mehr. Nach "Bestaetigen" zeigt die Karte stattdessen einen gruenen Rueckgaengig-Knopf; er setzt die Detektion auf "Unsicher" zurueck. Die Knoepfe Bestaetigen, Unsicher, Ablehnen und Bearbeiten bleiben sichtbar, der Status laesst sich also jederzeit umschalten. Beim Waehlen einer **Alternative**, beim Verschieben auf der Karte und beim Bestaetigen ueber den Watchlist-Alarm erscheint weiterhin eine Snackbar mit **Rueckgaengig** (mindestens 5 s). Alle Aktionen werden in `verifications.jsonl` festgehalten; auch abgelehnte und ersetzte Detektionen bleiben im Export (Audit-Trail).
 
@@ -127,6 +132,7 @@ Jede Aufnahme erzeugt einen Session-Ordner, standardmaessig `Downloads/PIROL/YYY
 session.json              Metadaten (Dauer, Ort, GPS-Statistik, verwendetes Modell)
 detections.jsonl          alle Detektionen
 verifications.jsonl       alle Verifikations-Aktionen
+detections.updates.jsonl Zusatzdatei waehrend der Aufnahme (wird beim Stopp in detections.jsonl zusammengefuehrt)
 recording.wav             Aufnahme (16-bit, Mono, 48 kHz); bei langen Sessions
 recording-002.wav ...     weitere Segmente
 recording.selections.txt  Raven Selection Table (automatisch beim Stopp)
@@ -160,6 +166,10 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 - **+ Art:** uebernimmt die Zeit aus der Abspielposition (+/-10 s). Der Ort laesst sich ueber "Auf Karte waehlen" bestimmen.
 - **Uebersicht:** Eine Uebersichtsleiste zeigt die Detektionen ueber die ganze Aufnahme; die Raven-Tabelle listet sie als Tabelle.
 - **Raven-Datei neu erzeugen**, z.B. nach nachtraeglicher Verifikation.
+- **Episoden teilen:** Jede Episode hat einen eigenen Teilen-Knopf; geteilt wird der Ausschnitt dieser Episode.
+- **Rescan:** Der Rescan-Knopf neben der Lupe (nur wenn eine Aufnahme vorhanden ist) oeffnet die Wahl von Modell, Liste bzw. Artgruppen, Konfidenz-Schwelle, Overlap und Zweitmodell. Der Rescan laeuft im Hintergrund als Vordergrund-Dienst mit Fortschritt und Abbrechen; das Ergebnis erscheint als Chip neben dem Original ("Datum Zeit · Modell"). Waehrend eines Rescans ist keine Aufnahme moeglich.
+- **Audio importieren:** Der Import-Knopf im Kopf der Session-Liste uebernimmt eine PIROL-Session (ZIP oder Ordner) oder Audiodateien (WAV, FLAC, MP3, M4A, OGG) als neue Session. Die Startzeit steht vorbelegt (z.B. aus einem AudioMoth-Kommentar) und ist aenderbar. Bei mehreren Dateien waehlt man: je Datei eine Session oder alle zu einer Session (Segmente, nach Zeit sortiert).
+- **Kopfzeile:** Datum · Gemeinde · Bemerkung in einer Zeile; ein Tipp auf die Bemerkung oeffnet den Dialog. Der Kompakt/Gross-Umschalter entspricht dem der Artkarte.
 
 **Mehrere Aufnahmen auswaehlen:** Langdruck auf eine Aufnahme in der Session-Liste startet den Auswahlmodus; weitere Aufnahmen werden per Tipp gewaehlt. Die Kopfleiste zeigt "N ausgewaehlt" mit den Aktionen "Alle", "Verschieben" und "Loeschen"; das X oder die Zurueck-Taste beendet den Modus. Die gerade laufende Aufnahme ist nicht auswaehlbar.
 - **Verschieben:** Der Zielordner ist frei waehlbar (Ordnerwahl, auch SD-Karte oder USB-Speicher). Jede Session wird mit allen Dateien (Aufnahme-Segmente, Memos) kopiert, die Dateigroessen werden geprueft, danach wird das Original geloescht. Bei einem Fehler oder Abbruch bleibt das Original erhalten und die Teilkopie wird entfernt. Existiert am Ziel schon eine Session mit gleichem Namen, wird `-2`, `-3` usw. angehaengt. Der Fortschritt ist sichtbar und abbrechbar. Ein Zielordner innerhalb von `Downloads/PIROL` (oder die Aufnahme selbst) wird abgelehnt; es wird dann nichts verschoben.
@@ -171,9 +181,11 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 
 **Raven Selection Table** (`recording.selections.txt`): wird beim Stopp automatisch neben der WAV geschrieben, Tab-getrennt, UTF-8. Oeffnet in Cornell Raven, Audacity (als Label-Spur) und Sonic Visualiser.
 
-Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Begin/End Time (s), Low/High Freq (Hz), Begin Date Time (mit Offset), Species, Confidence, Status. Welche weiteren Spalten geschrieben werden, steht unter Settings > Analyse & Export > Raven-Export Felder. KML-Export gibt es nicht mehr.
+Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Begin/End Time (s), Low/High Freq (Hz), Begin Date Time (mit Offset), Species, Confidence, Status (bei Zweitmodell Second Rank). Welche weiteren Spalten geschrieben werden, steht unter Settings > Analyse & Export > Raven-Export Felder. KML-Export gibt es nicht mehr.
 
 **ZIP-Paket:** die Session als ZIP, fuer manuelles Teilen oder den automatischen Upload (Kapitel 12).
+
+**Dateinamen:** Geteilte Detektionen heissen `YYYYMMDDHHMMSS_Art_Bemerkung.ext` (z.B. `20260420143005_Amsel_Garten_hinten.wav`), ZIP-Pakete `YYYYMMDDHHMMSS_Bemerkung.zip` (Zeit = Session-Start). Fehlt die Bemerkung, entfaellt der Teil; Leer- und Sonderzeichen werden zu `_`.
 
 ---
 
@@ -190,6 +202,7 @@ Georeferenzierte Detektionen auf einer Karte. Das Menue oeffnet sich per Wisch v
 - **Legende und Filter:** Der Trichter-Knopf oben links oeffnet den Artfilter: "Nur Alarmarten" oder einzelne Arten ausblenden (Alle/Keine). Der Filter gilt bis zum Schliessen der App; Routen bleiben sichtbar.
 - **Route:** Eine waehrend der Aufnahme aufgezeichnete Route erscheint als Linie (bei Modus "Nur bei Detektion" gestrichelt, nur an Detektionspunkten). Siehe Kapitel 14.
 - **Standort-Knopf:** Zentriert die Karte auf die eigene Position und zoomt so, dass die sichtbare Kartenhoehe etwa 200 m betraegt.
+- **Zoom-Knoepfe:** Die +/- Knoepfe sind 50 % groesser und liegen ueber dem Standort-Knopf.
 
 ---
 
@@ -215,9 +228,15 @@ Im Alarm kann die Art direkt **bestaetigt** werden; "Rueckgaengig" bleibt danach
 
 ---
 
-## 11. Eigene Artenlisten
+## 11. Artgruppen und Artenlisten
 
-Neben der Region koennen eigene Artenlisten als JSON-Dateien im Ordner `lists/` des freigegebenen PIROL-Ordners abgelegt werden (`Downloads/PIROL/lists/*.json`). Sie erscheinen als waehlbare Listen im Artfilter ("Eigene Liste"). Die Listen werden bei **jedem Aufnahmestart neu eingelesen**; Aenderungen gelten also ab der naechsten Aufnahme. Fehlerhafte Listen werden uebersprungen und mit Grund gemeldet. Als Vorlage dient "Beispielliste anlegen" (`lists/beispiel_liste.json`).
+Der Artfilter wirkt je Artgruppe: **Voegel, Heuschrecken, Amphibien, Saeugetiere** je **Aus / Alle / Auto / Liste**; **Andere** nur **Aus / Alle** (Standard Aus). "Auto" nutzt das Geomodel (Standort und BirdNET-Woche). Arten, die das Geomodel nicht kennt, sowie Gruppen ohne Geomodel-Maske nehmen die Begleitliste der Gruppe (Voegel: CH-Liste, Heuschrecken und Amphibien: CH-Liste unten, Saeugetiere: alle). "Liste" waehlt eine der mitgelieferten oder eigenen Listen. Mitgeliefert ist die Liste "CH Heuschrecken & Amphibien" (Daten GBIF, CC BY 4.0).
+
+Im Listen-Editor lassen sich Arten nach Ordnung, Familie und Gattung auswaehlen; "Artnamen wissenschaftlich anzeigen" schaltet die Namensform um.
+
+### Eigene Artenlisten
+
+Eigene Artenlisten koennen als JSON-Dateien im Ordner `lists/` des freigegebenen PIROL-Ordners abgelegt werden (`Downloads/PIROL/lists/*.json`). Sie erscheinen als waehlbare Listen bei den Artgruppen (Option "Liste"). Die Listen werden bei **jedem Aufnahmestart neu eingelesen**; Aenderungen gelten also ab der naechsten Aufnahme. Fehlerhafte Listen werden uebersprungen und mit Grund gemeldet. Als Vorlage dient "Beispielliste anlegen" (`lists/beispiel_liste.json`).
 
 Alte und neue wissenschaftliche Namen (z.B. nach Taxonomie-Aenderungen) werden zusammengefuehrt, sodass Listen modelluebergreifend funktionieren.
 
@@ -249,6 +268,8 @@ Settings > Modell & Erkennung > Modell:
 
 Das aktive Modell wird per Auswahl umgeschaltet, ab der naechsten Analyse. Die Artenzahl neben dem Modell stimmt nach dem Wechsel sofort. Modelle koennen heruntergeladen (abbrechen und fortsetzen moeglich), importiert und geloescht werden. Jede Session merkt sich das verwendete Modell.
 
+**Modelltabelle (ab v0.1.1):** Die Spalte Primaer (Radio) bestimmt das Hauptmodell. Sekundaer (Haekchen, nur im Experten-Modus) waehlt das Zweitmodell, das jede Detektion mitprueft; abwaehlbar, nie gleich dem Primaer. Der Papierkorb loescht ein installiertes Modell nach Bestaetigung; das Primaer laesst sich nicht loeschen und ist waehrend einer Aufnahme gesperrt. Nicht geladene Modelle zeigen ein Lade-Symbol mit Fortschritt und Abbrechen in der Zeile.
+
 **Konfidenz-Schwelle:** Der Regler "Konfidenz-Schwelle (alle Arten)" gilt fuer alle Arten gleich (Standard 50 %). Watchlist-Alarme loesen erst ab dieser Schwelle aus.
 
 **Mindest-Konfidenz:** Die Erkennungs-Schwelle ist global einstellbar. Ein Modell kann zusaetzlich eine eigene Mindest-Konfidenz mitbringen (z.B. 80 % fuer Perch). Es gilt der hoehere Wert; das Modell zeigt ihn an.
@@ -261,6 +282,8 @@ Geprueft sind **BirdNET 2.4** (6'522 Arten, 48 kHz, etwa halbe Rechenzeit von 3.
 **Lizenzen:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 und Nighthawk nur nicht-kommerziell (CC BY-NC bzw. BY-NC-SA). Die Lizenz wird beim Import angezeigt.
 
 **Hinweis:** Perch arbeitet mit 32 kHz; Laubheuschrecken im Ultraschall sind damit nicht hoerbar.
+
+**Perch als Zweitmodell:** braucht ca. 650 MB zusaetzlichen Speicher. Die App warnt beim Einschalten, wenn das Geraet weniger als 6 GB RAM hat. Das Zweitmodell arbeitet mit dem Rohaudio der Aufnahme, damit die 5-s-Fenster echte Umgebung enthalten.
 
 ---
 
@@ -328,14 +351,14 @@ Die Settings sind in einklappbare Sektionen gegliedert; der Zustand wird gemerkt
 |---------|--------|
 | Sprache | App-Sprache, Artennamen-Sprache |
 | Aufnahme | Audio-Info, Preroll, Ueberlappung, Energieprofil, Speicherort (Ordner, Tages-Unterordner, Auto-Loeschen, Sessions verschieben), Max. Aufnahmelaenge und Ausschnittlaenge, Resampler |
-| Modell & Erkennung | Modelle (Download, Import, Loeschen), Erkennungs-Schwelle (alle Arten), Max. Arten pro Fenster, Voreinstellungen, Artvorschlaege, Zusammenfassen von Detektionen, Aehnliche Arten und Embedding-Limit |
+| Modell & Erkennung | Modelle (Download, Import, Loeschen), Erkennungs-Schwelle (alle Arten), Alternativen ab, Max. Arten pro Fenster, Voreinstellungen, Artvorschlaege, Zusammenfassen von Detektionen, Aehnliche Arten und Embedding-Limit |
 | Arten & Alarm | Regionaler Filter und eigene Listen, Watchlist, Alarm-Pause und -Ausgabe, Alarm testen, PIROL-Ordner, Saisonalitaet und Seltenheit |
 | Anzeige | Artnamen-Sprache, Vollbild, Sonogramm (Modus, Voreinstellung, Kontrast, Gamma, Deckel, Palette, Frequenz, Zeitfenster), kompakte Artkarte |
 | Karte & GPS | GPS-Modus, Route aufzeichnen, GPS-Intervall, Genauigkeit und Glaettung |
 | Export & Upload | Raven-Export-Felder, Upload (Ziel Ordner/NAS, Passwort, Verbindungstest, nur WLAN) |
 | Info | Version, Quellen, Was ist neu, Diagnose (Benchmark) |
 
-Seltene Optionen stehen im einklappbaren Unterblock "Erweitert" der jeweiligen Sektion (z.B. Hochpassfilter, Detektions-Cluster, Phaenologie, Max. Aufnahmelaenge).
+Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im Einfach-Modus alles Seltene aus; im Expertenmodus ist alles sichtbar. Keine Einstellung geht dabei verloren. Seltene Optionen stehen im einklappbaren Unterblock "Erweitert" der jeweiligen Sektion (z.B. Hochpassfilter, Detektions-Cluster, Phaenologie, Max. Aufnahmelaenge).
 
 **Resampler:** Polyphase (empfohlen) filtert Stoergeraeusche ueber 16 kHz, die sonst als Geistersignale erscheinen koennen. "Linear" ist die alte Methode. Die Umschaltung zeigt einen Hinweis und wirkt ohne Neustart der Aufnahme.
 
@@ -358,4 +381,4 @@ Die Liste der Aenderungen pro Version steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.0.11 — ETA Systems — Stand 2026-11-23*
+*PIROL v0.1.1 — ETA Systems — Stand 2026-11-23*

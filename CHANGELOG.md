@@ -1,5 +1,55 @@
 # Changelog PIROL
 
+## v0.1.1 — 2026-11-23
+
+Update ueber v0.0.11 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu" (auch unter Einstellungen > Info).
+
+### Hauptunterschied zu v0.0.11
+**Zweites Modell und Artgruppen:** Ein Zweitmodell (z.B. Perch v2 oder BirdNET 2.4) prueft jede Detektion mit und zeigt Prozent bzw. Rang. Die Artenerkennung laesst sich nach Artgruppen einschraenken (Voegel, Heuschrecken, Amphibien, Saeugetiere, Andere). **Achtung:** Alte Filtereinstellungen werden auf Artgruppen umgestellt (Voegel Auto, Rest Aus). Nach dem Update pruefen; Konfidenz-Schwelle und "Alternativen ab" ebenfalls pruefen. Perch als Zweitmodell braucht ca. 650 MB zusaetzlich (Warnung bei weniger als 6 GB RAM).
+
+### Erster Start und Einstellungen
+- Einrichtungsassistent: Sprache, Niveau (Einsteiger/Experte), Einsatzzweck, Artenliste, Modell und Geomodel, Berechtigungen, Zusammenfassung (T226, T227, T232, T241)
+- Schalter "Experteneinstellungen": aus zeigt das Wichtigste, an zeigt alles; keine Einstellung geht verloren (T227, T241)
+- Einstellungen auf Sektionsdateien aufgeteilt; Modelltabelle mit Primaer/Sekundaer, Loeschen und Laden (T213, T223, T224, T231, T241, T253)
+
+### Live-Tab
+- Zweitmodell: Prozent bzw. Rang ("Perch #2") auf Karte und kompakter Karte (T224, T253)
+- Alternativen mit eigener Untergrenze "Alternativen ab" 5/10/20/30 % (T225)
+- Perch mit echtem 5-s-Fenster, als Primaer- oder Zweitmodell, Abstand 3/4/5 s einstellbar (T231)
+- Alarm-Knopf auf der Artkarte: dauerhaft oder fuer 24 h, 24-h-Alarme mit Abzeichen (T244, T247)
+- Kompakt-Knopf: Artkarten kompakt oder ausfuehrlich, Alternativen auf- und zuklappbar (T229, T230)
+- Alternative waehlen ersetzt die Art der Detektion (gleiche Zeile); Rueckgaengig in der Snackbar (T237)
+- Aufnahme-Start und -Stopp in Folge sauber getrennt; Speichern gebuendelt (T250, T251)
+
+### Analyse
+- Rescan mit Modell, Liste bzw. Artgruppen, Schwelle, Overlap und Zweitmodell; laeuft als Vordergrund-Dienst mit Abbrechen (T221, T248, T250, T252)
+- Audio-Import: PIROL-Session als ZIP oder Ordner, Audiodateien (WAV, FLAC, MP3, M4A) mit Startzeit aus Metadaten oder Dateiname, Ort per Karte, mehrere Dateien einzeln oder als eine Session (T255)
+- Episoden einzeln teilen (T222)
+- Kopfzeile mit Datum, Gemeinde und Bemerkung; Kompakt/Gross-Umschalter (T254)
+- Upload nebenlaeufig und sicher (Namensreservierung, Cache-ZIP) (T234)
+
+### Artgruppen und Artenlisten
+- Filter je Artgruppe: Voegel, Heuschrecken, Amphibien, Saeugetiere je Aus/Alle/Auto/Liste; Andere Aus/Alle (T232, T246)
+- Auto nutzt das Geomodel (Standort und Woche); Arten ohne Geomodel-Angabe nehmen die Begleitliste der Gruppe (T218, T239)
+- Mitgelieferte Liste "CH Heuschrecken & Amphibien" (GBIF, CC BY 4.0) (T228)
+- Listen-Editor: Auswahl nach Ordnung, Familie, Gattung; wissenschaftliche Namen umschaltbar; Artenlisten v4 (T189, T190, T220, T235)
+
+### Export
+- Dateinamen `YYYYMMDDHHMMSS_Art_Bemerkung` beim Teilen, `YYYYMMDDHHMMSS_Bemerkung.zip` fuer Sessions (T233, T234)
+- Raven-Export mit Spalte "Second Rank" (T253)
+
+### Karte
+- Alle Kartenknoepfe 50 % groesser (T245)
+- Sonogramme nutzen die echte Abtastrate der Aufnahme (T247)
+
+### Robustheit und Technik
+- Atomares Speichern (Schattenkopie bei SAF), Session-Updates waehrend der Aufnahme append-only (T236, T249, T251)
+- Filterzustand atomar, Main-Thread entlastet, Regionsfilter vor Top-N (T238)
+- Modellwechsel-Absturzschutz, Thread-Sicherheit der Filter, Watchlist unter einem Mutex (T239, T250)
+- Lint-Fehler von 285 auf 0 gesenkt; zwei Code-Reviews umgesetzt (T243, T249–T251)
+- Ungenutzter Code und Strings entfernt (T240)
+- Speicherwarnung vor dem Zweitmodell bei wenig RAM (T254)
+
 ## v0.0.11 — 2026-11-23
 
 Update ueber v0.0.10 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu" (auch unter Einstellungen > Info).

@@ -528,15 +528,15 @@
     <string name="settings_whats_new_button">What\'s new</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Multiple detection: every species in the 3-second window that reaches the confidence threshold is detected. The threshold now applies to all species (default 50 %), please check the slider</item>
-        <item>Live display can be switched: spectrogram, spectrum (FFT with peak hold) or oscillogram (with level, band-pass, red on overload)</item>
-        <item>Analysis: search species, playback bar with Play and jump to previous/next detection, tapping the spectrogram jumps</item>
-        <item>"+ Species" takes the time from the playback position (±10 s); the location can be picked on the map</item>
-        <item>Map: legend filters species, "Alarm species only"; route is recorded (GPX when stopped)</item>
-        <item>GPS position at app start; insert the municipality into the note with one button</item>
-        <item>Settings grouped into 8 sections, rarely used options under "Advanced"</item>
-        <item>Resampler can be switched with a hint; the model is released in the background (less battery)</item>
-        <item>Raven export and time stamps use the best window of a species</item>
+        <item>Species groups: birds, grasshoppers, amphibians, mammals and others each set to Off / All / Auto / List. Please check: old filters are now Birds Auto, rest Off</item>
+        <item>Second model (e.g. Perch or BirdNET 2.4) shows percent and rank per species</item>
+        <item>Alarm bell on the species card: permanent or for 24 h</item>
+        <item>Compact button: species cards compact or detailed, also in Analysis</item>
+        <item>Setup assistant on first start; Settings with an "Expert settings" switch</item>
+        <item>Analysis: rescan with model, list and threshold runs in the background; audio import (WAV, FLAC, MP3, M4A)</item>
+        <item>Share single episodes; header shows municipality and note</item>
+        <item>Export file names with time and note, e.g. 202604201430_Blackbird_Garden.wav</item>
+        <item>Map: larger zoom buttons; saving and uploading more robust</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>
