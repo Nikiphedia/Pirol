@@ -183,6 +183,7 @@ fun SettingsScreen(
 
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
+    var selectedAltFloor by remember { mutableFloatStateOf(appPreferences.alternativesFloor) }
     var selectedConfidence by remember { mutableFloatStateOf(appPreferences.confidenceThreshold) }
 
     // Phenology State (T74)
@@ -1226,6 +1227,27 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // T225: Untergrenze fuer Alternativen
+            Text(stringResource(R.string.settings_alternativen_ab, (selectedAltFloor * 100).roundToInt()))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0.05f, 0.10f, 0.20f, 0.30f).forEach { v ->
+                    FilterChip(
+                        selected = kotlin.math.abs(selectedAltFloor - v) < 0.001f,
+                        onClick = {
+                            selectedAltFloor = v
+                            appPreferences.alternativesFloor = v
+                        },
+                        label = { Text("${(v * 100).roundToInt()} %") }
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.settings_alternativen_ab_hinweis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
@@ -1241,7 +1263,8 @@ fun SettingsScreen(
                 ).forEach { (preset, label) ->
                     OutlinedButton(onClick = {
                         selectedConfidence = preset.confidenceThreshold
-                        appPreferences.topKThreshold = preset.topKThreshold
+                        selectedAltFloor = preset.alternativesFloor
+                        appPreferences.alternativesFloor = preset.alternativesFloor
                         appPreferences.confidenceThreshold = preset.confidenceThreshold
                         selectedTopK = preset.topK
                         appPreferences.topK = preset.topK

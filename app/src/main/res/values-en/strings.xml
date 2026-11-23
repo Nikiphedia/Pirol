@@ -210,6 +210,8 @@
     <string name="settings_erkennung">Detection</string>
     <string name="settings_erkennungs_schwelle_topk">Confidence threshold (all species): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. species per chunk (TopK): %1$s</string>
+    <string name="settings_alternativen_ab">Alternatives from: %1$d %%</string>
+    <string name="settings_alternativen_ab_hinweis">Other species in the same window below the detection threshold appear as alternatives from this confidence (at most TopK).</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: top species only (pre-T71 behavior)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: up to %2$s species at once</string>
     <string name="settings_regionaler_filter">Regional filter</string>

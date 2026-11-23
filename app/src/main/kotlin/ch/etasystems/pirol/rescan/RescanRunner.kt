@@ -107,7 +107,9 @@ class RescanRunner(
             if (raw.isNotEmpty()) {
                 val pos = positionAt(startEpoch)
                 val located = if (pos == null) raw else raw.map { it.copy(latitude = pos.first, longitude = pos.second) }
-                val named = RecordingPipeline.splitByThreshold(located, threshold)
+                val named = RecordingPipeline.splitByThreshold(
+                    located, threshold, config.alternativesFloor, config.topK, config.topK
+                )
                     .map { RecordingPipeline.withResolvedNames(it, resolveName) }
                 for (det in named) {
                     when (val r = list.addOrCluster(det, clusterEnabled, clusterRadiusM, clusterTimeWindowMin,

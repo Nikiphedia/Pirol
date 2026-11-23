@@ -211,6 +211,8 @@
     <string name="settings_erkennung">Erkennung</string>
     <string name="settings_erkennungs_schwelle_topk">Konfidenz-Schwelle (alle Arten): %1$s%%</string>
     <string name="settings_max_arten_pro_chunk_topk">Max. Arten pro Chunk (TopK): %1$s</string>
+    <string name="settings_alternativen_ab">Alternativen ab: %1$d %%</string>
+    <string name="settings_alternativen_ab_hinweis">Andere Arten desselben Fensters unter der Erkennungsschwelle erscheinen ab dieser Konfidenz als Alternativen (hoechstens so viele wie TopK).</string>
     <string name="settings_topk_1_nur_top_art">TopK=1: nur Top-Art (Pre-T71-Verhalten)</string>
     <string name="settings_topk_bis_zu_arten_gleichzeitig">TopK=%1$s: bis zu %2$s Arten gleichzeitig</string>
     <string name="settings_regionaler_filter">Regionaler Filter</string>

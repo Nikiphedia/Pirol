@@ -370,4 +370,43 @@ class RecordingPipelineTest {
         assertEquals(listOf("A", "B"), out.map { it.scientificName })
         assertTrue(out.all { d -> d.candidates.map { it.scientificName } == listOf("C") })
     }
+
+    // --- T225: eigene Untergrenze fuer Alternativen ---
+
+    @Test
+    fun alternatives_betweenFloorAndThreshold_appear_belowFloorDropped() {
+        val out = RecordingPipeline.splitByThreshold(
+            listOf(det("A", 0.9f), det("B", 0.25f), det("C", 0.12f), det("D", 0.05f)),
+            threshold = 0.5f, alternativesFloor = 0.10f
+        )
+        assertEquals(listOf("A"), out.map { it.scientificName })
+        assertEquals(listOf("B", "C"), out[0].candidates.map { it.scientificName })
+    }
+
+    @Test
+    fun alternatives_detectionSpeciesNotRepeated_andCapped() {
+        val out = RecordingPipeline.splitByThreshold(
+            listOf(det("A", 0.9f), det("B", 0.6f), det("C", 0.4f), det("D", 0.3f), det("E", 0.2f)),
+            threshold = 0.5f, alternativesFloor = 0.10f, maxAlternatives = 2
+        )
+        assertEquals(listOf("A", "B"), out.map { it.scientificName })
+        assertEquals(listOf("C", "D"), out[0].candidates.map { it.scientificName })
+    }
+
+    @Test
+    fun alternatives_floorAboveThreshold_isCappedToThreshold() {
+        val out = RecordingPipeline.splitByThreshold(
+            listOf(det("A", 0.9f), det("B", 0.4f)),
+            threshold = 0.5f, alternativesFloor = 0.8f
+        )
+        assertEquals(listOf("A"), out.map { it.scientificName })
+        assertTrue(out[0].candidates.isEmpty())
+    }
+
+    @Test
+    fun alternatives_classifierThreshold_isFloorCappedByDetectionThreshold() {
+        assertEquals(0.10f, InferenceConfig.classifierThreshold(0.5f, 0.10f, null), 0f)
+        assertEquals(0.5f, InferenceConfig.classifierThreshold(0.5f, 0.8f, null), 0f)
+        assertEquals(0.6f, InferenceConfig.classifierThreshold(0.5f, 0.10f, 0.6f), 0f)
+    }
 }

@@ -281,13 +281,14 @@ class InferenceWorker(
             // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34); T224: gemeinsam mit dem Zweitmodell
             val resampled = prepareInput(window.pcm, window.sampleRate, targetRate, mode, config.highpassEnabled)
 
-            // 2. Klassifizierung (T71: topKThreshold, T61: Embedding aus demselben Durchlauf)
+            // 2. Klassifizierung (T71/T225: Alternativen-Untergrenze, T61: Embedding aus demselben Durchlauf)
             val output = classifier.classifyWithEmbedding(
                 samples = resampled,
                 sampleRate = targetRate,
-                topK = config.topK,
-                // T211: Kandidatenschwelle nie ueber der Detektionsschwelle
-                threshold = InferenceConfig.effectiveThreshold(minOf(config.topKThreshold, config.confidenceThreshold), classifier.minConfidence)
+                // T225: topK Detektionen plus topK Alternativen; splitByThreshold begrenzt wieder
+                topK = config.topK * 2,
+                // T211/T225: Untergrenze der Alternativen, nie ueber der Detektionsschwelle
+                threshold = InferenceConfig.classifierThreshold(config.confidenceThreshold, config.alternativesFloor, classifier.minConfidence)
             )
             embedding = output.embedding
             logUnmappedRegionSpecies()
