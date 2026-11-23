@@ -183,6 +183,22 @@ fun SpectrumView(
             val b1 = SpectrumAnalyzer.hzToBin(fHi, n, sr)
             if (b1 - b0 < 1) return@Canvas
 
+            // T201: Spuren der letzten N s, aelteste zuerst, damit die juengste oben liegt
+            if (settings.traceSec > 0f) {
+                val layers = spectrumState.traceLayers()
+                for (li in layers.indices.reversed()) {
+                    val layer = layers[li]
+                    if (layer.values.size != avg.size) continue
+                    val tp = Path()
+                    for (b in b0..b1) {
+                        val x = xOf(SpectrumAnalyzer.binToHz(b, n, sr)).coerceIn(leftPad, size.width)
+                        val y = yOf(layer.values[b])
+                        if (b == b0) tp.moveTo(x, y) else tp.lineTo(x, y)
+                    }
+                    drawPath(tp, lineColor.copy(alpha = layer.alpha * 0.5f), style = Stroke(width = 1f * density))
+                }
+            }
+
             val line = Path()
             val fill = Path()
             val peakPath = Path()

@@ -58,6 +58,7 @@ fun WaveformView(
     sampleRate: Int,
     settings: SpectrogramDisplaySettings,
     waveformSettings: WaveformSettings,
+    sonoAutoRange: () -> Pair<Float, Float>? = { null },
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -77,9 +78,7 @@ fun WaveformView(
     val windowBins = (windowSec * sampleRate / waveformState.binSize).toInt()
         .coerceIn(16, waveformState.maxBins)
     val realWindowSec = windowBins.toFloat() * waveformState.binSize / sampleRate
-    val minDb = settings.minDb
-    val maxDb = maxOf(settings.maxDb, minDb + MIN_DISPLAY_SPAN_DB)
-    val dbAxis = waveformSettings.axis == WaveformAxis.DBFS
+    val dbAxis = waveformSettings.levelMode != WaveformLevelMode.PERCENT
 
     val tick = rememberDrawTick(waveformState) { waveformState.version }
     // Arbeitspuffer einmal anlegen (keine Allokation pro Frame)
@@ -129,7 +128,9 @@ fun WaveformView(
             val n = waveformState.copyLast(windowBins, binMin, binMax, binSq, binRaw)
             columnMinMax(binMin, binMax, n, windowBins, nCols, colMin, colMax)
             columnMax(binRaw, n, windowBins, nCols, colRaw)
-            val range = waveformFullScale(waveformSettings.amplitudeMode, peakAmplitude(colMin, colMax, nCols), maxDb)
+            // T201: dBFS-Bereich je Modus (wie FFT bzw. wie Sonogramm), im Draw gelesen, folgt also live
+            val (minDb, maxDb) = waveformDbRange(waveformSettings.levelMode, settings, sonoAutoRange())
+            val range = waveformFullScale(waveformSettings.amplitudeMode, peakAmplitude(colMin, colMax, nCols), settings.maxDb)
             val mid = h / 2f
             // Auslenkung -1..1 je nach Achse
             fun defl(a: Float) = if (dbAxis) dbfsDeflection(a, minDb, maxDb) else (a / range).coerceIn(-1f, 1f)
@@ -141,8 +142,8 @@ fun WaveformView(
                 val y = mid - s * mid
                 drawLine(grid, Offset(leftPad, y), Offset(size.width, y), 1f)
                 val text = when {
-                    dbAxis && s == 0 -> "${minDb.toInt()}"
-                    dbAxis -> "${maxDb.toInt()}"
+                    dbAxis && s == 0 -> "%.0f".format(Locale.US, minDb)
+                    dbAxis -> "%.0f".format(Locale.US, maxDb)
                     else -> amplitudeLabel(s * range)
                 }
                 val lay = measurer.measure(text, labelStyle)

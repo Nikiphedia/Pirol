@@ -3,11 +3,12 @@ package ch.etasystems.pirol.data
 import ch.etasystems.pirol.audio.dsp.SpectrumAnalyzer
 import ch.etasystems.pirol.ui.components.SpectrogramDisplaySettings
 import ch.etasystems.pirol.ui.components.SpectrumAveraging
+import ch.etasystems.pirol.ui.components.SPECTRUM_TRACE_OPTIONS
 import ch.etasystems.pirol.ui.components.SpectrumSettings
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import ch.etasystems.pirol.ui.components.SpectrogramPreset
 import ch.etasystems.pirol.ui.components.WaveformAmplitudeMode
-import ch.etasystems.pirol.ui.components.WaveformAxis
+import ch.etasystems.pirol.ui.components.WaveformLevelMode
 import ch.etasystems.pirol.ui.components.WaveformSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,13 +48,15 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         prefs.spectrumFftSize = new.fftSize
         prefs.spectrumAveraging = new.averaging.name
         prefs.spectrumPeakHold = new.peakHold
+        prefs.spectrumTraceSec = new.traceSec
     }
 
     private fun loadSpectrum(): SpectrumSettings = SpectrumSettings(
         fftSize = prefs.spectrumFftSize.takeIf { it in SpectrumAnalyzer.FFT_SIZES } ?: 2048,
         averaging = SpectrumAveraging.entries.firstOrNull { it.name == prefs.spectrumAveraging }
             ?: SpectrumAveraging.SHORT,
-        peakHold = prefs.spectrumPeakHold
+        peakHold = prefs.spectrumPeakHold,
+        traceSec = prefs.spectrumTraceSec.takeIf { t -> SPECTRUM_TRACE_OPTIONS.any { it == t } } ?: 0f
     )
 
     // T200: Live-Oszillogramm, eigene Schluessel `pirol_waveform_*` (Amplitudenmodus, Achse)
@@ -61,7 +64,8 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         WaveformSettings(
             amplitudeMode = WaveformAmplitudeMode.entries.firstOrNull { it.name == prefs.waveformAmplitudeMode }
                 ?: WaveformAmplitudeMode.AUTO,
-            axis = WaveformAxis.entries.firstOrNull { it.name == prefs.waveformAxis } ?: WaveformAxis.LINEAR
+            levelMode = WaveformLevelMode.entries.firstOrNull { it.name == prefs.waveformLevelMode }
+                ?: WaveformLevelMode.PERCENT
         )
     )
     val waveform: StateFlow<WaveformSettings> = _waveform.asStateFlow()
@@ -71,7 +75,7 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         if (new == _waveform.value) return
         _waveform.value = new
         prefs.waveformAmplitudeMode = new.amplitudeMode.name
-        prefs.waveformAxis = new.axis.name
+        prefs.waveformLevelMode = new.levelMode.name
     }
 
     private fun load(): SpectrogramDisplaySettings {

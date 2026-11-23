@@ -11,12 +11,17 @@ import java.util.Locale
  * @param fftSize FFT-Groesse (siehe SpectrumAnalyzer.FFT_SIZES)
  * @param averaging exponentielle Mittelung
  * @param peakHold Peak-Hold-Linie anzeigen
+ * @param traceSec T201: Dauer der rollenden Peak-Spuren (verblassende Max-Kurven), 0 = aus
  */
 data class SpectrumSettings(
     val fftSize: Int = 2048,
     val averaging: SpectrumAveraging = SpectrumAveraging.SHORT,
-    val peakHold: Boolean = false
+    val peakHold: Boolean = false,
+    val traceSec: Float = 0f
 )
+
+/** T201: Auswahl der Spuren-Dauer in Sekunden (0 = aus). */
+val SPECTRUM_TRACE_OPTIONS = floatArrayOf(0f, 1f, 2f, 5f, 10f, 30f)
 
 /** T198: Mittelung aus / kurz / lang (Zeitkonstante tau in Sekunden). */
 enum class SpectrumAveraging(val tauSec: Float, @StringRes val labelRes: Int) {

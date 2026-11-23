@@ -212,6 +212,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_spectrum_averaging", "SHORT") ?: "SHORT"
         set(value) = prefs.edit().putString("pirol_spectrum_averaging", value).apply()
 
+    /** T201: Dauer der Peak-Spuren in s (0 = aus). */
+    var spectrumTraceSec: Float
+        get() = prefs.getFloat("pirol_spectrum_trace_sec", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrum_trace_sec", value).apply()
+
     var spectrumPeakHold: Boolean
         get() = prefs.getBoolean("pirol_spectrum_peak_hold", false)
         set(value) = prefs.edit().putBoolean("pirol_spectrum_peak_hold", value).apply()
@@ -222,10 +227,10 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_waveform_amplitude_mode", "AUTO") ?: "AUTO"
         set(value) = prefs.edit().putString("pirol_waveform_amplitude_mode", value).apply()
 
-    /** Enum-Name von WaveformAxis. */
-    var waveformAxis: String
-        get() = prefs.getString("pirol_waveform_axis", "LINEAR") ?: "LINEAR"
-        set(value) = prefs.edit().putString("pirol_waveform_axis", value).apply()
+    /** T201: Enum-Name von WaveformLevelMode. */
+    var waveformLevelMode: String
+        get() = prefs.getString("pirol_waveform_level_mode", "PERCENT") ?: "PERCENT"
+        set(value) = prefs.edit().putString("pirol_waveform_level_mode", value).apply()
 
     /** Zeitfenster des Live-Sonogramms in Sekunden. */
     var spectrogramWindowSec: Float
