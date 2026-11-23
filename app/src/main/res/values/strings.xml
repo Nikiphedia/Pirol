@@ -135,6 +135,8 @@
     <string name="map_vermutete_simultanbeobachtung">\?  Vermutete Simultanbeobachtung</string>
     <string name="map_gleiches_tier">!  Gleiches Tier</string>
     <string name="map_mein_standort">Mein Standort</string>
+    <string name="map_zoom_in">Hineinzoomen</string>
+    <string name="map_zoom_out">Herauszoomen</string>
     <string name="map_karte_laden_kacheln">Karte laden: %1$s / %2$s Kacheln</string>
     <string name="map_ausschnitt_herunterladen">Ausschnitt herunterladen?</string>
     <string name="map_kacheln_zoom_ca_mb">%1$s Kacheln (Zoom %2$s-%3$s), ca. %4$s MB.</string>

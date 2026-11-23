@@ -46,13 +46,13 @@ fun MapVerifyButtons(
             val active = status == target
             Button(
                 onClick = { onVerify(target) },
-                modifier = Modifier.weight(1f).height(56.dp),
+                modifier = Modifier.weight(1f).height(84.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (active) activeColor else neutralContainer,
                     contentColor = if (active) activeContent else neutralContent
                 )
             ) {
-                Icon(icon, contentDescription = description, modifier = Modifier.size(28.dp))
+                Icon(icon, contentDescription = description, modifier = Modifier.size(42.dp))
             }
         }
         item(VerificationStatus.CONFIRMED, Icons.Filled.Check, AppStrings.get(R.string.ui_bestaetigen), Color(0xFF4CAF50), Color.White)
