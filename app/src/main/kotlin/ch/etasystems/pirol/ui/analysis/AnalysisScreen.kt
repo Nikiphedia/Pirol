@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
@@ -558,6 +560,19 @@ private fun SessionDetailContent(
                     }
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // T230: Kompakt/Ausfuehrlich im Ueberlaufmenue (Kopfzeile ist voll)
+                    val cardPrefs: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
+                    val cardCompact by cardPrefs.compactCardSetting.flow.collectAsState()
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (cardCompact) R.string.card_toggle_to_detailed else R.string.card_toggle_to_compact)) },
+                        leadingIcon = {
+                            Icon(
+                                if (cardCompact) Icons.Filled.ViewList else Icons.Filled.ViewAgenda,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = { menuOpen = false; cardPrefs.compactCardSetting.toggle() }
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.analysis_session_hochladen)) },
                         leadingIcon = { Icon(Icons.Filled.Upload, contentDescription = null) },
@@ -815,8 +830,6 @@ private fun SessionDetailContent(
                         Text(stringResource(R.string.analysis_gesamte_session), color = Color.White)
                     }
                 }
-                // T229: Schnellknopf Artkarte kompakt/ausfuehrlich (unten rechts, oben sitzt "Gesamte Session")
-                ch.etasystems.pirol.ui.components.CompactCardToggleButton(Modifier.align(Alignment.BottomEnd).padding(bottom = 20.dp))
             }
             // T194: Uebersichtsleiste ueber die ganze Session (Segmente: Session-Gesamtdauer)
             Spacer(modifier = Modifier.height(4.dp))

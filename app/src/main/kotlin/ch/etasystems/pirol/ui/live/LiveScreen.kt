@@ -335,7 +335,7 @@ private fun CompactLiveLayout(
             // T170: Telefon ohne Titelzeile (Platz). Laufzeit steht in der Status-Zeile,
             // Palette ist per Langdruck auf das Sonogramm waehlbar.
             // Kompakte Status-Zeile (T30) + Export-Buttons
-            ScanStatusRow(uiState = uiState, viewModel = viewModel)
+            ScanStatusRow(uiState = uiState, viewModel = viewModel, showCardToggle = true)
             if (!uiState.isRecording) SessionNoteField(viewModel)
 
             LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
@@ -640,7 +640,7 @@ private fun MediumLiveLayout(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            ScanStatusRow(uiState = uiState, viewModel = viewModel)
+            ScanStatusRow(uiState = uiState, viewModel = viewModel, showCardToggle = compact)
             if (!uiState.isRecording) SessionNoteField(viewModel)
 
             LocationBar(uiState = uiState, onRequestLocationPermission = onRequestLocationPermission)
@@ -984,6 +984,9 @@ private fun LiveHeader(
                 )
             }
 
+            // T230: Kompakt/Ausfuehrlich neben der Palette
+            ch.etasystems.pirol.ui.components.CompactCardToggleButton()
+
             // Aufnahme-Timer (Chronometer)
             if (uiState.isRecording) {
                 Box(
@@ -1055,7 +1058,8 @@ private fun SessionNoteField(viewModel: LiveViewModel) {
 @Composable
 private fun ScanStatusRow(
     uiState: LiveUiState,
-    viewModel: LiveViewModel
+    viewModel: LiveViewModel,
+    showCardToggle: Boolean = false  // T230: ohne Titelzeile sitzt der Kompakt-Knopf hier
 ) {
     val configLabel = when (uiState.spectrogramConfig) {
         SpectrogramConfig.BIRDS -> AppStrings.get(R.string.live_voegel)
@@ -1100,6 +1104,8 @@ private fun ScanStatusRow(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
         )
 
+        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (showCardToggle) ch.etasystems.pirol.ui.components.CompactCardToggleButton()
         // Upload-Button (T17): nur sichtbar nach abgeschlossener Session
         if (uiState.lastSessionId != null && !uiState.isRecording) {
             IconButton(onClick = { viewModel.uploadLastSession() }) {
@@ -1116,6 +1122,7 @@ private fun ScanStatusRow(
                     )
                 }
             }
+        }
         }
     }
 }
@@ -1302,8 +1309,6 @@ private fun SpectrogramBox(
                 )
             }
         }
-        // T229: Schnellknopf Artkarte kompakt/ausfuehrlich
-        ch.etasystems.pirol.ui.components.CompactCardToggleButton(Modifier.align(Alignment.BottomEnd).padding(bottom = 20.dp))
     }
 }
 
