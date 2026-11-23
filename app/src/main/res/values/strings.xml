@@ -529,15 +529,15 @@
     <string name="settings_whats_new_button">Was ist neu</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Mehrfacherkennung: Alle Arten im 3-s-Fenster, die die Konfidenz-Schwelle erreichen, werden erkannt. Die Schwelle gilt jetzt für alle Arten (Standard 50 %), bitte Regler prüfen</item>
-        <item>Live-Anzeige umschaltbar: Sonogramm, Spektrum (FFT mit Peak-Halten) oder Oszillogramm (mit Pegel, Bandpass, rot bei Übersteuerung)</item>
-        <item>Analyse: Arten suchen, Wiedergabeleiste mit Play und Sprung zur vorigen/nächsten Detektion, Tippen im Sonogramm springt</item>
-        <item>"+ Art" übernimmt die Zeit aus der Abspielposition (±10 s), der Ort lässt sich auf der Karte wählen</item>
-        <item>Karte: Legende filtert Arten, "Nur Alarmarten"; Route wird aufgezeichnet (GPX beim Stopp)</item>
-        <item>GPS-Standort beim Programmstart; Gemeinde per Knopf in die Bemerkung einfügen</item>
-        <item>Einstellungen in 8 Sektionen gegliedert, seltene Optionen unter "Erweitert"</item>
-        <item>Resampler umschaltbar mit Hinweis; Modell wird im Hintergrund freigegeben (weniger Akku)</item>
-        <item>Raven-Export und Zeitangaben nutzen das beste Fenster einer Art</item>
+        <item>Artgruppen: Vögel, Heuschrecken, Amphibien, Säugetiere und Andere je Aus / Alle / Auto / Liste. Bitte prüfen: alte Filter stehen auf Vögel Auto, Rest Aus</item>
+        <item>Zweitmodell (z.B. Perch oder BirdNET 2.4) zeigt pro Art Prozent und Rang</item>
+        <item>Alarm-Glocke auf der Artkarte: dauerhaft oder für 24 h</item>
+        <item>Kompakt-Knopf: Artkarten kompakt oder ausführlich, auch in der Analyse</item>
+        <item>Einrichtungsassistent beim ersten Start; Einstellungen mit Schalter "Experteneinstellungen"</item>
+        <item>Analyse: Rescan mit Modell, Liste und Schwelle läuft im Hintergrund; Audio-Import (WAV, FLAC, MP3, M4A)</item>
+        <item>Episoden einzeln teilen; Kopfzeile mit Gemeinde und Bemerkung</item>
+        <item>Export-Dateinamen mit Zeit und Bemerkung, z.B. 202604201430_Amsel_Garten.wav</item>
+        <item>Karte: größere Zoom-Knöpfe; Speichern und Hochladen robuster</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts verschoben.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewaehlte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>
