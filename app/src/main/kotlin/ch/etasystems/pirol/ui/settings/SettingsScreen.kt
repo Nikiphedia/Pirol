@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -86,6 +87,7 @@ import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.ModelProfile
+import ch.etasystems.pirol.ml.ModelRoles
 import ch.etasystems.pirol.ui.components.ModelProfileDialog
 import ch.etasystems.pirol.ml.PhenologyRepository
 import ch.etasystems.pirol.ml.GeoLogic
@@ -123,7 +125,8 @@ fun SettingsScreen(
     speciesNameResolver: SpeciesNameResolver = koinInject(),
     classifier: AudioClassifier = koinInject(),
     modelManager: ModelManager = koinInject(),
-    sessionManager: SessionManager = koinInject()
+    sessionManager: SessionManager = koinInject(),
+    recordingPipeline: ch.etasystems.pirol.audio.RecordingPipeline = koinInject()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -876,7 +879,7 @@ fun SettingsScreen(
             deleteCandidate?.let { model ->
                 AlertDialog(
                     onDismissRequest = { deleteCandidate = null },
-                    text = { Text(stringResource(R.string.model_delete_confirm, model.name)) },
+                    text = { Text(stringResource(R.string.model_delete_confirm, model.name, model.sizeMB)) },
                     confirmButton = {
                         TextButton(onClick = {
                             deleteCandidate = null
@@ -956,28 +959,25 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Installierte Modelle als RadioButtons
+                // T223: Modelltabelle mit Primaer (Radio), Sekundaer (Checkbox) und Loeschen
+                val recording by recordingPipeline.runningState.collectAsState()
+                var secondaryFile by remember { mutableStateOf(appPreferences.secondaryModelFileName) }
+                var secondaryConf by remember { mutableFloatStateOf(appPreferences.secondaryConfidenceThreshold) }
+                var secondaryOverlap by remember { mutableIntStateOf(appPreferences.secondaryOverlapPercent) }
+                val primaryFile = installedModels.firstOrNull { it.isActive }?.fileName ?: ""
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.model_col_primary), style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(stringResource(R.string.model_col_secondary), style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(modifier = Modifier.width(48.dp))
+                }
                 installedModels.forEach { model ->
+                    val block = ModelRoles.deleteBlock(model.fileName, primaryFile, recording)
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                modelManager.setActiveModel(model.fileName)
-                                classifier.resetSession()
-                                installedModels = modelManager.listInstalledModels()
-                            }
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(
-                            selected = model.isActive,
-                            onClick = {
-                                modelManager.setActiveModel(model.fileName)
-                                classifier.resetSession()
-                                installedModels = modelManager.listInstalledModels()
-                            }
-                        )
-                        Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(model.name, style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 text = stringResource(R.string.onboarding_mb_klassen, model.sizeMB, model.profile.speciesCount, model.fileName),
@@ -1006,11 +1006,80 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                        // T151a: importierte, nicht aktive Modelle loeschbar
-                        if (model.profile.source == ModelProfile.Source.IMPORTED && !model.isActive) {
-                            IconButton(onClick = { deleteCandidate = model }) {
-                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.model_delete))
-                            }
+                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                            RadioButton(
+                                selected = model.isActive,
+                                onClick = {
+                                    modelManager.setActiveModel(model.fileName)
+                                    classifier.resetSession()
+                                    secondaryFile = appPreferences.secondaryModelFileName
+                                    installedModels = modelManager.listInstalledModels()
+                                }
+                            )
+                        }
+                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                            Checkbox(
+                                checked = secondaryFile == model.fileName,
+                                enabled = !model.isActive,
+                                onCheckedChange = {
+                                    secondaryFile = ModelRoles.toggleSecondary(primaryFile, secondaryFile, model.fileName)
+                                    appPreferences.secondaryModelFileName = secondaryFile
+                                }
+                            )
+                        }
+                        IconButton(enabled = block == ModelRoles.DeleteBlock.NONE, onClick = { deleteCandidate = model }) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.model_delete))
+                        }
+                    }
+                    when (block) {
+                        ModelRoles.DeleteBlock.PRIMARY -> Text(
+                            stringResource(R.string.model_delete_blocked_primary),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ModelRoles.DeleteBlock.RECORDING -> Text(
+                            stringResource(R.string.model_delete_blocked_recording),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ModelRoles.DeleteBlock.NONE -> {}
+                    }
+                }
+
+                // Einstellungen je Rolle: Sekundaer nur bei gewaehltem Sekundaermodell
+                val secondaryModel = installedModels.firstOrNull { it.fileName == secondaryFile }
+                if (secondaryModel != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.model_secondary_settings, secondaryModel.name),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        stringResource(R.string.model_secondary_not_active),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(stringResource(R.string.model_secondary_threshold, (secondaryConf * 100).roundToInt()))
+                    Slider(
+                        value = secondaryConf,
+                        onValueChange = {
+                            secondaryConf = it
+                            appPreferences.secondaryConfidenceThreshold = it
+                        },
+                        valueRange = 0.1f..0.9f,
+                        steps = 15
+                    )
+                    Text(stringResource(R.string.settings_ueberlappung), style = MaterialTheme.typography.bodyMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        listOf(0, 50, 67).forEach { percent ->
+                            RadioButton(
+                                selected = secondaryOverlap == percent,
+                                onClick = {
+                                    secondaryOverlap = percent
+                                    appPreferences.secondaryOverlapPercent = percent
+                                }
+                            )
+                            Text("$percent %", modifier = Modifier.padding(end = 8.dp))
                         }
                     }
                 }

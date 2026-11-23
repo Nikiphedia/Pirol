@@ -503,7 +503,7 @@
     <string name="model_import_err_store">Import failed: %1$s</string>
     <string name="model_imported_info">Imported — %1$d Hz, %2$.2f s — License: %3$s</string>
     <string name="model_delete">Delete model</string>
-    <string name="model_delete_confirm">Delete %1$s with its profile and labels? This cannot be undone.</string>
+    <string name="model_delete_confirm">Delete %1$s (%2$d MB) with its profile and labels? This cannot be undone.</string>
     <string name="model_deleted">%1$s deleted</string>
     <string name="settings_gps_mode">GPS mode</string>
     <string name="settings_gps_mode_continuous">Continuous</string>
@@ -673,4 +673,12 @@
     <string name="analysis_variante_original">Original</string>
     <string name="analysis_variante_loeschen">Delete variant</string>
     <string name="analysis_variante_loeschen_frage">Delete variant “%1$s”? The original is kept.</string>
+    <!-- T223 model table -->
+    <string name="model_col_primary">Primary</string>
+    <string name="model_col_secondary">Secondary</string>
+    <string name="model_delete_blocked_primary">Primary model: choose another primary model first</string>
+    <string name="model_delete_blocked_recording">Cannot be deleted during a recording</string>
+    <string name="model_secondary_settings">Secondary model settings: %1$s</string>
+    <string name="model_secondary_not_active">Will be activated after the second-model test; only stored until then.</string>
+    <string name="model_secondary_threshold">Secondary model threshold: %1$d %%</string>
 </resources>

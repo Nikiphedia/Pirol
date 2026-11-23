@@ -299,6 +299,20 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_active_model", "birdnet_v3.onnx") ?: "birdnet_v3.onnx"
         set(value) = prefs.edit().putString("pirol_active_model", value).apply()
 
+    // --- T223: Sekundaermodell (wird gespeichert, aber erst nach dem Zweitmodell-Test gerechnet) ---
+    /** Dateiname des Sekundaermodells, null = keines */
+    var secondaryModelFileName: String?
+        get() = prefs.getString("pirol_secondary_model_file", null)
+        set(value) = prefs.edit().apply { if (value == null) remove("pirol_secondary_model_file") else putString("pirol_secondary_model_file", value) }.apply()
+
+    var secondaryConfidenceThreshold: Float
+        get() = prefs.getFloat("pirol_secondary_confidence_threshold", 0.5f)
+        set(value) = prefs.edit().putFloat("pirol_secondary_confidence_threshold", value).apply()
+
+    var secondaryOverlapPercent: Int
+        get() = prefs.getInt("pirol_secondary_overlap_percent", 0)
+        set(value) = prefs.edit().putInt("pirol_secondary_overlap_percent", value).apply()
+
     // --- Speicherort (T38, erweitert T51) ---
     /** SAF-URI als String fuer user-konfigurierten Speicherort (null = Fallback auf getExternalFilesDir). */
     var storageBaseUri: String?
