@@ -535,8 +535,17 @@ private fun SessionDetailContent(
             }
             Spacer(modifier = Modifier.width(4.dp))
             Column(modifier = Modifier.weight(1f)) {
+                // T247: Gemeinde (offline) neben dem Datum
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val lookup = remember { ch.etasystems.pirol.location.MunicipalityLookup(ctx) }
+                val lat = session.metadata.latitude
+                val lon = session.metadata.longitude
+                var municipality by remember(lat, lon) { mutableStateOf<String?>(null) }
+                LaunchedEffect(lat, lon) {
+                    municipality = if (lat != null && lon != null) lookup.lookup(lat, lon) else null
+                }
                 Text(
-                    text = session.metadata.startedAt.take(10), // Kurzform Datum
+                    text = session.metadata.startedAt.take(10) + (municipality?.let { " · $it" } ?: ""), // Datum + Gemeinde
                     style = MaterialTheme.typography.titleMedium
                 )
                 // T107: Session-Kennung (= Ordnername) zur Zuordnung auf dem Geraet

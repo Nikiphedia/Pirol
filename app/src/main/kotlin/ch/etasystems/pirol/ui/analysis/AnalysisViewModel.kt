@@ -740,15 +740,15 @@ class AnalysisViewModel(
         viewModelScope.launch(Dispatchers.Default) {
             // T130: bei mehreren Segmenten ueber die Session-Achse lesen
             val d = detection
-            val samples = readWavSamplesRange(
+            val wav = readWavSamplesRange(
                 openStream = { rec?.openWavStream() ?: recFile!!.inputStream() },
                 fileLength  = rec?.virtualWavLength ?: recFile!!.length(),
                 startSec    = d.bestWindowStartSec,  // T186
                 endSec      = d.bestWindowEndSec
             ) ?: return@launch
-            val state  = SpectrogramState(maxFrames = 2048)
-            val mel    = MelSpectrogram(48000, SpectrogramConfig.BIRDS)  // T200: wie Achse
-            val frames = mel.process(samples)
+            val state  = SpectrogramState(maxFrames = 2048, sampleRate = wav.sampleRate)
+            val mel    = MelSpectrogram(wav.sampleRate, SpectrogramConfig.BIRDS)  // T247: echte Abtastrate
+            val frames = mel.process(wav.samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             _uiState.update { it.copy(detectionSpectrogramState = state) }
         }
@@ -758,15 +758,15 @@ class AnalysisViewModel(
     private fun renderReferenceSonogram(entry: ReferenceEntry) {
         val wavFile = referenceRepository.getWavFile(entry) ?: return
         viewModelScope.launch(Dispatchers.Default) {
-            val samples = readWavSamplesRange(
+            val wav = readWavSamplesRange(
                 openStream = { wavFile.inputStream() },
                 fileLength  = wavFile.length(),
                 startSec    = 0f,
                 endSec      = null
             ) ?: return@launch
-            val state  = SpectrogramState(maxFrames = 2048)
-            val mel    = MelSpectrogram(48000, SpectrogramConfig.BIRDS)  // T200: wie Achse
-            val frames = mel.process(samples)
+            val state  = SpectrogramState(maxFrames = 2048, sampleRate = wav.sampleRate)
+            val mel    = MelSpectrogram(wav.sampleRate, SpectrogramConfig.BIRDS)  // T247: echte Abtastrate
+            val frames = mel.process(wav.samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             _uiState.update { it.copy(referenceSpectrogramState = state) }
         }
@@ -916,12 +916,15 @@ class AnalysisViewModel(
      * @param startSec    Startposition (0f = Dateianfang)
      * @param endSec      Endposition (null = bis Dateiende)
      */
+    /** T247: gelesener WAV-Bereich samt Abtastrate aus dem Header. */
+    private class WavRange(val samples: ShortArray, val sampleRate: Int)
+
     private fun readWavSamplesRange(
         openStream: () -> InputStream?,
         fileLength: Long,
         startSec:   Float,
         endSec:     Float?
-    ): ShortArray? {
+    ): WavRange? {
         return try {
             // Header-Pass: sampleRate + Kanalzahl ermitteln
             val header = ByteArray(44)
@@ -960,7 +963,7 @@ class AnalysisViewModel(
             val samples    = ShortArray(numSamples)
             val sbuf       = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             for (i in 0 until numSamples) samples[i] = sbuf.short
-            samples
+            WavRange(samples, sampleRate)
         } catch (e: Exception) {
             Log.e("AnalysisVM", "WAV-Range-Lesen fehlgeschlagen", e)
             null

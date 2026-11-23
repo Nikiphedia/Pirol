@@ -390,11 +390,11 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val thresholdPx = 48f * LocalDensity.current.density  // ~1 Icon-Durchmesser (48 dp)
     // T115: Clustering auf Dispatchers.Default (nicht im Main-Thread); veraltete Berechnung wird abgebrochen
     var clusters by remember { mutableStateOf<List<MapViewModel.MarkerCluster>>(emptyList()) }
-    LaunchedEffect(shownMarkers, shownLive, state.filterMode, state.focusMode, state.focusSpecies, clusterZoom, thresholdPx) {
+    LaunchedEffect(shownMarkers, shownLive, state.filterMode, state.focusMode, state.focusKey, clusterZoom, thresholdPx) {
         val input = when {
             state.filterMode == FilterMode.LIVE_ONLY -> shownLive
             // Fokus-Modus: nur historische Marker der Fokus-Art (Live hat keine Session fuer Verknuepfungen)
-            state.focusMode -> shownMarkers.filter { it.species == state.focusSpecies }
+            state.focusMode -> shownMarkers.filter { MapSpeciesFilter.keyOf(it) == state.focusKey }
             else -> shownMarkers + shownLive
         }
         clusters = withContext(Dispatchers.Default) { buildClusters(input, clusterZoom, thresholdPx.toDouble()) }
