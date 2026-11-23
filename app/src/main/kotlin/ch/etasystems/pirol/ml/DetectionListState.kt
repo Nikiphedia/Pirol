@@ -242,6 +242,18 @@ class DetectionListState(
     }
 
     /**
+     * T236: Aktuellen Stand einer Detektion unter der Listen-Sperre an [sink] geben. Persistenz-Vormerkungen
+     * laufen so in derselben Reihenfolge wie die Aenderungen; die letzte enthaelt immer alle Felder.
+     * @return false wenn die Detektion nicht (mehr) in der Liste ist
+     */
+    @Synchronized
+    fun withCurrent(id: String, sink: (DetectionResult) -> Unit): Boolean {
+        val current = detections.firstOrNull { it.id == id } ?: return false
+        sink(current)
+        return true
+    }
+
+    /**
      * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative.
      *
      * - Original-Detektion wird als REPLACED markiert (bleibt an ihrer Position, ausgegraut)
