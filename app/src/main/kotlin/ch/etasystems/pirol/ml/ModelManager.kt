@@ -189,6 +189,7 @@ class ModelManager(
             return
         }
         appPreferences.activeModelFileName = fileName
+        appPreferences.secondaryModelFileName = ModelRoles.secondaryAfterPrimaryChange(fileName, appPreferences.secondaryModelFileName)  // T223
         Log.i(TAG, "Aktives Modell gesetzt: $fileName")
     }
 
@@ -652,6 +653,12 @@ class ModelManager(
 
         val deleted = file.delete()
         Log.i(TAG, "Modell geloescht: $fileName = $deleted")
+        appPreferences.secondaryModelFileName = ModelRoles.secondaryAfterDelete(fileName, appPreferences.secondaryModelFileName)
+        // T223: Katalog-Modell: eigene Label-Datei mitloeschen (Embedding-DB bleibt: Nutzerdaten, eigene Entscheidung)
+        ModelProfile.all.firstOrNull { it.fileName == fileName && it.source != ModelProfile.Source.IMPORTED }?.let { p ->
+            val stillUsed = ModelProfile.all.filter { it.id != p.id }.flatMap { labelFilesOf(it) }.toSet()
+            p.labelFileName?.takeIf { it !in stillUsed }?.let { File(dir, it).delete() }
+        }
         ModelProfile.imported.firstOrNull { it.fileName == fileName }?.let { p ->
             val ownLabels = labelFilesOf(p)
             File(dir, p.id + ModelProfileJson.FILE_SUFFIX).delete()

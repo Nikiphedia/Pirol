@@ -504,7 +504,7 @@
     <string name="model_import_err_store">Import fehlgeschlagen: %1$s</string>
     <string name="model_imported_info">Importiert — %1$d Hz, %2$.2f s — Lizenz: %3$s</string>
     <string name="model_delete">Modell loeschen</string>
-    <string name="model_delete_confirm">%1$s mit Profil und Labels loeschen? Das laesst sich nicht rueckgaengig machen.</string>
+    <string name="model_delete_confirm">%1$s (%2$d MB) mit Profil und Labels loeschen? Das laesst sich nicht rueckgaengig machen.</string>
     <string name="model_deleted">%1$s geloescht</string>
     <string name="settings_gps_mode">GPS-Modus</string>
     <string name="settings_gps_mode_continuous">Dauernd</string>
@@ -674,4 +674,12 @@
     <string name="analysis_variante_original">Original</string>
     <string name="analysis_variante_loeschen">Variante löschen</string>
     <string name="analysis_variante_loeschen_frage">Variante „%1$s“ löschen? Das Original bleibt erhalten.</string>
+    <!-- T223 Modelltabelle -->
+    <string name="model_col_primary">Primaer</string>
+    <string name="model_col_secondary">Sekundaer</string>
+    <string name="model_delete_blocked_primary">Primaermodell: zuerst anderes Primaermodell waehlen</string>
+    <string name="model_delete_blocked_recording">Waehrend der Aufnahme nicht loeschbar</string>
+    <string name="model_secondary_settings">Einstellungen Sekundaermodell: %1$s</string>
+    <string name="model_secondary_not_active">Wird nach dem Zweitmodell-Test aktiviert; bis dahin nur gespeichert.</string>
+    <string name="model_secondary_threshold">Schwelle Sekundaermodell: %1$d %%</string>
 </resources>
