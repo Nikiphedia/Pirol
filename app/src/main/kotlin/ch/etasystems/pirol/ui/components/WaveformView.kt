@@ -31,6 +31,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.analysis.analysisTimeLabel
 import java.util.Locale
 
 /** Platz links fuer die Amplituden-Beschriftung. */
@@ -60,7 +61,9 @@ fun WaveformView(
     waveformSettings: WaveformSettings,
     sonoAutoRange: () -> Pair<Float, Float>? = { null },
     onLongPress: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    timeOriginSec: Float? = null,  // T205: Analyse: absolute Zeitachse ab diesem Zeitpunkt statt "-Ns ... Jetzt"
+    showFreeze: Boolean = true
 ) {
     val lightBg = settings.palette.isLight
     val textColor = if (lightBg) Color.Black else Color.White
@@ -151,9 +154,13 @@ fun WaveformView(
                 drawText(lay, topLeft = Offset(leftPad - lay.size.width - 4f * density, ly))
             }
             // Zeitachse unten: links "-Ns", rechts "Jetzt"
-            val tl = measurer.measure("-${realWindowSec.toInt()}s", labelStyle)
+            val tl = measurer.measure(
+                if (timeOriginSec != null) analysisTimeLabel(timeOriginSec, 1) else "-${realWindowSec.toInt()}s", labelStyle
+            )
             drawText(tl, topLeft = Offset(leftPad, h + 2f * density))
-            val tn = measurer.measure(nowText, labelStyle)
+            val tn = measurer.measure(
+                if (timeOriginSec != null) analysisTimeLabel(timeOriginSec + realWindowSec, 1) else nowText, labelStyle
+            )
             drawText(tn, topLeft = Offset(size.width - tn.size.width, h + 2f * density))
 
             // Wellenform: ein Pfad mit vertikalen Strichen (min..max) je Pixelspalte,
@@ -198,17 +205,18 @@ fun WaveformView(
                 val c = (cf * nCols).toInt().coerceIn(0, nCols - 1)
                 val cx = leftPad + c + 0.5f
                 drawLine(cursorColor, Offset(cx, 0f), Offset(cx, h), 1.5f * density)
-                val tSec = -(1f - cf) * realWindowSec
+                val tSec = if (timeOriginSec != null) timeOriginSec + cf * realWindowSec else -(1f - cf) * realWindowSec
+                val tText = if (timeOriginSec != null) analysisTimeLabel(tSec, 2) else "%.2f s".format(Locale.US, tSec)
                 val text = if (columnHasData(colMin[c], colMax[c])) {
                     val a = maxOf(kotlin.math.abs(colMin[c]), kotlin.math.abs(colMax[c]))
-                    "%s %.2f s  %s".format(Locale.US, cursorLabel, tSec, amplitudeReadout(a))
-                } else "%s %.2f s".format(Locale.US, cursorLabel, tSec)
+                    "%s %s  %s".format(Locale.US, cursorLabel, tText, amplitudeReadout(a))
+                } else "%s %s".format(Locale.US, cursorLabel, tText)
                 val lay = measurer.measure(text, readoutStyle.copy(color = cursorColor))
                 drawText(lay, topLeft = Offset(leftPad + 6f * density, ty))
             }
         }
         val frozen = waveformState.frozen
-        IconButton(
+        if (showFreeze) IconButton(
             onClick = { waveformState.frozen = !frozen },
             modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(48.dp)
         ) {

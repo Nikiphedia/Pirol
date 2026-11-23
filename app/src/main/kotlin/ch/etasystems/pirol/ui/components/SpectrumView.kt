@@ -98,7 +98,8 @@ fun SpectrumView(
     displaySettings: SpectrogramDisplaySettings,
     config: SpectrogramConfig,
     onLongPress: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showFreeze: Boolean = true  // T205: Analyse zeigt ein fertiges Spektrum, kein Einfrieren
 ) {
     val palette = displaySettings.palette
     val lightBg = palette.isLight
@@ -248,7 +249,7 @@ fun SpectrumView(
             }
         }
         val frozen = spectrumState.frozen
-        IconButton(
+        if (showFreeze) IconButton(
             onClick = { spectrumState.frozen = !frozen },
             modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(48.dp)
         ) {

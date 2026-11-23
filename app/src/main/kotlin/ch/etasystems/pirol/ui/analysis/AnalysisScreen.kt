@@ -79,6 +79,9 @@ import ch.etasystems.pirol.ui.components.SpectrogramCanvas
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import ch.etasystems.pirol.ui.components.SpectrogramDisplaySettings
 import ch.etasystems.pirol.ui.components.SpectrogramSettingsPanel
+import ch.etasystems.pirol.ui.components.LiveDisplayMode
+import ch.etasystems.pirol.ui.components.SpectrumSettingsPanel
+import ch.etasystems.pirol.ui.components.WaveformSettingsPanel
 import ch.etasystems.pirol.ui.components.onSpectrogramLongPress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -648,6 +651,16 @@ private fun SessionDetailContent(
             // T200: Achse und Bin-Zuschnitt aus derselben Config wie die Mel-Berechnung (bis Nyquist)
             val mainState = if (zoom != null) state.zoomSpectrogramState else state.spectrogramState
             val mainConfig = SpectrogramConfig.BIRDS.resolved(mainState.sampleRate)
+            // T205: Anzeigemodus und Einstellungen gemeinsam mit Live
+            val mode = settings.displayMode
+            val spectrumSettings by specRepo.spectrum.collectAsState()
+            val waveformSettings by specRepo.waveform.collectAsState()
+            // Spektrum/Oszillogramm brauchen einen Ausschnitt: ohne Zoom das erste Fenster laden
+            LaunchedEffect(mode, zoom == null, state.recordingDurationSec) {
+                if (mode != LiveDisplayMode.SONOGRAM && zoom == null && state.recordingDurationSec > 0f) {
+                    viewModel.showWindow(0f, minOf(settings.windowSec, state.recordingDurationSec))
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -656,27 +669,43 @@ private fun SessionDetailContent(
                     .background(if (settings.palette.isLight) Color.White else Color.Black)
                     .onSpectrogramLongPress { showPanel = true }
             ) {
-                SpectrogramCanvas(
-                    spectrogramState = mainState,
-                    config = mainConfig,
-                    palette = settings.palette,
-                    autoContrast = false,
-                    manualMinDb = settings.minDb,
-                    manualMaxDb = settings.maxDb,
-                    manualRangeOverride = if (zoom != null) zoomRangeDb else sessionRange,
-                    gamma = settings.gamma,
-                    ceilingDb = settings.ceilingDb,
-                    fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
-                    freqMinHz = settings.freqMinHz,
-                    freqMaxHz = settings.freqMaxHz,
-                    modifier = Modifier.fillMaxSize()
-                )
-                // T144: Frequenzachse links (1/2/4/8/12 kHz)
-                FrequencyAxis(
-                    config = mainConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
-                    lightBackground = settings.palette.isLight,
-                    modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
-                )
+                if (mode == LiveDisplayMode.SONOGRAM) {
+                    SpectrogramCanvas(
+                        spectrogramState = mainState,
+                        config = mainConfig,
+                        palette = settings.palette,
+                        autoContrast = false,
+                        manualMinDb = settings.minDb,
+                        manualMaxDb = settings.maxDb,
+                        manualRangeOverride = if (zoom != null) zoomRangeDb else sessionRange,
+                        gamma = settings.gamma,
+                        ceilingDb = settings.ceilingDb,
+                        fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
+                        freqMinHz = settings.freqMinHz,
+                        freqMaxHz = settings.freqMaxHz,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    // T144: Frequenzachse links (1/2/4/8/12 kHz)
+                    FrequencyAxis(
+                        config = mainConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                        lightBackground = settings.palette.isLight,
+                        modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
+                    )
+                } else {
+                    // T205: Spektrum / Oszillogramm des sichtbaren Ausschnitts (gemeinsame Einstellungen mit Live)
+                    AnalysisExcerptView(
+                        mode = mode,
+                        pcm = state.zoomPcm,
+                        excerptStartSec = zoom?.startSec ?: 0f,
+                        posSec = state.playbackPositionSec,
+                        settings = settings,
+                        spectrumSettings = spectrumSettings,
+                        waveformSettings = waveformSettings,
+                        sonoAutoRange = zoomRangeDb,
+                        onLongPress = { showPanel = true },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 if (state.sonogramLoading) {
                     Row(
                         modifier = Modifier.align(Alignment.Center),
@@ -698,7 +727,7 @@ private fun SessionDetailContent(
                 // T116: im Zoom relativ zum Ausschnitt statt zur ganzen Aufnahme
                 val viewStart = zoom?.startSec ?: 0f
                 val durSec = zoom?.durationSec ?: state.recordingDurationSec
-                if (posSec != null && durSec > 0f) {
+                if (mode == LiveDisplayMode.SONOGRAM && posSec != null && durSec > 0f) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -708,7 +737,7 @@ private fun SessionDetailContent(
                             }
                     )
                 }
-                if (zoom != null) {
+                if (zoom != null && mode == LiveDisplayMode.SONOGRAM) {
                     TextButton(
                         onClick = { viewModel.clearZoom() },
                         modifier = Modifier.align(Alignment.TopEnd).defaultMinSize(minHeight = 48.dp)
@@ -732,13 +761,33 @@ private fun SessionDetailContent(
             )
             if (showPanel) {
                 Spacer(modifier = Modifier.height(4.dp))
-                SpectrogramSettingsPanel(
-                    repository = specRepo,
-                    settings = settings,
-                    config = SpectrogramConfig.BIRDS.resolved(state.spectrogramState.sampleRate),
-                    showWindow = false,
-                    onClose = { showPanel = false }
-                )
+                val panelConfig = SpectrogramConfig.BIRDS.resolved(mainState.sampleRate)
+                when (mode) {
+                    LiveDisplayMode.SPECTRUM -> SpectrumSettingsPanel(
+                        repository = specRepo,
+                        displaySettings = settings,
+                        settings = spectrumSettings,
+                        config = panelConfig,
+                        sampleRate = mainState.sampleRate,
+                        onResetPeak = {},
+                        onClose = { showPanel = false }
+                    )
+                    LiveDisplayMode.WAVEFORM -> WaveformSettingsPanel(
+                        repository = specRepo,
+                        displaySettings = settings,
+                        settings = waveformSettings,
+                        config = panelConfig,
+                        onClose = { showPanel = false }
+                    )
+                    else -> SpectrogramSettingsPanel(
+                        repository = specRepo,
+                        settings = settings,
+                        config = panelConfig,
+                        showWindow = false,
+                        showDisplayMode = true,
+                        onClose = { showPanel = false }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
