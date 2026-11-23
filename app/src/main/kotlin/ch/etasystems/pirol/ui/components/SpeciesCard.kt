@@ -106,7 +106,7 @@ import ch.etasystems.pirol.ui.AppStrings
  * │ Turdus merula          ████████░░  │  Zeile 2: Wissensch. Name + Balken
  * │ 08:47:12                           │  Zeile 3: Timestamp
  * │ [✓ Bestaetigt]  [✗]  [✎]          │  Zeile 4: Aktions-Buttons (bei Callbacks)
- * │ ▸ Alternativen (3)                 │  Zeile 5: Aufklappbare Kandidaten (T27)
+ * │   Alternativen (3)                 │  Zeile 5: Kandidaten (T27); volle Karte: Kopf immer sichtbar, antippbar (T224/T230)
  * │   Moenchsgrasmuecke         72%    │
  * │   Rotkehlchen               41%    │
  * └────────────────────────────────────┘
@@ -475,7 +475,9 @@ fun SpeciesCard(
             )
 
             // Zeile 3 (T164): Aktionsleiste in EINER Zeile, 48-dp-Tap-Targets.
-            // Auf schmalen Breiten wandern Referenz/Vergleichen/Teilen/Alternativen ins Ueberlauf-Menue.
+            // Auf schmalen Breiten wandern Referenz/Vergleichen/Teilen ins Ueberlauf-Menue. Alternativen stehen
+            // bei der vollen Karte nicht im Menue, sondern im Kopf der Kandidatenliste (T224); die kompakte
+            // Karte bietet "Alternative waehlen" im "+"-Menue (T192).
             if (onConfirm != null || onMarkUncertain != null || onReject != null || onCorrect != null || onPlay != null || onShare != null) {
                 val neutralContainer = Color.Transparent
                 val neutralContent = MaterialTheme.colorScheme.onSurfaceVariant
