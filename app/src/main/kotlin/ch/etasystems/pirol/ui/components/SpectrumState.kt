@@ -30,6 +30,8 @@ class SpectrumState {
     private val averager = SpectrumAverager()
     private var tauSec = SpectrumAveraging.SHORT.tauSec
     private val traces = SpectrumTraceBuffer()  // T201: rollende Peak-Spuren
+    private var staticAvg: FloatArray? = null   // T205: fertiges Spektrum (Analyse), ersetzt den Live-Strom
+    private var staticPeak: FloatArray? = null
 
     /** Abtastrate der zuletzt gelieferten Samples. */
     @Volatile var sampleRate: Int = 48000
@@ -86,6 +88,19 @@ class SpectrumState {
     @Synchronized
     fun traceLayers(): List<SpectrumTraceBuffer.Layer> = traces.layers()
 
+    /**
+     * T205: Analyse: fertiges Mittel-/Maximum-Spektrum (dBFS, [avg].size = fftSize/2+1) setzen.
+     * Die Zeichnung ist dieselbe wie live; Peak-Hold zeigt dann das Maximum.
+     */
+    @Synchronized
+    fun setStatic(avg: FloatArray, peak: FloatArray, sampleRate: Int) {
+        staticAvg = avg
+        staticPeak = peak
+        this.sampleRate = sampleRate
+        hasData = true
+        version++
+    }
+
     @Synchronized
     fun resetPeak() {
         averager.resetPeak()
@@ -130,8 +145,8 @@ class SpectrumState {
      */
     @Synchronized
     fun copyInto(outAvg: FloatArray?, outPeak: FloatArray?): Pair<FloatArray, FloatArray>? {
-        val a = averager.avg
-        val p = averager.peak
+        val a = staticAvg ?: averager.avg
+        val p = staticPeak ?: averager.peak
         if (a.isEmpty()) return null
         val ra = if (outAvg != null && outAvg.size == a.size) outAvg else FloatArray(a.size)
         val rp = if (outPeak != null && outPeak.size == a.size) outPeak else FloatArray(a.size)
@@ -141,6 +156,8 @@ class SpectrumState {
     }
 
     private fun resetLocked() {
+        staticAvg = null
+        staticPeak = null
         head = 0
         filled = 0
         sinceLast = 0

@@ -365,7 +365,8 @@ class AnalysisViewModel(
                     recordingDurationSec = durationSec,
                     lastPlaybackPositionSec = null,
                     zoomRange = null,
-                    zoomSpectrogramState = SpectrogramState()
+                    zoomSpectrogramState = SpectrogramState(),
+                    zoomPcm = null
                 )
             }
             // T62: Sonogramm streaming rendern (kein readBytes() auf ganzes File)
@@ -395,7 +396,8 @@ class AnalysisViewModel(
                 sonogramLoading = false,
                 sonogramError = null,
                 zoomRange = null,
-                zoomSpectrogramState = SpectrogramState()
+                zoomSpectrogramState = SpectrogramState(),
+                zoomPcm = null
             )
         }
     }
@@ -495,15 +497,17 @@ class AnalysisViewModel(
     /** T116: Zoom beenden, Sonogramm zeigt wieder die ganze Session. */
     fun clearZoom() {
         zoomJob?.cancel()
-        _uiState.update { it.copy(zoomRange = null, zoomSpectrogramState = SpectrogramState()) }
+        _uiState.update { it.copy(zoomRange = null, zoomSpectrogramState = SpectrogramState(), zoomPcm = null) }
     }
 
     /** T116: Mel-Frames nur fuer den Ausschnitt berechnen; Anzeige zoomt darauf. */
     private fun renderZoomSonogram(range: DetectionExcerpt.Range, read: () -> ExcerptWav.Pcm?) {
         zoomJob?.cancel()
         zoomJob = viewModelScope.launch(Dispatchers.Default) {
+            var excerpt: ExcerptWav.Pcm? = null
             val result = try {
                 val pcm = read() ?: return@launch
+                excerpt = pcm
                 // T200: Anzeige-Config (Mel bis Nyquist), passend zu Achse und Bin-Zuschnitt
                 MelSpectrogram(pcm.sampleRate, SpectrogramConfig.BIRDS).process(pcm.samples) to pcm.sampleRate
             } catch (e: Exception) {
@@ -514,7 +518,7 @@ class AnalysisViewModel(
             if (frames.isEmpty() || _uiState.value.selectedSession == null) return@launch
             val state = SpectrogramState(maxFrames = frames.size, sampleRate = rate)
             state.appendFrames(frames)
-            _uiState.update { it.copy(zoomRange = range, zoomSpectrogramState = state) }
+            _uiState.update { it.copy(zoomRange = range, zoomSpectrogramState = state, zoomPcm = excerpt) }
         }
     }
 

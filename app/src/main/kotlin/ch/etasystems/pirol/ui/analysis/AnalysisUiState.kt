@@ -62,6 +62,8 @@ data class AnalysisUiState(
     // T116: Wiedergabe-Zoom — Sonogramm zeigt nur den Ausschnitt der abgespielten Detektion
     val zoomRange: ch.etasystems.pirol.audio.export.DetectionExcerpt.Range? = null,
     val zoomSpectrogramState: SpectrogramState = SpectrogramState(),
+    /** T205: PCM des sichtbaren Ausschnitts (Basis fuer Spektrum und Oszillogramm), null = kein Ausschnitt */
+    val zoomPcm: ch.etasystems.pirol.audio.export.ExcerptWav.Pcm? = null,
     // T116: Detektion teilen (Dialog)
     val shareRequest: ch.etasystems.pirol.data.export.DetectionShareRequest? = null,
 
