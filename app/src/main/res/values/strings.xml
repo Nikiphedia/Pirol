@@ -122,6 +122,7 @@
     <string name="live_als_unsicher_markiert">\? %1$s als unsicher markiert</string>
     <string name="common_undo">Rückgängig</string>
     <string name="live_alternative_gewaehlt">Alternative: %1$s gewählt</string>
+    <string name="live_updates_nicht_gespeichert">%1$d Änderungen an Detektionen konnten beim Stopp nicht gespeichert werden</string>
     <string name="live_upload_abgeschlossen">Upload abgeschlossen</string>
     <string name="live_upload_fehlgeschlagen">Upload fehlgeschlagen: %1$s</string>
     <string name="map_detektionen_tippen_oder_lange_drueck">%1$s Detektionen — Tippen oder lange druecken zum Bearbeiten</string>

@@ -147,11 +147,14 @@ class SessionManager(
         internal fun indexOfLastStatusEvent(
             lines: List<String>,
             detectionId: String,
+            /** T249 (M6): nur Ereignisse genau dieses Typs (z.B. ALTERNATIVE_CONFIRMED); null = jedes Status-Ereignis */
+            actionType: String? = null,
             decode: (String) -> VerificationEvent
         ): Int = lines.indexOfLast { line ->
             line.isNotBlank() && try {
                 val ev = decode(line)
-                ev.detectionId == detectionId && ev.actionType in STATUS_ACTIONS
+                ev.detectionId == detectionId &&
+                    (if (actionType != null) ev.actionType == actionType else ev.actionType in STATUS_ACTIONS)
             } catch (_: Exception) { false }
         }
 
@@ -160,12 +163,29 @@ class SessionManager(
         /**
          * T237: JSONL-Text ohne das letzte Status-Ereignis von [detectionId]; null wenn keines vorhanden.
          */
-        internal fun removeLastStatusEventText(text: String, detectionId: String): String? {
+        internal fun removeLastStatusEventText(text: String, detectionId: String, actionType: String? = null): String? {
             val lines = text.lines().filter { it.isNotBlank() }
-            val idx = indexOfLastStatusEvent(lines, detectionId) { COMPANION_JSON.decodeFromString<VerificationEvent>(it) }
+            val idx = indexOfLastStatusEvent(lines, detectionId, actionType) { COMPANION_JSON.decodeFromString<VerificationEvent>(it) }
             if (idx < 0) return null
             val kept = lines.filterIndexed { i, _ -> i != idx }
             return if (kept.isEmpty()) "" else kept.joinToString("\n") + "\n"
+        }
+
+        /** T249 (M3): Versuche fuer den letzten Flush beim Session-Ende */
+        internal const val END_FLUSH_ATTEMPTS = 3
+        internal const val END_FLUSH_RETRY_MS = 300L
+
+        /**
+         * T249 (M3): [flush] bis zu [attempts]-mal versuchen (Pause [delayMs] dazwischen).
+         * @return letzter Fehler oder null bei Erfolg
+         */
+        internal suspend fun retryFlush(attempts: Int, delayMs: Long, flush: () -> Exception?): Exception? {
+            var last: Exception? = null
+            repeat(attempts) { i ->
+                if (i > 0) kotlinx.coroutines.delay(delayMs)
+                last = flush() ?: return null
+            }
+            return last
         }
 
         fun shouldAutoDelete(
@@ -273,6 +293,10 @@ class SessionManager(
     private val _sessionEnded = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
     /** Emittiert Unit nach jedem endSession()-Aufruf. Subscriber koennen loadSessions() aufrufen. */
     val sessionEnded: SharedFlow<Unit> = _sessionEnded.asSharedFlow()
+
+    private val _unsavedUpdatesAtEnd = MutableSharedFlow<Int>(replay = 0, extraBufferCapacity = 1)
+    /** T249 (M3): Anzahl Detektions-Updates, die beim Session-Ende trotz Wiederholung nicht geschrieben wurden. */
+    val unsavedUpdatesAtEnd: SharedFlow<Int> = _unsavedUpdatesAtEnd.asSharedFlow()
 
     /** Ob gerade ein Session-Stop laeuft und der Speicherort nicht erreichbar war (Fallback). */
     var lastStartUsedFallback: Boolean = false
@@ -548,46 +572,22 @@ class SessionManager(
      * Idempotent: kein Fehler falls kein Eintrag fuer die ID vorhanden.
      * Wird fuer Undo im Live-Tab verwendet (T52).
      */
-    suspend fun removeLastVerification(detectionId: String) = withContext(Dispatchers.IO) {
+    suspend fun removeLastVerification(
+        detectionId: String,
+        /** T249 (M6): nur das letzte Ereignis genau dieses Typs entfernen (Undo der Alternative) */
+        actionType: String? = null
+    ) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            val sessionDoc = activeSessionDoc
-            if (sessionDoc != null) {
-                // SAF-Modus
-                val veriFile = sessionDoc.findFile("verifications.jsonl") ?: return@withLock
-                val lines = try {
-                    context.contentResolver.openInputStream(veriFile.uri)?.use {
-                        it.bufferedReader().readLines()
-                    } ?: return@withLock
-                } catch (_: Exception) { return@withLock }
-                val lastMatchIdx = indexOfLastStatusEvent(lines, detectionId) { line ->
-                    jsonLenient.decodeFromString<VerificationEvent>(line)
-                }
-                if (lastMatchIdx < 0) return@withLock
-                val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
-                try {
-                    val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                    // T236: Schattenkopie statt "wt" (kein leerer Stand bei Prozess-Kill)
-                    DocSessionFiles(context, sessionDoc).writeReplacing("verifications.jsonl", content)
-                } catch (e: Exception) {
-                    Log.e(TAG, "removeLastVerification SAF fehlgeschlagen: $detectionId", e)
-                }
-            } else {
-                // File-Modus
-                val sessionDir = activeSessionDir ?: return@withLock
-                val file = File(sessionDir, "verifications.jsonl")
-                if (!file.exists()) return@withLock
-                val lines = try { file.readLines() } catch (_: Exception) { return@withLock }
-                val lastMatchIdx = indexOfLastStatusEvent(lines, detectionId) { line ->
-                    jsonLenient.decodeFromString<VerificationEvent>(line)
-                }
-                if (lastMatchIdx < 0) return@withLock
-                val filtered = lines.filterIndexed { idx, _ -> idx != lastMatchIdx }
-                try {
-                    val content = if (filtered.isEmpty()) "" else filtered.joinToString("\n") + "\n"
-                    writeFileReplacing(file, content)  // T93: renameTo ersetzt unter Windows nicht
-                } catch (e: Exception) {
-                    Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
-                }
+            val access: SessionFiles = activeSessionDoc?.let { DocSessionFiles(context, it) }
+                ?: activeSessionDir?.let { FileSessionFiles(it) }
+                ?: return@withLock
+            try {
+                val text = access.readText("verifications.jsonl") ?: return@withLock
+                val out = removeLastStatusEventText(text, detectionId, actionType) ?: return@withLock
+                // File: temp + atomarer Move (T93), SAF: Schattenkopie (T236)
+                access.writeReplacing("verifications.jsonl", out)
+            } catch (e: Exception) {
+                Log.e(TAG, "removeLastVerification fehlgeschlagen: $detectionId", e)
             }
         }
     }
@@ -607,6 +607,18 @@ class SessionManager(
     suspend fun flushDetectionUpdates() = withContext(Dispatchers.IO) {
         if (pendingUpdates.isEmpty()) return@withContext
         fileMutex.withLock { flushPendingLocked() }
+        Unit
+    }
+
+    /**
+     * T249 (M1): Nutzer-Aktionen im Live-Tab. Der Aufrufer merkt den aktuellen Listenstand vorher unter der
+     * Listen-Sperre vor (`detectionListState.withCurrent(id) { queueDetectionUpdate(it) }`), dann wird hier
+     * sofort geschrieben. So ueberholt nie ein aelterer Stand einen neueren (Merge, Zweitmodell).
+     * Bei Fehler bleibt das Update vorgemerkt (naechster Flush) und der Fehler wird geworfen.
+     */
+    suspend fun flushDetectionUpdatesOrThrow() = withContext(Dispatchers.IO) {
+        if (pendingUpdates.isEmpty()) return@withContext
+        fileMutex.withLock { flushPendingLocked() }?.let { throw it }
         Unit
     }
 
@@ -740,6 +752,21 @@ class SessionManager(
         return fileToDocId(sessionDir)
     }
 
+    /**
+     * T249 (H2): Datei einer Session lesen; Lesen schreibt nie (SAF: [ShadowReplace.read]).
+     * Die aktive Session wird unter dem fileMutex gelesen (nie mitten in einem Ersetzen), detections.jsonl
+     * dann mit vorher geschriebenen Updates (T236). Nicht unter dem fileMutex aufrufen (nicht reentrant).
+     */
+    private suspend fun readSessionText(sessionDir: File, name: String): String? {
+        if (isActive && isActiveDir(sessionDir)) {
+            return fileMutex.withLock {
+                if (name == DETECTIONS_FILE) flushPendingLocked()
+                accessFor(sessionDir).readText(name)
+            }
+        }
+        return accessFor(sessionDir).readText(name)
+    }
+
     /** Dateizugriff passend zum Speichermodus der Session. */
     private fun accessFor(sessionDir: File): SessionFiles =
         docFor(sessionDir)?.let { DocSessionFiles(context, it) } ?: FileSessionFiles(sessionDir)
@@ -783,12 +810,18 @@ class SessionManager(
      * T237: Letztes Status-Ereignis einer Detektion aus verifications.jsonl der Session (T221: oder Variante)
      * entfernen (Undo im Analyse-Tab). Schreibt atomar (File: temp + Move, SAF: Schattenkopie).
      */
-    suspend fun removeLastVerificationIn(sessionDir: File, detectionId: String, variant: String? = null) = withContext(Dispatchers.IO) {
+    suspend fun removeLastVerificationIn(
+        sessionDir: File,
+        detectionId: String,
+        variant: String? = null,
+        /** T249 (M6): nur das letzte Ereignis genau dieses Typs entfernen; null = letztes Status-Ereignis */
+        actionType: String? = null
+    ) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
             val access = accessFor(sessionDir)
             val name = RescanFiles.verifications(variant)
             val text = access.readText(name) ?: return@withLock
-            val out = removeLastStatusEventText(text, detectionId) ?: return@withLock
+            val out = removeLastStatusEventText(text, detectionId, actionType) ?: return@withLock
             access.writeReplacing(name, out)
         }
     }
@@ -835,7 +868,7 @@ class SessionManager(
 
     /** T191: Route einer Session aus track.jsonl (leer, wenn keine Spur oder unlesbar). */
     suspend fun loadTrack(sessionDir: File): List<TrackPoint> = withContext(Dispatchers.IO) {
-        val text = try { accessFor(sessionDir).readText(TrackLogic.TRACK_FILE) } catch (_: Exception) { null }
+        val text = try { readSessionText(sessionDir, TrackLogic.TRACK_FILE) } catch (_: Exception) { null }
         text?.let { TrackLogic.parseLines(it) } ?: emptyList()
     }
 
@@ -936,10 +969,16 @@ class SessionManager(
 
         // JSONL-Writer schliessen
         fileMutex.withLock {  // T93: nicht parallel zu append/replace schliessen
-            // T236: gesammelte Updates zuletzt schreiben; was dann noch fehlt (Zeile nie angehaengt), verwerfen
-            flushPendingLocked()
+            // T236: gesammelte Updates zuletzt schreiben. T249 (M3): Fehler nicht still verwerfen, erneut versuchen
+            val flushError = retryFlush(END_FLUSH_ATTEMPTS, END_FLUSH_RETRY_MS) { flushPendingLocked() }
             val dropped = pendingUpdates.clear()
-            if (dropped > 0) Log.w(TAG, "Session-Ende: $dropped Updates ohne Zeile in detections.jsonl verworfen")
+            if (flushError != null) {
+                Log.e(TAG, "Session-Ende: $dropped Updates nach $END_FLUSH_ATTEMPTS Versuchen nicht in detections.jsonl geschrieben", flushError)
+                _unsavedUpdatesAtEnd.tryEmit(dropped)
+            } else if (dropped > 0) {
+                // Zeile nie angehaengt (z.B. Detektion nach dem letzten Append verworfen): nichts zu ersetzen
+                Log.w(TAG, "Session-Ende: $dropped Updates ohne Zeile in detections.jsonl verworfen")
+            }
             closeDetectionWriterLocked()
         }
 
@@ -966,29 +1005,16 @@ class SessionManager(
 
         Log.i(TAG, "Session beendet: ${metadata.sessionId} ($recordedSamples samples, $detectionCounter Detektionen)")
 
-        // Auto-Raven-Export (T51): recording.selections.txt schreiben
-        // Detektionen werden direkt aus dem geschlossenen Writer-Stand gelesen
-        val sessionDirForExport = dir ?: doc?.let { resolveSessionDirFromDoc(it) }
+        // Auto-Raven-Export (T51): recording.selections.txt schreiben.
+        // T249 (M2): derselbe Exportweg und dieselbe Feldliste wie der manuelle Export (inkl. Zweitmodell, Links)
+        val sessionDirForExport = dir ?: doc?.let { d ->
+            resolveSessionDirFromDoc(d) ?: d.name?.let { SessionFilesLogic.safKey(null, it) }
+        }
         if (sessionDirForExport != null) {
             try {
-                val detections = loadDetectionsWithVerifications(sessionDirForExport)
-                val selectionsFile = File(sessionDirForExport, "recording.selections.txt")
-                // T57-B3: sessionStartedAt + recordingSegments fuer Begin Date Time + Begin File
-                // T78: Felder-Selektion via AppPreferences
-                val autoEnabledFields: Set<String> = buildSet {
-                    if (appPreferences.ravenFieldBeginFile)      add(RavenExporter.FIELD_BEGIN_FILE)
-                    if (appPreferences.ravenFieldBeginTime)      add(RavenExporter.FIELD_BEGIN_TIME)
-                    if (appPreferences.ravenFieldEndTime)        add(RavenExporter.FIELD_END_TIME)
-                    if (appPreferences.ravenFieldLowFreq)        add(RavenExporter.FIELD_LOW_FREQ)
-                    if (appPreferences.ravenFieldHighFreq)       add(RavenExporter.FIELD_HIGH_FREQ)
-                    if (appPreferences.ravenFieldBeginDateTime)  add(RavenExporter.FIELD_BEGIN_DATE_TIME)
-                    if (appPreferences.ravenFieldSpecies)        add(RavenExporter.FIELD_SPECIES)
-                    if (appPreferences.ravenFieldConfidence)     add(RavenExporter.FIELD_CONFIDENCE)
-                    if (appPreferences.ravenFieldLat)            add(RavenExporter.FIELD_LAT)
-                    if (appPreferences.ravenFieldLon)            add(RavenExporter.FIELD_LON)
-                }
-                RavenExporter.export(selectionsFile, detections, metadata.startedAt, updatedMetadata.recordingSegments, autoEnabledFields, sessionNote = updatedMetadata.note)
-                Log.i(TAG, "Auto-Raven-Export: ${selectionsFile.name} (${detections.size} Detektionen)")
+                val out = writeRavenTable(sessionDirForExport, appPreferences, variant = null,
+                    requireRecording = false, knownMeta = updatedMetadata)
+                Log.i(TAG, "Auto-Raven-Export: ${out?.name}")
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Raven-Export fehlgeschlagen", e)
             }
@@ -1216,7 +1242,21 @@ class SessionManager(
      */
     suspend fun recoverOrphanSessions(): Int = withContext(Dispatchers.IO) {
         var recovered = 0
-        listSessions().forEach { sessionDir ->
+        val sessions = listSessions()
+        // T249 (H2): Reste unterbrochener Schattenkopien (SAF) einmalig hier aufraeumen statt bei jedem Lesen:
+        // unter dem fileMutex und nie fuer die aktive Session
+        for (sessionDir in sessions) {
+            val doc = docFor(sessionDir) ?: continue
+            try {
+                val n = fileMutex.withLock {
+                    if (isActiveDir(sessionDir)) 0 else DocSessionFiles(context, doc).recoverAll()
+                }
+                if (n > 0) Log.i(TAG, "recoverOrphan: $n unterbrochene Ersetzungen aufgeloest: ${sessionDir.name}")
+            } catch (e: Exception) {
+                Log.w(TAG, "recoverOrphan: Schattenkopien pruefen fehlgeschlagen: ${sessionDir.name}", e)
+            }
+        }
+        sessions.forEach { sessionDir ->
             val jsonFile = File(sessionDir, "session.json")
             if (!jsonFile.exists()) return@forEach
             val metadata = try {
@@ -1268,10 +1308,9 @@ class SessionManager(
      */
     suspend fun loadMetadata(sessionDir: File): SessionMetadata? = withContext(Dispatchers.IO) {
         try {
-            val files = accessFor(sessionDir)
-            // T240: Reste unterbrochener Schattenkopien (SAF) beim Laden aufraeumen
-            (files as? DocSessionFiles)?.recoverAll()
-            val text = files.readText("session.json") ?: return@withContext null
+            // T249 (H2): Lesen schreibt nie; Reste werden beim App-Start (recoverOrphanSessions) bzw. vor dem
+            // naechsten Schreiben unter fileMutex aufgeraeumt
+            val text = readSessionText(sessionDir, "session.json") ?: return@withContext null
             jsonLenient.decodeFromString<SessionMetadata>(text)
         } catch (e: Exception) {
             Log.e(TAG, "session.json parsen fehlgeschlagen: ${sessionDir.name}", e)
@@ -1315,10 +1354,9 @@ class SessionManager(
      * Laedt alle Detektionen einer Session aus detections.jsonl.
      */
     suspend fun loadDetections(sessionDir: File, variant: String? = null): List<DetectionResult> = withContext(Dispatchers.IO) {
-        // T236: Analyse/Export lesen die aktive Session -> gesammelte Updates vorher schreiben
-        if (variant == null && isActive && isActiveDir(sessionDir)) flushDetectionUpdates()
+        // T236: aktive Session -> gesammelte Updates vorher schreiben (in readSessionText, unter fileMutex)
         try {
-            (accessFor(sessionDir).readText(RescanFiles.detections(variant)) ?: return@withContext emptyList())
+            (readSessionText(sessionDir, RescanFiles.detections(variant)) ?: return@withContext emptyList())
                 .lines()
                 .filter { it.isNotBlank() }
                 .mapNotNull { line ->
@@ -1337,7 +1375,7 @@ class SessionManager(
     suspend fun loadDetectionsWithVerifications(sessionDir: File, variant: String? = null): List<DetectionResult> =
         withContext(Dispatchers.IO) {
             val detections = loadDetections(sessionDir, variant).toMutableList()
-            val veriText = try { accessFor(sessionDir).readText(RescanFiles.verifications(variant)) } catch (_: Exception) { null }
+            val veriText = try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
                 ?: return@withContext detections
 
             val verifications = try {
@@ -1373,7 +1411,7 @@ class SessionManager(
      * T167: Wanduhr-Zeiten der absorbierten Fenster je Anker-Detektion (aus CLUSTER_MERGED-Events).
      */
     suspend fun loadMergeTimestamps(sessionDir: File, variant: String? = null): Map<String, List<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>> = withContext(Dispatchers.IO) {
-        val veriText = try { accessFor(sessionDir).readText(RescanFiles.verifications(variant)) } catch (_: Exception) { null }
+        val veriText = try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
             ?: return@withContext emptyMap()
         val map = mutableMapOf<String, MutableList<ch.etasystems.pirol.ui.analysis.DetectionOccurrences.MergeInfo>>()
         veriText.lineSequence().forEach { line ->
@@ -1396,7 +1434,7 @@ class SessionManager(
         sessionDir: File,
         variant: String? = null
     ): Map<String, RavenExporter.SimultaneousLinkSummary> = withContext(Dispatchers.IO) {
-        val veriText = try { accessFor(sessionDir).readText(RescanFiles.verifications(variant)) } catch (_: Exception) { null }
+        val veriText = try { readSessionText(sessionDir, RescanFiles.verifications(variant)) } catch (_: Exception) { null }
             ?: return@withContext emptyMap()
 
         val map = mutableMapOf<String, RavenExporter.SimultaneousLinkSummary>()
@@ -1487,9 +1525,22 @@ class SessionManager(
         sessionDir: File,
         appPreferences: AppPreferences? = null,
         variant: String? = null  // T221: Rescan-Variante -> recording.rescan-<id>.selections.txt
+    ): File? = writeRavenTable(sessionDir, appPreferences, variant, requireRecording = true)
+
+    /**
+     * T249 (M2): Einziger Raven-Exportweg (Auto-Export beim Stopp und manueller Export).
+     * @param requireRecording true = ohne Aufnahme nichts schreiben (manuell); Auto-Export schreibt immer
+     */
+    private suspend fun writeRavenTable(
+        sessionDir: File,
+        appPreferences: AppPreferences?,
+        variant: String?,
+        requireRecording: Boolean,
+        /** Auto-Export: gerade geschriebene Metadaten (sonst aus session.json) */
+        knownMeta: SessionMetadata? = null
     ): File? = withContext(Dispatchers.IO) {
         val access = accessFor(sessionDir)
-        if (access.segmentSources().isEmpty()) return@withContext null
+        if (requireRecording && access.segmentSources().isEmpty()) return@withContext null
         val isDoc = access is DocSessionFiles
         val ravenName = RescanFiles.raven(variant)
         // SAF: erst in eine Cache-Datei exportieren, dann in den Session-Ordner schreiben
@@ -1497,30 +1548,13 @@ class SessionManager(
                          else File(sessionDir, ravenName)
         val detections = loadDetectionsWithVerifications(sessionDir, variant)
         // Metadaten fuer startedAt + recordingSegments laden (T57-B3)
-        val meta = runCatching {
-            val jsonText = access.readText("session.json") ?: error("session.json fehlt")
+        val meta = knownMeta ?: runCatching {
+            val jsonText = readSessionText(sessionDir, "session.json") ?: error("session.json fehlt")
             jsonLenient.decodeFromString<SessionMetadata>(jsonText)
         }.getOrNull()
         val startedAt = meta?.startedAt ?: "1970-01-01T00:00:00+00:00"
-        // T78: enabledFields aus AppPreferences bauen; null = alle Felder (Fallback)
-        val enabledFields: Set<String>? = appPreferences?.let { p ->
-            buildSet {
-                if (p.ravenFieldBeginFile)      add(RavenExporter.FIELD_BEGIN_FILE)
-                if (p.ravenFieldBeginTime)      add(RavenExporter.FIELD_BEGIN_TIME)
-                if (p.ravenFieldEndTime)        add(RavenExporter.FIELD_END_TIME)
-                if (p.ravenFieldLowFreq)        add(RavenExporter.FIELD_LOW_FREQ)
-                if (p.ravenFieldHighFreq)       add(RavenExporter.FIELD_HIGH_FREQ)
-                if (p.ravenFieldBeginDateTime)  add(RavenExporter.FIELD_BEGIN_DATE_TIME)
-                if (p.ravenFieldSpecies)        add(RavenExporter.FIELD_SPECIES)
-                if (p.ravenFieldConfidence)     add(RavenExporter.FIELD_CONFIDENCE)
-                if (p.ravenFieldLat)            add(RavenExporter.FIELD_LAT)
-                if (p.ravenFieldLon)            add(RavenExporter.FIELD_LON)
-                if (p.ravenFieldSimultan)       add(RavenExporter.FIELD_SIMULTAN)
-                if (p.ravenFieldMoeglich)       add(RavenExporter.FIELD_MOEGLICH)
-                if (p.ravenFieldGleich)         add(RavenExporter.FIELD_GLEICH)
-                if (p.ravenFieldSecondary)      add(RavenExporter.FIELD_SECONDARY)  // T224
-            }
-        }
+        // T78/T249: enabledFields aus AppPreferences (eine Liste); null = alle Felder (Fallback)
+        val enabledFields: Set<String>? = appPreferences?.let { RavenExporter.enabledFields(it) }
         val linkMap = loadSimultaneousLinkMap(sessionDir, variant)
         RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note)
         if (isDoc) {
@@ -1532,7 +1566,7 @@ class SessionManager(
 
     /** T194: Text der Raven-Datei der Session (auch bei SAF-Sessions); null = Datei fehlt. */
     suspend fun readRavenText(sessionDir: File, variant: String? = null): String? = withContext(Dispatchers.IO) {
-        runCatching { accessFor(sessionDir).readText(RescanFiles.raven(variant)) }.getOrNull()
+        runCatching { readSessionText(sessionDir, RescanFiles.raven(variant)) }.getOrNull()
     }
 
     // ── Migrations-Methoden (T41, erweitert T51) ──────────────────────

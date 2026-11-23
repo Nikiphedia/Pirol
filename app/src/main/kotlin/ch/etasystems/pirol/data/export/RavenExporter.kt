@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.data.export
 
+import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.RecordingSegment
 import ch.etasystems.pirol.ml.DetectionResult
 import java.io.File
@@ -33,6 +34,40 @@ object RavenExporter {
     const val FIELD_GLEICH          = "pirol_raven_field_gleich"
     /** T224: Spalten des Zweitmodells (nur wenn mindestens eine Detektion ein Ergebnis hat) */
     const val FIELD_SECONDARY       = "pirol_raven_field_secondary"
+
+    /**
+     * T249 (M2): Alle waehlbaren Felder in Spaltenreihenfolge. Einzige Liste fuer Auto-Export (Session-Stopp)
+     * und manuellen Export; der Feld-Schluessel ist zugleich der Settings-Schluessel (Default an).
+     */
+    val ALL_FIELDS: List<String> = listOf(
+        FIELD_BEGIN_FILE, FIELD_BEGIN_TIME, FIELD_END_TIME, FIELD_LOW_FREQ, FIELD_HIGH_FREQ,
+        FIELD_BEGIN_DATE_TIME, FIELD_SPECIES, FIELD_CONFIDENCE, FIELD_LAT, FIELD_LON,
+        FIELD_SIMULTAN, FIELD_MOEGLICH, FIELD_GLEICH, FIELD_SECONDARY
+    )
+
+    /** T249 (M2): Gewaehlte Felder; [isOn] fragt je Feld-Schluessel die Einstellung ab. */
+    fun enabledFields(isOn: (String) -> Boolean): Set<String> = ALL_FIELDS.filterTo(LinkedHashSet(), isOn)
+
+    /** T249 (M2): Gewaehlte Felder aus den Einstellungen (Auto- und manueller Export). */
+    fun enabledFields(p: AppPreferences): Set<String> = enabledFields { key ->
+        when (key) {
+            FIELD_BEGIN_FILE      -> p.ravenFieldBeginFile
+            FIELD_BEGIN_TIME      -> p.ravenFieldBeginTime
+            FIELD_END_TIME        -> p.ravenFieldEndTime
+            FIELD_LOW_FREQ        -> p.ravenFieldLowFreq
+            FIELD_HIGH_FREQ       -> p.ravenFieldHighFreq
+            FIELD_BEGIN_DATE_TIME -> p.ravenFieldBeginDateTime
+            FIELD_SPECIES         -> p.ravenFieldSpecies
+            FIELD_CONFIDENCE      -> p.ravenFieldConfidence
+            FIELD_LAT             -> p.ravenFieldLat
+            FIELD_LON             -> p.ravenFieldLon
+            FIELD_SIMULTAN        -> p.ravenFieldSimultan
+            FIELD_MOEGLICH        -> p.ravenFieldMoeglich
+            FIELD_GLEICH          -> p.ravenFieldGleich
+            FIELD_SECONDARY       -> p.ravenFieldSecondary
+            else                  -> true
+        }
+    }
 
     private const val LOW_FREQ_HZ = 150
     private const val HIGH_FREQ_HZ = 12000

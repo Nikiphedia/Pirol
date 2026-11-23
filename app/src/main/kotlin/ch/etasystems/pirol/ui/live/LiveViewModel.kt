@@ -631,7 +631,7 @@ class LiveViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    sessionManager.replaceDetection(updated)
+                    persistCurrent(detectionId)  // T249 (M1): aktueller Listenstand, nicht die Kopie `updated`
                     val now = System.currentTimeMillis()
                     if (before.count != count) sessionManager.appendVerification(
                         VerificationEvent(detectionId, before.verificationStatus,
@@ -660,12 +660,12 @@ class LiveViewModel(
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         // T237: nur die vier bearbeiteten Felder zurueck, spaetere Aenderungen (Merge, Zweitmodell) bleiben
-                        val rolledBack = detectionListState.modifyDetection(detectionId) {
+                        detectionListState.modifyDetection(detectionId) {
                             it.copy(count = before.count, atlasCode = before.atlasCode,
                                 note = before.note, voiceMemoFile = before.voiceMemoFile)
                         }
-                        // Datei kann schon teilweise neu sein: Stand der Liste best effort nachziehen
-                        if (rolledBack != null) launch(Dispatchers.IO) { runCatching { sessionManager.replaceDetection(rolledBack) } }
+                        // Datei kann schon teilweise neu sein: zurueckgesetzten Listenstand vormerken (naechster Flush)
+                        queueCurrent(detectionId)
                         _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.common_save_failed)))
                     }
                 }
@@ -679,11 +679,15 @@ class LiveViewModel(
      * Persistiert lockSpecies-Flag + loggt ACTION_SPECIES_LOCKED (AC5/AC7).
      */
     fun toggleLock(detectionId: String) {
-        val det = detectionListState.getDetections().find { it.id == detectionId } ?: return
-        val updated = det.copy(lockSpecies = !det.lockSpecies)
-        detectionListState.updateDetection(updated)
+        // T249 (M1): atomar unter der Listen-Sperre (kein Ueberschreiben eines gleichzeitigen Merge)
+        var det: DetectionResult? = null
+        val updated = detectionListState.modifyDetection(detectionId) { c ->
+            det = c
+            c.copy(lockSpecies = !c.lockSpecies)
+        } ?: return
+        val prior = det ?: return
 
-        val speciesKey = det.scientificName.replace(' ', '_')
+        val speciesKey = prior.scientificName.replace(' ', '_')
         val newLocked = if (updated.lockSpecies) lockedSpecies.value + speciesKey
                         else lockedSpecies.value - speciesKey
         lockedSpecies.value = newLocked
@@ -692,11 +696,11 @@ class LiveViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    sessionManager.replaceDetection(updated)
+                    persistCurrent(detectionId)
                     sessionManager.appendVerification(
                         VerificationEvent(
                             detectionId = detectionId,
-                            status = det.verificationStatus,
+                            status = prior.verificationStatus,
                             verifiedAtMs = System.currentTimeMillis(),
                             actionType = VerificationEvent.ACTION_SPECIES_LOCKED,
                             newValue = updated.lockSpecies.toString()
@@ -704,9 +708,10 @@ class LiveViewModel(
                     )
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        // Rollback: State zurueck auf vorherigen Wert
-                        detectionListState.updateDetection(det)
-                        lockedSpecies.value = if (det.lockSpecies) lockedSpecies.value + speciesKey
+                        // Rollback: nur das Sperr-Flag zurueck (spaetere Aenderungen bleiben), Stand vormerken
+                        detectionListState.modifyDetection(detectionId) { it.copy(lockSpecies = prior.lockSpecies) }
+                        queueCurrent(detectionId)
+                        lockedSpecies.value = if (prior.lockSpecies) lockedSpecies.value + speciesKey
                                               else lockedSpecies.value - speciesKey
                         _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.common_save_failed)))
                     }
@@ -806,7 +811,7 @@ class LiveViewModel(
             verificationMutex.withLock {
                 try {
                     val updated = detectionListState.getDetections().firstOrNull { it.id == detectionId } ?: return@withLock
-                    sessionManager.replaceDetection(updated)
+                    persistCurrent(detectionId)  // T249 (M1)
                     sessionManager.appendVerification(
                         VerificationEvent(
                             detectionId = detectionId,
@@ -818,25 +823,44 @@ class LiveViewModel(
                     )
                 } catch (e: Exception) {
                     detectionListState.modifyDetection(detectionId) { AlternativeSelection.revert(it, before) }
-                    runCatching { sessionManager.replaceDetection(before) }
+                    // T249 (M1): zurueckgesetzten Listenstand schreiben, nicht das alte `before`
+                    runCatching { persistCurrent(detectionId) }
                     _snackbarChannel.send(SnackbarEvent(message = AppStrings.get(R.string.common_save_failed)))
                 }
             }
         }
     }
 
-    /** T237: Alternative zuruecknehmen: Felder der Detektion zurueck, Zeile ersetzen, Event entfernen. */
+    /**
+     * T237: Alternative zuruecknehmen: Felder der Detektion zurueck, Zeile ersetzen, Event entfernen.
+     * T249 (M6): entfernt genau das ALTERNATIVE_CONFIRMED-Ereignis, nicht "das letzte Status-Ereignis"
+     * (sonst ginge ein zwischenzeitliches Unsicher/Ablehnen verloren und die Alternative bliebe bestaetigt).
+     */
     private fun undoAlternative(before: DetectionResult) {
-        val restored = detectionListState.modifyDetection(before.id) { AlternativeSelection.revert(it, before) } ?: return
+        detectionListState.modifyDetection(before.id) { AlternativeSelection.revert(it, before) } ?: return
         if (!sessionManager.isActive) return
         viewModelScope.launch(Dispatchers.IO) {
             verificationMutex.withLock {
                 try {
-                    sessionManager.replaceDetection(restored)
-                    sessionManager.removeLastVerification(before.id)
+                    persistCurrent(before.id)  // T249 (M1)
+                    sessionManager.removeLastVerification(before.id, VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED)
                 } catch (_: Exception) { /* Undo-IO-Fehler still ignorieren */ }
             }
         }
+    }
+
+    /**
+     * T249 (M1): Aktuellen Listenstand der Detektion unter der Listen-Sperre vormerken und sofort schreiben.
+     * Wie die Pipeline (`queuePersist`): ein aelterer Stand kann so nie einen neueren (Merge, Zweitmodell) ueberholen.
+     */
+    private suspend fun persistCurrent(detectionId: String) {
+        queueCurrent(detectionId)
+        sessionManager.flushDetectionUpdatesOrThrow()
+    }
+
+    /** T249 (M1): Aktuellen Listenstand nur vormerken (geschrieben mit dem naechsten Flush). */
+    private fun queueCurrent(detectionId: String) {
+        detectionListState.withCurrent(detectionId) { sessionManager.queueDetectionUpdate(it) }
     }
     /**
      * Speichert eine verifizierte Detektion als Referenz-Aufnahme (T123).
@@ -1149,6 +1173,12 @@ class LiveViewModel(
             // T218: Geomodel-Filter ohne Position/Modell → Ersatzliste, einmal pro Session melden
             pipeline.geoFallback.collect {
                 _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_geo_fallback_hinweis)))
+            }
+        }
+        viewModelScope.launch {
+            // T249 (M3): letzter Flush beim Stopp trotz Wiederholung gescheitert -> nicht still verwerfen
+            sessionManager.unsavedUpdatesAtEnd.collect { n ->
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_updates_nicht_gespeichert, n)))
             }
         }
         viewModelScope.launch {

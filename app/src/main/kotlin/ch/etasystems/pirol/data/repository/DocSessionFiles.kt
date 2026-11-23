@@ -9,6 +9,7 @@ import ch.etasystems.pirol.audio.export.SegmentSource
 import ch.etasystems.pirol.audio.export.SegmentedRecording
 import java.io.FileInputStream
 import java.io.InputStream
+import android.util.Log
 
 /**
  * T131: SAF-Modus — Session-Ordner als DocumentFile, Zugriff ueber ContentResolver.
@@ -52,27 +53,37 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
             ?: throw IllegalStateException("SAF: $name konnte nicht erstellt werden")
         if (created.name != name) {
             created.delete()
-            throw IllegalStateException("SAF: $name wurde als ${created.name} erstellt")
+            // T249 (M3b): dauerhaft -> ShadowReplace faellt auf direkten Rewrite zurueck
+            Log.w(TAG, "SAF: $name wurde als ${created.name} erstellt")
+            throw ShadowReplace.UnsupportedNameException(name)
         }
         return created
     }
 
-    override fun readText(fileName: String): String? {
-        // T236: Reste eines unterbrochenen Ersetzens zuerst aufloesen (Prozess-Kill waehrend des Schreibens)
-        recover(fileName)
-        return store.read(fileName)
-    }
+    /**
+     * T249 (H2): Lesen schreibt nie. Nach einem unterbrochenen Ersetzen gilt die Schattenkopie
+     * ([ShadowReplace.read]); aufgeraeumt wird nur unter der Schreibsperre ([recover], [append], [writeReplacing]).
+     */
+    override fun readText(fileName: String): String? = ShadowReplace.read(store, fileName)
 
-    /** T236: Unterbrochenes Ersetzen von [fileName] aufloesen; true = es gab Reste. */
+    /** T236: Unterbrochenes Ersetzen von [fileName] aufloesen; true = es gab Reste. Nur unter fileMutex. */
     fun recover(fileName: String): Boolean {
         if (!ShadowReplace.needsRecovery(listNames(), fileName)) return false
         return ShadowReplace.recover(store, fileName)
     }
 
-    /** T240: Alle Reste unterbrochener Ersetzungen im Ordner aufloesen; Anzahl Dateien mit Resten. */
+    /**
+     * T240: Alle Reste unterbrochener Ersetzungen im Ordner aufloesen; Anzahl Dateien mit Resten.
+     * Nur unter fileMutex und nie fuer die aktive Session (T249). Fehler je Datei: Reste bleiben liegen (M7).
+     */
     fun recoverAll(): Int {
         val bases = listNames().mapNotNull { ShadowReplace.originalOf(it) }.toSet()
-        return bases.count { recover(it) }
+        return bases.count { base ->
+            try { recover(base) } catch (e: Exception) {
+                Log.e(TAG, "SAF: Wiederherstellung von $base fehlgeschlagen (Reste bleiben)", e)
+                false
+            }
+        }
     }
 
     override fun writeReplacing(fileName: String, content: String) {
@@ -81,6 +92,8 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
     }
 
     override fun append(fileName: String, content: String) {
+        // T249: an ein evtl. halb ueberschriebenes Original nie anhaengen (die Zeile ginge beim Wiederherstellen verloren)
+        recover(fileName)
         val f = doc.findFile(fileName) ?: doc.createFile(mimeOf(fileName), fileName)
             ?: throw IllegalStateException("SAF: $fileName konnte nicht erstellt werden")
         resolver.openOutputStream(f.uri, "wa")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
@@ -98,6 +111,8 @@ class DocSessionFiles(context: Context, val doc: DocumentFile) : SessionFiles {
     override fun deleteAll(): Boolean = doc.delete()
 
     override fun delete(fileName: String): Boolean = doc.findFile(fileName)?.delete() ?: true
+
+    private companion object { const val TAG = "DocSessionFiles" }
 
     private fun mimeOf(fileName: String) = when {
         // T236: Schattenkopie/Marke ohne Endungs-Zuordnung, sonst haengt der Provider evtl. eine an
