@@ -264,7 +264,7 @@ class InferenceWorker(
             )
             embedding = output.embedding
             logUnmappedRegionSpecies()
-            detections = mapResults(filterRegional(output.results), job)
+            detections = mapResults(filterRegional(output.results, job), job)
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)
         }
@@ -312,11 +312,13 @@ class InferenceWorker(
         )
     }
 
-    private fun filterRegional(classifierResults: List<AudioClassifier.ClassifierResult>): List<AudioClassifier.ClassifierResult> {
+    private fun filterRegional(classifierResults: List<AudioClassifier.ClassifierResult>, job: WindowJob): List<AudioClassifier.ClassifierResult> {
+        // T190: Aufnahmedatum (lokal) des Fensters fuer die Listen-Saison
+        val monthDay = if (config.respectListSeason) ListSeason.monthDay(job.startEpochMs) else null
         if (config.regionFilter != null && config.showOnlyFiltered) {
             // Nur plausible Arten durchlassen
             return classifierResults.filter { cr ->
-                val plausible = regionalFilter.isPlausible(cr.scientificName)
+                val plausible = regionalFilter.isPlausible(cr.scientificName, config.respectListSeason, monthDay)
                 if (!plausible) {
                     Log.d(TAG, "Herausgefiltert (nicht regional plausibel): " +
                             "${cr.commonName} (${cr.scientificName})")
@@ -327,7 +329,7 @@ class InferenceWorker(
         // Alle behalten, aber ungewoehnliche Arten loggen
         if (config.regionFilter != null) {
             classifierResults.forEach { cr ->
-                if (!regionalFilter.isPlausible(cr.scientificName)) {
+                if (!regionalFilter.isPlausible(cr.scientificName, config.respectListSeason, monthDay)) {
                     Log.d(TAG, "Ungewoehnlich (nicht regional erwartet): " +
                             "${cr.commonName} (${cr.scientificName}) " +
                             "${(cr.confidence * 100).toInt()}%")

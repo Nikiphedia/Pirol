@@ -260,6 +260,11 @@ fun SettingsScreen(
         }
     }
 
+    // T190: Snackbar (Undo der Watchlist-Uebernahme) und Dialogzustand
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    var adoptList by remember { mutableStateOf<ch.etasystems.pirol.ml.CustomSpeciesList?>(null) }
+
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1496,6 +1501,36 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.error
                 )
             }
+            // T190: Saison der Artenliste beachten (Default aus)
+            var respectSeason by remember { mutableStateOf(appPreferences.respectListSeason) }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_list_season_title), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.settings_list_season_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = respectSeason,
+                    onCheckedChange = { respectSeason = it; appPreferences.respectListSeason = it }
+                )
+            }
+            // T190: gewaehlte eigene Liste in die Watchlist uebernehmen
+            val selectedCustom = selectedRegion?.let { id -> customRegions.firstOrNull { it.id == id } }
+                ?.let { regionalFilter.getCustomList(it.id) }
+            if (selectedCustom != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { adoptList = selectedCustom },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text(stringResource(R.string.settings_list_to_watchlist)) }
+            }
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
@@ -2183,6 +2218,16 @@ fun SettingsScreen(
             OutlinedButton(onClick = { showWhatsNew = true }) {
                 Text(stringResource(R.string.settings_whats_new_button))
             }
+            // T190: Listen-Editor im Browser oeffnen
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                modifier = Modifier.heightIn(min = 48.dp),
+                onClick = {
+                    if (!ListEditorLauncher.open(context)) {
+                        Toast.makeText(context, AppStrings.get(R.string.settings_open_list_editor_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
+            ) { Text(stringResource(R.string.settings_open_list_editor)) }
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
@@ -2284,6 +2329,52 @@ fun SettingsScreen(
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+    }
+    androidx.compose.material3.SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter)
+    )
+    }
+
+    // T190: Watchlist-Uebernahme (Zusammenfuehren / Ersetzen)
+    adoptList?.let { list ->
+        fun adopt(merge: Boolean) {
+            adoptList = null
+            scope.launch {
+                val previous = watchlistManager.adoptFromList(list, merge) { sci ->
+                    if (speciesNameResolver.getAllNames(sci).isNotEmpty()) speciesNameResolver.resolve(sci)
+                    else list.commonNames[sci] ?: ""
+                }
+                val result = snackbarHostState.showSnackbar(
+                    message = AppStrings.get(R.string.settings_list_to_watchlist_done, watchlistManager.entries.size),
+                    actionLabel = AppStrings.get(R.string.common_undo),
+                    duration = androidx.compose.material3.SnackbarDuration.Long
+                )
+                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                    watchlistManager.restore(previous)
+                }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { adoptList = null },
+            title = { Text(stringResource(R.string.settings_list_to_watchlist)) },
+            text = { Text(stringResource(R.string.settings_list_to_watchlist_text, list.nameDe, list.species.size.toString())) },
+            confirmButton = {
+                Row {
+                    TextButton(onClick = { adopt(false) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.settings_list_replace))
+                    }
+                    TextButton(onClick = { adopt(true) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.settings_list_merge))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { adoptList = null }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        )
     }
 
     if (showWhatsNew) {

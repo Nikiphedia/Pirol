@@ -68,7 +68,7 @@ class CustomSpeciesListsTest {
     fun `Beispieldatei ist gueltig`() {
         val r = CustomSpeciesLists.parse(CustomSpeciesLists.EXAMPLE_FILE_NAME, CustomSpeciesLists.EXAMPLE_CONTENT)
         assertNull(r.error)
-        assertEquals(3, r.lists.single().species.size)
+        assertEquals(5, r.lists.single().species.size)
     }
 
     @Test

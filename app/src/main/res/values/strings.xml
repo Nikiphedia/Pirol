@@ -625,4 +625,13 @@
     <string name="settings_section_export_upload">Export &amp; Upload</string>
     <string name="settings_advanced">Erweitert</string>
     <string name="settings_erkennungs_schwelle_hinweis">Gilt fuer jede Art, auch die staerkste. Fenster ohne Art darueber ergeben keine Detektion.</string>
+    <string name="settings_list_season_title">Saison der Artenliste beachten</string>
+    <string name="settings_list_season_hint">Gilt für eigene Listen mit Saisonangaben: Arten ausserhalb ihrer Saison werden verworfen (Datum = Aufnahmedatum). Aus = Saison wird ignoriert.</string>
+    <string name="settings_list_to_watchlist">In Watchlist übernehmen</string>
+    <string name="settings_list_to_watchlist_text">Liste «%1$s» (%2$s Arten): Zusammenführen behält bestehende Einträge und ergänzt die neuen. Ersetzen ersetzt die ganze Watchlist.</string>
+    <string name="settings_list_merge">Zusammenführen</string>
+    <string name="settings_list_replace">Ersetzen</string>
+    <string name="settings_list_to_watchlist_done">Watchlist: %1$s Arten</string>
+    <string name="settings_open_list_editor">Listen-Editor öffnen</string>
+    <string name="settings_open_list_editor_failed">Listen-Editor nicht verfügbar</string>
 </resources>

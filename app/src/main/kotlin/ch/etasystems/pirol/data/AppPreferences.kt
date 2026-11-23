@@ -58,6 +58,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_show_only_filtered", true)
         set(value) = prefs.edit().putBoolean("pirol_show_only_filtered", value).apply()
 
+    /** T190: Saison der Artenliste beachten (Default aus = Saisonangaben ignoriert) */
+    var respectListSeason: Boolean
+        get() = prefs.getBoolean("pirol_respect_list_season", false)
+        set(value) = prefs.edit().putBoolean("pirol_respect_list_season", value).apply()
+
     // --- Inference-Intervall (T29: Energiesparmodus) ---
     var inferenceIntervalMs: Long
         get() = prefs.getLong("pirol_inference_interval_ms", CHUNK_DURATION_MS)
@@ -408,7 +413,8 @@ class AppPreferences(context: Context) {
             regionFilter = regionFilter,
             showOnlyFiltered = showOnlyFiltered,
             inferenceIntervalMs = inferenceIntervalMs,
-            highpassEnabled = highpassEnabled
+            highpassEnabled = highpassEnabled,
+            respectListSeason = respectListSeason
         )
     }
 
@@ -421,6 +427,7 @@ class AppPreferences(context: Context) {
         showOnlyFiltered = config.showOnlyFiltered
         inferenceIntervalMs = config.inferenceIntervalMs
         highpassEnabled = config.highpassEnabled
+        respectListSeason = config.respectListSeason
     }
 
     /** T108: gewaehlte Kartenquelle (MapSourceMode.name), Default AUTO */

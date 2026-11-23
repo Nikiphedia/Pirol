@@ -105,6 +105,7 @@ class SpeciesNameResolver(private val context: Context) {
             ?: modelNames?.get(language)
             ?: names?.get("en")
             ?: modelNames?.get("en")
+            ?: listNamesMap[key]
             ?: scientificName.replace('_', ' ')
     }
 
@@ -121,6 +122,14 @@ class SpeciesNameResolver(private val context: Context) {
             if (missing.isEmpty()) null else key to missing
         }.toMap()
         Log.i(TAG, "T103_STATS model_names=${modelNamesMap.size} species")
+    }
+
+    // T190: Anzeigenamen aus Artenlisten (species_info.common_name), nur Rueckfall ohne master-/Modell-Name
+    @Volatile private var listNamesMap: Map<String, String> = emptyMap()
+
+    /** T190: Namen aus eigenen Listen setzen (Schluessel = Artname mit Unterstrich) */
+    fun setListNames(names: Map<String, String>) {
+        listNamesMap = names
     }
 
     /** Alle verfuegbaren Namen fuer eine Art */
