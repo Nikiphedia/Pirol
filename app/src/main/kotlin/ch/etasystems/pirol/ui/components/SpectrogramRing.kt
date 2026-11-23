@@ -58,7 +58,9 @@ internal fun rangeNeedsRebuild(lastMin: Float, lastMax: Float, minDb: Float, max
  * und bei NaN jedes Bild einen Neuaufbau ausloesen. Dann gilt [fallbackMinDb]..[fallbackMaxDb].
  */
 internal fun finiteDbRange(
-    minDb: Float, maxDb: Float, fallbackMinDb: Float = -80f, fallbackMaxDb: Float = 0f
+    minDb: Float, maxDb: Float,
+    fallbackMinDb: Float = ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MIN_DBFS,  // T199: dBFS
+    fallbackMaxDb: Float = ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS
 ): Pair<Float, Float> =
     if (minDb.isFinite() && maxDb.isFinite() && maxDb > minDb) minDb to maxDb
     else fallbackMinDb to fallbackMaxDb

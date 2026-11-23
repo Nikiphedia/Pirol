@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import ch.etasystems.pirol.R
+import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.audio.dsp.SpectrumAnalyzer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -88,15 +89,18 @@ private const val LEFT_PAD_DP = 34f
  * Maximum (Frequenz + dBFS) und ggf. Cursor-Wert. Tippen setzt/verschiebt den Cursor (Tippen
  * nahe am Cursor entfernt ihn), Langdruck oeffnet das Panel, Knopf oben rechts friert ein.
  * Die FFT laeuft im Collector; hier wird nur gezeichnet (~25 fps).
+ * T199: Frequenzbereich, dB-Bereich und Palette aus [displaySettings] (gemeinsam mit dem Sonogramm).
  */
 @Composable
 fun SpectrumView(
     spectrumState: SpectrumState,
     settings: SpectrumSettings,
-    palette: SpectrogramPalette,
+    displaySettings: SpectrogramDisplaySettings,
+    config: SpectrogramConfig,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = displaySettings.palette
     val lightBg = palette.isLight
     val textColor = if (lightBg) Color.Black else Color.White
     val lineColor = remember(palette) { colorForValue(0.85f, palette) }
@@ -115,10 +119,10 @@ fun SpectrumView(
     val tick = rememberDrawTick(spectrumState) { spectrumState.version }
 
     val sr = spectrumState.sampleRate
-    val fLo = settings.freqMinHz.coerceIn(0f, sr / 2f - SPECTRUM_MIN_SPAN_HZ)
-    val fHi = settings.freqMaxHz.coerceIn(fLo + SPECTRUM_MIN_SPAN_HZ, sr / 2f)
-    val minDb = settings.minDb
-    val maxDb = maxOf(settings.maxDb, minDb + SPECTRUM_MIN_SPAN_DB)
+    // T199: gemeinsamer Frequenz-/dB-Bereich (wie im Sonogramm sichtbar)
+    val (fLo, fHi) = sharedFreqRange(displaySettings, config, sr)
+    val minDb = displaySettings.minDb
+    val maxDb = maxOf(displaySettings.maxDb, minDb + SPECTRUM_MIN_SPAN_DB)
     val freqTicks = remember(fLo, fHi) { spectrumFreqTicks(fLo, fHi) }
     val currentLongPress by rememberUpdatedState(onLongPress)
     val range by rememberUpdatedState(fLo to fHi)

@@ -2,6 +2,8 @@ package ch.etasystems.pirol.ui.components
 
 import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
 import ch.etasystems.pirol.audio.dsp.MelSpectrogram
+import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS
+import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MIN_DBFS
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -188,10 +190,10 @@ class SpectrogramBackfillTest {
 
     @Test
     fun finiteDbRangeFaelltZurueck() {
-        assertEquals(-80f to 0f, finiteDbRange(Float.NaN, -10f))
-        assertEquals(-80f to 0f, finiteDbRange(Float.NEGATIVE_INFINITY, -10f))
-        assertEquals(-80f to 0f, finiteDbRange(-50f, Float.NaN))
-        assertEquals(-80f to 0f, finiteDbRange(-50f, -50f))
+        assertEquals(SONOGRAM_DEFAULT_MIN_DBFS to SONOGRAM_DEFAULT_MAX_DBFS, finiteDbRange(Float.NaN, -10f))
+        assertEquals(SONOGRAM_DEFAULT_MIN_DBFS to SONOGRAM_DEFAULT_MAX_DBFS, finiteDbRange(Float.NEGATIVE_INFINITY, -10f))
+        assertEquals(SONOGRAM_DEFAULT_MIN_DBFS to SONOGRAM_DEFAULT_MAX_DBFS, finiteDbRange(-50f, Float.NaN))
+        assertEquals(SONOGRAM_DEFAULT_MIN_DBFS to SONOGRAM_DEFAULT_MAX_DBFS, finiteDbRange(-50f, -50f))
         assertEquals(-50f to -20f, finiteDbRange(-50f, -20f))
     }
 

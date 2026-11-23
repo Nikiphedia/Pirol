@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -45,7 +44,7 @@ fun Modifier.onSpectrogramLongPress(onLongPress: () -> Unit): Modifier =
  * T107: Einstellungs-Panel, wird UNTER dem Sonogramm eingeblendet (kein Dialog), damit jede
  * Aenderung live im Bild sichtbar bleibt. Alle Aenderungen gehen ueber das gemeinsame Repository.
  *
- * @param config bestimmt die Grenzen des Frequenz-Reglers
+ * @param config bestimmt die Grenzen des Frequenz-Reglers (gemeinsame Regler, T199)
  * @param onClose Schliessen-Aktion (null = kein "Fertig"-Knopf, z.B. eingebettet in den Settings)
  * @param showWindow Zeitfenster-Regler nur im Live-Tab (Analyse zeigt immer die ganze Session)
  * @param showDisplayMode T193: Umschalter Sonogramm/Spektrum/Oszillogramm nur im Live-Tab
@@ -62,8 +61,6 @@ fun SpectrogramSettingsPanel(
     modifier: Modifier = Modifier,
     maxHeight: Dp = 300.dp
 ) {
-    val cfgMax = if (config.fMax <= 0f) 24000f else config.fMax
-    val cfgMin = config.fMin
     val activePreset = settings.matchingPreset()
 
     // Eigenes Scrollen nur mit endlicher Hoehe. Eingebettet in den (selbst scrollenden) Settings-Screen
@@ -112,21 +109,8 @@ fun SpectrogramSettingsPanel(
                     onCheckedChange = { v -> repository.update { it.copy(autoContrast = v) } }
                 )
             }
-            Text(
-                text = if (settings.autoContrast) stringResource(R.string.ui_db_schwelle_automatisch_aus_dem)
-                else stringResource(R.string.ui_db_schwelle_bis_db, settings.minDb.roundToInt(), settings.maxDb.roundToInt()),
-                style = MaterialTheme.typography.bodySmall
-            )
-            RangeSlider(
-                value = settings.minDb..settings.maxDb,
-                onValueChange = { r ->
-                    val lo = r.start
-                    val hi = if (r.endInclusive - lo < MIN_DISPLAY_SPAN_DB) lo + MIN_DISPLAY_SPAN_DB else r.endInclusive
-                    repository.update { it.copy(minDb = lo, maxDb = hi) }
-                },
-                enabled = !settings.autoContrast,
-                valueRange = -100f..10f
-            )
+            // T199: Frequenz, dB-Bereich (dBFS) und Palette gemeinsam mit Spektrum/Oszillogramm
+            SharedDisplayControls(repository, settings, config)
 
             Text(
                 AppStrings.get(R.string.ui_intensitaet_gamma_kleiner_leise_hell, "%.2f".format(settings.gamma)),
@@ -142,42 +126,14 @@ fun SpectrogramSettingsPanel(
                 stringResource(
                     R.string.ui_helligkeits_deckel,
                     if (settings.ceilingDb >= 0f) stringResource(R.string.ui_deckel_aus)
-                    else stringResource(R.string.ui_deckel_db, settings.ceilingDb.roundToInt())
+                    else stringResource(R.string.ui_deckel_dbfs, settings.ceilingDb.roundToInt())
                 ),
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
                 value = settings.ceilingDb,
                 onValueChange = { v -> repository.update { it.copy(ceilingDb = v) } },
-                valueRange = -50f..0f
-            )
-
-            Text(stringResource(R.string.ui_farbpalette), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {  // T177: Kacheln, umbrechend
-                SpectrogramPalette.entries.forEach { p ->
-                    FilterChip(
-                        selected = settings.palette == p,
-                        onClick = { repository.update { it.copy(palette = p) } },
-                        label = { Text(stringResource(p.labelRes())) }
-                    )
-                }
-            }
-
-            // Frequenzbereich in kHz, begrenzt auf den Bereich der aktiven SpectrogramConfig
-            val fLo = settings.freqMinHz.coerceIn(cfgMin, cfgMax - 500f)
-            val fHi = settings.freqMaxHz.coerceIn(fLo + 500f, cfgMax)
-            Text(
-                AppStrings.get(R.string.ui_frequenz_bis_khz, "%.1f".format(fLo / 1000f), "%.1f".format(fHi / 1000f)),
-                style = MaterialTheme.typography.bodySmall
-            )
-            RangeSlider(
-                value = fLo..fHi,
-                onValueChange = { r ->
-                    val lo = r.start
-                    val hi = if (r.endInclusive - lo < 500f) lo + 500f else r.endInclusive
-                    repository.update { it.copy(freqMinHz = lo, freqMaxHz = hi) }
-                },
-                valueRange = cfgMin..cfgMax
+                valueRange = -80f..0f  // T199: dBFS
             )
 
             if (showWindow) {

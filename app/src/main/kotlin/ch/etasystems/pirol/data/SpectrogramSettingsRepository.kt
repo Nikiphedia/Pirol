@@ -32,7 +32,8 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
 
     fun applyPreset(preset: SpectrogramPreset) = update { it.withPreset(preset) }
 
-    // T198: Live-Spektrum, eigene Schluessel `pirol_spectrum_*`
+    // T198: Live-Spektrum, eigene Schluessel `pirol_spectrum_*`. T199: nur FFT, Mittelung, Peak-Hold;
+    // Frequenz-/dB-Bereich und Palette kommen aus [settings] (gemeinsam)
     private val _spectrum = MutableStateFlow(loadSpectrum())
     val spectrum: StateFlow<SpectrumSettings> = _spectrum.asStateFlow()
 
@@ -40,20 +41,12 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         val new = transform(_spectrum.value)
         if (new == _spectrum.value) return
         _spectrum.value = new
-        prefs.spectrumFreqMinHz = new.freqMinHz
-        prefs.spectrumFreqMaxHz = new.freqMaxHz
-        prefs.spectrumMinDb = new.minDb
-        prefs.spectrumMaxDb = new.maxDb
         prefs.spectrumFftSize = new.fftSize
         prefs.spectrumAveraging = new.averaging.name
         prefs.spectrumPeakHold = new.peakHold
     }
 
     private fun loadSpectrum(): SpectrumSettings = SpectrumSettings(
-        freqMinHz = prefs.spectrumFreqMinHz,
-        freqMaxHz = prefs.spectrumFreqMaxHz,
-        minDb = prefs.spectrumMinDb,
-        maxDb = prefs.spectrumMaxDb,
         fftSize = prefs.spectrumFftSize.takeIf { it in SpectrumAnalyzer.FFT_SIZES } ?: 2048,
         averaging = SpectrumAveraging.entries.firstOrNull { it.name == prefs.spectrumAveraging }
             ?: SpectrumAveraging.SHORT,

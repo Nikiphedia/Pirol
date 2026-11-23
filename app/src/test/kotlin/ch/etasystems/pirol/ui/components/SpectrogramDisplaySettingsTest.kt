@@ -22,7 +22,7 @@ class SpectrogramDisplaySettingsTest {
         assertTrue(quiet.gamma < base.withPreset(SpectrogramPreset.STANDARD).gamma)
         val loud = base.withPreset(SpectrogramPreset.LAUTE_UMGEBUNG)
         assertFalse(loud.autoContrast)
-        assertEquals(-70f, loud.minDb, 0f)
+        assertEquals(-85f, loud.minDb, 0f)
         assertEquals(1000f, loud.freqMinHz, 0f)
     }
 

@@ -7,13 +7,17 @@ import kotlin.math.max
  * Zustandsbehaftete Mel-Spektrogramm-Pipeline.
  *
  * Nimmt rohe Audio-Samples (ShortArray) entgegen und produziert
- * Mel-Frames in dB-Skala. Verwaltet einen internen Overlap-Buffer
+ * Mel-Frames in dBFS (T199). Verwaltet einen internen Overlap-Buffer
  * fuer nahtlose Verarbeitung ueber Chunk-Grenzen hinweg.
  *
  * Ablauf pro process()-Aufruf:
  * 1. Samples an Overlap-Buffer anhaengen
  * 2. Solange Buffer >= fftSize: Fenster extrahieren, um hopSize weiterschieben
- * 3. Pro Fenster: Hann-Window -> FFT -> Power-Spektrum -> Mel-Filterbank -> dB
+ * 3. Pro Fenster: Hann-Window -> FFT -> Power-Spektrum -> Mel-Filterbank -> dBFS
+ *
+ * T199: Normierung wie [SpectrumAnalyzer]: Leistung * (2/Summe(w))^2, ein Vollaussteuerungs-Sinus
+ * ergibt im Mel-Band ca. 0 dBFS (-3..+2 dB je nach Lage zur Bandmitte). Die Inferenz nutzt diese
+ * Klasse nicht (nur Anzeige und Sonogramm-Export).
  * 4. Frames als List<FloatArray> zurueckgeben
  *
  * Keine Allokationen im Hot-Path — alle Buffer werden wiederverwendet.
@@ -24,8 +28,7 @@ import kotlin.math.max
  * @param numMelBins Anzahl Mel-Filterbank-Ausgaenge
  * @param fMin Untere Grenzfrequenz in Hz
  * @param fMax Obere Grenzfrequenz in Hz (-1 = Nyquist)
- * @param refDb Referenzpegel fuer dB-Skalierung
- * @param minDb Untere Grenze (Clipping) in dB
+ * @param floorDb Untergrenze (gegen log(0)) in dBFS
  */
 class MelSpectrogram(
     sampleRate: Int,
@@ -34,8 +37,7 @@ class MelSpectrogram(
     numMelBins: Int = 128,
     fMin: Float = 0f,
     fMax: Float = -1f,
-    private val refDb: Float = 40f,  // T107: war 80 → Signale unter ~0 dB Mel-Energie (81 % der Pixel) lagen am Boden
-    private val minDb: Float = -80f
+    private val floorDb: Float = MEL_FLOOR_DBFS
 ) {
     private val actualFftSize = fftSize
     private val actualHopSize = hopSize
@@ -65,6 +67,10 @@ class MelSpectrogram(
     private val fftImag = FloatArray(actualFftSize)
     private val powerBuf = FloatArray(actualFftSize / 2 + 1)
 
+    // T199: dBFS-Offset 10*log10((2/Summe(w))^2), gleiche Normierung wie SpectrumAnalyzer
+    private val dbfsOffset: Float =
+        (20.0 * log10(2.0 / hannWindow.sumOf { it.toDouble() })).toFloat()
+
     /**
      * Sekundaer-Konstruktor mit SpectrogramConfig.
      */
@@ -74,15 +80,13 @@ class MelSpectrogram(
         hopSize = config.hopSize,
         numMelBins = config.numMelBins,
         fMin = config.fMin,
-        fMax = config.fMax,
-        refDb = config.refDb,
-        minDb = config.minDb
+        fMax = config.fMax
     )
 
     /**
      * Verarbeitet einen Block von Audio-Samples.
      * Gibt 0..N Mel-Frames zurueck, je nach verfuegbaren Daten.
-     * Jeder Frame ist FloatArray(numMelBins) in dB-Skala.
+     * Jeder Frame ist FloatArray(numMelBins) in dBFS.
      *
      * Thread-sicher: NEIN — nur von einem Thread aufrufen.
      */
@@ -142,7 +146,7 @@ class MelSpectrogram(
 
     /**
      * Verarbeitet ein einzelnes FFT-Fenster ab [offset] im Overlap-Buffer.
-     * Gibt einen neuen FloatArray(numMelBins) in dB-Skala zurueck.
+     * Gibt einen neuen FloatArray(numMelBins) in dBFS zurueck.
      */
     private fun processOneFrame(offset: Int): FloatArray {
         // 1. Fenster in Arbeits-Buffer kopieren und Hann-Window anwenden
@@ -161,13 +165,12 @@ class MelSpectrogram(
         // 5. Mel-Filterbank
         val melEnergies = melFilterbank.apply(powerBuf)
 
-        // 6. dB-Skalierung + Clipping → neuer Array (Consumer braucht eigene Kopie)
+        // 6. dBFS + Boden → neuer Array (Consumer braucht eigene Kopie)
         val frame = FloatArray(actualNumMelBins)
         for (i in frame.indices) {
-            // 10 * log10(energy), mit Minimum gegen log(0)
-            val db = 10f * log10(max(melEnergies[i], 1e-10f))
-            // Relativ zu refDb, geclamped auf [minDb, 0]
-            frame[i] = (db - refDb).coerceIn(minDb, 0f)
+            // 10 * log10(energy) + Normierung, mit Minimum gegen log(0); oben kein Clipping
+            val db = 10f * log10(max(melEnergies[i], 1e-30f)) + dbfsOffset
+            frame[i] = db.coerceAtLeast(floorDb)
         }
         return frame
     }

@@ -30,8 +30,8 @@ class DynamicRangeMapper(
     /** IIR-Glaettungsfaktor [0..1]. Hoeher = reagiert schneller, mehr Pop. */
     private val smoothingAlpha: Float = 0.15f,
     /** Fallback-Bereich solange noch zu wenig Daten (< minFramesForCompute). */
-    private val fallbackMinDb: Float = -80f,
-    private val fallbackMaxDb: Float = 0f,
+    private val fallbackMinDb: Float = SONOGRAM_DEFAULT_MIN_DBFS,  // T199: dBFS
+    private val fallbackMaxDb: Float = SONOGRAM_DEFAULT_MAX_DBFS,
     /** T176: Zeitquelle (ms), in Unit-Tests ersetzbar. */
     private val clockMs: () -> Long = { SystemClock.elapsedRealtime() }
 ) {
@@ -100,7 +100,7 @@ class DynamicRangeMapper(
 
     /**
      * Aktuelle Range [minDb, maxDb] fuer das Mapping.
-     * Vor erster valider Berechnung: Fallback [-80, 0].
+     * Vor erster valider Berechnung: Fallback [SONOGRAM_DEFAULT_MIN_DBFS, SONOGRAM_DEFAULT_MAX_DBFS].
      * maxDb > minDb ist garantiert (minimal +1 dB Abstand).
      */
     fun currentRange(): Pair<Float, Float> {
@@ -181,12 +181,12 @@ class DynamicRangeMapper(
         /**
          * Einmal-Berechnung ueber eine feste Frame-Liste (Analyse-Tab).
          * Kein Rolling-Window, kein IIR — bestimmt (p2, p98) per Quickselect ueber alle Werte.
-         * Bei zu wenig Daten: Fallback [-80, 0].
+         * Bei zu wenig Daten: Fallback [SONOGRAM_DEFAULT_MIN_DBFS, SONOGRAM_DEFAULT_MAX_DBFS].
          */
         fun computeStatic(
             frames: List<FloatArray>,
-            fallbackMinDb: Float = -80f,
-            fallbackMaxDb: Float = 0f,
+            fallbackMinDb: Float = SONOGRAM_DEFAULT_MIN_DBFS,
+            fallbackMaxDb: Float = SONOGRAM_DEFAULT_MAX_DBFS,
             lowPercentile: Float = DEFAULT_LOW_PERCENTILE,
             highPercentile: Float = DEFAULT_HIGH_PERCENTILE,
             minSpanDb: Float = DEFAULT_MIN_SPAN_DB

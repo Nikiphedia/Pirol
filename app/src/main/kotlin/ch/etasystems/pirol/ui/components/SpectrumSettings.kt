@@ -6,18 +6,13 @@ import java.util.Locale
 
 /**
  * T198: Einstellungen des Live-Spektrums (eigenes Panel, persistent ueber `pirol_spectrum_*`).
+ * T199: Frequenz- und dB-Bereich sowie Palette kommen aus [SpectrogramDisplaySettings] (gemeinsam).
  *
- * @param freqMinHz / freqMaxHz sichtbarer Frequenzbereich (linear), 0..24000 Hz
- * @param minDb / maxDb dB-Bereich der y-Achse in dBFS
  * @param fftSize FFT-Groesse (siehe SpectrumAnalyzer.FFT_SIZES)
  * @param averaging exponentielle Mittelung
  * @param peakHold Peak-Hold-Linie anzeigen
  */
 data class SpectrumSettings(
-    val freqMinHz: Float = 0f,
-    val freqMaxHz: Float = 12000f,
-    val minDb: Float = -120f,
-    val maxDb: Float = 0f,
     val fftSize: Int = 2048,
     val averaging: SpectrumAveraging = SpectrumAveraging.SHORT,
     val peakHold: Boolean = false
@@ -30,8 +25,7 @@ enum class SpectrumAveraging(val tauSec: Float, @StringRes val labelRes: Int) {
     LONG(1.5f, R.string.spectrum_avg_long)
 }
 
-/** T198: Mindestbreite des Frequenzbereichs (Hz) und des dB-Bereichs. */
-const val SPECTRUM_MIN_SPAN_HZ = 200f
+/** T198: Mindestbreite des dB-Bereichs (T199: Frequenz-Mindestbreite siehe SHARED_MIN_SPAN_HZ). */
 const val SPECTRUM_MIN_SPAN_DB = 10f
 
 /** T198: Lineare Abbildung Frequenz -> x (Pixel ab [left], Breite [width]); nicht begrenzt. */
