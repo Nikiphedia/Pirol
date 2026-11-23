@@ -33,14 +33,19 @@ class RegionFilterBeforeTopKTest {
     private val json = """{"sets":[{"id":"birds","species":[${(1..8).joinToString { "\"Bird_$it\"" }}]}]}"""
 
     @Before
-    fun setUp() = SpeciesKey.setAliases(emptyMap())
+    fun setUp() {
+        SpeciesKey.setAliases(emptyMap())
+        // T246: Filter nur ueber Artgruppen; Grillen = Heuschrecken (Aus), Voegel aus der Liste "birds"
+        TaxonGroups.setIndex(birds.associate { it.first to TaxonGroup.BIRDS } +
+            crickets.associate { it.first to TaxonGroup.ORTHOPTERA })
+    }
 
     @After
     fun tearDown() = TaxonGroups.setIndex(emptyMap())
 
     private fun run(config: InferenceConfig): Pair<List<DetectionResult>, Int> {
         val filter = RegionalSpeciesFilter(ContextWrapper(null), regionSetsText = { json })
-        filter.loadRegion("birds")
+        filter.loadGroups(SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "birds")))
         val cls = RankedClassifier(crickets + birds)
         val worker = InferenceWorker(cls, filter, config, onAudioPersist = { null }) { _, _ -> }
         val window = AnalysisWindow(ShortArray(96_000), 32_000, 0L)
@@ -49,7 +54,7 @@ class RegionFilterBeforeTopKTest {
 
     @Test
     fun `plausible Arten bleiben trotz lauter Grillen`() {
-        val config = InferenceConfig(topK = 3, confidenceThreshold = 0.3f, regionFilter = "birds",
+        val config = InferenceConfig(topK = 3, confidenceThreshold = 0.3f, regionFilter = RegionalSpeciesFilter.GROUPS_ID,
             showOnlyFiltered = true, highpassEnabled = false)
         val (dets, topK) = run(config)
         assertEquals(Int.MAX_VALUE, topK)
@@ -67,7 +72,7 @@ class RegionFilterBeforeTopKTest {
 
     @Test
     fun `Filter nur protokollierend - Classifier-Kappung wie bisher`() {
-        val config = InferenceConfig(topK = 2, confidenceThreshold = 0.3f, regionFilter = "birds",
+        val config = InferenceConfig(topK = 2, confidenceThreshold = 0.3f, regionFilter = RegionalSpeciesFilter.GROUPS_ID,
             showOnlyFiltered = false, highpassEnabled = false)
         val (dets, topK) = run(config)
         assertEquals(4, topK)

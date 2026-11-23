@@ -9,7 +9,6 @@ import ch.etasystems.pirol.ml.AudioClassifier
 import ch.etasystems.pirol.ml.BirdNetV3Classifier
 import ch.etasystems.pirol.ml.CHUNK_DURATION_MS
 import ch.etasystems.pirol.ml.GeoFilterController
-import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.PirolFolder
 import ch.etasystems.pirol.ml.RegionInfo
@@ -29,11 +28,10 @@ import java.time.format.DateTimeFormatter
 /** T221: Auswahl im Rescan-Dialog. [modelFileName] = Datei in filesDir/models. */
 data class RescanOptions(
     val modelFileName: String,
-    val regionFilter: String?,
     val confidenceThreshold: Float,
     val overlapPercent: Int,
-    /** T239: Gruppenwahl bei Liste "groups" (null = aktuelle Einstellungen); Voreinstellung = Wahl der Session */
-    val groups: ch.etasystems.pirol.ml.SpeciesGroupSelection? = null
+    /** T239/T246: Gruppenwahl (einziger Filter); Voreinstellung = Wahl der Session, sonst aktuelle Einstellungen */
+    val groups: ch.etasystems.pirol.ml.SpeciesGroupSelection
 )
 
 /**
@@ -75,15 +73,17 @@ class RescanEngine(
         f.getAvailableRegions()
     }
 
-    /** Voreinstellung: aktives Modell und Liste der Session, Schwelle der Session, Overlap aus den Einstellungen */
-    fun defaults(regionFilter: String?, threshold: Float?, groups: Map<String, String>? = null): RescanOptions {
+    /**
+     * Voreinstellung: aktives Modell, Gruppenwahl und Schwelle der Session, Overlap aus den Einstellungen.
+     * T246: Session ohne Gruppenwahl -> aktuelle Gruppenwahl der Einstellungen.
+     */
+    fun defaults(threshold: Float?, groups: Map<String, String>?): RescanOptions {
         val model = models().firstOrNull { it.isActive } ?: models().firstOrNull()
         return RescanOptions(
             modelFileName = model?.fileName.orEmpty(),
-            regionFilter = regionFilter,
             confidenceThreshold = threshold ?: appPreferences.confidenceThreshold,
             overlapPercent = appPreferences.overlapPercent,
-            groups = groups?.let { ch.etasystems.pirol.ml.SpeciesGroupSelection.fromMap(it) }
+            groups = groups?.let { ch.etasystems.pirol.ml.SpeciesGroupSelection.fromMap(it) } ?: appPreferences.speciesGroups
         )
     }
 
@@ -131,21 +131,17 @@ class RescanEngine(
             SpeciesKey.load(context)
             speciesNameResolver.load()
             val filter = RegionalSpeciesFilter(context, pirolFolder, null, appPreferences)
-            var filterInfo: ch.etasystems.pirol.data.repository.SpeciesFilterInfo? = null
-            val region = options.regionFilter
             withContext(Dispatchers.IO) {
                 runCatching { filter.refreshCustomLists() }
                 // T239: Gruppenwahl der Session (im Dialog aenderbar), nicht die aktuellen Einstellungen
-                if (region == RegionalSpeciesFilter.GROUPS_ID && options.groups != null) filter.loadGroups(options.groups)
-                else if (region != null) filter.loadRegion(region)
+                filter.loadGroups(options.groups)
             }
-            if (region == GeoLogic.REGION_ID || filter.isAutoGeo()) {  // T232: auch Artgruppe auf Auto
-                filterInfo = geoFilter.applyForRescan(filter, sessionPos?.first, sessionPos?.second, epoch0, options.groups)
-            } else if (region == RegionalSpeciesFilter.GROUPS_ID) {
-                filterInfo = ch.etasystems.pirol.data.repository.SpeciesFilterInfo(
-                    source = "list", groups = (options.groups ?: appPreferences.speciesGroups).toMap()
-                )
+            val filterInfo = if (filter.isAutoGeo()) {  // T232: Artgruppe auf Auto
+                geoFilter.applyForRescan(filter, sessionPos?.first, sessionPos?.second, epoch0, options.groups)
+            } else {
+                ch.etasystems.pirol.data.repository.SpeciesFilterInfo(source = "list", groups = options.groups.toMap())
             }
+            val region = RegionalSpeciesFilter.GROUPS_ID
 
             val config = appPreferences.loadInferenceConfig().copy(
                 confidenceThreshold = options.confidenceThreshold,

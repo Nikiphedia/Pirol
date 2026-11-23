@@ -203,7 +203,8 @@ object TaxonGroups {
 object GroupSource {
     const val OFF = "off"
     const val ALL = "all"
-    const val AUTO = GeoLogic.REGION_ID
+    /** Geomodel (Kennung aus T218 beibehalten, steht so in Einstellungen und session.json) */
+    const val AUTO = "auto_geo"
     fun isList(source: String) = source != OFF && source != ALL && source != AUTO
 }
 
@@ -243,24 +244,6 @@ data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
                 if (v.isEmpty()) null else g to v
             }.toMap()
             return SpeciesGroupSelection(m)
-        }
-
-        /**
-         * Migration der bisherigen Einzelwahl (T218/T228): Voegel = bisherige Region (null = Alle);
-         * Heuschrecken/Amphibien = Begleitliste, falls "auto_geo" mit Vereinigung (UNION), sonst Aus;
-         * Saeugetiere und Andere Aus.
-         */
-        fun migrate(regionFilter: String?, geoCombine: String?, companion: String?): SpeciesGroupSelection {
-            val birds = regionFilter ?: GroupSource.ALL
-            val ha = if (regionFilter == GeoLogic.REGION_ID && GeoCombine.parse(geoCombine) == GeoCombine.UNION &&
-                !companion.isNullOrBlank()) companion else GroupSource.OFF
-            return SpeciesGroupSelection(mapOf(
-                TaxonGroup.BIRDS to birds,
-                TaxonGroup.ORTHOPTERA to ha,
-                TaxonGroup.AMPHIBIANS to ha,
-                TaxonGroup.MAMMALS to GroupSource.OFF,
-                TaxonGroup.OTHER to GroupSource.OFF
-            ))
         }
 
         /**

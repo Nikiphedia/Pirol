@@ -28,37 +28,19 @@ class GeoLogicTest {
         assertEquals(48, GeoLogic.birdnetWeek(LocalDate.of(2026, 12, 31)))
     }
 
-    @Test fun `Maske unbekannt passiert, bekannt nur ab Schwelle`() {
+    @Test fun `Maske kennt alle Namen, erlaubt nur ab Schwelle`() {
         val mask = GeoLogic.buildMask(listOf("A_a", "B_b", "C_c"), floatArrayOf(0.5f, 0.02f, 0.03f), 0.03f, id)
-        assertTrue(mask.passes("a_a"))
-        assertFalse(mask.passes("b_b"))
-        assertTrue(mask.passes("c_c"))      // genau auf der Schwelle
-        assertTrue(mask.passes("noise"))    // unbekannt (z.B. Geraeuschklasse)
+        assertEquals(setOf("a_a", "b_b", "c_c"), mask.known)
+        assertTrue("a_a" in mask.allowed)
+        assertFalse("b_b" in mask.allowed)
+        assertTrue("c_c" in mask.allowed)      // genau auf der Schwelle
     }
 
     @Test fun `Maske kanonisiert ueber Schluessel`() {
         val mask = GeoLogic.buildMask(listOf("Ardea ibis"), floatArrayOf(0.9f), 0.03f) {
             it.trim().replace(' ', '_').lowercase()
         }
-        assertTrue(mask.passes("ardea_ibis"))
-    }
-
-    @Test fun `Kombination Schnittmenge und Vereinigung`() {
-        val mask = GeoLogic.buildMask(listOf("a", "b"), floatArrayOf(0.5f, 0.0f), 0.03f, id)
-        // a: Geo ja; b: Geo nein
-        assertTrue(GeoLogic.plausible("a", mask, listOk = false, combine = GeoCombine.GEO_ONLY))
-        assertFalse(GeoLogic.plausible("b", mask, listOk = true, combine = GeoCombine.GEO_ONLY))
-        assertFalse(GeoLogic.plausible("a", mask, listOk = false, combine = GeoCombine.INTERSECT))
-        assertTrue(GeoLogic.plausible("a", mask, listOk = true, combine = GeoCombine.INTERSECT))
-        assertFalse(GeoLogic.plausible("b", mask, listOk = true, combine = GeoCombine.INTERSECT))
-        assertTrue(GeoLogic.plausible("b", mask, listOk = true, combine = GeoCombine.UNION))
-        assertFalse(GeoLogic.plausible("b", mask, listOk = false, combine = GeoCombine.UNION))
-        assertTrue(GeoLogic.plausible("a", mask, listOk = false, combine = GeoCombine.UNION))
-    }
-
-    @Test fun `ohne Maske zaehlt nur die Liste`() {
-        assertTrue(GeoLogic.plausible("x", null, true, GeoCombine.INTERSECT))
-        assertFalse(GeoLogic.plausible("x", null, false, GeoCombine.GEO_ONLY))
+        assertTrue("ardea_ibis" in mask.allowed)
     }
 
     @Test fun `Ortswechsel und Wochenwechsel Trigger`() {
@@ -94,11 +76,5 @@ class GeoLogicTest {
         assertEquals(GeoLogic.PositionSource.NONE, GeoLogic.choosePosition(null, saved, 1 * day, 32 * day).first)
         assertEquals(GeoLogic.PositionSource.NONE, GeoLogic.choosePosition(null, null, 0L, 10 * day).first)
         assertNull(GeoLogic.choosePosition(null, null, 0L, 0L).second)
-    }
-
-    @Test fun `GeoCombine parse mit Rueckfall`() {
-        assertEquals(GeoCombine.UNION, GeoCombine.parse("UNION"))
-        assertEquals(GeoCombine.GEO_ONLY, GeoCombine.parse("quatsch"))
-        assertEquals(GeoCombine.GEO_ONLY, GeoCombine.parse(null))
     }
 }

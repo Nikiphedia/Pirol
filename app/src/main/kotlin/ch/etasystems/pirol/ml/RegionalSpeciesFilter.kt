@@ -19,7 +19,7 @@ class RegionalSpeciesFilter(
     private val pirolFolder: PirolFolder? = null,
     /** T190: erhaelt Anzeigenamen aus eigenen Listen (Rueckfall fuer Arten ohne species_master-Eintrag) */
     private val speciesNames: SpeciesNameResolver? = null,
-    /** T218: Begleitliste und Verknuepfung fuer "auto_geo" */
+    /** T232/T246: Gruppenwahl und Ersatzliste der Voegel */
     private val appPreferences: ch.etasystems.pirol.data.AppPreferences? = null,
     /** T238: Inhalt von region_sets.json (Tests); null = Asset */
     private val regionSetsText: (() -> String)? = null
@@ -36,17 +36,25 @@ class RegionalSpeciesFilter(
         internal fun matches(canonicalRegion: Set<String>, scientificName: String): Boolean =
             canonicalRegion.isEmpty() || SpeciesKey.of(scientificName) in canonicalRegion
 
-        /** T232: Region-ID fuer "Liste je Artgruppe" (Auswahl in AppPreferences.speciesGroups) */
+        /**
+         * T232: Kennung des Gruppenfilters in InferenceConfig.regionFilter und session.json `regionFilter`
+         * (T246: einziger Filterweg; null = kein Filter).
+         */
         const val GROUPS_ID = "groups"
 
         /** T232: Ersatzliste einer Auto-Gruppe ohne Position/Geomodel (Voegel: Einstellung, leer = alle) */
-        internal fun autoFallbackId(g: TaxonGroup, birdsFallback: String): String = when (g) {
+        internal fun autoFallbackId(g: TaxonGroup, birdsFallback: String?): String = when (g) {
             TaxonGroup.BIRDS -> birdsFallbackId(birdsFallback)
             TaxonGroup.ORTHOPTERA, TaxonGroup.AMPHIBIANS -> "ch_orthoptera_anura"
             TaxonGroup.MAMMALS, TaxonGroup.OTHER -> "all"
         }
 
-        /** T239: Ersatzliste der Voegel: eine Heuschrecken-/Amphibienliste ist dafuer nie gueltig (Altlast der Migration) -> CH+ */
+        /** T246: Ersatzlisten der Gruppen auf Auto (Gruppen-Code -> Liste) fuer session.json */
+        fun autoFallbacks(sel: SpeciesGroupSelection, birdsFallback: String?): Map<String, String> =
+            TaxonGroup.entries.filter { sel.sourceOf(it) == GroupSource.AUTO }
+                .associate { it.code to autoFallbackId(it, birdsFallback) }
+
+        /** T239: Ersatzliste der Voegel: eine Heuschrecken-/Amphibienliste ist dafuer nie gueltig -> CH+ */
         internal fun birdsFallbackId(pref: String?): String =
             if (pref.isNullOrBlank() || pref == "ch_orthoptera_anura") "ch_all" else pref
 
@@ -112,11 +120,8 @@ class RegionalSpeciesFilter(
     /** T129: Listen aus dem freigegebenen Ordner neu einlesen (IO). Warnungen siehe [getCustomWarnings]. */
     fun refreshCustomLists(): Unit = synchronized(lock) {
         readCustomLists()
-        // aktive eigene Liste neu laden, falls sie sich geaendert hat
-        val s = state
-        if (s.groupRules != null) { loadRegion(GROUPS_ID); return }  // T232
-        val cur = if (s.autoGeo) appPreferences?.geoCompanionRegion else s.regionId
-        if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(if (s.autoGeo) GeoLogic.REGION_ID else cur)
+        // T246: geladene Gruppenwahl neu aufbauen (eigene Listen koennen sich geaendert haben)
+        if (state.groupRules != null) loadGroups()
     }
 
     /** Eigene Listen einlesen, ohne den aktiven Filter neu zu laden (IO) */
@@ -154,63 +159,45 @@ class RegionalSpeciesFilter(
     fun getCustomList(regionId: String): CustomSpeciesList? = customLists.firstOrNull { it.id == regionId }
 
     /**
-     * Aktiviert das Set mit der gegebenen Region-ID (IO: liest Assets bzw. eigene Listen).
+     * T246: Gruppenregeln laden (IO), aus [selection] (Rescan mit der Gruppenwahl der Session) oder,
+     * wenn null, aus den Einstellungen. Die Geomodel-Maske bleibt (haengt nur von Position/Woche ab).
      * T238: unter [lock]; der neue Zustand wird als Ganzes getauscht.
-     *
-     * @param regionId z.B. "ch_breeding", "ch_all", "central_europe", "all"
      */
-    fun loadRegion(regionId: String = "ch_breeding"): Unit = synchronized(lock) {
-        val cur = state
-        state = when (regionId) {
-            // T232: Maske bleibt (haengt nur von Position/Woche ab), Regeln aus den Einstellungen
-            GROUPS_ID -> buildGroups(cur).also {
-                Log.i(TAG, "Artgruppen geladen: ${(appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT).toMap()}")
-            }
-            // T218: "auto_geo" = Begleitliste laden (Ersatz/Verknuepfung), Geomodel-Maske kommt vom Controller
-            GeoLogic.REGION_ID -> {
-                val base = cur.copy(groupRules = null, autoGeo = true, geoCombine = GeoCombine.parse(appPreferences?.geoCombine))
-                loadRegionInternal(base, appPreferences?.geoCompanionRegion ?: "ch_all").copy(regionId = GeoLogic.REGION_ID)
-            }
-            else -> loadRegionInternal(cur.copy(groupRules = null, autoGeo = false, geoMask = null), regionId)
-        }
+    fun loadGroups(selection: SpeciesGroupSelection? = null): Unit = synchronized(lock) {
+        val sel = selection ?: currentSelection()
+        state = buildGroups(state, sel)
+        Log.i(TAG, "Artgruppen geladen: ${sel.toMap()}")
     }
 
     /**
-     * T239: Gruppenregeln aus einer vorgegebenen Wahl (Rescan mit der Gruppenwahl der Session) statt aus den
-     * Einstellungen laden (IO). Maske/Verknuepfung bleiben.
-     */
-    fun loadGroups(selection: SpeciesGroupSelection): Unit = synchronized(lock) {
-        state = buildGroups(state, selection)
-    }
-
-    /**
-     * T239: Kaltstart — wartet, bis ein laufendes Laden fertig ist; ist noch nie eine Region geladen worden,
-     * laedt es die gewaehlte (IO). Danach ist der Filter nie "leer" (= alles plausibel).
+     * T239: Kaltstart — wartet, bis ein laufendes Laden fertig ist; sind noch nie Gruppen geladen worden,
+     * laedt es die Gruppenwahl der Einstellungen (IO). Danach ist der Filter nie "leer" (= alles plausibel).
      */
     fun ensureLoaded(): Unit = synchronized(lock) {
-        if (state.regionId == null) loadRegion(appPreferences?.regionFilter ?: GROUPS_ID)
+        if (state.groupRules == null) loadGroups()
     }
 
-    /** T239: ist schon eine Region geladen? (schneller Pfad ohne Sperre) */
-    fun isLoaded(): Boolean = state.regionId != null
+    /** T239: sind die Gruppen schon geladen? (schneller Pfad ohne Sperre) */
+    fun isLoaded(): Boolean = state.groupRules != null
 
-    /** T218: Ist der Geomodel-Filter aktiv (Region "auto_geo" oder eine Artgruppe auf Auto, T232)? */
+    /** T218/T232: Steht eine Artgruppe auf Auto (Geomodel)? */
     fun isAutoGeo(): Boolean = state.isAutoGeo()
 
     /**
      * T238: Arten der Gruppenwahl aus den Einstellungen, ohne den aktiven Filter zu aendern
      * (Vorschlagsliste der Einstellungen). IO.
      */
-    fun previewGroupSpecies(): Set<String> = synchronized(lock) { buildGroups(state).species }
+    fun previewGroupSpecies(): Set<String> = synchronized(lock) { buildGroups(state, currentSelection()).species }
 
-    /** T232: Regeln je Artgruppe aus [AppPreferences.speciesGroups] aufbauen (IO); Maske/Verknuepfung aus [cur]. */
-    private fun buildGroups(cur: FilterState, selection: SpeciesGroupSelection? = null): FilterState {
+    private fun currentSelection(): SpeciesGroupSelection = appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT
+
+    /** T232: Regeln je Artgruppe aus [sel] aufbauen (IO); Maske aus [cur]. */
+    private fun buildGroups(cur: FilterState, sel: SpeciesGroupSelection): FilterState {
         SpeciesKey.load(context)
         TaxonGroups.load(context)
-        val sel = selection ?: appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT
         val needsCustom = TaxonGroup.entries.any { sel.sourceOf(it).startsWith(CustomSpeciesLists.ID_PREFIX) }
         if (needsCustom && customLists.isEmpty()) readCustomLists()
-        val birdsFallback = appPreferences?.geoCompanionRegion ?: "ch_all"
+        val birdsFallback = appPreferences?.groupFallbackBirds
         val union = mutableSetOf<String>()
         val rules = TaxonGroup.entries.associateWith { g ->
             when (val src = sel.sourceOf(g)) {
@@ -228,14 +215,7 @@ class RegionalSpeciesFilter(
                 }
             }
         }
-        return cur.copy(
-            groupRules = rules,
-            autoGeo = false,
-            custom = null,
-            species = union,
-            canonical = emptySet(),
-            regionId = GROUPS_ID
-        )
+        return cur.copy(groupRules = rules, species = union)
     }
 
     /** T232: Arten einer Region bzw. eigenen Liste (ohne Zustand zu aendern); "all" = leer; null = nicht gefunden. */
@@ -249,45 +229,9 @@ class RegionalSpeciesFilter(
         return species?.let { it to null }
     }
 
-    /** T218: Geomodel-Maske ersetzen (null = keine Position/Modell → Begleitliste gilt als Ersatz) */
-    fun setGeoMask(mask: GeoMask?, combine: GeoCombine): Unit = synchronized(lock) {
-        state = state.copy(geoMask = mask, geoCombine = combine)
-    }
-
-    /** Liste [regionId] in [base] uebernehmen; nicht gefunden = [base] (Listenfelder unveraendert, wie bisher). */
-    private fun loadRegionInternal(base: FilterState, regionId: String): FilterState {
-        SpeciesKey.load(context)
-        try {
-            // "all" = kein Filter (leere species-Liste)
-            if (regionId == "all") {
-                Log.i(TAG, "Region 'all' aktiviert — kein Artenfilter")
-                return base.copy(species = emptySet(), canonical = emptySet(), regionId = "all", custom = null)
-            }
-
-            // T129: eigene Liste (T238: nur einlesen, nicht rekursiv neu laden)
-            if (regionId.startsWith(CustomSpeciesLists.ID_PREFIX)) {
-                if (customLists.isEmpty()) readCustomLists()
-                val custom = customLists.firstOrNull { it.id == regionId }
-                if (custom == null) {
-                    Log.w(TAG, "Eigene Liste '$regionId' nicht gefunden")
-                    return base
-                }
-                Log.i(TAG, "Eigene Liste '$regionId' geladen: ${custom.species.size} Arten")
-                return base.copy(species = custom.species, canonical = custom.canonical(), custom = custom, regionId = regionId)
-            }
-
-            // Set mit passender ID (T238: aus dem Cache statt erneutem Parsen)
-            val species = regionSets.species[regionId]
-            if (species == null) {
-                Log.w(TAG, "Region '$regionId' nicht gefunden in region_sets.json")
-                return base
-            }
-            Log.i(TAG, "Region '$regionId' geladen: ${species.size} Arten")
-            return base.copy(species = species, canonical = canonicalize(species), custom = null, regionId = regionId)
-        } catch (e: Exception) {
-            Log.w(TAG, "Fehler beim Laden der Region '$regionId': ${e.message}")
-            return base
-        }
+    /** T218: Geomodel-Maske ersetzen (null = keine Position/Modell → Ersatzliste je Auto-Gruppe) */
+    fun setGeoMask(mask: GeoMask?): Unit = synchronized(lock) {
+        state = state.copy(geoMask = mask)
     }
 
     /**
@@ -309,11 +253,8 @@ class RegionalSpeciesFilter(
     fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean =
         state.isPlausible(scientificName, respectSeason, monthDay)
 
-    /** Alle Arten der aktuell geladenen Region */
+    /** Alle Arten der Listen der geladenen Gruppenwahl (Auto: Ersatzliste) */
     fun getSpeciesList(): Set<String> = state.species
-
-    /** Aktuell geladene Region-ID (null wenn keine geladen) */
-    fun getCurrentRegionId(): String? = state.regionId
 
     /** Alle verfuegbaren Region-Sets */
     fun getAvailableRegions(): List<RegionInfo> = regionSets.infos + customLists.map {
@@ -357,39 +298,23 @@ class RegionalSpeciesFilter(
 
 /**
  * T238: unveraenderlicher Filterzustand (ein Schnappschuss je Pruefung).
- * [groupRules] != null = Liste je Artgruppe (T232); sonst Einzelliste, ggf. mit Geomodel ([autoGeo], T218).
+ * T246: nur noch Liste je Artgruppe (T232); [groupRules] == null = noch nicht geladen (kein Filter).
  */
 internal data class FilterState(
-    val regionId: String? = null,
+    /** Arten aller Listen der Gruppenwahl (Anzeige, Vorschlagsliste) */
     val species: Set<String> = emptySet(),
-    /** T105: kanonische Schluessel der aktiven Region (Synonyme aufgeloest) fuer den Vergleich */
-    val canonical: Set<String> = emptySet(),
-    /** T190: aktive eigene Liste (fuer Saison), null bei Asset-Region */
-    val custom: CustomSpeciesList? = null,
-    val autoGeo: Boolean = false,
     val geoMask: GeoMask? = null,
-    val geoCombine: GeoCombine = GeoCombine.GEO_ONLY,
     val groupRules: Map<TaxonGroup, GroupRule>? = null
 ) {
-    fun isAutoGeo(): Boolean = autoGeo || groupRules?.values?.any { it is GroupRule.Auto } == true
+    fun isAutoGeo(): Boolean = groupRules?.values?.any { it is GroupRule.Auto } == true
 
     fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean {
-        // T232: Liste je Artgruppe
-        groupRules?.let { rules ->
-            val key = SpeciesKey.of(scientificName)
-            if (!RegionalSpeciesFilter.groupPlausible(key, rules, geoMask, TaxonGroups::of)) return false
-            val c = (rules[TaxonGroups.of(key)] as? GroupRule.Listed)?.custom
-            if (!respectSeason || c == null) return true
-            return ListSeason.isInSeason(c.seasons[key], monthDay)
-        }
-        // Kein Filter aktiv oder "all" gewaehlt; sonst Vergleich ueber kanonischen Schluessel (T105)
-        val listOk = RegionalSpeciesFilter.matches(canonical, scientificName)
-        // T218: mit Geomodel-Maske entscheidet GeoLogic (ohne Maske gilt die Begleitliste als Ersatz)
-        val base = if (autoGeo) GeoLogic.plausible(SpeciesKey.of(scientificName), geoMask, listOk, geoCombine) else listOk
-        if (!base) return false
-        val c = custom
+        val rules = groupRules ?: return true
+        val key = SpeciesKey.of(scientificName)
+        if (!RegionalSpeciesFilter.groupPlausible(key, rules, geoMask, TaxonGroups::of)) return false
+        val c = (rules[TaxonGroups.of(key)] as? GroupRule.Listed)?.custom
         if (!respectSeason || c == null) return true
-        return ListSeason.isInSeason(c.seasons[SpeciesKey.of(scientificName)], monthDay)
+        return ListSeason.isInSeason(c.seasons[key], monthDay)
     }
 }
 

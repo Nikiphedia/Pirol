@@ -246,8 +246,9 @@ class InferenceWorker(
     private fun logUnmappedRegionSpecies() {
         val labelNames = classifier.labelScientificNames
         if (labelNames.isEmpty()) return
-        val snap = regionalFilter.snapshot()  // T238: Region-ID und Arten aus demselben Zustand
-        val key = "${classifier.modelId}|${snap.regionId}"
+        val snap = regionalFilter.snapshot()  // T238: Arten aus einem Zustand
+        // T246: Zustand ueber die Identitaet der Artenmenge (neu bei jedem Laden der Gruppen)
+        val key = "${classifier.modelId}|${System.identityHashCode(snap.species)}"
         if (key == unmappedStatsKey) return
         unmappedStatsKey = key
         val region = snap.species
@@ -255,9 +256,9 @@ class InferenceWorker(
         // T105: nach Alias-Aufloesung beide Seiten ueber den kanonischen Schluessel vergleichen
         val labelKeys = labelNames.mapTo(HashSet()) { SpeciesKey.of(it) }
         val after = region.filter { SpeciesKey.of(it) !in labelKeys }
-        Log.i(TAG, "T103_STATS model=${classifier.modelId} region=${snap.regionId} " +
+        Log.i(TAG, "T103_STATS model=${classifier.modelId} lists=${region.size} " +
             "unmapped=${before.size}/${region.size} examples=${before.take(5)}")
-        Log.i(TAG, "T105_STATS model=${classifier.modelId} region=${snap.regionId} " +
+        Log.i(TAG, "T105_STATS model=${classifier.modelId} lists=${region.size} " +
             "region_unmapped_before=${before.size} after=${after.size} aliases=${SpeciesKey.aliasCount()} " +
             "examples_after=${after.take(5)}")
     }

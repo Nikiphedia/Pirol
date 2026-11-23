@@ -4,7 +4,6 @@ import android.content.ContextWrapper
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -18,6 +17,7 @@ import kotlin.concurrent.thread
 /**
  * T238: Filterzustand als Schnappschuss — Leser sehen nie einen gemischten Zustand, Laden und
  * Maskenwechsel gehen nicht verloren, region_sets.json wird nur einmal geparst.
+ * T246: nur noch Gruppenfilter; Einzellisten wirken als Quelle einer Artgruppe.
  */
 class RegionalSpeciesFilterStateTest {
 
@@ -34,19 +34,24 @@ class RegionalSpeciesFilterStateTest {
         parses.incrementAndGet(); json
     })
 
+    private fun birds(source: String) = SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to source))
+
     @Before
     fun setUp() {
         SpeciesKey.setAliases(emptyMap())
-        TaxonGroups.setIndex(mapOf("Turdus_merula" to TaxonGroup.BIRDS, "Parus_major" to TaxonGroup.BIRDS))
+        TaxonGroups.setIndex(mapOf(
+            "Turdus_merula" to TaxonGroup.BIRDS, "Erithacus_rubecula" to TaxonGroup.BIRDS,
+            "Parus_major" to TaxonGroup.BIRDS
+        ))
     }
 
     @After
     fun tearDown() = TaxonGroups.setIndex(emptyMap())
 
     @Test
-    fun `Leser sehen bei parallelem Regionswechsel nur ganze Zustaende`() {
+    fun `Leser sehen bei parallelem Listenwechsel nur ganze Zustaende`() {
         val f = filter()
-        f.loadRegion("set_a")
+        f.loadGroups(birds("set_a"))
         val stop = AtomicBoolean(false)
         val errors = Collections.synchronizedList(mutableListOf<String>())
         val reads = AtomicInteger(0)
@@ -56,17 +61,17 @@ class RegionalSpeciesFilterStateTest {
                     val s = f.snapshot()
                     val merula = s.isPlausible("Turdus merula", false, null)
                     val major = s.isPlausible("Parus_major", false, null)
-                    val ok = when (s.regionId) {
-                        "set_a" -> merula && !major && s.species.size == 2
-                        "set_b" -> !merula && major && s.species == setOf("Parus_major")
+                    val ok = when (s.species.size) {
+                        2 -> merula && !major
+                        1 -> !merula && major && s.species == setOf("Parus_major")
                         else -> false
                     }
-                    if (!ok) errors.add("region=${s.regionId} species=${s.species} merula=$merula major=$major")
+                    if (!ok) errors.add("species=${s.species} merula=$merula major=$major")
                     reads.incrementAndGet()
                 }
             }
         }
-        repeat(3000) { i -> f.loadRegion(if (i % 2 == 0) "set_b" else "set_a") }
+        repeat(3000) { i -> f.loadGroups(birds(if (i % 2 == 0) "set_b" else "set_a")) }
         stop.set(true)
         readers.forEach { it.join() }
         assertTrue("gemischte Zustaende: ${errors.take(3)}", errors.isEmpty())
@@ -74,55 +79,47 @@ class RegionalSpeciesFilterStateTest {
     }
 
     @Test
-    fun `Gruppen, Geomodel und Maske parallel - Invarianten halten, keine Maske geht verloren`() {
+    fun `Gruppen und Maske parallel - Regeln immer vollstaendig, keine Maske geht verloren`() {
         val f = filter()
         val stop = AtomicBoolean(false)
         val errors = Collections.synchronizedList(mutableListOf<String>())
         val reader = thread {
             while (!stop.get()) {
                 val s = f.snapshot()
-                if (s.groupRules != null && (s.regionId != RegionalSpeciesFilter.GROUPS_ID || s.autoGeo || s.custom != null))
-                    errors.add("Gruppen gemischt: region=${s.regionId} autoGeo=${s.autoGeo}")
-                if (s.autoGeo && (s.regionId != GeoLogic.REGION_ID || s.groupRules != null))
-                    errors.add("Geo gemischt: region=${s.regionId} rules=${s.groupRules != null}")
-                if (s.regionId == "set_a" && (s.autoGeo || s.groupRules != null))
-                    errors.add("Liste gemischt: autoGeo=${s.autoGeo}")
+                val rules = s.groupRules
+                if (rules != null && rules.size != TaxonGroup.entries.size)
+                    errors.add("Regeln unvollstaendig: ${rules.keys}")
             }
         }
         val start = CountDownLatch(1)
         val loader = thread {
             start.await()
-            repeat(1500) { i ->
-                f.loadRegion(listOf(RegionalSpeciesFilter.GROUPS_ID, GeoLogic.REGION_ID, "set_a")[i % 3])
-            }
+            repeat(1500) { i -> f.loadGroups(birds(listOf(GroupSource.AUTO, "set_a", GroupSource.ALL)[i % 3])) }
         }
         val masker = thread {
             start.await()
-            repeat(1500) { f.setGeoMask(GeoMask(setOf("parus_major"), emptySet()), GeoCombine.INTERSECT) }
+            repeat(1500) { f.setGeoMask(GeoMask(setOf("parus_major"), emptySet())) }
         }
         start.countDown()
         loader.join(); masker.join()
         stop.set(true); reader.join()
         assertTrue("gemischte Zustaende: ${errors.take(3)}", errors.isEmpty())
 
-        // Nach allen Schreibern: letzte Maske bleibt beim Gruppen- und Geo-Laden erhalten
+        // Nach allen Schreibern: letzte Maske bleibt beim Laden der Gruppen erhalten
         val mask = GeoMask(setOf("turdus_merula"), emptySet())
-        f.setGeoMask(mask, GeoCombine.UNION)
-        f.loadRegion(RegionalSpeciesFilter.GROUPS_ID)
+        f.setGeoMask(mask)
+        f.loadGroups(birds(GroupSource.AUTO))
         assertSame(mask, f.snapshot().geoMask)
-        assertEquals(GeoCombine.UNION, f.snapshot().geoCombine)
-        f.loadRegion(GeoLogic.REGION_ID)
+        assertTrue(f.isAutoGeo())
+        f.loadGroups(birds("set_a"))
         assertSame(mask, f.snapshot().geoMask)
-        // Einzelliste ohne Geomodel verwirft die Maske (wie bisher)
-        f.loadRegion("set_a")
-        assertNull(f.snapshot().geoMask)
+        assertFalse(f.isAutoGeo())
     }
 
     @Test
     fun `region_sets wird einmal geparst`() {
         val f = filter()
-        repeat(20) { f.loadRegion(if (it % 2 == 0) "set_a" else "set_b") }
-        f.loadRegion(RegionalSpeciesFilter.GROUPS_ID)
+        repeat(20) { f.loadGroups(birds(if (it % 2 == 0) "set_a" else "set_b")) }
         f.getAvailableRegions()
         assertEquals(1, parses.get())
         assertEquals(listOf("set_a", "set_b"), f.getAvailableRegions().map { it.id })
@@ -134,26 +131,27 @@ class RegionalSpeciesFilterStateTest {
         val f = RegionalSpeciesFilter(ContextWrapper(null), regionSetsText = { text })
         val ids = f.getAvailableRegions().map { it.id }
         assertTrue(ids.toString(), "ch_all" in ids && "ch_breeding" in ids && "ch_orthoptera_anura" in ids)
-        f.loadRegion("ch_breeding")
+        f.loadGroups(birds("ch_breeding"))
         assertEquals(f.getAvailableRegions().first { it.id == "ch_breeding" }.speciesCount, f.getSpeciesList().size)
         assertTrue(f.isPlausible("Turdus merula"))
     }
 
     @Test
-    fun `unbekannte Region laesst die Liste stehen (wie bisher)`() {
+    fun `unbekannte Liste filtert die Gruppe nicht, Alle ebenso`() {
         val f = filter()
-        f.loadRegion("set_b")
-        f.loadRegion("gibt_es_nicht")
-        assertEquals("set_b", f.getCurrentRegionId())
-        assertEquals(setOf("Parus_major"), f.getSpeciesList())
-        f.loadRegion("all")
-        assertTrue(f.isPlausible("Parus_major") && f.isPlausible("Gryllus campestris"))
+        f.loadGroups(birds("gibt_es_nicht"))
+        assertTrue(f.isPlausible("Parus_major") && f.isPlausible("Turdus_merula"))
+        assertTrue(f.getSpeciesList().isEmpty())
+        f.loadGroups(birds(GroupSource.ALL))
+        assertTrue(f.isPlausible("Parus_major"))
+        f.loadGroups(birds(GroupSource.OFF))
+        assertFalse(f.isPlausible("Parus_major"))
     }
 
     @Test
     fun `Vorschau der Gruppenwahl aendert den aktiven Filter nicht`() {
         val f = filter()
-        f.loadRegion("set_b")
+        f.loadGroups(birds("set_b"))
         val before = f.snapshot()
         f.previewGroupSpecies()
         assertSame(before, f.snapshot())

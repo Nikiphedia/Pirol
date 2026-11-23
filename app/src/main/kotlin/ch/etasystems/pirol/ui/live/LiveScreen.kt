@@ -1083,17 +1083,9 @@ private fun ScanStatusRow(
         else -> AppStrings.get(R.string.live_voegel)
     }
     val speciesGroups by koinInject<ch.etasystems.pirol.data.AppPreferences>().speciesGroupsFlow.collectAsState()  // T235
-    val regionLabel = when (uiState.inferenceConfig.regionFilter) {
-        "ch_breeding" -> "CH"
-        "ch_all" -> "CH+"
-        "central_europe" -> "EU"
-        "all" -> AppStrings.get(R.string.common_all)
-        "auto_geo" -> AppStrings.get(R.string.live_region_auto)  // T218
-        ch.etasystems.pirol.ml.RegionalSpeciesFilter.GROUPS_ID ->  // T232: Gruppenwahl kurz
-            ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.short(speciesGroups)
-        null -> AppStrings.get(R.string.common_off)
-        else -> uiState.inferenceConfig.regionFilter ?: "?"
-    }
+    // T232/T246: nur Gruppenwahl in Kurzform
+    val regionLabel = if (uiState.inferenceConfig.regionFilter == null) AppStrings.get(R.string.common_off)
+        else ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.short(speciesGroups)
 
     // T52: Session-Laufzeit als mm:ss, 1-Hz-Ticker
     var elapsedSecs by remember { mutableStateOf(0L) }

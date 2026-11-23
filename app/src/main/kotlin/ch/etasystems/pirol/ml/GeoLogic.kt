@@ -9,28 +9,11 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** T218: Verknuepfung des Geomodel-Filters mit einer Artenliste. */
-enum class GeoCombine {
-    /** nur Geomodel (die Liste dient nur als Ersatz ohne Position) */
-    GEO_ONLY,
-    /** Liste UND Geomodel */
-    INTERSECT,
-    /** Liste ODER Geomodel */
-    UNION;
-
-    companion object {
-        fun parse(name: String?): GeoCombine = entries.firstOrNull { it.name == name } ?: GEO_ONLY
-    }
-}
-
 /**
  * T218: Ergebnis einer Geomodel-Abfrage als kanonische Artschluessel.
  * [known] = Arten, die das Geomodel kennt; [allowed] = davon Score >= Schwelle.
  */
-class GeoMask(val known: Set<String>, val allowed: Set<String>) {
-    /** Unbekannte Arten (auch Geraeuschklassen) passieren immer; bekannte nur ueber der Schwelle. */
-    fun passes(key: String): Boolean = key !in known || key in allowed
-}
+class GeoMask(val known: Set<String>, val allowed: Set<String>)
 
 /** T218: Position/Zeit, fuer die zuletzt gerechnet wurde. */
 data class GeoState(val lat: Double, val lon: Double, val week: Int, val atMs: Long)
@@ -38,7 +21,6 @@ data class GeoState(val lat: Double, val lon: Double, val week: Int, val atMs: L
 /** T218: Reine Logik des Geomodel-Filters (ohne Android, unit-testbar). */
 object GeoLogic {
 
-    const val REGION_ID = "auto_geo"
     const val WEEKS = 48
     const val DEFAULT_THRESHOLD = 0.03f
     const val MIN_THRESHOLD = 0.01f
@@ -87,17 +69,6 @@ object GeoLogic {
         val out = FloatArray(perWeek.firstOrNull()?.size ?: 0)
         for (w in perWeek) for (i in out.indices) out[i] = max(out[i], w[i])
         return out
-    }
-
-    /** Plausibilitaet mit Maske; [listOk] = Ergebnis der Listenpruefung. Ohne Maske zaehlt nur die Liste. */
-    fun plausible(key: String, mask: GeoMask?, listOk: Boolean, combine: GeoCombine): Boolean {
-        if (mask == null) return listOk
-        val geoOk = mask.passes(key)
-        return when (combine) {
-            GeoCombine.GEO_ONLY -> geoOk
-            GeoCombine.INTERSECT -> geoOk && listOk
-            GeoCombine.UNION -> geoOk || listOk
-        }
     }
 
     /** Grosskreisabstand in km. */
