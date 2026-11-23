@@ -68,6 +68,10 @@ private fun OptionRow(selected: Boolean, multi: Boolean, label: String, hint: St
 fun SetupLanguagePage(currentTag: String, onSelect: (String) -> Unit) {
     PageTitle(R.string.setup_lang_title, R.string.setup_lang_hint)
     Column(Modifier.selectableGroup()) {
+        // T228: erste Option = Systemsprache (folgt der Geraetesprache)
+        OptionRow(currentTag == AppLanguage.SYSTEM_TAG, false, stringResource(R.string.settings_systemsprache)) {
+            onSelect(AppLanguage.SYSTEM_TAG)
+        }
         AppLanguage.OPTIONS.forEach { (tag, name) ->
             OptionRow(selected = currentTag == tag, multi = false, label = name) { onSelect(tag) }
         }
@@ -87,7 +91,8 @@ fun SetupLevelPage(expert: Boolean, onSelect: (Boolean) -> Unit) {
 fun SetupPurposePage(selected: Set<SetupPurpose>, onToggle: (SetupPurpose) -> Unit) {
     PageTitle(R.string.setup_purpose_title, R.string.setup_purpose_hint)
     SetupPurpose.entries.forEach { p ->
-        OptionRow(p in selected, true, stringResource(purposeLabel(p))) { onToggle(p) }
+        val hint = if (p == SetupPurpose.MONITORING) stringResource(R.string.setup_monitoring_hint) else null
+        OptionRow(p in selected, true, stringResource(purposeLabel(p)), hint) { onToggle(p) }
     }
 }
 
@@ -106,12 +111,19 @@ private fun listLabel(l: SetupList): Int = when (l) {
 }
 
 @Composable
-fun SetupListPage(selected: SetupList, onSelect: (SetupList) -> Unit) {
+fun SetupListPage(selected: SetupList, showOrthoSource: Boolean, onSelect: (SetupList) -> Unit) {
     PageTitle(R.string.setup_list_title, R.string.setup_list_hint)
     Column(Modifier.selectableGroup()) {
         SetupList.entries.forEach { l ->
             OptionRow(l == selected, false, stringResource(listLabel(l))) { onSelect(l) }
         }
+    }
+    // T228: Quellenangabe der mitgelieferten Heuschrecken-/Amphibienliste (CC BY)
+    if (showOrthoSource && selected == SetupList.AUTO) {
+        Spacer(Modifier.height(12.dp))
+        Text(stringResource(R.string.setup_list_ortho_note), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.settings_info_lists), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -119,9 +131,12 @@ fun SetupListPage(selected: SetupList, onSelect: (SetupList) -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SetupExpertPage(
-    threshold: Float, overlap: Int, secondary: Boolean, secondaryAvailable: Boolean,
-    onThreshold: (Float) -> Unit, onOverlap: (Int) -> Unit, onSecondary: (Boolean) -> Unit
+    threshold: Float, overlap: Int, secondary: Boolean,
+    secondaryModels: List<Pair<String, String>>, secondaryChosen: String?,
+    onThreshold: (Float) -> Unit, onOverlap: (Int) -> Unit, onSecondary: (Boolean) -> Unit,
+    onSecondaryModel: (String) -> Unit
 ) {
+    val secondaryAvailable = secondaryModels.isNotEmpty()
     PageTitle(R.string.setup_expert_title)
     Text(stringResource(R.string.setup_expert_threshold, (threshold * 100).toInt()), style = MaterialTheme.typography.bodyLarge)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -153,6 +168,15 @@ fun SetupExpertPage(
         }
         Switch(checked = secondary && secondaryAvailable, enabled = secondaryAvailable, onCheckedChange = onSecondary)
     }
+    // T228: Auswahl unter den installierten, nicht-primaeren Modellen
+    if (secondary && secondaryAvailable) {
+        Text(stringResource(R.string.setup_expert_secondary_pick), style = MaterialTheme.typography.bodyMedium)
+        Column(Modifier.selectableGroup()) {
+            secondaryModels.forEach { (file, name) ->
+                OptionRow(file == secondaryChosen, false, name) { onSecondaryModel(file) }
+            }
+        }
+    }
 }
 
 /** Lesbare Zusammenfassung aller Werte, die der Assistent setzt */
@@ -180,6 +204,8 @@ fun SetupSummaryPage(choices: SetupChoices, s: SetupSettings, modelName: String?
             s.compactCard?.let { add(AppStrings.get(if (it) R.string.setup_extra_compact else R.string.setup_extra_full)) }
         }
         if (extras.isNotEmpty()) add(AppStrings.get(R.string.setup_sum_extras, extras.joinToString(", ")))
+        if (s.secondaryMissing) add(AppStrings.get(R.string.setup_sum_secondary_missing))
+        if (SetupPurpose.MONITORING in choices.purposes) add(AppStrings.get(R.string.setup_monitoring_hint))
     }
     lines.forEach {
         Text(it, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 4.dp))

@@ -166,9 +166,6 @@
     <string name="map_zielposition">Target position</string>
     <string name="map_bestaetigt">✓ %1$s confirmed</string>
     <string name="onboarding_importiert">Imported: %1$s</string>
-    <string name="onboarding_schritt_von_3">Step %1$s of 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Welcome to PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Choose your region for species detection:</string>
     <string name="onboarding_weiter">Next</string>
     <string name="onboarding_birdnet_v3_0_modell">BirdNET V3.0 model</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">The BirdNET model is required for species detection.</string>
@@ -373,8 +370,6 @@
     <string name="map_download_nicht_moeglich">Download not possible: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">Offline download is only available for swisstopo maps. Choose a swisstopo source (with Automatic: from zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">This area needs %1$s tiles (zoom %2$s-%3$s). A maximum of %4$s is allowed. Please zoom in further.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Swiss breeding birds (180 species)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Central Europe (302 species)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download cancelled — partial file is kept for resuming</string>
     <string name="onboarding_download_fehlgeschlagen">"Download failed — "</string>
     <string name="onboarding_internetverbindung_pruefen">Check internet connection</string>
@@ -489,7 +484,6 @@
     <string name="mig_result_failed">%1$d moved, %2$d failed. Originals are unchanged. %3$s</string>
     <string name="mig_notif_done_title">Session migration finished</string>
     <string name="mig_notif_result">%1$d moved, %2$d skipped, %3$d failed</string>
-    <string name="onboarding_alle_arten_n">All species (%1$s)</string>
     <string name="onboarding_modell_x_von_n">(model %1$d of %2$d)</string>
     <string name="settings_bench_datei_hinweis">Measures any ONNX file (e.g. from Download) with random noise, 1/2/4 threads. The file is briefly copied to the cache.</string>
     <string name="settings_bench_datei_waehlen">Pick ONNX file and measure</string>
@@ -711,7 +705,7 @@
     <string name="setup_expert_threshold">Threshold: %1$d %%</string>
     <string name="setup_expert_overlap">Overlap: %1$d %%</string>
     <string name="setup_expert_secondary">Use second model</string>
-    <string name="setup_expert_secondary_none">No second model installed (see settings)</string>
+    <string name="setup_expert_secondary_none">No second model installed. Import: Settings, Model &amp; Detection, Import (BirdNET 2.4 non-commercial only).</string>
     <string name="setup_perm_notifications">Notifications (background recording)</string>
     <string name="setup_summary_title">Summary</string>
     <string name="setup_sum_level">Level: %1$s</string>
@@ -733,4 +727,9 @@
     <string name="setup_extra_full">full species card</string>
     <string name="setup_extra_yearly">yearly list</string>
     <string name="setup_start">Start setup</string>
+    <string name="setup_monitoring_hint">Switching the screen off saves the most battery; recording continues.</string>
+    <string name="setup_expert_secondary_pick">Choose second model:</string>
+    <string name="setup_sum_secondary_missing">Second model wanted, but none installed. Import: Settings, Model &amp; Detection, Import (BirdNET 2.4 non-commercial only).</string>
+    <string name="setup_list_ortho_note">Automatic plus the bundled Swiss grasshopper &amp; amphibian list (73 species).</string>
+    <string name="settings_info_lists">Species list grasshoppers &amp; amphibians (CH): data from GBIF.org, licence CC0 and CC BY 4.0, retrieved 2026-11-23. Datasets include Swiss National Grasshoppers Databank (doi:10.15468/bcthst), Swiss National Amphibian Databank (doi:10.15468/ggwedn), Swiss National Fauna Databank (doi:10.15468/8s936n), NABU/naturgucker (doi:10.15468/uc1apo); full list: tools/listen-generator/sources_ch_orthoptera_anura.md. The list is licensed CC BY 4.0.</string>
 </resources>

@@ -90,6 +90,7 @@ fun OnboardingScreen(
     var thresholdOv by rememberSaveable { mutableFloatStateOf(-1f) }
     var overlapOv by rememberSaveable { mutableIntStateOf(-1) }
     var secondaryOv by rememberSaveable { mutableIntStateOf(-1) }
+    var secondaryModelOv by rememberSaveable { mutableStateOf("") }
     val purposes = purposeNames.split(',').mapNotNull { n -> SetupPurpose.entries.firstOrNull { it.name == n } }.toSet()
     val listChoice = SetupList.entries.firstOrNull { it.name == listName } ?: SetupList.AUTO
     val steps = remember(expert) {
@@ -101,18 +102,20 @@ fun OnboardingScreen(
     val step = steps[currentStep.coerceIn(0, steps.lastIndex)]
     fun next() { currentStep = (currentStep + 1).coerceAtMost(steps.lastIndex) }
     fun prev() { currentStep = (currentStep - 1).coerceAtLeast(0) }
-    // Zweitmodell-Kandidat: ein installiertes Modell, das nicht das aktive ist
-    val secondaryCandidate = remember(currentStep) {
-        modelManager.listInstalledModels().firstOrNull { !it.isActive }?.fileName
+    // T228: Zweitmodell-Kandidaten = installierte Modelle, die nicht das aktive sind
+    val secondaryModels = remember(currentStep) {
+        modelManager.listInstalledModels().filter { !it.isActive }.map { it.fileName to it.name }
     }
+    val secondaryCandidates = secondaryModels.map { it.first }
     val baseChoices = SetupChoices(expert = expert, purposes = purposes, list = listChoice)
-    val profileBase = SetupProfile.resolve(baseChoices, secondaryCandidate)
+    val profileBase = SetupProfile.resolve(baseChoices, secondaryCandidates)
     val choices = baseChoices.copy(
         thresholdOverride = thresholdOv.takeIf { expert && it >= 0f },
         overlapOverride = overlapOv.takeIf { expert && it >= 0 },
-        secondaryOverride = if (expert && secondaryOv >= 0) secondaryOv == 1 else null
+        secondaryOverride = if (expert && secondaryOv >= 0) secondaryOv == 1 else null,
+        secondaryModel = secondaryModelOv.takeIf { expert && it.isNotEmpty() }
     )
-    val resolved = SetupProfile.resolve(choices, secondaryCandidate)
+    val resolved = SetupProfile.resolve(choices, secondaryCandidates)
     var geoInstalled by remember { mutableStateOf(GeoModelFiles.isInstalled(context)) }
     var geoProgress by remember { mutableStateOf<Float?>(null) }
     var geoError by remember { mutableStateOf<String?>(null) }
@@ -279,15 +282,17 @@ fun OnboardingScreen(
                     threshold = choices.thresholdOverride ?: profileBase.threshold,
                     overlap = choices.overlapOverride ?: profileBase.overlapPercent,
                     secondary = choices.secondaryOverride ?: (profileBase.secondaryModelFileName != null),
-                    secondaryAvailable = secondaryCandidate != null,
+                    secondaryModels = secondaryModels,
+                    secondaryChosen = resolved.secondaryModelFileName ?: secondaryCandidates.firstOrNull(),
                     onThreshold = { thresholdOv = it }, onOverlap = { overlapOv = it },
-                    onSecondary = { secondaryOv = if (it) 1 else 0 }
+                    onSecondary = { secondaryOv = if (it) 1 else 0 },
+                    onSecondaryModel = { secondaryModelOv = it }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 SetupNavRow({ prev() }, stringResource(R.string.onboarding_weiter)) { next() }
             }
             SetupStep.LIST -> {
-                SetupListPage(listChoice) { listName = it.name }
+                SetupListPage(listChoice, SetupPurpose.ORTHOPTERA_AMPHIBIANS in purposes) { listName = it.name }
                 Spacer(modifier = Modifier.height(16.dp))
                 SetupNavRow({ prev() }, stringResource(R.string.onboarding_weiter)) { next() }
             }

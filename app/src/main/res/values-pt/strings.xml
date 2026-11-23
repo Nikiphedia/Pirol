@@ -162,9 +162,6 @@
     <string name="map_zielposition">Posição de destino</string>
     <string name="map_bestaetigt">✓ %1$s confirmado</string>
     <string name="onboarding_importiert">Importado: %1$s</string>
-    <string name="onboarding_schritt_von_3">Passo %1$s de 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Bem-vindo ao PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Escolha a sua região para o reconhecimento de espécies:</string>
     <string name="onboarding_weiter">Seguinte</string>
     <string name="onboarding_birdnet_v3_0_modell">Modelo BirdNET V3.0</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">Para o reconhecimento de espécies é necessário o modelo BirdNET.</string>
@@ -367,8 +364,6 @@
     <string name="map_download_nicht_moeglich">Transferência impossível: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">A transferência offline só está disponível para os mapas swisstopo. Escolha uma fonte swisstopo (em Automática: a partir do zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Esta área precisa de %1$s mosaicos (zoom %2$s-%3$s). O máximo permitido é %4$s. Aproxime mais o mapa.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Aves nidificantes suíças (180 espécies)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Europa Central (302 espécies)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Transferência interrompida: a parte transferida fica disponível para retomar</string>
     <string name="onboarding_download_fehlgeschlagen">"Falha na transferência: "</string>
     <string name="onboarding_internetverbindung_pruefen">Verifique a ligação à Internet</string>
@@ -462,5 +457,4 @@
     <string name="settings_alarm_testen_5s">Em 5 s, bloquear o dispositivo</string>
     <string name="settings_alarm_fullscreen_hinweis">No ecrã de bloqueio, o alarme só aparece como notificação enquanto as \"notificações de ecrã inteiro\" não forem permitidas para o PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Abrir permissão</string>
-    <string name="onboarding_alle_arten_n">Todas as espécies (11\'560)</string>
 </resources>

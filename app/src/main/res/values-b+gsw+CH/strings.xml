@@ -162,9 +162,6 @@
     <string name="map_zielposition">Zielposition</string>
     <string name="map_bestaetigt">✓ %1$s bstätigt</string>
     <string name="onboarding_importiert">Importiert: %1$s</string>
-    <string name="onboarding_schritt_von_3">Schritt %1$s vo 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Willkomme bi PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Wähl dini Region für d Artäerkennig:</string>
     <string name="onboarding_weiter">Witer</string>
     <string name="onboarding_birdnet_v3_0_modell">BirdNET V3.0 Modell</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">Für d Artäerkennig bruuchts s BirdNET-Modell.</string>
@@ -367,8 +364,6 @@
     <string name="map_download_nicht_moeglich">Download nid möglich: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">Offline-Download gits nume für swisstopo-Charte. Wähl e swisstopo-Quälle (bi Automatisch: ab Zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Dä Usschnitt bruucht %1$s Chachle (Zoom %2$s-%3$s). Erlaubt sind maximal %4$s. Bitte witer ine zoome.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Schwiizer Brutvögel (180 Arte)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Mitteleuropa (302 Arte)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download abbroche — Teil blibt zum Witermache erhalte</string>
     <string name="onboarding_download_fehlgeschlagen">"Download het nid klappt — "</string>
     <string name="onboarding_internetverbindung_pruefen">Internetverbindig prüefe</string>
@@ -462,5 +457,4 @@
     <string name="settings_alarm_testen_5s">Nach 5 s, Gerät sperre</string>
     <string name="settings_alarm_fullscreen_hinweis">Uf em Sperrbildschirm erschiint de Alarm nume als Benachrichtigung, so lang \"Vollbild-Benachrichtigungen\" fürs PIROL nöd erlaubt sind.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Berechtigung öffne</string>
-    <string name="onboarding_alle_arten_n">Alli Arte (11\'560)</string>
 </resources>

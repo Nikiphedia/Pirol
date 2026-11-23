@@ -162,9 +162,6 @@
     <string name="map_zielposition">Posizione di destinazione</string>
     <string name="map_bestaetigt">✓ %1$s confermato</string>
     <string name="onboarding_importiert">Importato: %1$s</string>
-    <string name="onboarding_schritt_von_3">Passo %1$s di 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Benvenuto in PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Scegli la tua regione per il riconoscimento delle specie:</string>
     <string name="onboarding_weiter">Avanti</string>
     <string name="onboarding_birdnet_v3_0_modell">Modello BirdNET V3.0</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">Per il riconoscimento delle specie serve il modello BirdNET.</string>
@@ -367,8 +364,6 @@
     <string name="map_download_nicht_moeglich">Download impossibile: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">Il download offline è disponibile solo per le mappe swisstopo. Scegli una fonte swisstopo (in Automatico: dallo zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Quest\'area richiede %1$s riquadri (zoom %2$s-%3$s). Il massimo consentito è %4$s. Avvicina la mappa.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Uccelli nidificanti svizzeri (180 specie)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Europa centrale (302 specie)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download interrotto: la parte scaricata resta per riprendere</string>
     <string name="onboarding_download_fehlgeschlagen">"Download non riuscito: "</string>
     <string name="onboarding_internetverbindung_pruefen">Verifica la connessione Internet</string>
@@ -462,5 +457,4 @@
     <string name="settings_alarm_testen_5s">Tra 5 s, blocca il dispositivo</string>
     <string name="settings_alarm_fullscreen_hinweis">Sulla schermata di blocco l\'allarme appare solo come notifica finché le \"notifiche a schermo intero\" non sono consentite per PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Apri autorizzazione</string>
-    <string name="onboarding_alle_arten_n">Tutte le specie (11\'560)</string>
 </resources>

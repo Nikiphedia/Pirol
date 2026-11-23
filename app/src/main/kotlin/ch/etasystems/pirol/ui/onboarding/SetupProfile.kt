@@ -23,7 +23,9 @@ data class SetupChoices(
     val list: SetupList = SetupList.AUTO,
     val thresholdOverride: Float? = null,
     val overlapOverride: Int? = null,
-    val secondaryOverride: Boolean? = null
+    val secondaryOverride: Boolean? = null,
+    /** T228: gewaehltes Zweitmodell (Dateiname), nur Experte; null = erstes installiertes */
+    val secondaryModel: String? = null
 )
 
 /** T226: Werte eines Profils. null = Einstellung unveraendert lassen. */
@@ -37,7 +39,9 @@ data class ProfileValues(
     val gpsMode: String? = null,
     val compactCard: Boolean? = null,
     val trackRecording: Boolean? = null,
-    val maxRecordingMinutes: Int? = null
+    val maxRecordingMinutes: Int? = null,
+    /** T228: Begleitliste, mit der das Geomodel vereinigt wird (UNION); null = nur Geomodel */
+    val unionCompanion: String? = null
 )
 
 /** T226: fertig aufgeloeste Einstellungen (Ergebnis von [SetupProfile.resolve]). */
@@ -49,6 +53,10 @@ data class SetupSettings(
     val alternativesFloor: Float,
     val overlapPercent: Int,
     val secondaryModelFileName: String?,
+    /** T228: Zweitmodell gewuenscht, aber keins installiert (Hinweis mit Weg zum Import) */
+    val secondaryMissing: Boolean,
+    /** T228: Begleitliste fuer die Auto-Liste, null = unveraendert */
+    val geoCompanion: String?,
     val respectListSeason: Boolean,
     val freqMaxHz: Float?,
     val gpsMode: String?,
@@ -60,6 +68,9 @@ data class SetupSettings(
 /** T226: Profil -> bestehende Einstellungen (reine Logik, ohne Android). */
 object SetupProfile {
 
+    /** T228: mitgelieferte Liste (region_sets.json) Heuschrecken und Froschlurche der Schweiz */
+    const val ORTHOPTERA_LIST_ID = "ch_orthoptera_anura"
+
     /** Tabelle der Profile (Begruendung im Handover T226). */
     fun values(purpose: SetupPurpose): ProfileValues = when (purpose) {
         SetupPurpose.FIELD_BIRDS -> ProfileValues(
@@ -68,7 +79,7 @@ object SetupProfile {
         )
         SetupPurpose.ORTHOPTERA_AMPHIBIANS -> ProfileValues(
             threshold = 0.3f, alternativesFloor = 0.10f, overlapPercent = 50, secondary = false,
-            geoYearly = true, freqMaxHz = 24000f
+            geoYearly = true, freqMaxHz = 24000f, unionCompanion = ORTHOPTERA_LIST_ID
         )
         SetupPurpose.MONITORING -> ProfileValues(
             threshold = 0.5f, alternativesFloor = 0.20f, overlapPercent = 0, secondary = false,
@@ -86,21 +97,27 @@ object SetupProfile {
      * hoechster Frequenzbereich; optionale Werte vom ersten Profil (Reihenfolge des Enums), das sie setzt.
      * Ohne Wahl gilt "Voegel im Feld".
      */
-    fun resolve(choices: SetupChoices, secondaryCandidate: String?): SetupSettings {
+    fun resolve(choices: SetupChoices, secondaryCandidates: List<String>): SetupSettings {
         val ps = choices.purposes.ifEmpty { setOf(SetupPurpose.FIELD_BIRDS) }
             .sortedBy { it.ordinal }
         val vs = ps.map { values(it) }
         fun <T> first(sel: (ProfileValues) -> T?): T? = vs.firstNotNullOfOrNull(sel)
 
         val wantSecondary = choices.secondaryOverride ?: vs.any { it.secondary }
+        val secondary = choices.secondaryModel?.takeIf { it in secondaryCandidates }
+            ?: secondaryCandidates.firstOrNull()
+        // T228: Vereinigung mit der Begleitliste nur bei Auto-Liste (sonst gibt es kein Geomodel)
+        val companion = if (choices.list == SetupList.AUTO) first { it.unionCompanion } else null
         return SetupSettings(
             regionFilter = choices.list.regionId,
-            geoCombine = GeoCombine.GEO_ONLY.name,
+            geoCombine = (if (companion != null) GeoCombine.UNION else GeoCombine.GEO_ONLY).name,
+            geoCompanion = companion,
             geoYearly = vs.any { it.geoYearly },
             threshold = choices.thresholdOverride ?: vs.minOf { it.threshold },
             alternativesFloor = vs.minOf { it.alternativesFloor },
             overlapPercent = choices.overlapOverride ?: vs.maxOf { it.overlapPercent },
-            secondaryModelFileName = if (wantSecondary) secondaryCandidate else null,
+            secondaryModelFileName = if (wantSecondary) secondary else null,
+            secondaryMissing = wantSecondary && secondary == null,
             respectListSeason = false,
             freqMaxHz = vs.mapNotNull { it.freqMaxHz }.maxOrNull(),
             gpsMode = first { it.gpsMode },
@@ -115,6 +132,7 @@ object SetupProfile {
         prefs.expertMode = expert
         s.regionFilter?.let { prefs.regionFilter = it }
         prefs.geoCombine = s.geoCombine
+        s.geoCompanion?.let { prefs.geoCompanionRegion = it }
         prefs.geoYearly = s.geoYearly
         prefs.confidenceThreshold = s.threshold
         prefs.alternativesFloor = s.alternativesFloor

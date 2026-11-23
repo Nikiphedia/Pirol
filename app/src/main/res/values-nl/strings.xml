@@ -162,9 +162,6 @@
     <string name="map_zielposition">Doelpositie</string>
     <string name="map_bestaetigt">✓ %1$s bevestigd</string>
     <string name="onboarding_importiert">Geïmporteerd: %1$s</string>
-    <string name="onboarding_schritt_von_3">Stap %1$s van 3</string>
-    <string name="onboarding_willkommen_bei_pirol">Welkom bij PIROL</string>
-    <string name="onboarding_waehle_deine_region_fuer_die">Kies je regio voor soortherkenning:</string>
     <string name="onboarding_weiter">Volgende</string>
     <string name="onboarding_birdnet_v3_0_modell">BirdNET V3.0-model</string>
     <string name="onboarding_fuer_die_artenerkennung_wird_das">Voor soortherkenning is het BirdNET-model nodig.</string>
@@ -367,8 +364,6 @@
     <string name="map_download_nicht_moeglich">Download niet mogelijk: %1$s</string>
     <string name="map_offline_download_gibt_es_nur">Offline downloaden is alleen beschikbaar voor swisstopo-kaarten. Kies een swisstopo-bron (bij Automatisch: vanaf zoom %1$s).</string>
     <string name="map_dieser_ausschnitt_braucht_kacheln_zo">Dit gebied heeft %1$s tegels nodig (zoom %2$s-%3$s). Maximaal toegestaan: %4$s. Zoom verder in.</string>
-    <string name="onboarding_schweizer_brutvoegel_180_arten">Zwitserse broedvogels (180 soorten)</string>
-    <string name="onboarding_mitteleuropa_302_arten">Midden-Europa (302 soorten)</string>
     <string name="onboarding_download_abgebrochen_teil_bleibt_zum">Download afgebroken: het deel blijft bewaard om verder te gaan</string>
     <string name="onboarding_download_fehlgeschlagen">"Download mislukt: "</string>
     <string name="onboarding_internetverbindung_pruefen">Controleer de internetverbinding</string>
@@ -462,5 +457,4 @@
     <string name="settings_alarm_testen_5s">Over 5 s, toestel vergrendelen</string>
     <string name="settings_alarm_fullscreen_hinweis">Op het vergrendelscherm verschijnt het alarm alleen als melding zolang \"volledig-scherm-meldingen\" niet zijn toegestaan voor PIROL.</string>
     <string name="settings_alarm_fullscreen_oeffnen">Toestemming openen</string>
-    <string name="onboarding_alle_arten_n">Alle soorten (11\'560)</string>
 </resources>
