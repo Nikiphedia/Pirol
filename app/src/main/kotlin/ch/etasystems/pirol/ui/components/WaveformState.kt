@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import ch.etasystems.pirol.audio.dsp.BandpassFilter
+import kotlin.math.abs
 
 /**
  * T193: Min/Max-Ringpuffer fuer das Live-Oszillogramm.
@@ -20,15 +22,29 @@ import androidx.compose.runtime.setValue
 class WaveformState(val maxBins: Int = 3072, val binSize: Int = 512) {
     private val mins = FloatArray(maxBins)
     private val maxs = FloatArray(maxBins)
+    private val sumSqs = FloatArray(maxBins)    // T200: Quadratsumme (gefiltert) pro Bin
+    private val rawPeaks = FloatArray(maxBins)  // T200: Spitzenbetrag Rohsignal pro Bin
     private var head = 0
     private var count = 0
     private var curMin = Float.MAX_VALUE
     private var curMax = -Float.MAX_VALUE
+    private var curSumSq = 0f
+    private var curRaw = 0f
     private var curCount = 0
+
+    // T200: Bandpass (gemeinsamer Frequenzbereich), neu gebaut bei Aenderung von Band oder Rate
+    private var bandLo = 0f
+    private var bandHi = Float.MAX_VALUE
+    private var filter: BandpassFilter? = null
+    private var filterRate = 0
+    private var filterDirty = true
 
     /** true = Oszillogramm wird angezeigt, der Collector soll [append] aufrufen. */
     @Volatile var active: Boolean = false
         private set
+
+    /** T200: Freeze: neue Samples werden ignoriert, das Bild bleibt stehen (nicht persistent). */
+    var frozen by mutableStateOf(false)
 
     /** Draw-Dependency: aendert sich bei jedem [append]/[clear]. */
     var version by mutableIntStateOf(0)
@@ -43,18 +59,38 @@ class WaveformState(val maxBins: Int = 3072, val binSize: Int = 512) {
     fun setActive(on: Boolean) {
         if (on == active) return
         active = on
+        frozen = false
         clearLocked()
         syncHasData()
         version++
     }
 
+    /** T200: Durchlassbereich in Hz; wirkt ab den naechsten Samples (voller Bereich = ungefiltert). */
     @Synchronized
-    fun append(samples: ShortArray) {
-        if (samples.isEmpty()) return
+    fun setBand(lowHz: Float, highHz: Float) {
+        if (lowHz == bandLo && highHz == bandHi) return
+        bandLo = lowHz
+        bandHi = highHz
+        filterDirty = true
+    }
+
+    @Synchronized
+    fun append(samples: ShortArray, sampleRate: Int = 48000) {
+        if (samples.isEmpty() || frozen) return
+        if (filterDirty || sampleRate != filterRate) {
+            filter = BandpassFilter(sampleRate, bandLo, bandHi).takeUnless { it.isPassThrough }
+            filterRate = sampleRate
+            filterDirty = false
+        }
+        val f = filter
         for (s in samples) {
-            val v = s / 32768f
+            val raw = s / 32768f
+            val v = f?.process(raw) ?: raw
             if (v < curMin) curMin = v
             if (v > curMax) curMax = v
+            curSumSq += v * v
+            val a = abs(raw)
+            if (a > curRaw) curRaw = a
             if (++curCount >= binSize) pushBin()
         }
         syncHasData()
@@ -75,15 +111,21 @@ class WaveformState(val maxBins: Int = 3072, val binSize: Int = 512) {
     /**
      * Kopiert die letzten [n] Bins (aeltester zuerst) nach [outMin]/[outMax]; Rueckgabe = tatsaechlich
      * kopierte Anzahl (kleiner als [n], falls weniger vorhanden). Die Arrays muessen >= n gross sein.
+     * T200: optional Quadratsumme (gefiltert) und Roh-Spitzenbetrag pro Bin.
      */
     @Synchronized
-    fun copyLast(n: Int, outMin: FloatArray, outMax: FloatArray): Int {
+    fun copyLast(
+        n: Int, outMin: FloatArray, outMax: FloatArray,
+        outSumSq: FloatArray? = null, outRawPeak: FloatArray? = null
+    ): Int {
         val k = minOf(n, count)
         val start = (head - k + maxBins) % maxBins
         for (i in 0 until k) {
             val idx = (start + i) % maxBins
             outMin[i] = mins[idx]
             outMax[i] = maxs[idx]
+            if (outSumSq != null) outSumSq[i] = sumSqs[idx]
+            if (outRawPeak != null) outRawPeak[i] = rawPeaks[idx]
         }
         return k
     }
@@ -91,19 +133,25 @@ class WaveformState(val maxBins: Int = 3072, val binSize: Int = 512) {
     private fun pushBin() {
         mins[head] = curMin
         maxs[head] = curMax
+        sumSqs[head] = curSumSq
+        rawPeaks[head] = curRaw
         head = (head + 1) % maxBins
         if (count < maxBins) count++
+        resetCurrent()
+    }
+
+    private fun resetCurrent() {
         curMin = Float.MAX_VALUE
         curMax = -Float.MAX_VALUE
+        curSumSq = 0f
+        curRaw = 0f
         curCount = 0
     }
 
     private fun clearLocked() {
         head = 0
         count = 0
-        curMin = Float.MAX_VALUE
-        curMax = -Float.MAX_VALUE
-        curCount = 0
+        resetCurrent()
     }
 
     private fun syncHasData() {
@@ -159,5 +207,8 @@ internal fun niceAmplitudeRange(peak: Float): Float {
 }
 
 /** T193: Beschriftung der Amplitude, z.B. "0.05". */
-internal fun amplitudeLabel(a: Float): String =
-    if (kotlin.math.abs(a) >= 0.1f) "%.1f".format(java.util.Locale.US, a) else "%.2f".format(java.util.Locale.US, a)
+internal fun amplitudeLabel(a: Float): String = when {
+    kotlin.math.abs(a) >= 0.1f -> "%.1f".format(java.util.Locale.US, a)
+    kotlin.math.abs(a) >= 0.01f || a == 0f -> "%.2f".format(java.util.Locale.US, a)
+    else -> "%.4f".format(java.util.Locale.US, a)  // T200: Maximalpegel unter -40 dBFS
+}

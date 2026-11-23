@@ -91,10 +91,7 @@ fun SpectrogramCanvas(
 ) {
     // T107: Frequenz-Zuschnitt — nur die sichtbaren Mel-Bins werden gerendert
     val binRange = remember(config, freqMinHz, freqMaxHz) {
-        visibleBinRange(
-            config.numMelBins, config.fMin,
-            if (config.fMax <= 0f) 24000f else config.fMax, freqMinHz, freqMaxHz
-        )
+        displayBinRange(config, freqMinHz, freqMaxHz)
     }
     val numMelBins = binRange.last - binRange.first + 1
     val binFirst = binRange.first

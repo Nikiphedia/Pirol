@@ -588,4 +588,16 @@
     <string name="spectrum_unfreeze">Resume</string>
     <string name="spectrum_peak_label">Max</string>
     <string name="spectrum_cursor_label">Cursor</string>
+    <string name="waveform_amplitude">Amplitude (linear axis)</string>
+    <string name="waveform_amp_auto">Auto</string>
+    <string name="waveform_amp_1">±1</string>
+    <string name="waveform_amp_01">±0.1</string>
+    <string name="waveform_amp_001">±0.01</string>
+    <string name="waveform_amp_max_level">Max level (%1$s)</string>
+    <string name="waveform_axis">Axis</string>
+    <string name="waveform_axis_linear">Linear</string>
+    <string name="waveform_axis_dbfs">dBFS</string>
+    <string name="waveform_band_hint">The frequency range acts as a band-pass on the waveform.</string>
+    <string name="waveform_peak_label">Peak</string>
+    <string name="waveform_clip_label">Clipping</string>
 </resources>

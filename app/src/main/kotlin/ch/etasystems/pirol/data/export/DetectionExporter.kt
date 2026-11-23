@@ -21,7 +21,7 @@ import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.SpeciesNameResolver
 import ch.etasystems.pirol.ui.components.SpectrogramPalette
 import ch.etasystems.pirol.ui.components.effectiveDbRange
-import ch.etasystems.pirol.ui.components.visibleBinRange
+import ch.etasystems.pirol.ui.components.displayBinRange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -128,8 +128,9 @@ class DetectionExporter(
         onProgress: (Float) -> Unit
     ) {
         val settings = settingsRepository.settings.value
-        val config = SpectrogramConfig.BIRDS
-        val frames = MelSpectrogram(sampleRate = pcm.sampleRate).process(pcm.samples)
+        // T200: Mel, Bin-Zuschnitt und Achse aus derselben Config (bis Nyquist der Datei)
+        val config = SpectrogramConfig.BIRDS.resolved(pcm.sampleRate)
+        val frames = MelSpectrogram(pcm.sampleRate, config).process(pcm.samples)
         if (frames.isEmpty()) throw IllegalStateException("Ausschnitt zu kurz fuer ein Sonogramm")
         onProgress(0.6f)
 
@@ -144,11 +145,7 @@ class DetectionExporter(
         } else settings.minDb to settings.maxDb
         val (minDb, maxDb) = effectiveDbRange(lo, hi, settings.ceilingDb)
 
-        val binRange = visibleBinRange(
-            config.numMelBins, config.fMin,
-            if (config.fMax <= 0f) 24000f else config.fMax,
-            settings.freqMinHz, settings.freqMaxHz
-        )
+        val binRange = displayBinRange(config, settings.freqMinHz, settings.freqMaxHz)
         val h = binRange.last - binRange.first + 1
         val w = frames.size
         val colorLut = SpectrogramPalette.lutFor(settings.palette)

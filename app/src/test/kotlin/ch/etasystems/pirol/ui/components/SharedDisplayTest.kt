@@ -11,8 +11,10 @@ class SharedDisplayTest {
     @Test
     fun `Spektrum zeigt denselben Frequenzbereich wie das Sonogramm`() {
         val s = SpectrogramDisplaySettings(freqMinHz = 0f, freqMaxHz = 24000f)
-        // Voegel-Config begrenzt auf 125..12000 Hz, genau wie die Sonogramm-Achse (forDisplay)
-        assertEquals(125f to 12000f, sharedFreqRange(s, SpectrogramConfig.BIRDS, 48000))
+        // T200: Voegel-Config bis Nyquist (24 kHz bei 48 kHz), genau wie die Sonogramm-Achse
+        assertEquals(0f to 24000f, sharedFreqRange(s, SpectrogramConfig.BIRDS.resolved(48000), 48000))
+        // tiefere Abtastrate: Obergrenze = Nyquist der tatsaechlichen Rate
+        assertEquals(0f to 16000f, sharedFreqRange(s, SpectrogramConfig.BIRDS.resolved(32000), 32000))
         val narrow = s.copy(freqMinHz = 2000f, freqMaxHz = 6000f)
         assertEquals(2000f to 6000f, sharedFreqRange(narrow, SpectrogramConfig.BIRDS, 48000))
         // Breitband bis Nyquist

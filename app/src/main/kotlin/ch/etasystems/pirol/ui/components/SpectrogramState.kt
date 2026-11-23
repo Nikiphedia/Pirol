@@ -18,7 +18,9 @@ import ch.etasystems.pirol.audio.dsp.DynamicRangeMapper
  * @param maxFrames Maximale Anzahl gespeicherter Frames (~33 s bei 93 fps, Live: 3072)
  */
 class SpectrogramState(
-    val maxFrames: Int = 2048
+    val maxFrames: Int = 2048,
+    /** T200: Abtastrate der Frames (Analyse: fuer Achse und Bin-Zuschnitt bis Nyquist). */
+    val sampleRate: Int = 48000
 ) {
     /** Optionaler Perzentil-Mapper fuer Auto-Kontrast (T56). */
     var dynamicRangeMapper: DynamicRangeMapper? = null

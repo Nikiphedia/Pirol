@@ -185,8 +185,8 @@ private fun TimeAxis(
     }
 }
 
-/** T144: Feste Frequenz-Marken in Hz (Vogel-Standard). */
-internal val FIXED_FREQUENCY_TICKS_HZ = floatArrayOf(1000f, 2000f, 4000f, 8000f, 12000f)
+/** T144: Feste Frequenz-Marken in Hz (Vogel-Standard). T200: 20k fuer den Bereich bis Nyquist. */
+internal val FIXED_FREQUENCY_TICKS_HZ = floatArrayOf(1000f, 2000f, 4000f, 8000f, 12000f, 20000f)
 
 /** T144: Marken im sichtbaren Bereich [fMin, fMax]. */
 internal fun computeFrequencyTicks(fMin: Float, fMax: Float): List<FrequencyTick> =

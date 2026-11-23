@@ -137,6 +137,20 @@ fun visibleBinRange(
 }
 
 /**
+ * T200: Mel-Bin-Bereich fuer den Anzeige-Frequenzbereich, Grenzen aus derselben [config], mit der
+ * die Mel-Frames gerechnet wurden (aufgeloest per `SpectrogramConfig.resolved`). Gemeinsam fuer
+ * Live-/Analyse-Sonogramm und PNG-Export, damit Bins und Hz-Achse zusammenpassen.
+ */
+fun displayBinRange(
+    config: ch.etasystems.pirol.audio.dsp.SpectrogramConfig,
+    freqMinHz: Float,
+    freqMaxHz: Float
+): IntRange = visibleBinRange(
+    config.numMelBins, config.fMin,
+    if (config.fMax <= 0f) 24000f else config.fMax, freqMinHz, freqMaxHz
+)
+
+/**
  * T107: Config mit dem tatsaechlich angezeigten Frequenzbereich (nur fuer die Achsen-Beschriftung
  * im [SpectrogramOverlay]; die Mel-Parameter der DSP-Pipeline bleiben unveraendert).
  */

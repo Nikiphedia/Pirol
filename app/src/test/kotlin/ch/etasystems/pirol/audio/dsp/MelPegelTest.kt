@@ -46,7 +46,7 @@ class MelPegelTest {
             val mel = melPeak(amp, 2000.0)
             val spec = spectrumPeak(amp, 2000.0)
             assertEquals("amp=$amp mel=$mel spec=$spec", spec, mel, 3f)
-            // auch mit der Voegel-Config (125-12000 Hz) des Live-Tabs
+            // auch mit der Voegel-Config des Live-Tabs (T200: 168 Baender bis Nyquist)
             val birds = melPeak(amp, 2000.0, SpectrogramConfig.BIRDS)
             assertEquals("BIRDS amp=$amp mel=$birds spec=$spec", spec, birds, 3f)
         }
