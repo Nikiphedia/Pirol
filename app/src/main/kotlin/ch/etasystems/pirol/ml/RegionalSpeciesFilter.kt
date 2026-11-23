@@ -2,13 +2,17 @@ package ch.etasystems.pirol.ml
 
 import android.content.Context
 import android.util.Log
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Regionaler Artenfilter — laedt regionale Artenlisten aus assets/regions/region_sets.json.
  *
  * Format identisch mit AMSEL Desktop (region_sets.json v3).
  * Artennamen verwenden Unterstrich-Konvention: "Turdus_merula" (BirdNET-Standard).
+ * T238: Zustand als Schnappschuss ([FilterState]); Laden ist IO und laeuft nicht auf dem Main-Thread.
  */
 class RegionalSpeciesFilter(
     private val context: Context,
@@ -16,7 +20,9 @@ class RegionalSpeciesFilter(
     /** T190: erhaelt Anzeigenamen aus eigenen Listen (Rueckfall fuer Arten ohne species_master-Eintrag) */
     private val speciesNames: SpeciesNameResolver? = null,
     /** T218: Begleitliste und Verknuepfung fuer "auto_geo" */
-    private val appPreferences: ch.etasystems.pirol.data.AppPreferences? = null
+    private val appPreferences: ch.etasystems.pirol.data.AppPreferences? = null,
+    /** T238: Inhalt von region_sets.json (Tests); null = Asset */
+    private val regionSetsText: (() -> String)? = null
 ) {
 
     companion object {
@@ -52,28 +58,17 @@ class RegionalSpeciesFilter(
         ): Boolean = (rules[groupOf(key)] ?: GroupRule.Off).allows(key, mask)
     }
 
-    // T232: Regeln je Artgruppe; null = Einzelliste wie bisher (z.B. Rescan alter Sessions)
+    // T238: gesamter Filterzustand als unveraenderlicher Schnappschuss. Leser (Inferenz-Thread) lesen
+    // genau eine Referenz, Schreiber tauschen sie unter [lock] (Laden, Geomodel-Maske). Vorher einzeln
+    // @Volatile gesetzte Felder konnten waehrend eines Ladevorgangs einen gemischten Zustand zeigen.
     @Volatile
-    private var groupRules: Map<TaxonGroup, GroupRule>? = null
+    private var state = FilterState()
 
-    // T218: Geomodel-Filter (Region "auto_geo"); die Maske setzt der GeoFilterController
-    @Volatile
-    private var autoGeo = false
-    @Volatile
-    private var geoMask: GeoMask? = null
-    @Volatile
-    private var geoCombine = GeoCombine.GEO_ONLY
+    /** T238: serialisiert Laden und Maskenwechsel (reentrant, da refreshCustomLists neu laedt) */
+    private val lock = Any()
 
-    private var currentRegionId: String? = null
-    private var speciesSet: Set<String> = emptySet()
-
-    // T105: kanonische Schluessel der aktiven Region (Synonyme aufgeloest) fuer den Vergleich
-    private var canonicalSet: Set<String> = emptySet()
-    private var allSets: List<RegionInfo> = emptyList()
-
-    // T190: aktive eigene Liste (fuer Saison), null bei Asset-Region
-    @Volatile
-    private var activeCustom: CustomSpeciesList? = null
+    /** T238: region_sets.json nur einmal parsen (Metadaten + Arten je Set) */
+    private val regionSets: RegionSets by lazy { parseRegionSets() }
 
     // T129: eigene Listen aus <Ordner>/lists/NAME.json
     @Volatile
@@ -83,6 +78,19 @@ class RegionalSpeciesFilter(
 
     @Volatile
     private var listsSignature: String? = null
+
+    /** T238: aktueller Schnappschuss (Statistik, Tests) */
+    internal fun snapshot(): FilterState = state
+
+    /**
+     * T238: Assets vorab laden (App-Start auf IO): Alias-Tabelle, Artgruppen-Zuordnung, region_sets.
+     * Danach parst kein Aufruf auf dem Main-Thread mehr.
+     */
+    fun warmUp() {
+        SpeciesKey.load(context)
+        TaxonGroups.load(context)
+        regionSets
+    }
 
     /**
      * T136: Listen nur neu einlesen, wenn sich Dateien (Name/lastModified/Groesse) geaendert haben (IO).
@@ -98,12 +106,13 @@ class RegionalSpeciesFilter(
     }
 
     /** T129: Listen aus dem freigegebenen Ordner neu einlesen (IO). Warnungen siehe [getCustomWarnings]. */
-    fun refreshCustomLists() {
+    fun refreshCustomLists(): Unit = synchronized(lock) {
         readCustomLists()
         // aktive eigene Liste neu laden, falls sie sich geaendert hat
-        if (groupRules != null) { loadRegion(GROUPS_ID); return }  // T232
-        val cur = if (autoGeo) appPreferences?.geoCompanionRegion else currentRegionId
-        if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(if (autoGeo) GeoLogic.REGION_ID else cur)
+        val s = state
+        if (s.groupRules != null) { loadRegion(GROUPS_ID); return }  // T232
+        val cur = if (s.autoGeo) appPreferences?.geoCompanionRegion else s.regionId
+        if (cur != null && cur.startsWith(CustomSpeciesLists.ID_PREFIX)) loadRegion(if (s.autoGeo) GeoLogic.REGION_ID else cur)
     }
 
     /** Eigene Listen einlesen, ohne den aktiven Filter neu zu laden (IO) */
@@ -141,39 +150,40 @@ class RegionalSpeciesFilter(
     fun getCustomList(regionId: String): CustomSpeciesList? = customLists.firstOrNull { it.id == regionId }
 
     /**
-     * Laedt die Region-Sets aus der JSON-Datei (einmalig beim ersten Aufruf).
-     * Aktiviert das Set mit der gegebenen Region-ID.
+     * Aktiviert das Set mit der gegebenen Region-ID (IO: liest Assets bzw. eigene Listen).
+     * T238: unter [lock]; der neue Zustand wird als Ganzes getauscht.
      *
      * @param regionId z.B. "ch_breeding", "ch_all", "central_europe", "all"
      */
-    fun loadRegion(regionId: String = "ch_breeding") {
-        // T218: "auto_geo" = Begleitliste laden (Ersatz/Verknuepfung), Geomodel-Maske kommt vom Controller
-        val auto = regionId == GeoLogic.REGION_ID
-        if (regionId == GROUPS_ID) {
+    fun loadRegion(regionId: String = "ch_breeding"): Unit = synchronized(lock) {
+        val cur = state
+        state = when (regionId) {
             // T232: Maske bleibt (haengt nur von Position/Woche ab), Regeln aus den Einstellungen
-            loadGroups()
-            return
-        }
-        groupRules = null
-        autoGeo = auto
-        if (!auto) geoMask = null
-        if (auto) {
-            geoCombine = GeoCombine.parse(appPreferences?.geoCombine)
-            loadRegionInternal(appPreferences?.geoCompanionRegion ?: "ch_all")
-            currentRegionId = GeoLogic.REGION_ID
-        } else {
-            loadRegionInternal(regionId)
+            GROUPS_ID -> buildGroups(cur).also {
+                Log.i(TAG, "Artgruppen geladen: ${(appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT).toMap()}")
+            }
+            // T218: "auto_geo" = Begleitliste laden (Ersatz/Verknuepfung), Geomodel-Maske kommt vom Controller
+            GeoLogic.REGION_ID -> {
+                val base = cur.copy(groupRules = null, autoGeo = true, geoCombine = GeoCombine.parse(appPreferences?.geoCombine))
+                loadRegionInternal(base, appPreferences?.geoCompanionRegion ?: "ch_all").copy(regionId = GeoLogic.REGION_ID)
+            }
+            else -> loadRegionInternal(cur.copy(groupRules = null, autoGeo = false, geoMask = null), regionId)
         }
     }
 
     /** T218: Ist der Geomodel-Filter aktiv (Region "auto_geo" oder eine Artgruppe auf Auto, T232)? */
-    fun isAutoGeo(): Boolean = autoGeo || groupRules?.values?.any { it is GroupRule.Auto } == true
+    fun isAutoGeo(): Boolean = state.isAutoGeo()
 
-    /** T232: Regeln je Artgruppe aus [AppPreferences.speciesGroups] aufbauen (IO). */
-    private fun loadGroups() {
+    /**
+     * T238: Arten der Gruppenwahl aus den Einstellungen, ohne den aktiven Filter zu aendern
+     * (Vorschlagsliste der Einstellungen). IO.
+     */
+    fun previewGroupSpecies(): Set<String> = synchronized(lock) { buildGroups(state).species }
+
+    /** T232: Regeln je Artgruppe aus [AppPreferences.speciesGroups] aufbauen (IO); Maske/Verknuepfung aus [cur]. */
+    private fun buildGroups(cur: FilterState): FilterState {
         SpeciesKey.load(context)
         TaxonGroups.load(context)
-        if (allSets.isEmpty()) parseRegionSets()
         val sel = appPreferences?.speciesGroups ?: SpeciesGroupSelection.DEFAULT
         val needsCustom = TaxonGroup.entries.any { sel.sourceOf(it).startsWith(CustomSpeciesLists.ID_PREFIX) }
         if (needsCustom && customLists.isEmpty()) readCustomLists()
@@ -195,13 +205,14 @@ class RegionalSpeciesFilter(
                 }
             }
         }
-        groupRules = rules
-        autoGeo = false
-        activeCustom = null
-        speciesSet = union
-        canonicalSet = emptySet()
-        currentRegionId = GROUPS_ID
-        Log.i(TAG, "Artgruppen geladen: ${sel.toMap()}")
+        return cur.copy(
+            groupRules = rules,
+            autoGeo = false,
+            custom = null,
+            species = union,
+            canonical = emptySet(),
+            regionId = GROUPS_ID
+        )
     }
 
     /** T232: Arten einer Region bzw. eigenen Liste (ohne Zustand zu aendern); "all" = leer; null = nicht gefunden. */
@@ -210,85 +221,49 @@ class RegionalSpeciesFilter(
         if (regionId.startsWith(CustomSpeciesLists.ID_PREFIX)) {
             return customLists.firstOrNull { it.id == regionId }?.let { it.species to it }
         }
-        return try {
-            val root = JSONObject(context.assets.open(REGION_SETS_PATH).bufferedReader().use { it.readText() })
-            val sets = root.getJSONArray("sets")
-            (0 until sets.length()).map { sets.getJSONObject(it) }.firstOrNull { it.getString("id") == regionId }
-                ?.let { set ->
-                    val arr = set.getJSONArray("species")
-                    (0 until arr.length()).map { arr.getString(it) }.toSet() to null
-                }
-        } catch (e: Exception) {
-            Log.w(TAG, "Liste '$regionId' nicht ladbar: ${e.message}")
-            null
-        }
+        val species = regionSets.species[regionId]
+        if (species == null) Log.w(TAG, "Liste '$regionId' nicht ladbar: nicht in region_sets.json")
+        return species?.let { it to null }
     }
 
     /** T218: Geomodel-Maske ersetzen (null = keine Position/Modell → Begleitliste gilt als Ersatz) */
-    fun setGeoMask(mask: GeoMask?, combine: GeoCombine) {
-        geoMask = mask
-        geoCombine = combine
+    fun setGeoMask(mask: GeoMask?, combine: GeoCombine): Unit = synchronized(lock) {
+        state = state.copy(geoMask = mask, geoCombine = combine)
     }
 
-    private fun loadRegionInternal(regionId: String) {
+    /** Liste [regionId] in [base] uebernehmen; nicht gefunden = [base] (Listenfelder unveraendert, wie bisher). */
+    private fun loadRegionInternal(base: FilterState, regionId: String): FilterState {
         SpeciesKey.load(context)
         try {
-            // Sets nur einmal parsen
-            if (allSets.isEmpty()) {
-                parseRegionSets()
-            }
-
             // "all" = kein Filter (leere species-Liste)
             if (regionId == "all") {
-                speciesSet = emptySet()
-                canonicalSet = emptySet()
-                currentRegionId = "all"
-                activeCustom = null
                 Log.i(TAG, "Region 'all' aktiviert — kein Artenfilter")
-                return
+                return base.copy(species = emptySet(), canonical = emptySet(), regionId = "all", custom = null)
             }
 
-            // T129: eigene Liste
+            // T129: eigene Liste (T238: nur einlesen, nicht rekursiv neu laden)
             if (regionId.startsWith(CustomSpeciesLists.ID_PREFIX)) {
-                if (customLists.isEmpty()) refreshCustomLists()
+                if (customLists.isEmpty()) readCustomLists()
                 val custom = customLists.firstOrNull { it.id == regionId }
-                if (custom != null) {
-                    speciesSet = custom.species
-                    canonicalSet = custom.canonical()
-                    activeCustom = custom
-                    currentRegionId = regionId
-                    Log.i(TAG, "Eigene Liste '$regionId' geladen: ${custom.species.size} Arten")
-                } else {
+                if (custom == null) {
                     Log.w(TAG, "Eigene Liste '$regionId' nicht gefunden")
+                    return base
                 }
-                return
+                Log.i(TAG, "Eigene Liste '$regionId' geladen: ${custom.species.size} Arten")
+                return base.copy(species = custom.species, canonical = custom.canonical(), custom = custom, regionId = regionId)
             }
 
-            // Set mit passender ID suchen
-            val jsonText = context.assets.open(REGION_SETS_PATH).bufferedReader().use { it.readText() }
-            val root = JSONObject(jsonText)
-            val setsArray = root.getJSONArray("sets")
-
-            for (i in 0 until setsArray.length()) {
-                val set = setsArray.getJSONObject(i)
-                if (set.getString("id") == regionId) {
-                    val speciesArray = set.getJSONArray("species")
-                    val species = mutableSetOf<String>()
-                    for (j in 0 until speciesArray.length()) {
-                        species.add(speciesArray.getString(j))
-                    }
-                    speciesSet = species
-                    canonicalSet = canonicalize(species)
-                    activeCustom = null
-                    currentRegionId = regionId
-                    Log.i(TAG, "Region '$regionId' geladen: ${species.size} Arten")
-                    return
-                }
+            // Set mit passender ID (T238: aus dem Cache statt erneutem Parsen)
+            val species = regionSets.species[regionId]
+            if (species == null) {
+                Log.w(TAG, "Region '$regionId' nicht gefunden in region_sets.json")
+                return base
             }
-
-            Log.w(TAG, "Region '$regionId' nicht gefunden in region_sets.json")
+            Log.i(TAG, "Region '$regionId' geladen: ${species.size} Arten")
+            return base.copy(species = species, canonical = canonicalize(species), custom = null, regionId = regionId)
         } catch (e: Exception) {
             Log.w(TAG, "Fehler beim Laden der Region '$regionId': ${e.message}")
+            return base
         }
     }
 
@@ -306,67 +281,92 @@ class RegionalSpeciesFilter(
     /**
      * T190: Pruefung mit optionaler Saison der aktiven eigenen Liste.
      * [respectSeason] aus = Saisonangaben ignoriert; [monthDay] = lokales Datum der Detektion.
+     * T238: liest genau einen Schnappschuss.
      */
+    fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean =
+        state.isPlausible(scientificName, respectSeason, monthDay)
+
+    /** Alle Arten der aktuell geladenen Region */
+    fun getSpeciesList(): Set<String> = state.species
+
+    /** Aktuell geladene Region-ID (null wenn keine geladen) */
+    fun getCurrentRegionId(): String? = state.regionId
+
+    /** Alle verfuegbaren Region-Sets */
+    fun getAvailableRegions(): List<RegionInfo> = regionSets.infos + customLists.map {
+        RegionInfo(it.id, it.nameDe, it.nameEn, it.species.size, isCustom = true)
+    }
+
+    /** T238: region_sets.json einmal lesen; Fehler = leer (Asset fehlt dauerhaft). */
+    private fun parseRegionSets(): RegionSets {
+        try {
+            val jsonText = regionSetsText?.invoke()
+                ?: context.assets.open(REGION_SETS_PATH).bufferedReader().use { it.readText() }
+            // T238: kotlinx statt org.json (wie TaxonGroups.parseRegionSets, im JVM-Test lauffaehig)
+            val setsArray = Json.parseToJsonElement(jsonText).jsonObject["sets"]!!.jsonArray
+            val infos = mutableListOf<RegionInfo>()
+            val species = HashMap<String, Set<String>>()
+
+            for (el in setsArray) {
+                val set = el.jsonObject
+                val id = set["id"]!!.jsonPrimitive.content
+                val nameDe = set["name_de"]?.jsonPrimitive?.content ?: id
+                val nameEn = set["name_en"]?.jsonPrimitive?.content ?: id
+                val arr = set["species"]!!.jsonArray
+                val names = LinkedHashSet<String>(arr.size * 2)
+                for (sp in arr) names.add(sp.jsonPrimitive.content)
+                infos.add(RegionInfo(id = id, nameDe = nameDe, nameEn = nameEn, speciesCount = arr.size))
+                // erstes Set mit dieser ID gilt (wie die fruehere lineare Suche)
+                species.putIfAbsent(id, names)
+            }
+
+            Log.i(TAG, "Region-Sets geladen: ${infos.size} Sets " +
+                    "(${infos.joinToString { "${it.id}:${it.speciesCount}" }})")
+            return RegionSets(infos, species)
+        } catch (e: Exception) {
+            Log.w(TAG, "Fehler beim Parsen von region_sets.json: ${e.message}")
+            return RegionSets(emptyList(), emptyMap())
+        }
+    }
+
+    private class RegionSets(val infos: List<RegionInfo>, val species: Map<String, Set<String>>)
+}
+
+/**
+ * T238: unveraenderlicher Filterzustand (ein Schnappschuss je Pruefung).
+ * [groupRules] != null = Liste je Artgruppe (T232); sonst Einzelliste, ggf. mit Geomodel ([autoGeo], T218).
+ */
+internal data class FilterState(
+    val regionId: String? = null,
+    val species: Set<String> = emptySet(),
+    /** T105: kanonische Schluessel der aktiven Region (Synonyme aufgeloest) fuer den Vergleich */
+    val canonical: Set<String> = emptySet(),
+    /** T190: aktive eigene Liste (fuer Saison), null bei Asset-Region */
+    val custom: CustomSpeciesList? = null,
+    val autoGeo: Boolean = false,
+    val geoMask: GeoMask? = null,
+    val geoCombine: GeoCombine = GeoCombine.GEO_ONLY,
+    val groupRules: Map<TaxonGroup, GroupRule>? = null
+) {
+    fun isAutoGeo(): Boolean = autoGeo || groupRules?.values?.any { it is GroupRule.Auto } == true
+
     fun isPlausible(scientificName: String, respectSeason: Boolean, monthDay: Pair<Int, Int>?): Boolean {
         // T232: Liste je Artgruppe
         groupRules?.let { rules ->
             val key = SpeciesKey.of(scientificName)
-            if (!groupPlausible(key, rules, geoMask, TaxonGroups::of)) return false
-            val custom = (rules[TaxonGroups.of(key)] as? GroupRule.Listed)?.custom
-            if (!respectSeason || custom == null) return true
-            return ListSeason.isInSeason(custom.seasons[key], monthDay)
+            if (!RegionalSpeciesFilter.groupPlausible(key, rules, geoMask, TaxonGroups::of)) return false
+            val c = (rules[TaxonGroups.of(key)] as? GroupRule.Listed)?.custom
+            if (!respectSeason || c == null) return true
+            return ListSeason.isInSeason(c.seasons[key], monthDay)
         }
         // Kein Filter aktiv oder "all" gewaehlt; sonst Vergleich ueber kanonischen Schluessel (T105)
-        val listOk = matches(canonicalSet, scientificName)
+        val listOk = RegionalSpeciesFilter.matches(canonical, scientificName)
         // T218: mit Geomodel-Maske entscheidet GeoLogic (ohne Maske gilt die Begleitliste als Ersatz)
         val base = if (autoGeo) GeoLogic.plausible(SpeciesKey.of(scientificName), geoMask, listOk, geoCombine) else listOk
         if (!base) return false
-        val custom = activeCustom
-        if (!respectSeason || custom == null) return true
-        return ListSeason.isInSeason(custom.seasons[SpeciesKey.of(scientificName)], monthDay)
-    }
-
-    /** Alle Arten der aktuell geladenen Region */
-    fun getSpeciesList(): Set<String> = speciesSet
-
-    /** Aktuell geladene Region-ID (null wenn keine geladen) */
-    fun getCurrentRegionId(): String? = currentRegionId
-
-    /** Alle verfuegbaren Region-Sets */
-    fun getAvailableRegions(): List<RegionInfo> {
-        if (allSets.isEmpty()) {
-            parseRegionSets()
-        }
-        return allSets + customLists.map {
-            RegionInfo(it.id, it.nameDe, it.nameEn, it.species.size, isCustom = true)
-        }
-    }
-
-    /**
-     * Parst die region_sets.json und baut die Metadaten-Liste auf.
-     */
-    private fun parseRegionSets() {
-        try {
-            val jsonText = context.assets.open(REGION_SETS_PATH).bufferedReader().use { it.readText() }
-            val root = JSONObject(jsonText)
-            val setsArray = root.getJSONArray("sets")
-            val result = mutableListOf<RegionInfo>()
-
-            for (i in 0 until setsArray.length()) {
-                val set = setsArray.getJSONObject(i)
-                val id = set.getString("id")
-                val nameDe = set.optString("name_de", id)
-                val nameEn = set.optString("name_en", id)
-                val speciesCount = set.getJSONArray("species").length()
-                result.add(RegionInfo(id = id, nameDe = nameDe, nameEn = nameEn, speciesCount = speciesCount))
-            }
-
-            allSets = result
-            Log.i(TAG, "Region-Sets geladen: ${result.size} Sets " +
-                    "(${result.joinToString { "${it.id}:${it.speciesCount}" }})")
-        } catch (e: Exception) {
-            Log.w(TAG, "Fehler beim Parsen von region_sets.json: ${e.message}")
-        }
+        val c = custom
+        if (!respectSeason || c == null) return true
+        return ListSeason.isInSeason(c.seasons[SpeciesKey.of(scientificName)], monthDay)
     }
 }
 

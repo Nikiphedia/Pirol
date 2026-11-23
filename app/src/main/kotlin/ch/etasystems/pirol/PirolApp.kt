@@ -6,9 +6,16 @@ import ch.etasystems.pirol.ui.AppStrings
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 
 class PirolApp : Application() {
+
+    /** T238: App-weiter Scope fuer Vorlade-Arbeit (lebt so lange wie der Prozess) */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -41,6 +48,16 @@ class PirolApp : Application() {
         ch.etasystems.pirol.audio.dsp.AudioResampler.applyMode(
             ch.etasystems.pirol.data.AppPreferences(this).resamplerMode
         )
+
+        // T238: Artgruppen (Label-CSV ~0,8 MB) und region_sets.json auf IO vorladen, nicht beim ersten
+        // Filter-Laden auf dem Main-Thread (TaxonGroups.load haelt dabei die Klassen-Sperre)
+        appScope.launch {
+            try {
+                org.koin.core.context.GlobalContext.get().get<ch.etasystems.pirol.ml.RegionalSpeciesFilter>().warmUp()
+            } catch (e: Exception) {
+                android.util.Log.w("PirolApp", "Vorladen der Artenlisten fehlgeschlagen", e)
+            }
+        }
 
         // T187: Modell im Hintergrund freigeben (nur ohne Aufnahme)
         registerActivityLifecycleCallbacks(
