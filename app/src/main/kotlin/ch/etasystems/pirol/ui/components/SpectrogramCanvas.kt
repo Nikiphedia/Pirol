@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS
+import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MIN_DBFS
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import kotlin.math.pow
 
@@ -58,8 +60,8 @@ import kotlin.math.pow
  * @param config SpectrogramConfig fuer numMelBins (minDb wird nur als Fallback verwendet)
  * @param palette Farbpalette (Default: MAGMA)
  * @param autoContrast Toggle fuer Auto-Kontrast (Default: true)
- * @param manualMinDb Manuelle Untergrenze wenn autoContrast=false (Default: -80)
- * @param manualMaxDb Manuelle Obergrenze wenn autoContrast=false (Default: 0)
+ * @param manualMinDb Manuelle Untergrenze in dBFS wenn autoContrast=false (T199)
+ * @param manualMaxDb Manuelle Obergrenze in dBFS wenn autoContrast=false (T199)
  * @param manualRangeOverride Optionaler fixer Bereich (z.B. Analyse-Tab Einmal-Perzentil)
  * @param gamma Gamma-Kompression auf normalisiertem Index (< 1 = leise heller, 1.0 = aus). Default=1.
  * @param ceilingDb Obergrenze fuer Normalisierung in dBFS (0 = kein Effekt, negativ = clippt Lautes). Default=0.
@@ -76,8 +78,8 @@ fun SpectrogramCanvas(
     config: SpectrogramConfig,
     palette: SpectrogramPalette = SpectrogramPalette.MAGMA,
     autoContrast: Boolean = true,
-    manualMinDb: Float = -80f,
-    manualMaxDb: Float = 0f,
+    manualMinDb: Float = SONOGRAM_DEFAULT_MIN_DBFS,
+    manualMaxDb: Float = SONOGRAM_DEFAULT_MAX_DBFS,
     manualRangeOverride: Pair<Float, Float>? = null,
     gamma: Float = 1f,
     ceilingDb: Float = 0f,
@@ -142,12 +144,12 @@ fun SpectrogramCanvas(
                 val (minDbUsed, maxDbRaw) = when {
                     manualRangeOverride != null -> manualRangeOverride
                     autoContrast -> spectrogramState.dynamicRangeMapper?.currentRange()
-                        ?: (fallbackMinDb to 0f)
+                        ?: (fallbackMinDb to SONOGRAM_DEFAULT_MAX_DBFS)
                     else -> manualMinDb to manualMaxDb
                 }
                 val (minDbEff, maxDbEff) = effectiveDbRange(minDbUsed, maxDbRaw, ceilingDb)
                 // T176: nie mit NaN/Inf abbilden (sonst schwarzes Sonogramm bei laufendem Renderer)
-                val (minDbFinal, maxDbUsed) = finiteDbRange(minDbEff, maxDbEff, fallbackMinDb, 0f)
+                val (minDbFinal, maxDbUsed) = finiteDbRange(minDbEff, maxDbEff, fallbackMinDb, SONOGRAM_DEFAULT_MAX_DBFS)
                 val cols = ringRenderer.render(
                     spectrogramState, windowFrames!!, numMelBins, binFirst, minDbFinal, maxDbUsed, lut, gamma
                 )
@@ -179,7 +181,7 @@ fun SpectrogramCanvas(
             val (minDbUsed, maxDbRaw) = when {
                 manualRangeOverride != null -> manualRangeOverride
                 autoContrast -> spectrogramState.dynamicRangeMapper?.currentRange()
-                    ?: (fallbackMinDb to 0f)
+                    ?: (fallbackMinDb to SONOGRAM_DEFAULT_MAX_DBFS)
                 else -> manualMinDb to manualMaxDb
             }
 

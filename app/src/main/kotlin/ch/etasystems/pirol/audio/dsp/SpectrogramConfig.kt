@@ -9,8 +9,7 @@ package ch.etasystems.pirol.audio.dsp
  * @param numMelBins Anzahl Mel-Filterbank-Ausgaenge
  * @param fMin Untere Grenzfrequenz in Hz
  * @param fMax Obere Grenzfrequenz in Hz (-1 = Nyquist)
- * @param refDb Referenzpegel fuer dB-Skalierung
- * @param minDb Untere Grenze (Clipping) in dB
+ * @param minDb Rueckfall-Untergrenze der Anzeige in dBFS (T199)
  */
 data class SpectrogramConfig(
     val fftSize: Int = 2048,
@@ -18,8 +17,7 @@ data class SpectrogramConfig(
     val numMelBins: Int = 128,
     val fMin: Float = 0f,
     val fMax: Float = -1f,
-    val refDb: Float = 40f,  // T107: war 80 → Signale unter ~0 dB Mel-Energie (81 % der Pixel) lagen am Boden
-    val minDb: Float = -80f
+    val minDb: Float = SONOGRAM_DEFAULT_MIN_DBFS
 ) {
     companion object {
         /** Voegel: 125-12000 Hz, feines Frequenzraster */
@@ -32,3 +30,19 @@ data class SpectrogramConfig(
         val WIDEBAND = SpectrogramConfig(fMin = 0f, fMax = -1f)
     }
 }
+
+/**
+ * T199: Sonogramm-Pegel sind dBFS (Vollaussteuerungs-Sinus = 0 dBFS, wie [SpectrumAnalyzer]).
+ * Boden -140 dBFS liegt unter dem 16-bit-Quantisierungsrauschen (~ -115..-125 dBFS pro Mel-Band),
+ * digitale Stille landet dort.
+ */
+const val MEL_FLOOR_DBFS = -140f
+
+/**
+ * T199: Standard-Anzeigebereich (gemeinsam fuer Sonogramm, Spektrum, Oszillogramm).
+ * Unten -110: knapp ueber dem 16-bit-Rauschboden, Mikrofon-Eigenrauschen (~ -100) erscheint dunkel.
+ * Oben -20: Vogelrufe im Feld erreichen selten mehr; entspricht etwa dem alten relativen Bereich
+ * [-80, 0] (= -94..-14 dBFS) mit mehr Raum fuer leise Anteile.
+ */
+const val SONOGRAM_DEFAULT_MIN_DBFS = -110f
+const val SONOGRAM_DEFAULT_MAX_DBFS = -20f

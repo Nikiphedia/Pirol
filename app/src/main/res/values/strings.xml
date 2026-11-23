@@ -576,6 +576,8 @@
     <string name="settings_fullscreen_hint">Blendet Status- und Navigationsleiste aus. Mit einer Wischgeste vom Bildschirmrand erscheinen sie kurz wieder.</string>
     <string name="settings_info_sources">Gemeindegrenzen: © swisstopo (swissBOUNDARIES3D)</string>
     <string name="spectrum_db_range">Pegel: %1$s bis %2$s dBFS</string>
+    <string name="display_db_range_auto_hint">Sonogramm: Auto-Kontrast an. Verschieben schaltet ihn aus.</string>
+    <string name="ui_deckel_dbfs">%1$s dBFS</string>
     <string name="spectrum_fft_size">FFT-Groesse (Aufloesung %1$s Hz)</string>
     <string name="spectrum_averaging">Mittelung</string>
     <string name="spectrum_avg_off">Aus</string>

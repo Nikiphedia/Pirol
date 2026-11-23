@@ -1150,6 +1150,7 @@ private fun SpectrogramWithPanel(
                 repository = repo,
                 displaySettings = settings,
                 settings = spectrumSettings,
+                config = uiState.spectrogramConfig,
                 sampleRate = uiState.spectrumState.sampleRate,
                 onResetPeak = { uiState.spectrumState.resetPeak() },
                 onClose = { showPanel = false }
@@ -1211,7 +1212,8 @@ private fun SpectrogramBox(
             SpectrumView(
                 spectrumState = uiState.spectrumState,
                 settings = spectrumSettings,
-                palette = settings.palette,
+                displaySettings = settings,
+                config = uiState.spectrogramConfig,
                 onLongPress = onLongPress,
                 modifier = Modifier.fillMaxSize()
             )

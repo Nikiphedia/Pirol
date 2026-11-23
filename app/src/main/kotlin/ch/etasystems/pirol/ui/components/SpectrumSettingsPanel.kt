@@ -14,7 +14,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,14 +24,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
+import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.audio.dsp.SpectrumAnalyzer
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * T198: Panel des Live-Spektrums (Langdruck im Spektrum-Modus), unter der Anzeige eingeblendet.
  * Oben die Moduswahl, damit man zum Sonogramm zurueckkommt. Freeze liegt in der Anzeige selbst.
+ * T199: Frequenz-/dB-Bereich und Palette ueber [SharedDisplayControls] (gemeinsam), [config] = aktive
+ * Sonogramm-Config (Grenzen des Frequenz-Reglers).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -40,13 +41,13 @@ fun SpectrumSettingsPanel(
     repository: SpectrogramSettingsRepository,
     displaySettings: SpectrogramDisplaySettings,
     settings: SpectrumSettings,
+    config: SpectrogramConfig,
     sampleRate: Int,
     onResetPeak: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     maxHeight: Dp = 300.dp
 ) {
-    val nyquist = sampleRate / 2f
     Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -59,41 +60,8 @@ fun SpectrumSettingsPanel(
             }
             LiveDisplayModeChips(repository, displaySettings)
 
-            // Frequenzbereich (linear, kHz)
-            val fLo = settings.freqMinHz.coerceIn(0f, nyquist - SPECTRUM_MIN_SPAN_HZ)
-            val fHi = settings.freqMaxHz.coerceIn(fLo + SPECTRUM_MIN_SPAN_HZ, nyquist)
-            Text(
-                stringResource(
-                    R.string.ui_frequenz_bis_khz,
-                    "%.1f".format(Locale.US, fLo / 1000f), "%.1f".format(Locale.US, fHi / 1000f)
-                ),
-                style = MaterialTheme.typography.bodySmall
-            )
-            RangeSlider(
-                value = fLo..fHi,
-                onValueChange = { r ->
-                    // auf 100 Hz runden, damit die Werte ruhig ablesbar bleiben
-                    val lo = (r.start / 100f).roundToInt() * 100f
-                    val hi = maxOf((r.endInclusive / 100f).roundToInt() * 100f, lo + SPECTRUM_MIN_SPAN_HZ)
-                    repository.updateSpectrum { it.copy(freqMinHz = lo, freqMaxHz = hi) }
-                },
-                valueRange = 0f..nyquist
-            )
-
-            // dB-Bereich (dBFS)
-            Text(
-                stringResource(R.string.spectrum_db_range, settings.minDb.roundToInt(), settings.maxDb.roundToInt()),
-                style = MaterialTheme.typography.bodySmall
-            )
-            RangeSlider(
-                value = settings.minDb..settings.maxDb,
-                onValueChange = { r ->
-                    val lo = r.start.roundToInt().toFloat()
-                    val hi = maxOf(r.endInclusive.roundToInt().toFloat(), lo + SPECTRUM_MIN_SPAN_DB)
-                    repository.updateSpectrum { it.copy(minDb = lo, maxDb = hi) }
-                },
-                valueRange = -140f..0f
-            )
+            // T199: Frequenz, dB-Bereich (dBFS) und Palette gemeinsam mit Sonogramm/Oszillogramm
+            SharedDisplayControls(repository, displaySettings, config)
 
             // FFT-Groesse mit Frequenz-Aufloesung
             Text(

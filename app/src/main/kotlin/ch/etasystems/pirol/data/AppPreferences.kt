@@ -156,15 +156,17 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_spectrogram_auto_contrast", true)
         set(value) = prefs.edit().putBoolean("pirol_spectrogram_auto_contrast", value).apply()
 
-    /** Manuelle Untergrenze (nur aktiv wenn Auto-Kontrast AUS). Default -80 dB wie altes Mapping. */
+    // T199: dB-Bereich in dBFS, gemeinsam fuer Sonogramm/Spektrum/Oszillogramm. Neue Schluessel
+    // (_dbfs), alte relative Werte (-80..0) verfallen.
+    /** Untergrenze in dBFS (Sonogramm nur bei Auto-Kontrast AUS, Spektrum immer). */
     var spectrogramMinDb: Float
-        get() = prefs.getFloat("pirol_spectrogram_min_db", -80f)
-        set(value) = prefs.edit().putFloat("pirol_spectrogram_min_db", value).apply()
+        get() = prefs.getFloat("pirol_spectrogram_min_dbfs", ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MIN_DBFS)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_min_dbfs", value).apply()
 
-    /** Manuelle Obergrenze (nur aktiv wenn Auto-Kontrast AUS). Default 0 dB wie altes Mapping. */
+    /** Obergrenze in dBFS (Sonogramm nur bei Auto-Kontrast AUS, Spektrum immer). */
     var spectrogramMaxDb: Float
-        get() = prefs.getFloat("pirol_spectrogram_max_db", 0f)
-        set(value) = prefs.edit().putFloat("pirol_spectrogram_max_db", value).apply()
+        get() = prefs.getFloat("pirol_spectrogram_max_dbfs", ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_max_dbfs", value).apply()
 
     /** Gamma-Kompression fuer Sonogramm-Anzeige (T56b). < 1.0 = leise Anteile heller. Default 0.5. */
     var spectrogramGamma: Float
@@ -174,12 +176,13 @@ class AppPreferences(context: Context) {
     /**
      * Lautstärke-Deckel (Ceiling) fuer Sonogramm-Anzeige (T56b).
      * Signale ueber diesem dB-Wert werden auf die hellste Palette-Farbe geclippt.
-     * 0 dB = kein Effekt (Mel-Werte sind bereits <= 0 dBFS).
-     * Negativer Wert (z.B. -10) = Lautes abschneiden, mehr Kontrast fuer leise Signale.
+     * 0 dBFS = kein Effekt (Mel-Werte liegen hoechstens ca. +2 dBFS).
+     * Negativer Wert (z.B. -40) = Lautes abschneiden, mehr Kontrast fuer leise Signale.
+     * T199: Schluessel _dbfs, alte relative Werte verfallen.
      */
     var spectrogramCeilingDb: Float
-        get() = prefs.getFloat("pirol_spectrogram_ceiling_db", 0f)
-        set(value) = prefs.edit().putFloat("pirol_spectrogram_ceiling_db", value).apply()
+        get() = prefs.getFloat("pirol_spectrogram_ceiling_dbfs", 0f)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_ceiling_dbfs", value).apply()
 
     // --- T107: Sonogramm-Darstellung (Frequenzbereich, Zeitfenster, Auto-Kontrast-Parameter) ---
     // T144: neue Schluessel (_t144), damit alte gespeicherte 8-kHz-Grenzen ignoriert werden
@@ -198,23 +201,8 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("pirol_live_display_mode", "SONOGRAM") ?: "SONOGRAM"
         set(value) = prefs.edit().putString("pirol_live_display_mode", value).apply()
 
-    // T198: Live-Spektrum (eigenes Panel)
-    var spectrumFreqMinHz: Float
-        get() = prefs.getFloat("pirol_spectrum_freq_min_hz", 0f)
-        set(value) = prefs.edit().putFloat("pirol_spectrum_freq_min_hz", value).apply()
-
-    var spectrumFreqMaxHz: Float
-        get() = prefs.getFloat("pirol_spectrum_freq_max_hz", 12000f)
-        set(value) = prefs.edit().putFloat("pirol_spectrum_freq_max_hz", value).apply()
-
-    var spectrumMinDb: Float
-        get() = prefs.getFloat("pirol_spectrum_min_db", -120f)
-        set(value) = prefs.edit().putFloat("pirol_spectrum_min_db", value).apply()
-
-    var spectrumMaxDb: Float
-        get() = prefs.getFloat("pirol_spectrum_max_db", 0f)
-        set(value) = prefs.edit().putFloat("pirol_spectrum_max_db", value).apply()
-
+    // T198: Live-Spektrum (eigenes Panel). T199: Frequenz-/dB-Bereich kommen aus den gemeinsamen
+    // Sonogramm-Einstellungen, hier nur noch Spektrum-eigene Werte.
     var spectrumFftSize: Int
         get() = prefs.getInt("pirol_spectrum_fft_size", 2048)
         set(value) = prefs.edit().putInt("pirol_spectrum_fft_size", value).apply()

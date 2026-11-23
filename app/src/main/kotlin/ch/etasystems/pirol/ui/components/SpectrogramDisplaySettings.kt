@@ -3,20 +3,25 @@ package ch.etasystems.pirol.ui.components
 import androidx.annotation.StringRes
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.audio.dsp.MelFilterbank
+import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS
+import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MIN_DBFS
 import kotlin.math.ceil
 import kotlin.math.floor
 
 /**
  * T107: Gemeinsame Darstellungs-Einstellungen fuer Live-Tab, Analyse-Tab und Settings.
  *
+ * T199: Frequenzbereich, dB-Bereich (dBFS) und Palette gelten gemeinsam fuer Sonogramm,
+ * Spektrum und (ab T200) Oszillogramm; Regler dafuer in [SharedDisplayControls].
+ *
  * Reine Datenklasse (keine Android-Abhaengigkeit, unit-testbar). Gehalten und persistiert
  * von `SpectrogramSettingsRepository`.
  *
  * @param autoContrast true = dB-Bereich aus Perzentilen (Live: Rolling, Analyse: ganze Session)
- * @param minDb manuelle Untergrenze (nur bei autoContrast=false)
- * @param maxDb manuelle Obergrenze (nur bei autoContrast=false)
+ * @param minDb Untergrenze in dBFS (Sonogramm nur bei autoContrast=false; Spektrum immer)
+ * @param maxDb Obergrenze in dBFS (Sonogramm nur bei autoContrast=false; Spektrum immer)
  * @param gamma Intensitaet: < 1 = leise Anteile heller
- * @param ceilingDb Lautstaerke-Deckel (0 = aus)
+ * @param ceilingDb Lautstaerke-Deckel in dBFS (0 = aus)
  * @param palette Farbpalette
  * @param freqMinHz untere Anzeige-Frequenz (wird auf die SpectrogramConfig begrenzt)
  * @param freqMaxHz obere Anzeige-Frequenz (wird auf die SpectrogramConfig begrenzt)
@@ -28,8 +33,8 @@ import kotlin.math.floor
  */
 data class SpectrogramDisplaySettings(
     val autoContrast: Boolean = true,
-    val minDb: Float = -80f,
-    val maxDb: Float = 0f,
+    val minDb: Float = SONOGRAM_DEFAULT_MIN_DBFS,
+    val maxDb: Float = SONOGRAM_DEFAULT_MAX_DBFS,
     val gamma: Float = 0.5f,
     val ceilingDb: Float = 0f,
     val palette: SpectrogramPalette = SpectrogramPalette.GRAYSCALE,
@@ -44,19 +49,22 @@ data class SpectrogramDisplaySettings(
     /** Setzt die Preset-Werte; Palette und Zeitfenster bleiben unveraendert. */
     fun withPreset(preset: SpectrogramPreset): SpectrogramDisplaySettings = when (preset) {
         SpectrogramPreset.STANDARD -> copy(
-            autoContrast = true, minDb = -80f, maxDb = 0f, gamma = 0.5f, ceilingDb = 0f,
+            autoContrast = true, minDb = SONOGRAM_DEFAULT_MIN_DBFS, maxDb = SONOGRAM_DEFAULT_MAX_DBFS,
+            gamma = 0.5f, ceilingDb = 0f,
             freqMinHz = 0f, freqMaxHz = 24000f,
             autoLowPct = 0.02f, autoHighPct = 0.98f, autoMinSpanDb = 20f
         )
         // Rauschen dunkel (p30 als Untergrenze), Spitzen nicht saettigen (p99.5), grosse Mindestspanne
         SpectrogramPreset.LEISE_RUFE -> copy(
-            autoContrast = true, minDb = -80f, maxDb = 0f, gamma = 0.35f, ceilingDb = 0f,
+            autoContrast = true, minDb = SONOGRAM_DEFAULT_MIN_DBFS, maxDb = SONOGRAM_DEFAULT_MAX_DBFS,
+            gamma = 0.35f, ceilingDb = 0f,
             freqMinHz = 0f, freqMaxHz = 24000f,
             autoLowPct = 0.30f, autoHighPct = 0.995f, autoMinSpanDb = 30f
         )
-        // Fester Bereich, Hochpass-Anzeige ab 1 kHz (Wind/Verkehr ausblenden)
+        // Fester Bereich, Hochpass-Anzeige ab 1 kHz (Wind/Verkehr ausblenden).
+        // T199: in dBFS (vorher relativ -70..-10 = ca. -84..-24 dBFS)
         SpectrogramPreset.LAUTE_UMGEBUNG -> copy(
-            autoContrast = false, minDb = -70f, maxDb = -10f, gamma = 0.7f, ceilingDb = 0f,
+            autoContrast = false, minDb = -85f, maxDb = -25f, gamma = 0.7f, ceilingDb = 0f,
             freqMinHz = 1000f, freqMaxHz = 24000f,
             autoLowPct = 0.02f, autoHighPct = 0.98f, autoMinSpanDb = 20f
         )
