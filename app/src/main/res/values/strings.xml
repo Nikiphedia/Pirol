@@ -751,5 +751,6 @@
     <string name="model_err_http_429">Server antwortet HTTP 429 (zu viele Anfragen, später erneut versuchen)</string>
     <string name="model_err_incomplete">Download unvollständig (%1$d MB)</string>
     <string name="model_err_corrupt">Datei beschädigt (Prüfsumme stimmt nicht)</string>
-    <string name="analysis_rescan_hinweis">Bildschirm bleibt an. App geöffnet lassen, bis die Neu-Analyse fertig ist.</string>
+    <string name="analysis_rescan_hinweis">Läuft im Hintergrund weiter, auch bei ausgeschaltetem Bildschirm. Abbrechen auch über die Benachrichtigung.</string>
+    <string name="svc_rescan_kanal">Neu-Analyse</string>
 </resources>

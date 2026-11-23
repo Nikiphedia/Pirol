@@ -63,12 +63,6 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
     val session = state.selectedSession ?: return
     val progress = state.rescanProgress?.takeIf { state.rescanSessionDir == session.sessionDir }
     if (progress != null) {
-        // T250/M4: Bildschirm wach halten, solange der Rescan laeuft (sonst drosselt/beendet Android den Hintergrund)
-        val view = androidx.compose.ui.platform.LocalView.current
-        androidx.compose.runtime.DisposableEffect(Unit) {
-            view.keepScreenOn = true
-            onDispose { view.keepScreenOn = false }
-        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
