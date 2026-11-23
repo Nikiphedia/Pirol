@@ -616,4 +616,10 @@
     <string name="analysis_keine_treffer">Keine Aufnahme mit dieser Art.</string>
     <string name="analysis_mehr">Mehr</string>
     <string name="analysis_detektionen_gefiltert">Detektionen (%1$d / %2$d)</string>
+    <string name="settings_section_recording">Aufnahme</string>
+    <string name="settings_section_species_alarm">Arten &amp; Alarm</string>
+    <string name="settings_section_display_main">Anzeige</string>
+    <string name="settings_section_map_gps">Karte &amp; GPS</string>
+    <string name="settings_section_export_upload">Export &amp; Upload</string>
+    <string name="settings_advanced">Erweitert</string>
 </resources>

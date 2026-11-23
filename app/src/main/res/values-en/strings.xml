@@ -615,4 +615,10 @@
     <string name="analysis_keine_treffer">No recording contains this species.</string>
     <string name="analysis_mehr">More</string>
     <string name="analysis_detektionen_gefiltert">Detections (%1$d / %2$d)</string>
+    <string name="settings_section_recording">Recording</string>
+    <string name="settings_section_species_alarm">Species &amp; alerts</string>
+    <string name="settings_section_display_main">Display</string>
+    <string name="settings_section_map_gps">Map &amp; GPS</string>
+    <string name="settings_section_export_upload">Export &amp; upload</string>
+    <string name="settings_advanced">Advanced</string>
 </resources>
