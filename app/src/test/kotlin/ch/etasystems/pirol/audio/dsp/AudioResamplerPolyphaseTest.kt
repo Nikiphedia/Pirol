@@ -81,4 +81,24 @@ class AudioResamplerPolyphaseTest {
         assertArrayEquals(x, AudioResampler.resample(x, 32000, 32000, AudioResampler.Mode.POLYPHASE), 0f)
         println("T133 taps 48->32=${AudioResampler.tapsFor(48000, 32000)}")
     }
+
+    /** T208: Moduswechsel ueber defaultMode wirkt beim naechsten Resample-Aufruf sofort. */
+    @Test fun modeSwitchTakesEffectImmediately() {
+        val x = tone(17000.0, 48000, 48000)
+        val old = AudioResampler.defaultMode
+        try {
+            assertEquals(AudioResampler.Mode.LINEAR, AudioResampler.applyMode("LINEAR"))
+            val lin = AudioResampler.resample(x, 48000, 32000, AudioResampler.defaultMode)
+            assertArrayEquals(AudioResampler.resample(x, 48000, 32000), lin, 0f)
+            assertEquals(AudioResampler.Mode.POLYPHASE, AudioResampler.applyMode("POLYPHASE"))
+            val poly = AudioResampler.resample(x, 48000, 32000, AudioResampler.defaultMode)
+            assertArrayEquals(AudioResampler.resamplePolyphase(x, 48000, 32000), poly, 0f)
+            // 17-kHz-Ton ist oberhalb des neuen Nyquist: Polyphase daempft, Linear nicht
+            assertTrue(rmsDb(poly) < rmsDb(lin) - 30.0)
+            assertEquals(AudioResampler.Mode.POLYPHASE, AudioResampler.applyMode(null))
+            assertEquals(AudioResampler.Mode.POLYPHASE, AudioResampler.applyMode("quatsch"))
+        } finally {
+            AudioResampler.defaultMode = old
+        }
+    }
 }

@@ -457,6 +457,7 @@
     <string name="settings_resampler_title">Resampler (48 → 32 kHz)</string>
     <string name="settings_resampler_polyphase">Polyphase (empfohlen, filtert Störgeräusche über 16 kHz)</string>
     <string name="settings_resampler_linear">Linear (alt, wie AMSEL)</string>
+    <string name="settings_resampler_hint">Gilt sofort ab dem naechsten analysierten Fenster (auch waehrend einer laufenden Aufnahme).</string>
     <string name="map_cluster_linkziel_waehlen">Verknüpfungsziel wählen (%1$d Detektionen)</string>
     <string name="settings_pirol_ordner_freigeben">PIROL-Ordner freigeben</string>
     <string name="settings_pirol_ordner_status">Freigegeben: %1$s</string>

@@ -2422,10 +2422,8 @@ private fun SettingsSection(
 /** T134: Resampler-Auswahl (48 -> 32 kHz). Liest/schreibt direkt "pirol_resampler_mode" (POLYPHASE/LINEAR). */
 @Composable
 private fun ResamplerSetting() {
-    val context = LocalContext.current
-    val sp = remember { context.getSharedPreferences("pirol_prefs", android.content.Context.MODE_PRIVATE) }
     val appPrefsForResampler: ch.etasystems.pirol.data.AppPreferences = org.koin.compose.koinInject()
-    var mode by remember { mutableStateOf(sp.getString("pirol_resampler_mode", "POLYPHASE") ?: "POLYPHASE") }
+    var mode by remember { mutableStateOf(appPrefsForResampler.resamplerMode) }
     Text(stringResource(R.string.settings_resampler_title), style = MaterialTheme.typography.bodyMedium)
     listOf(
         "POLYPHASE" to stringResource(R.string.settings_resampler_polyphase),
@@ -2446,4 +2444,10 @@ private fun ResamplerSetting() {
             Text(label)
         }
     }
+    // T208: Hinweis, ab wann der Wechsel greift
+    Text(
+        stringResource(R.string.settings_resampler_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }

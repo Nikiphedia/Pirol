@@ -33,6 +33,13 @@ object AudioResampler {
     @Volatile
     var defaultMode: Mode = Mode.POLYPHASE
 
+    /** T208: Modus aus Pref-String uebernehmen (einziger Weg Pref -> defaultMode); liefert den aktiven Modus. */
+    fun applyMode(value: String?): Mode {
+        val m = Mode.parse(value)
+        defaultMode = m
+        return m
+    }
+
     /** Stopband-Daempfung des Filterdesigns (dB) */
     private const val STOPBAND_DB = 70.0
 
