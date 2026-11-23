@@ -67,7 +67,8 @@ class RecordingPipelineTest {
             events += "append"
         }
         override suspend fun appendDetections(detections: List<DetectionResult>) { this.detections += detections }
-        override suspend fun replaceDetection(updated: DetectionResult) {}
+        val replaced: MutableList<DetectionResult> = Collections.synchronizedList(mutableListOf())
+        override suspend fun replaceDetection(updated: DetectionResult) { replaced += updated }
         override suspend fun appendVerification(event: VerificationEvent) {}
         override suspend fun startSession(
             sampleRate: Int, latitude: Double?, longitude: Double?, regionFilter: String?,
@@ -78,8 +79,10 @@ class RecordingPipelineTest {
 
     private class FakeHooks(
         private val overlap: Int = 0,
-        private val cluster: Boolean = false
+        private val cluster: Boolean = false,
+        private val secondary: SecondaryModel? = null  // T224
     ) : PipelineHooks {
+        override fun openSecondaryModel(): SecondaryModel? = secondary
         val watchlistChecked: MutableList<String> = Collections.synchronizedList(mutableListOf())
         @Volatile var afterEndCalls = 0
         override fun loadInferenceConfig() = InferenceConfig(regionFilter = null, highpassEnabled = false)
@@ -97,6 +100,26 @@ class RecordingPipelineTest {
         override suspend fun addEmbedding(block: AudioBlock, top: DetectionResult): FloatArray? = null
         override fun beforeSessionStart() {}
         override suspend fun afterSessionEnd() { afterEndCalls++ }
+    }
+
+    /** T224: Zweitmodell-Fake (alle Scores, eigene Labels) */
+    private class SecondaryFake : AudioClassifier {
+        @Volatile var calls = 0
+        override fun isModelAvailable() = true
+        override fun classify(samples: FloatArray, sampleRate: Int, topK: Int, threshold: Float): List<AudioClassifier.ClassifierResult> {
+            calls++
+            return listOf(
+                AudioClassifier.ClassifierResult("Parus_major", "Parus major", 0.8f, 0f, 3f),
+                AudioClassifier.ClassifierResult("Turdus_merula", "Turdus merula", 0.3f, 0f, 3f)
+            ).filter { it.confidence >= threshold }.take(topK)
+        }
+        override fun extractEmbedding(samples: FloatArray, sampleRate: Int): FloatArray? = null
+        override fun resetSession() {}
+        override val labelCount = 2
+        override val modelName = "BirdNET 2.4 (Global 6K)"
+        override val modelId = "birdnet24_global6k"
+        override val inputSampleRate = 48000
+        override val labelScientificNames = setOf("Parus_major", "Turdus_merula")
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -165,6 +188,39 @@ class RecordingPipelineTest {
         assertEquals(1, hooks.afterEndCalls)
         assertEquals("S1", p.lastSessionId.value)
         assertTrue(!p.isRunning)
+    }
+
+    /** T224: Zweitmodell setzt nur die secondary-Felder (Liste + detections.jsonl) und wird nach Stopp freigegeben */
+    @Test
+    fun secondaryModel_setsDisplayFieldsOnly_andIsClosedAfterStop() = runBlocking {
+        val session = FakeSession()
+        val fake = SecondaryFake()
+        val closed = java.util.concurrent.atomic.AtomicBoolean(false)
+        val hooks = FakeHooks(secondary = SecondaryModel(fake, threshold = 0.5f, overlapPercent = 0, close = { closed.set(true) }))
+        val list = DetectionListState()
+        val p = pipeline(session, hooks, list, hit = true)
+        val flow = MutableSharedFlow<AudioChunk>(extraBufferCapacity = 64)
+        p.onRecordingStarted(flow, sr, null)
+        var pos = 0
+        while (pos < sr * 4) {
+            flow.emit(AudioChunk(pattern(pos, 4800), sr, 0L))
+            pos += 4800
+        }
+        waitUntil("Zweitmodell-Ergebnis in der Liste") { list.getDetections().firstOrNull()?.secondaryStatus != null }
+        waitUntil("Zweitmodell-Ergebnis persistiert") { session.replaced.any { it.secondaryStatus != null } }
+
+        val det = list.getDetections().first()
+        assertEquals("Turdus_merula", det.scientificName)
+        assertEquals(0.9f, det.confidence, 1e-6f)                   // Hauptmodell unveraendert
+        assertEquals("birdnet24_global6k", det.secondaryModelId)
+        assertEquals(ch.etasystems.pirol.ml.SecondaryCheck.STATUS_DISAGREES, det.secondaryStatus)
+        assertEquals(0.3f, det.secondaryConfidence!!, 1e-6f)
+        assertEquals("Parus_major", det.secondaryTopSpecies)
+        assertEquals(listOf("Turdus_merula"), hooks.watchlistChecked.distinct())  // Alarm nur fuer die Hauptart
+        assertEquals(1, list.getDetections().size)                  // keine Detektion aus dem Zweitmodell
+
+        p.onRecordingStopped()!!.join()
+        waitUntil("Zweitmodell freigegeben") { closed.get() }
     }
 
     @Test

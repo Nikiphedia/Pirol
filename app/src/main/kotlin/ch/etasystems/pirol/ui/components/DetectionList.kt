@@ -69,6 +69,7 @@ fun DetectionList(
     atlasCodes: List<AtlasCode> = emptyList(),
     watchlistSpecies: Set<String> = emptySet(),
     showTopNCandidates: Boolean = true,
+    primaryModelLabel: String? = null,  // T224: Name des Hauptmodells fuer die Modellzeile
     // T69: Voice-Memo
     voiceMemoRecorder: VoiceMemoRecorder? = null,
     memoAudioPlayer: AudioPlayer? = null,
@@ -187,6 +188,7 @@ fun DetectionList(
                             ch.etasystems.pirol.ml.SpeciesKey.of(detection.scientificName)
                         ),
                         showTopNCandidates = showTopNCandidates,
+                        primaryModelLabel = primaryModelLabel,  // T224
                         // T74: Phenology
                         phenologyEnabled = phenologyEnabled,
                         isInSeason = isInSeason,

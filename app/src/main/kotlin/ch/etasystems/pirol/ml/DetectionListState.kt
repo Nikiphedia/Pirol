@@ -227,6 +227,21 @@ class DetectionListState(
     }
 
     /**
+     * T224: Detektion atomar aktualisieren (Lesen + Aendern unter derselben Sperre, kein verlorenes
+     * Update bei gleichzeitigem Cluster-Merge). [transform] liefert null = nichts aendern.
+     * @return neue Fassung oder null (nicht gefunden / unveraendert)
+     */
+    @Synchronized
+    fun modifyDetection(id: String, transform: (DetectionResult) -> DetectionResult?): DetectionResult? {
+        val index = detections.indexOfFirst { it.id == id }
+        if (index < 0) return null
+        val updated = transform(detections[index]) ?: return null
+        detections[index] = updated
+        _version.intValue++
+        return updated
+    }
+
+    /**
      * Ersetzt eine Detektion durch eine vom Nutzer gewaehlte Alternative.
      *
      * - Original-Detektion wird als REPLACED markiert (bleibt an ihrer Position, ausgegraut)

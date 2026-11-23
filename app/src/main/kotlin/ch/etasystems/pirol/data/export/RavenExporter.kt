@@ -31,6 +31,8 @@ object RavenExporter {
     const val FIELD_SIMULTAN        = "pirol_raven_field_simultan"
     const val FIELD_MOEGLICH        = "pirol_raven_field_moeglich"
     const val FIELD_GLEICH          = "pirol_raven_field_gleich"
+    /** T224: Spalten des Zweitmodells (nur wenn mindestens eine Detektion ein Ergebnis hat) */
+    const val FIELD_SECONDARY       = "pirol_raven_field_secondary"
 
     private const val LOW_FREQ_HZ = 150
     private const val HIGH_FREQ_HZ = 12000
@@ -61,6 +63,8 @@ object RavenExporter {
         val sessionStart = OffsetDateTime.parse(sessionStartedAt)
         fun on(key: String) = enabledFields == null || key in enabledFields
         val noteCell = escapeTsv(sessionNote.orEmpty())
+        // T224: ohne Zweitmodell-Ergebnis bleibt die Datei unveraendert
+        val secondary = on(FIELD_SECONDARY) && detections.any { it.secondaryModelId != null }
 
         outputFile.bufferedWriter(Charsets.UTF_8).use { w ->
             // Kopfzeile: Selection/View/Channel immer; optionale Felder nach Selektion
@@ -78,6 +82,7 @@ object RavenExporter {
             if (on(FIELD_SIMULTAN))        header += "Simultan"
             if (on(FIELD_MOEGLICH))        header += "Moeglich"
             if (on(FIELD_GLEICH))          header += "Gleich"
+            if (secondary) header += listOf("Second Model", "Second Status", "Second Score", "Second Top Species", "Second Top Score")
             header += "Status"
             header += "Corrected Species"
             if (noteCell.isNotEmpty()) header += "Session-Bemerkung"
@@ -110,6 +115,13 @@ object RavenExporter {
                 if (on(FIELD_SIMULTAN))        row += linkMap[d.id]?.simultaneous?.joinToString(",") ?: ""
                 if (on(FIELD_MOEGLICH))        row += linkMap[d.id]?.probable?.joinToString(",") ?: ""
                 if (on(FIELD_GLEICH))          row += linkMap[d.id]?.sameIndividual?.joinToString(",") ?: ""
+                if (secondary) {
+                    row += sanitize(d.secondaryModelId.orEmpty())
+                    row += d.secondaryStatus.orEmpty()
+                    row += d.secondaryConfidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
+                    row += sanitize(d.secondaryTopSpecies.orEmpty())
+                    row += d.secondaryTopConfidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
+                }
                 row += d.verificationStatus.name
                 row += sanitize(d.correctedSpecies ?: "")
                 if (noteCell.isNotEmpty()) row += noteCell

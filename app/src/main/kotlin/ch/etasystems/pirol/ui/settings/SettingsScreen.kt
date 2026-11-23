@@ -1055,7 +1055,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
-                        stringResource(R.string.model_secondary_not_active),
+                        stringResource(R.string.model_secondary_active_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2187,6 +2187,7 @@ fun SettingsScreen(
                     var ravenSimultan      by remember { mutableStateOf(appPreferences.ravenFieldSimultan) }
                     var ravenMoeglich      by remember { mutableStateOf(appPreferences.ravenFieldMoeglich) }
                     var ravenGleich        by remember { mutableStateOf(appPreferences.ravenFieldGleich) }
+                    var ravenSecondary     by remember { mutableStateOf(appPreferences.ravenFieldSecondary) }  // T224
 
                     listOf(
                         Triple("Begin Time (s)",   ravenBeginTime,     { v: Boolean -> ravenBeginTime = v;     appPreferences.ravenFieldBeginTime = v }),
@@ -2198,7 +2199,8 @@ fun SettingsScreen(
                         Triple("Begin File",        ravenBeginFile,     { v: Boolean -> ravenBeginFile = v;     appPreferences.ravenFieldBeginFile = v }),
                         Triple("Begin Date Time",   ravenBeginDateTime, { v: Boolean -> ravenBeginDateTime = v; appPreferences.ravenFieldBeginDateTime = v }),
                         Triple("Lat",               ravenLat,           { v: Boolean -> ravenLat = v;           appPreferences.ravenFieldLat = v }),
-                        Triple("Lon",               ravenLon,           { v: Boolean -> ravenLon = v;           appPreferences.ravenFieldLon = v })
+                        Triple("Lon",               ravenLon,           { v: Boolean -> ravenLon = v;           appPreferences.ravenFieldLon = v }),
+                        Triple("Second Model",      ravenSecondary,     { v: Boolean -> ravenSecondary = v;     appPreferences.ravenFieldSecondary = v })  // T224
                     ).forEach { (label, checked, onToggle) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),

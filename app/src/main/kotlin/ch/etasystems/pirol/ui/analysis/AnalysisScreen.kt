@@ -950,6 +950,11 @@ private fun SessionDetailContent(
                     ) {
                     SpeciesCard(
                         detection = detection,
+                        // T224: Modell der angezeigten Variante (Rescan) bzw. der Session
+                        primaryModelLabel = ch.etasystems.pirol.ml.SecondaryCheck.modelLabel(
+                            state.variants.firstOrNull { it.id == state.activeVariant }?.modelId
+                                ?: state.selectedSession?.metadata?.modelId
+                        ),
                         phenologyEnabled = phenologyEnabled,
                         isInSeason = phenologyRepository.isInSeason(speciesKey, currentMonth),
                         rarityScore = phenologyRepository.rarity(speciesKey),

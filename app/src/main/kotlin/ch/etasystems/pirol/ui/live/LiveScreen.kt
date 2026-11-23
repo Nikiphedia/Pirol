@@ -368,6 +368,9 @@ private fun CompactLiveLayout(
             // Detektionsliste (ersetzt SpeciesPlaceholder)
             DetectionList(
                 detectionState = uiState.detectionListState,
+                primaryModelLabel = ch.etasystems.pirol.ml.SecondaryCheck.modelLabel(
+                    org.koin.compose.koinInject<ch.etasystems.pirol.ml.AudioClassifier>().modelId
+                ),  // T224
                 isModelAvailable = uiState.isModelAvailable,
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
                 onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
@@ -672,6 +675,9 @@ private fun MediumLiveLayout(
         ) {
             DetectionList(
                 detectionState = uiState.detectionListState,
+                primaryModelLabel = ch.etasystems.pirol.ml.SecondaryCheck.modelLabel(
+                    org.koin.compose.koinInject<ch.etasystems.pirol.ml.AudioClassifier>().modelId
+                ),  // T224
                 isModelAvailable = uiState.isModelAvailable,
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
                 onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },
@@ -790,6 +796,9 @@ private fun ExpandedLiveLayout(
         ) {
             DetectionList(
                 detectionState = uiState.detectionListState,
+                primaryModelLabel = ch.etasystems.pirol.ml.SecondaryCheck.modelLabel(
+                    org.koin.compose.koinInject<ch.etasystems.pirol.ml.AudioClassifier>().modelId
+                ),  // T224
                 isModelAvailable = uiState.isModelAvailable,
                 onConfirm = { id -> viewModel.verifyDetection(id, VerificationStatus.CONFIRMED) },
                 onMarkUncertain = { id -> viewModel.verifyDetection(id, VerificationStatus.UNCERTAIN) },

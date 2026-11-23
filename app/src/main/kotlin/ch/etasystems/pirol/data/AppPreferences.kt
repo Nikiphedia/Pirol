@@ -435,6 +435,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_raven_field_gleich", true)
         set(v) = prefs.edit().putBoolean("pirol_raven_field_gleich", v).apply()
 
+    // T224: Spalten des Zweitmodells (nur wenn die Session Ergebnisse hat)
+    var ravenFieldSecondary: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_secondary", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_secondary", v).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)

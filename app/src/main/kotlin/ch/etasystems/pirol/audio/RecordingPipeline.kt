@@ -14,7 +14,10 @@ import ch.etasystems.pirol.ml.DetectionListState
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.InferenceWorker
+import ch.etasystems.pirol.ml.ListSeason
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.SecondaryCheck
+import ch.etasystems.pirol.ml.SecondaryChecker
 import ch.etasystems.pirol.ml.VerificationEvent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -23,6 +26,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,7 +105,19 @@ interface PipelineHooks {
     fun startTrack(sessionId: String) {}
     /** T191: Routenaufzeichnung beenden, VOR endSession (alle Punkte in track.jsonl, dann GPX-Export) */
     suspend fun stopTrack() {}
+    /** T224: Zweitmodell fuer diese Aufnahme oeffnen (null = keins gewaehlt / nicht verfuegbar) */
+    fun openSecondaryModel(): SecondaryModel? = null
 }
+
+/**
+ * T224: Zweitmodell einer Aufnahme (nur Anzeige). [close] gibt die ORT-Session nach Session-Ende frei.
+ */
+class SecondaryModel(
+    val classifier: AudioClassifier,
+    val threshold: Float,
+    val overlapPercent: Int,
+    val close: () -> Unit = {}
+)
 
 /** T94: Embedding einer Detektion fuer die Aehnlichkeitssuche im Live-UI */
 class EmbeddingAdded(val embedding: FloatArray, val species: String)
@@ -118,7 +135,7 @@ class EmbeddingAdded(val embedding: FloatArray, val species: String)
  */
 class RecordingPipeline(
     private val classifier: AudioClassifier,
-    regionalFilter: RegionalSpeciesFilter,
+    private val regionalFilter: RegionalSpeciesFilter,
     private val detectionListState: DetectionListState,
     private val session: PipelineSession,
     private val hooks: PipelineHooks,
@@ -178,6 +195,11 @@ class RecordingPipeline(
     private val sessionDispatcher = ioDispatcher.limitedParallelism(1)
 
     private var inferenceJob: Job? = null
+    // T224: Zweitmodell (nur Anzeige), pro Aufnahme
+    @Volatile private var secondary: SecondaryChecker? = null
+    private var secondaryJob: Job? = null
+    private var secondaryClose: (() -> Unit)? = null
+    @Volatile private var secondaryGate: SecondaryCheck.OverlapGate? = null
     private var geoJob: Job? = null  // T218
     @Volatile private var running = false
     private var currentSessionId: String? = null
@@ -340,7 +362,76 @@ class RecordingPipeline(
             Log.d(TAG, "ML-Pipeline nicht gestartet — Modell nicht verfuegbar")
             return
         }
+        startSecondary()
         startInference(chunks, prerollToFeed, sessionReady)
+    }
+
+    /** T224: Zweitmodell laden (falls gewaehlt) und dessen Schleife starten */
+    private fun startSecondary() {
+        val model = try { hooks.openSecondaryModel() } catch (e: Exception) {
+            Log.w(TAG, "Zweitmodell nicht geoeffnet", e); null
+        } ?: return
+        val checker = SecondaryChecker(
+            classifier = model.classifier,
+            threshold = model.threshold,
+            isPlausible = { secondaryTopPlausible(it) }
+        ) { window, results -> applySecondary(window, results) }
+        secondary = checker
+        secondaryClose = model.close
+        secondaryGate = SecondaryCheck.OverlapGate(checker.windowMs, model.overlapPercent)
+        secondaryJob = scope.launch(Dispatchers.Default) { checker.runLoop() }
+        Log.i(TAG, "T224 Zweitmodell aktiv: ${checker.modelId} thr=${model.threshold} overlap=${model.overlapPercent}")
+    }
+
+    /** T224: Zweitmodell beenden: Warteschlange leeren, laufendes Fenster abwarten, ORT-Session freigeben */
+    private fun stopSecondary() {
+        val checker = secondary ?: return
+        val job = secondaryJob
+        val close = secondaryClose
+        secondary = null
+        secondaryJob = null
+        secondaryClose = null
+        secondaryGate = null
+        checker.clear()
+        scope.launch {
+            job?.cancelAndJoin()
+            Log.i(TAG, "T224_STATS model=${checker.modelId} checked=${checker.checked} dropped=${checker.dropped}")
+            try { close?.invoke() } catch (e: Exception) { Log.w(TAG, "Zweitmodell freigeben fehlgeschlagen", e) }
+        }
+    }
+
+    /** T224: Regionsfilter fuer die angezeigte Top-Art des Zweitmodells (nur wenn eine Liste aktiv ist) */
+    private fun secondaryTopPlausible(scientificName: String): Boolean {
+        val c = inferenceWorker.config
+        if (c.regionFilter == null) return true
+        val monthDay = if (c.respectListSeason) ListSeason.monthDay(System.currentTimeMillis()) else null
+        return regionalFilter.isPlausible(scientificName, c.respectListSeason, monthDay)
+    }
+
+    /**
+     * T224: Ergebnis des Zweitmodells in Liste und detections.jsonl uebernehmen (nur Felder secondary*).
+     * Fensterzuordnung: [SecondaryCheck.shouldApply] (bestes Fenster eines Clusters).
+     */
+    private fun applySecondary(
+        window: SecondaryChecker.SecondaryWindow,
+        results: List<Pair<SecondaryChecker.SecondaryWindow.Target, SecondaryCheck.Outcome>>
+    ) {
+        val modelId = (secondary ?: return).modelId  // null = Aufnahme inzwischen beendet
+        val changed = results.mapNotNull { (target, outcome) ->
+            detectionListState.modifyDetection(target.id) { current ->
+                if (SecondaryCheck.shouldApply(current, window.windowStartSec)) SecondaryCheck.apply(current, modelId, outcome) else null
+            }?.id
+        }
+        if (changed.isEmpty() || !session.isActive) return
+        // Zeile erst nach Append/Merge dieses Fensters ersetzen (sonst fehlt sie oder wird ueberschrieben);
+        // eigene Coroutine, damit ein wartender GPS-Fix (T143) die Zweitmodell-Schleife nicht aufhaelt
+        scope.launch(ioDispatcher) {
+            window.persisted.joinAll()
+            for (id in changed) {
+                val latest = detectionListState.getDetections().firstOrNull { it.id == id } ?: continue
+                if (session.isActive) session.replaceDetection(latest)
+            }
+        }
     }
 
     private fun startInference(
@@ -389,6 +480,7 @@ class RecordingPipeline(
         val gpsStats = hooks.stopLocation()
         inferenceJob?.cancel()
         inferenceJob = null
+        stopSecondary()  // T224
         geoJob?.cancel()
         geoJob = null
         // T117: Audio-Rest schreiben, solange die Session noch aktiv ist (endSession folgt
@@ -451,12 +543,14 @@ class RecordingPipeline(
         if (choice.source == DetectionFixPolicy.Source.FRESH) detectionFixes.incrementAndGet()
         for (det in newDetections) {
             // aktuellen Stand holen (Nutzer koennte inzwischen verifiziert haben): nur Positionsfelder setzen
-            val current = detectionListState.getDetections().firstOrNull { it.id == det.id } ?: continue
-            val updated = current.copy(
-                latitude = fix.latitude, longitude = fix.longitude,
-                locationAgeMs = DetectionFixPolicy.ageMs(fix, now), locationAccuracyM = fix.accuracyM
-            )
-            if (detectionListState.updateDetection(updated) && session.isActive) session.replaceDetection(updated)
+            // T224: atomar, damit ein gleichzeitiges Zweitmodell-Ergebnis nicht verloren geht
+            val updated = detectionListState.modifyDetection(det.id) { current ->
+                current.copy(
+                    latitude = fix.latitude, longitude = fix.longitude,
+                    locationAgeMs = DetectionFixPolicy.ageMs(fix, now), locationAccuracyM = fix.accuracyM
+                )
+            } ?: continue
+            if (session.isActive) session.replaceDetection(updated)
         }
     }
 
@@ -497,6 +591,9 @@ class RecordingPipeline(
         // T70: Cluster-Algorithmus
         val newDetections = mutableListOf<DetectionResult>()
         val mergedAnchors = mutableListOf<DetectionResult>()  // T124: auch Merges koennen alarmieren
+        // T224: Ziele des Zweitmodells (Detektion in der Liste + Art) und Persistenz-Jobs dieses Fensters
+        val secondaryTargets = mutableListOf<SecondaryChecker.SecondaryWindow.Target>()
+        val persistJobs = mutableListOf<Job>()
         for (det in geoDetections) {
             // T73: gesperrte Art → Detection verwerfen
             val speciesKey = det.scientificName.replace(' ', '_')
@@ -505,12 +602,16 @@ class RecordingPipeline(
             when (val result = detectionListState.addOrCluster(
                 det, hooks.clusterEnabled(), hooks.clusterRadiusM(), hooks.clusterTimeWindowMin()
             )) {
-                is ClusterResult.New -> newDetections.add(result.detection)
+                is ClusterResult.New -> {
+                    newDetections.add(result.detection)
+                    secondaryTargets += SecondaryChecker.SecondaryWindow.Target(result.detection.id, det.scientificName)
+                }
                 is ClusterResult.Merged -> {
                     mergedAnchors.add(result.anchor)
+                    secondaryTargets += SecondaryChecker.SecondaryWindow.Target(result.anchor.id, det.scientificName)
                     if (session.isActive) {
                         val anchor = result.anchor
-                        scope.launch(ioDispatcher) {
+                        persistJobs += scope.launch(ioDispatcher) {
                             session.replaceDetection(anchor)
                             session.appendVerification(clusterMergedEvent(result, System.currentTimeMillis()))
                         }
@@ -524,7 +625,7 @@ class RecordingPipeline(
 
         // Neue Detektionen in JSONL schreiben (Merges via replaceDetection)
         if (session.isActive && newDetections.isNotEmpty()) {
-            scope.launch(ioDispatcher) {
+            persistJobs += scope.launch(ioDispatcher) {
                 session.appendDetections(newDetections)
                 // T143: erst nach dem Append, damit replaceDetection die Zeile findet
                 refreshFixes(newDetections, loc)
@@ -532,6 +633,9 @@ class RecordingPipeline(
         } else if (newDetections.isNotEmpty()) {
             scope.launch(ioDispatcher) { refreshFixes(newDetections, loc) }
         }
+
+        // T224: Zweitmodell (nur Anzeige) — nach der Hauptinferenz, eigene Coroutine, begrenzte Warteschlange
+        submitSecondary(audioBlock, geoDetections.firstOrNull()?.chunkStartSec, secondaryTargets, persistJobs)
 
         // Embedding-Arm (T61: Embedding aus der Klassifikations-Inference)
         val topDetection = geoDetections.maxByOrNull { it.confidence } ?: return
@@ -544,5 +648,33 @@ class RecordingPipeline(
             }
             if (embedding != null) _embeddingAdded.tryEmit(EmbeddingAdded(embedding, topDetection.scientificName))
         }
+    }
+
+    /** T224: Fenster mit Detektion an das Zweitmodell geben (Ueberlappung des Zweitmodells pro Art) */
+    private fun submitSecondary(
+        audioBlock: AudioBlock,
+        windowStartSec: Float?,
+        targets: List<SecondaryChecker.SecondaryWindow.Target>,
+        persistJobs: List<Job>
+    ) {
+        val checker = secondary ?: return
+        val gate = secondaryGate ?: return
+        if (windowStartSec == null || targets.isEmpty()) return
+        val accepted = targets.filter { gate.accept(it.scientificName, windowStartSec) }
+        if (accepted.isEmpty()) return
+        val pcm = audioBlock.pcm ?: ShortArray(audioBlock.samples.size) { i ->
+            (audioBlock.samples[i] * Short.MAX_VALUE).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+        }
+        checker.submit(
+            SecondaryChecker.SecondaryWindow(
+                pcm = pcm,
+                sampleRate = audioBlock.sampleRate,
+                windowStartSec = windowStartSec,
+                highpass = inferenceWorker.config.highpassEnabled,
+                targets = accepted,
+                persisted = persistJobs
+            )
+        )
     }
 }

@@ -161,7 +161,9 @@ class AndroidPipelineHooks(
     private val sessionManager: SessionManager,
     private val regionalFilter: ch.etasystems.pirol.ml.RegionalSpeciesFilter,  // T157
     private val trackRecorder: ch.etasystems.pirol.location.TrackRecorder,  // T191
-    private val geoFilter: ch.etasystems.pirol.ml.GeoFilterController  // T218
+    private val geoFilter: ch.etasystems.pirol.ml.GeoFilterController,  // T218
+    private val context: Context? = null,  // T224: Zweitmodell
+    private val modelManager: ch.etasystems.pirol.ml.ModelManager? = null  // T224
 ) : PipelineHooks {
     override fun loadInferenceConfig(): InferenceConfig = appPreferences.loadInferenceConfig()
     override fun overlapPercent(): Int = appPreferences.overlapPercent
@@ -230,4 +232,24 @@ class AndroidPipelineHooks(
     }
 
     override suspend fun stopTrack() = trackRecorder.stop()
+
+    /** T224: Sekundaermodell laut Einstellungen (T223) mit eigener ORT-Session; nie das Primaermodell */
+    override fun openSecondaryModel(): SecondaryModel? {
+        val ctx = context ?: return null
+        val mm = modelManager ?: return null
+        val fileName = appPreferences.secondaryModelFileName ?: return null
+        if (fileName == mm.getActiveModelFile()?.name) return null
+        if (mm.getModelFile(fileName) == null) {
+            Log.w("RecordingPipeline", "T224 Zweitmodell $fileName nicht vorhanden")
+            return null
+        }
+        val cls = ch.etasystems.pirol.ml.BirdNetV3Classifier(ctx, mm, null, fileName)
+        if (!cls.isModelAvailable()) return null
+        return SecondaryModel(
+            classifier = cls,
+            threshold = appPreferences.secondaryConfidenceThreshold,
+            overlapPercent = appPreferences.secondaryOverlapPercent,
+            close = { cls.close() }
+        )
+    }
 }
