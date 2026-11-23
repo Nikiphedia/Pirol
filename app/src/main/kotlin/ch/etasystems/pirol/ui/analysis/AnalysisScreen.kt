@@ -728,6 +728,7 @@ private fun SessionDetailContent(
                         pcm = state.zoomPcm,
                         excerptStartSec = zoom?.startSec ?: 0f,
                         posSec = state.playbackPositionSec,
+                        playheadSec = state.playbackPositionSec ?: state.pendingStartSec,
                         settings = settings,
                         spectrumSettings = spectrumSettings,
                         waveformSettings = waveformSettings,

@@ -36,6 +36,7 @@ internal fun AnalysisExcerptView(
     pcm: ExcerptWav.Pcm?,
     excerptStartSec: Float,
     posSec: Float?,
+    playheadSec: Float? = null,  // T211: Zeiger im Oszillogramm (Wiedergabe oder gemerkte Startposition)
     settings: SpectrogramDisplaySettings,
     spectrumSettings: SpectrumSettings,
     waveformSettings: WaveformSettings,
@@ -95,7 +96,8 @@ internal fun AnalysisExcerptView(
                 modifier = modifier,
                 timeOriginSec = excerptStartSec,
                 onSeekFraction = onSeekFraction,
-                showFreeze = false
+                showFreeze = false,
+                playheadSec = playheadSec
             )
         }
     }

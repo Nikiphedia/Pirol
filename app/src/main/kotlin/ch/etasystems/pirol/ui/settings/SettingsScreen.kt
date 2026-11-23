@@ -179,7 +179,7 @@ fun SettingsScreen(
 
     // Multi-Label State (T71)
     var selectedTopK by remember { mutableIntStateOf(appPreferences.topK) }
-    var selectedTopKThreshold by remember { mutableFloatStateOf(appPreferences.topKThreshold) }
+    var selectedConfidence by remember { mutableFloatStateOf(appPreferences.confidenceThreshold) }
 
     // Phenology State (T74)
     val phenologyRepository: PhenologyRepository = koinInject()
@@ -1115,16 +1115,21 @@ fun SettingsScreen(
             Text(stringResource(R.string.settings_erkennung), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // TopK-Detection Slider (T71: Multi-Label)
-            Text(stringResource(R.string.settings_erkennungs_schwelle_topk, (selectedTopKThreshold * 100).roundToInt()))
+            // T211: eine Konfidenz-Schwelle fuer alle Arten (auch die Top-Art)
+            Text(stringResource(R.string.settings_erkennungs_schwelle_topk, (selectedConfidence * 100).roundToInt()))
             Slider(
-                value = selectedTopKThreshold,
+                value = selectedConfidence,
                 onValueChange = {
-                    selectedTopKThreshold = it
-                    appPreferences.topKThreshold = it
+                    selectedConfidence = it
+                    appPreferences.confidenceThreshold = it
                 },
                 valueRange = 0.1f..0.9f,
                 steps = 15  // Schritt 0.05 = 16 Positionen → 15 Schritte zwischen den Endpunkten
+            )
+            Text(
+                text = stringResource(R.string.settings_erkennungs_schwelle_hinweis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1160,7 +1165,7 @@ fun SettingsScreen(
                     InferenceConfig.STRICT to AppStrings.get(R.string.settings_strikt)
                 ).forEach { (preset, label) ->
                     OutlinedButton(onClick = {
-                        selectedTopKThreshold = preset.topKThreshold
+                        selectedConfidence = preset.confidenceThreshold
                         appPreferences.topKThreshold = preset.topKThreshold
                         appPreferences.confidenceThreshold = preset.confidenceThreshold
                         selectedTopK = preset.topK

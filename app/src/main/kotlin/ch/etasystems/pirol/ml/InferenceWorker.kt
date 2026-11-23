@@ -259,7 +259,8 @@ class InferenceWorker(
                 samples = resampled,
                 sampleRate = targetRate,
                 topK = config.topK,
-                threshold = InferenceConfig.effectiveThreshold(config.topKThreshold, classifier.minConfidence)
+                // T211: Kandidatenschwelle nie ueber der Detektionsschwelle
+                threshold = InferenceConfig.effectiveThreshold(minOf(config.topKThreshold, config.confidenceThreshold), classifier.minConfidence)
             )
             embedding = output.embedding
             logUnmappedRegionSpecies()

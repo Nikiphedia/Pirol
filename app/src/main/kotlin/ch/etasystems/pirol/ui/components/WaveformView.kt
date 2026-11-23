@@ -64,7 +64,8 @@ fun WaveformView(
     modifier: Modifier = Modifier,
     timeOriginSec: Float? = null,  // T205: Analyse: absolute Zeitachse ab diesem Zeitpunkt statt "-Ns ... Jetzt"
     onSeekFraction: ((Float) -> Unit)? = null,  // T210: Analyse: Tippen setzt die Wiedergabe (Anteil 0..1 der Zeichenbreite) statt den Cursor
-    showFreeze: Boolean = true
+    showFreeze: Boolean = true,
+    playheadSec: Float? = null  // T211: Analyse: Abspielzeiger (Sekunden auf derselben Achse wie timeOriginSec)
 ) {
     val lightBg = settings.palette.isLight
     val textColor = if (lightBg) Color.Black else Color.White
@@ -204,6 +205,14 @@ fun WaveformView(
                     val cl = measurer.measure(clipLabel, readoutStyle.copy(color = CLIP_COLOR))
                     drawText(cl, topLeft = Offset(leftPad + 6f * density, ty))
                     ty += cl.size.height
+                }
+            }
+            // T211: Abspielzeiger (Cyan auf dunkel, dunkles Tuerkis auf Papier)
+            if (timeOriginSec != null) {
+                val pf = ch.etasystems.pirol.ui.analysis.PlaybackNav.playheadFraction(playheadSec, timeOriginSec, realWindowSec)
+                if (pf != null) {
+                    val px = leftPad + pf * w
+                    drawLine(if (lightBg) Color(0xFF00838F) else Color.Cyan, Offset(px, 0f), Offset(px, h), 2.5f * density)
                 }
             }
             val cf = cursorFrac.floatValue
