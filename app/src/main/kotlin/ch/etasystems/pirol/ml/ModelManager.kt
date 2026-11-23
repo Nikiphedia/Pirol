@@ -68,6 +68,11 @@ class ModelManager(
     /** Fortschritt 0.0-1.0 des laufenden Downloads, null = kein Download aktiv */
     val downloadProgress: StateFlow<Float?> = _downloadProgress
 
+    private val _downloadingFile = MutableStateFlow<String?>(null)
+
+    /** T227: Dateiname des Modells, dessen Download gerade laeuft (null = keiner); fuer das Lade-Symbol in der Modelltabelle */
+    val downloadingFile: StateFlow<String?> = _downloadingFile
+
     /** T121: Grund des letzten fehlgeschlagenen Downloads fuer die UI (null = kein Fehler) */
     @Volatile
     var lastDownloadError: String? = null
@@ -361,10 +366,12 @@ class ModelManager(
         val job = synchronized(downloadLock) {
             activeDownload?.takeIf { it.isActive } ?: downloadScope.async {
                 _downloadProgress.value = 0f
+                _downloadingFile.value = model.fileName
                 try {
                     runDownload(model) { _downloadProgress.value = it }
                 } finally {
                     _downloadProgress.value = null
+                    _downloadingFile.value = null
                 }
             }.also { activeDownload = it }
         }

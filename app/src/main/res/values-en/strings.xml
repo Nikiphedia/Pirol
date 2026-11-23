@@ -733,4 +733,6 @@
     <string name="setup_extra_full">full species card</string>
     <string name="setup_extra_yearly">yearly list</string>
     <string name="setup_start">Start setup</string>
+    <string name="settings_expert_mode">Expert settings</string>
+    <string name="settings_expert_mode_hint">Shows all fine-tuning options. Off: essentials only.</string>
 </resources>
