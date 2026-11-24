@@ -65,7 +65,8 @@ class SessionNoteTest {
             RavenExporter.export(f, emptyList(), "2026-11-18T11:06:57+01:00", sessionNote = "Test\tNotiz")
             val header = f.readLines().first().split("\t")
             assertEquals("Session-Bemerkung", header.last())
-            assertEquals("Corrected Species", header[header.size - 2])
+            assertEquals("Windows", header[header.size - 2])
+            assertEquals("Corrected Species", header[header.size - 4])
 
             RavenExporter.export(f, emptyList(), "2026-11-18T11:06:57+01:00", sessionNote = "  ")
             assertFalse(f.readLines().first().contains("Session-Bemerkung"))

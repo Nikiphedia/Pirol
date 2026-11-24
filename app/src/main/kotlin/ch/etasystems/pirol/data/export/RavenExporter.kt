@@ -3,6 +3,7 @@ package ch.etasystems.pirol.data.export
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.RecordingSegment
 import ch.etasystems.pirol.ml.DetectionResult
+import ch.etasystems.pirol.ui.analysis.DetectionOccurrences
 import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -16,6 +17,8 @@ import java.util.Locale
  *
  * T57-B3: Neue Spalten Begin File (fuer Multi-File-Sessions) und Begin Date Time.
  * T78: Felder per enabledFields-Set selektierbar; Lat/Lon aus DetectionResult.
+ * T259: eine Zeile pro Episode (zusammenhaengende Fenster eines Clusters, [RavenEpisodes]); Spalten
+ * "Cluster" (Anker-Id) und "Windows" (Fensterzahl) hinter "Corrected Species", vor "Session-Bemerkung".
  */
 object RavenExporter {
 
@@ -84,6 +87,7 @@ object RavenExporter {
      * @param enabledFields    Set der aktiven Feld-Keys; null = alle Felder aktiv
      * @param linkMap          Simultan/Moeglich/Gleich-Links pro DetectionId (T85)
      * @param sessionNote      T109: Session-Bemerkung; wenn nicht leer, als letzte Spalte "Session-Bemerkung" (gleicher Wert je Zeile)
+     * @param merges           T259: absorbierte Fenster je Anker-Id (CLUSTER_MERGED); leer = eine Zeile je Detektion
      * @return Anzahl geschriebener Zeilen
      */
     fun export(
@@ -93,7 +97,8 @@ object RavenExporter {
         recordingSegments: List<RecordingSegment>? = null,
         enabledFields: Set<String>? = null,
         linkMap: Map<String, SimultaneousLinkSummary> = emptyMap(),
-        sessionNote: String? = null
+        sessionNote: String? = null,
+        merges: Map<String, List<DetectionOccurrences.MergeInfo>> = emptyMap()
     ): Int {
         val sessionStart = OffsetDateTime.parse(sessionStartedAt)
         fun on(key: String) = enabledFields == null || key in enabledFields
@@ -101,7 +106,7 @@ object RavenExporter {
         // T224: ohne Zweitmodell-Ergebnis bleibt die Datei unveraendert
         val secondary = on(FIELD_SECONDARY) && detections.any { it.secondaryModelId != null }
 
-        outputFile.bufferedWriter(Charsets.UTF_8).use { w ->
+        return outputFile.bufferedWriter(Charsets.UTF_8).use { w ->
             // Kopfzeile: Selection/View/Channel immer; optionale Felder nach Selektion
             val header = mutableListOf("Selection", "View", "Channel")
             if (on(FIELD_BEGIN_FILE))      header += "Begin File"
@@ -120,13 +125,16 @@ object RavenExporter {
             if (secondary) header += listOf("Second Model", "Second Status", "Second Score", "Second Top Species", "Second Top Score", "Second Rank")
             header += "Status"
             header += "Corrected Species"
+            header += "Cluster"
+            header += "Windows"
             if (noteCell.isNotEmpty()) header += "Session-Bemerkung"
             w.appendLine(header.joinToString("\t"))
 
-            detections.forEachIndexed { index, d ->
-                // T186: bestes Fenster des Clusters (identisch mit dem ersten, wenn nie ein besseres kam)
-                val winStart = d.bestWindowStartSec
-                val winEnd = d.bestWindowEndSec
+            var index = 0
+            for (d in detections) for (ep in RavenEpisodes.rows(d, merges[d.id].orEmpty())) {
+                // T259: Episode (Rueckfall T186: bestes Fenster des Clusters); Segment = das des Beginns
+                val winStart = ep.startSec
+                val winEnd = ep.endSec
                 val segment = recordingSegments?.firstOrNull {
                     winStart >= it.startSec && winStart < it.startSec + it.durationSec
                 }
@@ -139,7 +147,8 @@ object RavenExporter {
                     ?: sessionStart.plusSeconds(winStart.toLong())
                 val beginDateTime = detectionTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
-                val row = mutableListOf((index + 1).toString(), VIEW, CHANNEL.toString())
+                index++
+                val row = mutableListOf(index.toString(), VIEW, CHANNEL.toString())
                 if (on(FIELD_BEGIN_FILE))      row += sanitize(beginFile)
                 if (on(FIELD_BEGIN_TIME))      row += String.format(Locale.US, "%.3f", localStart)
                 if (on(FIELD_END_TIME))        row += String.format(Locale.US, "%.3f", localEnd)
@@ -147,7 +156,7 @@ object RavenExporter {
                 if (on(FIELD_HIGH_FREQ))       row += HIGH_FREQ_HZ.toString()
                 if (on(FIELD_BEGIN_DATE_TIME)) row += beginDateTime
                 if (on(FIELD_SPECIES))         { row += sanitize(d.scientificName); row += sanitize(d.commonName) }
-                if (on(FIELD_CONFIDENCE))      row += String.format(Locale.US, "%.3f", d.confidence)
+                if (on(FIELD_CONFIDENCE))      row += ep.confidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
                 if (on(FIELD_LAT))             row += d.latitude?.let  { String.format(Locale.US, "%.6f", it) } ?: ""
                 if (on(FIELD_LON))             row += d.longitude?.let { String.format(Locale.US, "%.6f", it) } ?: ""
                 if (on(FIELD_SIMULTAN))        row += linkMap[d.id]?.simultaneous?.joinToString(",") ?: ""
@@ -163,11 +172,13 @@ object RavenExporter {
                 }
                 row += d.verificationStatus.name
                 row += sanitize(d.correctedSpecies ?: "")
+                row += sanitize(d.id)
+                row += ep.windows.toString()
                 if (noteCell.isNotEmpty()) row += noteCell
                 w.appendLine(row.joinToString("\t"))
             }
+            index
         }
-        return detections.size
     }
 
     /** Tabs/Newlines aus Strings entfernen, damit das TSV-Format nicht bricht. */
