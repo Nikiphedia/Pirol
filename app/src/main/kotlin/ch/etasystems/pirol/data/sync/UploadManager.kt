@@ -35,8 +35,10 @@ class UploadManager(private val context: Context) {
      * Session-Upload in WorkManager einreihen.
      *
      * @param sessionDir Pfad zum Session-Ordner
+     * @param manual T263: vom Nutzer ausgeloest (Auto-Upload = false): nur dann fragt ein Modell ohne Mensch-Klasse nach
+     * @param maskChoice T263: Entscheid aus dem Dialog ([ch.etasystems.pirol.data.export.HumanExportMask.Choice.encode])
      */
-    fun enqueue(sessionDir: File) {
+    fun enqueue(sessionDir: File, manual: Boolean = false, maskChoice: String? = null) {
         val sessionId = sessionDir.name
         UploadStatusHolder.set(UploadStatus.InProgress(sessionId, 0f))
 
@@ -49,7 +51,11 @@ class UploadManager(private val context: Context) {
         val workRequest = OneTimeWorkRequestBuilder<SessionUploadWorker>()
             .setConstraints(constraints)
             .setInputData(
-                workDataOf(SessionUploadWorker.KEY_SESSION_DIR to sessionDir.absolutePath)
+                workDataOf(
+                    SessionUploadWorker.KEY_SESSION_DIR to sessionDir.absolutePath,
+                    SessionUploadWorker.KEY_MANUAL to manual,
+                    SessionUploadWorker.KEY_MASK_CHOICE to (maskChoice ?: "")
+                )
             )
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .addTag("session_upload")

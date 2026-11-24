@@ -97,6 +97,7 @@ internal fun ExportSettingsSection(
                     var ravenMoeglich      by remember { mutableStateOf(appPreferences.ravenFieldMoeglich) }
                     var ravenGleich        by remember { mutableStateOf(appPreferences.ravenFieldGleich) }
                     var ravenSecondary     by remember { mutableStateOf(appPreferences.ravenFieldSecondary) }  // T224
+                    var ravenMemo          by remember { mutableStateOf(appPreferences.ravenFieldMemo) }  // T263
 
                     listOf(
                         Triple("Begin Time (s)",   ravenBeginTime,     { v: Boolean -> ravenBeginTime = v;     appPreferences.ravenFieldBeginTime = v }),
@@ -109,7 +110,8 @@ internal fun ExportSettingsSection(
                         Triple("Begin Date Time",   ravenBeginDateTime, { v: Boolean -> ravenBeginDateTime = v; appPreferences.ravenFieldBeginDateTime = v }),
                         Triple("Lat",               ravenLat,           { v: Boolean -> ravenLat = v;           appPreferences.ravenFieldLat = v }),
                         Triple("Lon",               ravenLon,           { v: Boolean -> ravenLon = v;           appPreferences.ravenFieldLon = v }),
-                        Triple("Second Model",      ravenSecondary,     { v: Boolean -> ravenSecondary = v;     appPreferences.ravenFieldSecondary = v })  // T224
+                        Triple("Second Model",      ravenSecondary,     { v: Boolean -> ravenSecondary = v;     appPreferences.ravenFieldSecondary = v }),  // T224
+                        Triple("Memo",              ravenMemo,          { v: Boolean -> ravenMemo = v;          appPreferences.ravenFieldMemo = v })  // T263
                     ).forEach { (label, checked, onToggle) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),

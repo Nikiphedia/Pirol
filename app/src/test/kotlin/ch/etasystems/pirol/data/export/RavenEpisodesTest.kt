@@ -110,7 +110,7 @@ class RavenEpisodesTest {
             assertEquals(2, n)
             val rows = f.readLines().map { it.split('\t') }
             val h = rows[0]
-            assertEquals(listOf("Corrected Species", "Cluster", "Windows"), h.takeLast(3))
+            assertEquals(listOf("Corrected Species", "Cluster", "Windows", "Memo"), h.takeLast(4))  // T263: Memo hinter Windows
             fun cell(row: Int, name: String) = rows[row][h.indexOf(name)]
             // Episode 1 beginnt in Segment 1 und laeuft ueber die Grenze (55..64)
             assertEquals("recording.wav", cell(1, "Begin File"))

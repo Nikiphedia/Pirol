@@ -64,6 +64,9 @@ class DetectionExporter(
     /** T261: Menschliche Stimmen werden im geteilten Ausschnitt ausgeblendet */
     val masksHumans: Boolean get() = humanMask.enabled
 
+    /** T263: BirdNET-3-Datei fuer den Ersatz-Scan (null = nicht installiert oder Aufnahme laeuft) */
+    fun birdNetScanModelFile(): String? = humanMask.birdNetScanModelFile()
+
 
     /** Formate, die auf diesem Geraet angeboten werden (MP3/FLAC nur mit vorhandenem Encoder). */
     fun availableFormats(): List<ShareFormat> = buildList {
@@ -81,7 +84,8 @@ class DetectionExporter(
     suspend fun export(
         request: DetectionShareRequest,
         format: ShareFormat,
-        onProgress: (Float) -> Unit = {}
+        onProgress: (Float) -> Unit = {},
+        maskChoice: HumanExportMask.Choice = HumanExportMask.Choice.Active
     ): File = withContext(Dispatchers.IO) {
         val det = request.detection
         // T130: Session-Zeitachse ueber alle WAV-Segmente (Ausschnitt darf eine Segmentgrenze queren)
@@ -99,10 +103,11 @@ class DetectionExporter(
                 sessionDir,
                 ch.etasystems.pirol.audio.export.TimeSpan(range.startSec, range.endSec),
                 onProgress = { onProgress(it * 0.5f) },
-                recordingIn = recording
+                recordingIn = recording,
+                choice = maskChoice
             )
         } else null
-        if (humanMask.enabled && sessionDir == null) throw HumanExportMask.UnavailableException()
+        if (humanMask.enabled && sessionDir == null && maskChoice !is HumanExportMask.Choice.Skip) throw HumanExportMask.UnavailableException()
         val startFrame = Math.round(range.startSec.toDouble() * recording.sampleRate)
         val pcm = humanMask.maskPcm(raw, startFrame, plan)
 

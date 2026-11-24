@@ -543,6 +543,13 @@ private fun SessionDetailContent(
     state.humanScanProgress?.let { p ->
         ch.etasystems.pirol.ui.components.HumanScanProgressDialog(p) { viewModel.cancelSaveAs() }
     }
+    // T263: Modell ohne Mensch-Klasse: Entscheid vor dem Export
+    state.pendingMaskChoice?.let {
+        ch.etasystems.pirol.ui.components.HumanMaskChoiceDialog(
+            birdNetModelFile = remember(it) { viewModel.birdNetScanModelFile() },
+            onChoice = { c -> viewModel.resolveMaskChoice(c) }
+        )
+    }
     var showRescanDialog by remember { mutableStateOf(false) }  // T221
     if (showRescanDialog) RescanDialog(viewModel) { showRescanDialog = false }
     // T255: nach einem Fremdaudio-Import den Rescan-Dialog fuer die neue Session oeffnen

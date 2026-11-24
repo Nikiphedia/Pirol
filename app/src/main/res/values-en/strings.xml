@@ -839,4 +839,12 @@
     <string name="human_mask_warnung_text">Exports will then contain conversations and voices of bystanders. Only share such recordings where this is allowed (privacy). You can turn it off for research that needs the original.</string>
     <string name="human_mask_warnung_ausschalten">Turn off</string>
     <string name="human_mask_warnung_behalten">Keep on</string>
+    <string name="human_mask_wahl_titel">Voices cannot be detected</string>
+    <string name="human_mask_wahl_text">The model of this recording does not know human voices. How should the export proceed?</string>
+    <string name="human_mask_wahl_birdnet">Search for humans with BirdNET 3.0</string>
+    <string name="human_mask_wahl_birdnet_info">BirdNET 3.0 scans the recording for voices in a separate run (may take a few minutes) and hides them.</string>
+    <string name="human_mask_wahl_birdnet_fehlt">BirdNET 3.0 is not available (not installed or a recording is running).</string>
+    <string name="human_mask_wahl_ohne">Export without hiding</string>
+    <string name="human_mask_wahl_ohne_warnung">Warning: without hiding, conversations and voices of bystanders stay audible in the export.</string>
+    <string name="live_upload_wartet_entscheid">Upload waiting: voices cannot be detected with the model. Choose at the manual export in Analysis.</string>
 </resources>

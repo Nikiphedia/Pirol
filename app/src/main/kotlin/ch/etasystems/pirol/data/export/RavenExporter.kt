@@ -19,6 +19,7 @@ import java.util.Locale
  * T78: Felder per enabledFields-Set selektierbar; Lat/Lon aus DetectionResult.
  * T259: eine Zeile pro Episode (zusammenhaengende Fenster eines Clusters, [RavenEpisodes]); Spalten
  * "Cluster" (Anker-Id) und "Windows" (Fensterzahl) hinter "Corrected Species", vor "Session-Bemerkung".
+ * T263: Spalte "Memo" (voiceMemoFile) hinter "Windows", vor "Session-Bemerkung"; auf jeder Episoden-Zeile der Detektion.
  */
 object RavenExporter {
 
@@ -37,6 +38,8 @@ object RavenExporter {
     const val FIELD_GLEICH          = "pirol_raven_field_gleich"
     /** T224: Spalten des Zweitmodells (nur wenn mindestens eine Detektion ein Ergebnis hat) */
     const val FIELD_SECONDARY       = "pirol_raven_field_secondary"
+    /** T263: Spalte "Memo" (relativer Pfad memos/<id>.wav der Detektion, auf jeder Episoden-Zeile) */
+    const val FIELD_MEMO            = "pirol_raven_field_memo"
 
     /**
      * T249 (M2): Alle waehlbaren Felder in Spaltenreihenfolge. Einzige Liste fuer Auto-Export (Session-Stopp)
@@ -45,7 +48,7 @@ object RavenExporter {
     val ALL_FIELDS: List<String> = listOf(
         FIELD_BEGIN_FILE, FIELD_BEGIN_TIME, FIELD_END_TIME, FIELD_LOW_FREQ, FIELD_HIGH_FREQ,
         FIELD_BEGIN_DATE_TIME, FIELD_SPECIES, FIELD_CONFIDENCE, FIELD_LAT, FIELD_LON,
-        FIELD_SIMULTAN, FIELD_MOEGLICH, FIELD_GLEICH, FIELD_SECONDARY
+        FIELD_SIMULTAN, FIELD_MOEGLICH, FIELD_GLEICH, FIELD_SECONDARY, FIELD_MEMO
     )
 
     /** T249 (M2): Gewaehlte Felder; [isOn] fragt je Feld-Schluessel die Einstellung ab. */
@@ -68,6 +71,7 @@ object RavenExporter {
             FIELD_MOEGLICH        -> p.ravenFieldMoeglich
             FIELD_GLEICH          -> p.ravenFieldGleich
             FIELD_SECONDARY       -> p.ravenFieldSecondary
+            FIELD_MEMO            -> p.ravenFieldMemo
             else                  -> true
         }
     }
@@ -127,6 +131,7 @@ object RavenExporter {
             header += "Corrected Species"
             header += "Cluster"
             header += "Windows"
+            if (on(FIELD_MEMO)) header += "Memo"
             if (noteCell.isNotEmpty()) header += "Session-Bemerkung"
             w.appendLine(header.joinToString("\t"))
 
@@ -174,6 +179,7 @@ object RavenExporter {
                 row += sanitize(d.correctedSpecies ?: "")
                 row += sanitize(d.id)
                 row += ep.windows.toString()
+                if (on(FIELD_MEMO)) row += sanitize(d.voiceMemoFile.orEmpty())
                 if (noteCell.isNotEmpty()) row += noteCell
                 w.appendLine(row.joinToString("\t"))
             }

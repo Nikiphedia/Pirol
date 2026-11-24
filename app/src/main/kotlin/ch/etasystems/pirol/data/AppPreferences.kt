@@ -479,6 +479,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_raven_field_secondary", true)
         set(v) = prefs.edit().putBoolean("pirol_raven_field_secondary", v).apply()
 
+    // T263: Spalte "Memo" (Pfad der Sprachnotiz)
+    var ravenFieldMemo: Boolean
+        get() = prefs.getBoolean("pirol_raven_field_memo", true)
+        set(v) = prefs.edit().putBoolean("pirol_raven_field_memo", v).apply()
+
     // --- Upload ---
     var wifiOnly: Boolean
         get() = prefs.getBoolean("pirol_wifi_only", true)

@@ -646,6 +646,13 @@ class SessionManager(
         try { readSessionText(sessionDir, ch.etasystems.pirol.audio.export.HumanWindows.FILE) } catch (_: Exception) { null }
     }
 
+    /** T263: Zeitraeume (Wanduhr) der noch vorhandenen, live aufgenommenen Sprachmemos (leer = keine/unbekannt). */
+    suspend fun loadMemoWallSpans(sessionDir: File): List<ch.etasystems.pirol.audio.export.MemoExclusion.WallSpan> =
+        withContext(Dispatchers.IO) {
+            val text = readVerifications(sessionDir, null) ?: return@withContext emptyList()
+            ch.etasystems.pirol.audio.export.MemoExclusion.wallSpans(SessionTextParser.events(text))
+        }
+
     /** T191: Route einer Session aus track.jsonl (leer, wenn keine Spur oder unlesbar). */
     suspend fun loadTrack(sessionDir: File): List<TrackPoint> = withContext(Dispatchers.IO) {
         val text = try { readSessionText(sessionDir, TrackLogic.TRACK_FILE) } catch (_: Exception) { null }

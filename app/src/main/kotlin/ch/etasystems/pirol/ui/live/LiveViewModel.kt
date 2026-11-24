@@ -644,11 +644,17 @@ class LiveViewModel(
                             verifiedAtMs = now, actionType = VerificationEvent.ACTION_NOTE_ADDED))
                     // T69: Memo-Events
                     if (before.voiceMemoFile == null && voiceMemoFile != null) {
+                        // T263: nur die Aufnahme dieser Datei, abgeschlossen und plausibel lang
+                        val memoSpan = voiceMemoRecorder.lastSpan?.takeIf {
+                            it.fileName == voiceMemoFile.substringAfterLast('/') && it.endMs > it.startMs
+                        }
                         sessionManager.appendVerification(VerificationEvent(
                             detectionId, before.verificationStatus,
                             verifiedAtMs = now,
                             actionType = VerificationEvent.ACTION_MEMO_RECORDED,
-                            newValue = voiceMemoFile))
+                            newValue = voiceMemoFile,
+                            // T263: Zeitraum der Memo-Aufnahme (liegt waehrend der Session auch in recording.wav)
+                            memoStartMs = memoSpan?.startMs, memoEndMs = memoSpan?.endMs))
                     }
                     if (before.voiceMemoFile != null && voiceMemoFile == null) {
                         getMemoTargetFile(detectionId)?.takeIf { it.exists() }?.delete()
@@ -1242,6 +1248,7 @@ class LiveViewModel(
                     when (status) {
                         is UploadStatus.Success -> postSnackbar(AppStrings.get(R.string.live_upload_abgeschlossen))
                         is UploadStatus.Failed -> postSnackbar(AppStrings.get(R.string.live_upload_fehlgeschlagen, status.error))
+                        is UploadStatus.AwaitingDecision -> postSnackbar(AppStrings.get(R.string.live_upload_wartet_entscheid))  // T263
                         else -> Unit
                     }
                 }

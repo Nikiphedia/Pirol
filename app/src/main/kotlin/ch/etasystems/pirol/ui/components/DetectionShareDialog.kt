@@ -51,6 +51,39 @@ fun DetectionShareDialog(
     val scope = rememberCoroutineScope()
     // T261: laufender Export (inkl. Mensch-Scan) ist abbrechbar
     var job by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // T263: Modell ohne Mensch-Klasse: Entscheid abfragen
+    var askMaskChoice by remember { mutableStateOf(false) }
+
+    fun runExport(choice: ch.etasystems.pirol.data.export.HumanExportMask.Choice) {
+        busy = true
+        val format = selected
+        job = scope.launch {
+            try {
+                val file = exporter.export(request, format, { progress = it }, choice)
+                exporter.share(file, format)
+                onDismiss()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                busy = false  // T261: abgebrochen, Dialog bleibt offen
+            } catch (e: ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException) {
+                busy = false
+                if (choice is ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) askMaskChoice = true
+                else onError(AppStrings.get(R.string.human_mask_nicht_moeglich))
+            } catch (e: Exception) {
+                busy = false
+                onError(AppStrings.get(R.string.ui_export_fehlgeschlagen, e.message ?: e.javaClass.simpleName))
+            }
+        }
+    }
+
+    if (askMaskChoice) {
+        HumanMaskChoiceDialog(
+            birdNetModelFile = remember { exporter.birdNetScanModelFile() },
+            onChoice = { c ->
+                askMaskChoice = false
+                if (c != null) runExport(c)
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -87,25 +120,7 @@ fun DetectionShareDialog(
         confirmButton = {
             TextButton(
                 enabled = !busy,
-                onClick = {
-                    busy = true
-                    val format = selected
-                    job = scope.launch {
-                        try {
-                            val file = exporter.export(request, format) { progress = it }
-                            exporter.share(file, format)
-                            onDismiss()
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            busy = false  // T261: abgebrochen, Dialog bleibt offen
-                        } catch (e: ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException) {
-                            busy = false
-                            onError(AppStrings.get(R.string.human_mask_nicht_moeglich))
-                        } catch (e: Exception) {
-                            busy = false
-                            onError(AppStrings.get(R.string.ui_export_fehlgeschlagen, e.message ?: e.javaClass.simpleName))
-                        }
-                    }
-                }
+                onClick = { runExport(ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) }
             ) { Text(stringResource(R.string.ui_teilen)) }
         },
         dismissButton = {
