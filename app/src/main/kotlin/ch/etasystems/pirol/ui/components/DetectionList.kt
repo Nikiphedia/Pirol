@@ -20,7 +20,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import ch.etasystems.pirol.ui.live.LiveCardOrder
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,7 +95,26 @@ fun DetectionList(
     // T106: version muss tatsaechlich gelesen werden, sonst beobachtet Compose den Zaehler nicht.
     // Ein unbenutztes "val version by ..." liest den State nie → Liste aktualisierte erst beim Tab-Wechsel.
     val version = detectionState.version.value
-    val detections = remember(version) { detectionState.getDetections() }
+    val allDetections = remember(version) { detectionState.getDetections() }
+    // T265: Anzeige-Reihenfolge hoechstens alle 5 s (neue Karten gesammelt, Top 5 blinken blau)
+    val cardOrder = remember { LiveCardOrder() }
+    var orderedIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(allDetections) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            orderedIds = cardOrder.update(
+                allDetections.map { LiveCardOrder.Entry(it.id, it.lockSpecies, detectionState.lastHitMs(it.id)) },
+                now
+            )
+            val due = cardOrder.nextDueInMs(System.currentTimeMillis()) ?: break
+            delay(due.coerceAtLeast(50L))
+        }
+    }
+    val detections = remember(allDetections, orderedIds) {
+        val byId = allDetections.associateBy { it.id }
+        // Karten, die die Reihenfolge noch nicht kennt (gesammelt), bleiben verborgen
+        orderedIds.mapNotNull { byId[it] }
+    }
     // T178: pro Karte merken, fuer welchen Treffer schon geblinkt wurde (kein State, loest keine Recomposition aus)
     val blinkHandled = remember { HashMap<String, Long>() }
 
@@ -201,7 +225,7 @@ fun DetectionList(
                         onSnackbar = onSnackbar,
                         // T73: Lock-Species
                         onToggleLock = onToggleLock?.let { cb -> { cb(detection.id) } },
-                        blinkSignalMs = detectionState.lastHitMs(detection.id),
+                        blinkSignalMs = cardOrder.blinkSignalMs(detection.id),
                         blinkHandledMs = blinkHandled[detection.id] ?: 0L,
                         onBlinkPlayed = { blinkHandled[detection.id] = it },
                         modifier = Modifier.padding(horizontal = 2.dp)
