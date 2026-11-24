@@ -796,4 +796,15 @@
     <string name="import_fehler_schreiben">Import fehlgeschlagen (Speicherplatz oder Speicherort pruefen)</string>
     <string name="import_hinweis">Laeuft im Hintergrund. Abbrechen loescht die halb importierte Session.</string>
     <string name="svc_import_kanal">Import</string>
+    <!-- T257: Angaben importierter Sessions bearbeiten -->
+    <string name="analysis_angaben_bearbeiten">Angaben bearbeiten</string>
+    <string name="analysis_angaben_titel">Angaben der Session</string>
+    <string name="analysis_angaben_zeit_unveraendert">Startzeit unveraendert</string>
+    <string name="analysis_angaben_differenz">Verschiebung: %1$s</string>
+    <string name="analysis_angaben_zeit_hinweis">Alle Zeiten der Session (Detektionen, Verifikationen, Varianten, Route) werden um diese Differenz verschoben. Positionen in der Aufnahme bleiben.</string>
+    <string name="analysis_angaben_ort_keiner">Ort: keiner</string>
+    <string name="analysis_angaben_ort_hinweis">Gilt fuer die Session und alle Detektionen ohne eigenen GPS-Fix. Auf der Karte verschobene Detektionen bleiben.</string>
+    <string name="analysis_angaben_fehler">Angaben konnten nicht gespeichert werden</string>
+    <string name="analysis_angaben_aufnahme_laeuft">Waehrend der Aufnahme dieser Session nicht moeglich</string>
+    <string name="analysis_angaben_rescan_laeuft">Waehrend eines Rescans nicht moeglich</string>
 </resources>

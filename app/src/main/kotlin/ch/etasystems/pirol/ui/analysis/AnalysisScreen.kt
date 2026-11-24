@@ -504,6 +504,7 @@ private fun SessionDetailContent(
     // T203: Abspielposition beim Oeffnen von "+ Art" (session-relativ), null = keine
     var manualPositionSec by remember { mutableStateOf<Float?>(null) }
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
+    var showInfoDialog by remember { mutableStateOf(false) }  // T257
     var showRescanDialog by remember { mutableStateOf(false) }  // T221
     if (showRescanDialog) RescanDialog(viewModel) { showRescanDialog = false }
     // T255: nach einem Fremdaudio-Import den Rescan-Dialog fuer die neue Session oeffnen
@@ -663,6 +664,16 @@ private fun SessionDetailContent(
                             )
                         }
                     }
+                    // T257: nur importierte Sessions: Startzeit, Ort, Bemerkung bearbeiten
+                    if (session.metadata.importedFrom != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.analysis_angaben_bearbeiten)) },
+                            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                            enabled = state.rescanProgress == null,
+                            onClick = { menuOpen = false; showInfoDialog = true },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.analysis_session_hochladen)) },
                         leadingIcon = { Icon(Icons.Filled.Upload, contentDescription = null) },
@@ -713,6 +724,18 @@ private fun SessionDetailContent(
 
         // T221: Varianten Original | Rescan(s) und Fortschritt
         RescanVariantBar(state, viewModel)
+
+        // T257: Angaben einer importierten Session
+        if (showInfoDialog) {
+            SessionInfoEditDialog(
+                metadata = session.metadata,
+                onDismiss = { showInfoDialog = false },
+                onSave = { start, newLat, newLon, newNote ->
+                    viewModel.updateImportedSessionInfo(start, newLat, newLon, newNote)
+                    showInfoDialog = false
+                }
+            )
+        }
 
         // T109: Session-Bemerkung (editierbar, T254: Bearbeiten ueber die Kopfzeile)
         if (showNoteDialog) {

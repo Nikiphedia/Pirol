@@ -795,4 +795,15 @@
     <string name="import_fehler_schreiben">Import failed (check free space or storage location)</string>
     <string name="import_hinweis">Runs in the background. Cancelling deletes the partially imported session.</string>
     <string name="svc_import_kanal">Import</string>
+    <!-- T257: Edit details of imported sessions -->
+    <string name="analysis_angaben_bearbeiten">Edit details</string>
+    <string name="analysis_angaben_titel">Session details</string>
+    <string name="analysis_angaben_zeit_unveraendert">Start time unchanged</string>
+    <string name="analysis_angaben_differenz">Shift: %1$s</string>
+    <string name="analysis_angaben_zeit_hinweis">All times of the session (detections, verifications, variants, route) are shifted by this difference. Positions in the recording stay.</string>
+    <string name="analysis_angaben_ort_keiner">Location: none</string>
+    <string name="analysis_angaben_ort_hinweis">Applies to the session and all detections without their own GPS fix. Detections moved on the map stay.</string>
+    <string name="analysis_angaben_fehler">Details could not be saved</string>
+    <string name="analysis_angaben_aufnahme_laeuft">Not possible while this session is recording</string>
+    <string name="analysis_angaben_rescan_laeuft">Not possible while a rescan is running</string>
 </resources>

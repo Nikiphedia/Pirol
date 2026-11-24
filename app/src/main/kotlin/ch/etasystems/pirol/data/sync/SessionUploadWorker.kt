@@ -39,6 +39,19 @@ class SessionUploadWorker(
         /** T234: prozessweites Schloss fuer "Zielname waehlen + merken" (parallele Worker) */
         private val nameLock = Any()
         private const val CHOOSE_ATTEMPTS = 5
+
+        /**
+         * T250/N5: gemerkte Namen der Session entfernen (nach Erfolg/Aufgabe; die Datei im Ziel haelt den Namen belegt).
+         * T257: auch nach "Angaben bearbeiten" (neuer Startzeit-/Bemerkungs-Name beim naechsten Upload).
+         */
+        fun forgetExportNames(context: Context, sessionId: String) {
+            val store = context.getSharedPreferences("pirol_export_names", Context.MODE_PRIVATE)
+            synchronized(nameLock) {
+                val edit = store.edit()
+                store.all.keys.filter { it.startsWith("$sessionId|") }.forEach { edit.remove(it) }
+                edit.commit()
+            }
+        }
     }
 
     override suspend fun doWork(): Result {
@@ -169,15 +182,7 @@ class SessionUploadWorker(
         return fallback
     }
 
-    /** T250/N5: gemerkte Namen der Session entfernen (nach Erfolg/Aufgabe; die Datei im Ziel haelt den Namen belegt) */
-    private fun forgetNames(sessionId: String) {
-        val store = applicationContext.getSharedPreferences("pirol_export_names", Context.MODE_PRIVATE)
-        synchronized(nameLock) {
-            val edit = store.edit()
-            store.all.keys.filter { it.startsWith("$sessionId|") }.forEach { edit.remove(it) }
-            edit.commit()
-        }
-    }
+    private fun forgetNames(sessionId: String) = forgetExportNames(applicationContext, sessionId)
 
     private fun record(prefs: AppPreferences, text: String) {
         prefs.lastUploadTimeMs = System.currentTimeMillis()
