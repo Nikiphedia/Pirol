@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.settings
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import ch.etasystems.pirol.ui.settings.sections.LanguageSettingsSection
 import ch.etasystems.pirol.ui.settings.sections.RecordingSettingsSection
 import ch.etasystems.pirol.ui.settings.sections.ModelSettingsSection
@@ -113,7 +115,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedButton(
             onClick = onStartSetup,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            modifier = Modifier.helpTopic(R.string.help_settings_setup, "1").fillMaxWidth().heightIn(min = 48.dp)
         ) { Text(stringResource(R.string.setup_start)) }
         Spacer(modifier = Modifier.height(12.dp))
         // T227: Einfach/Experte; Experte zeigt zusaetzlich alle Feineinstellungen
@@ -129,7 +131,11 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(checked = expert, onCheckedChange = { expert = it; appPreferences.expertMode = it })
+            Switch(
+                checked = expert,
+                onCheckedChange = { expert = it; appPreferences.expertMode = it },
+                modifier = Modifier.helpTopic(R.string.help_settings_expert, "17")
+            )
         }
         Spacer(modifier = Modifier.height(12.dp))
         LanguageSettingsSection(appPreferences, speciesNameResolver)

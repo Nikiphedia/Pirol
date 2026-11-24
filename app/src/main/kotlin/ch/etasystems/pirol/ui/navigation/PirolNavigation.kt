@@ -47,6 +47,12 @@ import ch.etasystems.pirol.ui.onboarding.OnboardingScreen
 import ch.etasystems.pirol.ui.reference.ReferenceScreen
 import ch.etasystems.pirol.ui.settings.SettingsScreen
 import org.koin.compose.koinInject
+import ch.etasystems.pirol.ui.help.HelpModeBar
+import ch.etasystems.pirol.ui.help.LocalHelpMode
+import ch.etasystems.pirol.ui.help.helpTopic
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 
 @Composable
 fun PirolNavHost(
@@ -55,6 +61,7 @@ fun PirolNavHost(
     playback: ch.etasystems.pirol.audio.PlaybackController = koinInject()
 ) {
     val navController = rememberNavController()
+    val helpState = LocalHelpMode.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     // T173: Beim Wechsel/Verlassen eines Tabs laeuft keine Wiedergabe weiter
@@ -135,6 +142,7 @@ fun PirolNavHost(
                                         if (selected) androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer
                                         else Color.Transparent
                                     )
+                                    .helpTopic(screen.helpRes, screen.manualChapter)
                                     .selectable(
                                         selected = selected,
                                         role = Role.Tab,
@@ -150,6 +158,29 @@ fun PirolNavHost(
                                 )
                             }
                         }
+                        // T266: "?" unter Einstellungen (Umschalter, kein Ziel)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (helpState.active) androidx.compose.material3.MaterialTheme.colorScheme.tertiaryContainer
+                                    else Color.Transparent
+                                )
+                                .selectable(
+                                    selected = helpState.active,
+                                    role = Role.Switch,
+                                    onClick = { helpState.onHelpButtonTap() }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.HelpOutline,
+                                contentDescription = stringResource(ch.etasystems.pirol.R.string.help_button),
+                                tint = if (helpState.active) androidx.compose.material3.MaterialTheme.colorScheme.onTertiaryContainer
+                                else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {
@@ -162,11 +193,21 @@ fun PirolNavHost(
                         icon = { Icon(screen.icon, contentDescription = stringResource(screen.labelRes)) },
                         label = { Text(stringResource(screen.labelRes)) },
                         selected = selected,
-                        onClick = { navigateToScreen(screen) }
+                        onClick = { navigateToScreen(screen) },
+                        modifier = Modifier.helpTopic(screen.helpRes, screen.manualChapter)
                     )
                 }
+                // T266: "?" unter Einstellungen; leuchtet, solange der Hilfemodus an ist
+                NavigationRailItem(
+                    icon = { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = stringResource(ch.etasystems.pirol.R.string.help_button)) },
+                    label = { Text(stringResource(ch.etasystems.pirol.R.string.help_button_label)) },
+                    selected = helpState.active,
+                    onClick = { helpState.onHelpButtonTap() }
+                )
             }
             }
+            Column(modifier = Modifier.weight(1f)) {
+            HelpModeBar(helpState)
             NavHost(
                 navController = navController,
                 startDestination = startDestination,
@@ -186,6 +227,7 @@ fun PirolNavHost(
                 composable(Screen.Reference.route) { ReferenceScreen() }
                 composable(Screen.Map.route) { MapScreen() }
                 composable(Screen.Settings.route) { SettingsScreen(onStartSetup = { navController.navigate(ONBOARDING_ROUTE) }) }
+            }
             }
         }
     } else {
@@ -212,6 +254,7 @@ fun PirolNavHost(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
+                                    .helpTopic(screen.helpRes, screen.manualChapter)
                                     .selectable(
                                         selected = selected,
                                         role = Role.Tab,
@@ -239,14 +282,47 @@ fun PirolNavHost(
                                 }
                             }
                         }
+                        // T266: eigener Tab "?" ganz rechts (Umschalter, kein Ziel)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .selectable(
+                                    selected = helpState.active,
+                                    role = Role.Switch,
+                                    onClick = { helpState.onHelpButtonTap() }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .width(56.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (helpState.active) androidx.compose.material3.MaterialTheme.colorScheme.tertiaryContainer
+                                        else Color.Transparent
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.HelpOutline,
+                                    contentDescription = stringResource(ch.etasystems.pirol.R.string.help_button),
+                                    tint = if (helpState.active) androidx.compose.material3.MaterialTheme.colorScheme.onTertiaryContainer
+                                    else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
         ) { innerPadding ->
+            Column(modifier = Modifier.padding(innerPadding)) {
+            HelpModeBar(helpState)
             NavHost(
                 navController = navController,
                 startDestination = startDestination,
-                modifier = Modifier.padding(innerPadding)
+                modifier = Modifier.weight(1f)
             ) {
                 composable(ONBOARDING_ROUTE) {
                     OnboardingScreen(
@@ -262,6 +338,7 @@ fun PirolNavHost(
                 composable(Screen.Reference.route) { ReferenceScreen() }
                 composable(Screen.Map.route) { MapScreen() }
                 composable(Screen.Settings.route) { SettingsScreen(onStartSetup = { navController.navigate(ONBOARDING_ROUTE) }) }
+            }
             }
         }
     }

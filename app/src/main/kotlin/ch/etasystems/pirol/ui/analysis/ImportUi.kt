@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.analysis
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -68,7 +70,7 @@ fun ImportMenuButton(viewModel: AnalysisViewModel, enabled: Boolean) {
         if (uris.isNotEmpty()) viewModel.probeAudioImport(uris)
     }
     Box {
-        IconButton(onClick = { open = true }, enabled = enabled, modifier = Modifier.size(48.dp)) {
+        IconButton(onClick = { open = true }, enabled = enabled, modifier = Modifier.helpTopic(R.string.help_analysis_import, "5").size(48.dp)) {
             Icon(Icons.Filled.FileDownload, contentDescription = stringResource(R.string.import_menu))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

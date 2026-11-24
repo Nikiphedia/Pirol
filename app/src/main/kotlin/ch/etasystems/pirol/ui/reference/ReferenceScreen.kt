@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.reference
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -270,7 +272,7 @@ private fun SpeciesListView(
         FilledTonalButton(
             onClick = onImport,
             enabled = !isImporting,
-            modifier = Modifier.heightIn(min = 48.dp)
+            modifier = Modifier.helpTopic(R.string.help_reference_import, "9").heightIn(min = 48.dp)
         ) {
             if (isImporting) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -347,6 +349,7 @@ private fun SpeciesListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .helpTopic(R.string.help_reference_species, "9")
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -431,7 +434,7 @@ private fun RecordingsListView(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = onBack, modifier = Modifier.helpTopic(R.string.help_reference_back, "9")) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.common_back)
@@ -567,7 +570,7 @@ private fun RecordingCard(
                     if (isPlaying) {
                         IconButton(
                             onClick = onStop,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.helpTopic(R.string.help_reference_play, "9").size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Stop,
@@ -584,7 +587,7 @@ private fun RecordingCard(
                     } else {
                         IconButton(
                             onClick = onPlay,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.helpTopic(R.string.help_reference_play, "9").size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.PlayArrow,
@@ -596,7 +599,7 @@ private fun RecordingCard(
                 }
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.helpTopic(R.string.help_reference_delete, "9").size(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Delete,

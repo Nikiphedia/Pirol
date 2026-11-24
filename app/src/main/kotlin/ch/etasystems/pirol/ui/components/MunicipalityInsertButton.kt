@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import android.widget.Toast
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -82,14 +84,14 @@ fun MunicipalityInsertButton(
     }
 
     if (iconOnly) {
-        IconButton(onClick = onClick, enabled = !busy, modifier = Modifier.size(48.dp)) {
+        IconButton(onClick = onClick, enabled = !busy, modifier = Modifier.helpTopic(R.string.help_municipality, "8").size(48.dp)) {
             Icon(Icons.Filled.LocationCity, contentDescription = stringResource(R.string.ui_gemeinde_einfuegen))
         }
     } else {
         OutlinedButton(
             onClick = onClick,
             enabled = !busy,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp)
+            modifier = Modifier.helpTopic(R.string.help_municipality, "8").fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp)
         ) {
             Icon(Icons.Filled.LocationCity, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))

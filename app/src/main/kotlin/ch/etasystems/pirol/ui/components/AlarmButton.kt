@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
@@ -69,7 +71,7 @@ fun AlarmButton(detection: DetectionResult) {
     androidx.compose.foundation.layout.Box {
         IconButton(
             onClick = { menuOpen = true },
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.helpTopic(R.string.help_card_alarm, "10").size(48.dp),
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = if (entry != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                 contentColor = if (entry != null) MaterialTheme.colorScheme.onPrimaryContainer

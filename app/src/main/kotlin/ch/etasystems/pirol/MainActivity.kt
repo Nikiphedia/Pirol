@@ -67,11 +67,16 @@ class MainActivity : AppCompatActivity() {
             PirolTheme {
                 val windowSizeClass = calculateWindowSizeClass(this)
                 // Themed Hintergrund fuer alle Screens (Tablet-Layout hat kein Scaffold)
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        PirolNavHost(windowSizeClass = windowSizeClass)
-                        AlarmOverlay()  // T124: Watchlist-Alarm ueber allen Tabs
-                        WhatsNewHost()
+                // T266: app-weiter Hilfemodus ("?"-Knopf) und Anleitung offline
+                val helpState = androidx.compose.runtime.remember { ch.etasystems.pirol.ui.help.HelpModeState() }
+                androidx.compose.runtime.CompositionLocalProvider(ch.etasystems.pirol.ui.help.LocalHelpMode provides helpState) {
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            PirolNavHost(windowSizeClass = windowSizeClass)
+                            ch.etasystems.pirol.ui.help.HelpOverlays(helpState)
+                            AlarmOverlay()  // T124: Watchlist-Alarm ueber allen Tabs
+                            WhatsNewHost()
+                        }
                     }
                 }
             }

@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.settings
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -43,6 +45,7 @@ internal fun SettingsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
+                    .then(sectionHelp(sectionKey)?.let { (res, ch) -> Modifier.helpTopic(res, ch) } ?: Modifier)
                     .clickable {
                         expanded = !expanded
                         appPreferences.setSettingsSectionExpanded(sectionKey, expanded)
@@ -82,6 +85,7 @@ internal fun SettingsAdvancedBlock(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
+                .helpTopic(R.string.help_settings_advanced, "17")
                 .clickable {
                     expanded = !expanded
                     appPreferences.setSettingsSectionExpanded(sectionKey, expanded)
@@ -104,4 +108,17 @@ internal fun SettingsAdvancedBlock(
             }
         }
     }
+}
+
+/** T266: Hilfetext und Anleitungskapitel je Einstellungs-Sektion (Kopfzeile im Hilfemodus) */
+internal fun sectionHelp(sectionKey: String): Pair<Int, String>? = when (sectionKey) {
+    "lang" -> R.string.help_settings_language to "16"
+    "s_rec" -> R.string.help_settings_recording to "17"
+    "s_model" -> R.string.help_settings_model to "13"
+    "s_species" -> R.string.help_settings_species to "11"
+    "s_display" -> R.string.help_settings_display to "3"
+    "s_geo" -> R.string.help_settings_map_gps to "14"
+    "s_export" -> R.string.help_settings_export to "7"
+    "s_info" -> R.string.help_settings_info to "17"
+    else -> null
 }

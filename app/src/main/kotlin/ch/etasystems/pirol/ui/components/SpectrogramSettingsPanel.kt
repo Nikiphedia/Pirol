@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -83,7 +85,7 @@ fun SpectrogramSettingsPanel(
             if (showDisplayMode) LiveDisplayModeChips(repository, settings)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_display_presets, "3")
             ) {
                 SpectrogramPreset.entries.forEach { preset ->
                     FilterChip(
@@ -105,6 +107,7 @@ fun SpectrogramSettingsPanel(
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
+                    modifier = Modifier.helpTopic(R.string.help_display_auto_contrast, "3"),
                     checked = settings.autoContrast,
                     onCheckedChange = { v -> repository.update { it.copy(autoContrast = v) } }
                 )
@@ -117,6 +120,7 @@ fun SpectrogramSettingsPanel(
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
+                modifier = Modifier.helpTopic(R.string.help_display_gamma, "3"),
                 value = settings.gamma,
                 onValueChange = { v -> repository.update { it.copy(gamma = v) } },
                 valueRange = 0.3f..1f
@@ -131,6 +135,7 @@ fun SpectrogramSettingsPanel(
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
+                modifier = Modifier.helpTopic(R.string.help_display_ceiling, "3"),
                 value = settings.ceilingDb,
                 onValueChange = { v -> repository.update { it.copy(ceilingDb = v) } },
                 valueRange = -80f..0f  // T199: dBFS
@@ -142,6 +147,7 @@ fun SpectrogramSettingsPanel(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Slider(
+                    modifier = Modifier.helpTopic(R.string.help_display_window, "3"),
                     value = settings.windowSec,
                     onValueChange = { v -> repository.update { it.copy(windowSec = v) } },
                     valueRange = 5f..30f
@@ -158,7 +164,7 @@ fun LiveDisplayModeChips(repository: SpectrogramSettingsRepository, settings: Sp
     Text(stringResource(R.string.display_mode_title), style = MaterialTheme.typography.bodySmall)
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_display_mode, "3")
     ) {
         LiveDisplayMode.entries.forEach { m ->
             FilterChip(
