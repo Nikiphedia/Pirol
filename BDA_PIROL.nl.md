@@ -2,7 +2,7 @@
 
 Akoestische soortherkenning in realtime voor Android, bedoeld voor veldwerk.
 
-*Geldt vanaf versie v0.1.2 (in ontwikkeling, stand 2026-11-24). Wat er tussen de versies is veranderd, staat in `CHANGELOG.md`.*
+*Geldt vanaf versie v0.1.2 (stand 2026-11-24). Wat er tussen de versies is veranderd, staat in `CHANGELOG.md`.*
 
 De app heeft vijf tabbladen: **Live**, **Analyse**, **Referenties**, **Kaart** en **Instellingen**. De knop **?** (Hulp) is geen tabblad: één tik zet de hulpmodus aan, een dubbeltik opent deze handleiding (hoofdstuk 1, onderdeel "Hulpknop").
 
@@ -406,7 +406,7 @@ De schakelaar **Expertinstellingen** (onder "Installatie starten") verbergt in d
 
 De volledige lijst staat in `CHANGELOG.md` in het project.
 
-### Versie 0.1.2 (in ontwikkeling)
+### Versie 0.1.2
 - Gegevens van geïmporteerde sessies (begintijd, locatie, opmerking) achteraf bewerken (hoofdstuk 5)
 - "Opslaan als" als ZIP of map (hoofdstuk 6)
 - Raven: één regel per episode, nieuwe kolommen `Cluster`, `Windows` en `Memo` (hoofdstuk 6, 7)
@@ -420,4 +420,4 @@ De volledige lijst staat in `CHANGELOG.md` in het project.
 
 ---
 
-*PIROL v0.1.2 (in ontwikkeling) — ETA Systems — stand 2026-11-24*
+*PIROL v0.1.2 — ETA Systems — stand 2026-11-24*

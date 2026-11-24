@@ -622,15 +622,15 @@
     <string name="settings_whats_new_button">Nouveautés</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Groupes d\'espèces : oiseaux, orthoptères, amphibiens, mammifères et autres, chacun en Désactivé / Tout / Auto / Liste. À vérifier : les anciens filtres sont sur Oiseaux Auto, le reste désactivé</item>
-        <item>Le modèle secondaire (p. ex. Perch ou BirdNET 2.4) affiche pour chaque espèce le pourcentage et le rang</item>
-        <item>Cloche d\'alarme sur la fiche espèce : en permanence ou pendant 24 h</item>
-        <item>Bouton compact : fiches espèces compactes ou détaillées, aussi dans l\'analyse</item>
-        <item>Assistant de configuration au premier démarrage ; réglages avec l\'interrupteur « Réglages experts »</item>
-        <item>Analyse : réanalyse avec modèle, liste et seuil en arrière-plan ; import audio (WAV, FLAC, MP3, M4A)</item>
-        <item>Épisodes partageables un par un ; en-tête avec commune et remarque</item>
-        <item>Noms d\'export avec heure et remarque, p. ex. 202604201430_Amsel_Garten.wav</item>
-        <item>Carte : boutons de zoom plus grands ; enregistrement et téléversement plus robustes</item>
+        <item>Raven : une ligne par épisode, nouvelle colonne Mémo</item>
+        <item>Réanalyse et import : résultats visibles et vérifiables en continu ; l\'annulation conserve le résultat partiel</item>
+        <item>Modifier après coup les données des sessions importées ; enregistrer sous en ZIP ou dossier</item>
+        <item>Les voix humaines sont masquées dans l\'export (activé par défaut)</item>
+        <item>Mémo de session par appui prolongé ; bloc Mémos dans l\'analyse</item>
+        <item>Fiches espèces live plus calmes : changement au plus toutes les 5 s, les résultats du top 5 clignotent en bleu</item>
+        <item>Bouton d\'aide « ? » : mode d\'aide et mode d\'emploi hors ligne</item>
+        <item>Commune via Google uniquement en option, désactivé par défaut</item>
+        <item>Application entièrement traduite : français, italien, catalan, portugais, néerlandais, suisse allemand bernois (ébauche)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Le dossier cible se trouve dans le dossier PIROL. Choisis un dossier extérieur ; rien n\'a été déplacé.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Le dossier cible est l\'enregistrement sélectionné lui-même ou son dossier. Rien n\'a été déplacé.</string>

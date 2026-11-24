@@ -622,15 +622,15 @@
     <string name="settings_whats_new_button">Novetats</string>
     <string name="settings_info_version">Versió %1$s</string>
     <string-array name="whats_new_items">
-        <item>Grups d\'espècies: ocells, ortòpters, amfibis, mamífers i altres, cadascun Apagat / Tot / Auto / Llista. Cal revisar: els filtres antics són Ocells Auto, la resta Apagat</item>
-        <item>Un segon model (p. ex. Perch o BirdNET 2.4) mostra per espècie percentatge i rang</item>
-        <item>Campana d\'alarma a la fitxa d\'espècie: permanent o durant 24 h</item>
-        <item>Botó compacte: fitxes d\'espècie compactes o detallades, també a l\'anàlisi</item>
-        <item>Assistent de configuració en el primer inici; configuració amb l\'interruptor «Configuració experta»</item>
-        <item>Anàlisi: la reanàlisi amb model, llista i llindar s\'executa en segon pla; importació d\'àudio (WAV, FLAC, MP3, M4A)</item>
-        <item>Comparteix els episodis per separat; capçalera amb municipi i observació</item>
-        <item>Noms d\'exportació amb hora i observació, p. ex. 202604201430_Merla_Jardi.wav</item>
-        <item>Mapa: botons de zoom més grans; desar i pujar més robustos</item>
+        <item>Raven: una fila per episodi, nova columna Memo</item>
+        <item>Reanàlisi i importació: resultats visibles i verificables mentre arriben; la cancel·lació conserva el resultat parcial</item>
+        <item>Editar després les dades de les sessions importades; desar com a ZIP o carpeta</item>
+        <item>Les veus humanes s\'amaguen a l\'exportació (activat per defecte)</item>
+        <item>Memo de sessió mantenint premut; bloc Memos a l\'anàlisi</item>
+        <item>Fitxes d\'espècie en directe més calmades: canvi com a màxim cada 5 s, els resultats del top 5 parpellegen en blau</item>
+        <item>Botó d\'ajuda «?»: mode d\'ajuda i manual fora de línia</item>
+        <item>Municipi via Google només com a opció, desactivat per defecte</item>
+        <item>Aplicació totalment traduïda: francès, italià, català, portuguès, neerlandès, suís alemany bernès (esborrany)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">La carpeta de destinació és dins de l\'arxiu de PIROL. Tria una carpeta fora d\'ella; no s\'ha mogut res.</string>
     <string name="analysis_batch_ziel_gleich_quelle">La carpeta de destinació és la mateixa gravació seleccionada o la seva carpeta. No s\'ha mogut res.</string>

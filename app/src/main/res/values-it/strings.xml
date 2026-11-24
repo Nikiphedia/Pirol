@@ -622,15 +622,15 @@
     <string name="settings_whats_new_button">Novità</string>
     <string name="settings_info_version">Versione %1$s</string>
     <string-array name="whats_new_items">
-        <item>Gruppi di specie: uccelli, ortotteri, anfibi, mammiferi e altro, ciascuno su Disattivato / Tutte / Auto / Elenco. Da verificare: i vecchi filtri sono su Uccelli Auto, il resto disattivato</item>
-        <item>Il modello secondario (ad es. Perch o BirdNET 2.4) mostra per ogni specie percentuale e posizione in classifica</item>
-        <item>Campanella d\'allarme sulla scheda specie: permanente o per 24 h</item>
-        <item>Pulsante compatto: schede specie compatte o dettagliate, anche nell\'analisi</item>
-        <item>Procedura guidata di configurazione al primo avvio; impostazioni con l\'interruttore «Impostazioni esperto»</item>
-        <item>Analisi: riesame con modello, elenco e soglia in background; importazione audio (WAV, FLAC, MP3, M4A)</item>
-        <item>Condivisione singola degli episodi; intestazione con comune e nota</item>
-        <item>Nomi di esportazione con ora e nota, ad es. 202604201430_Amsel_Garten.wav</item>
-        <item>Mappa: pulsanti di zoom più grandi; salvataggio e caricamento più robusti</item>
+        <item>Raven: una riga per episodio, nuova colonna Memo</item>
+        <item>Riesame e importazione: risultati visibili e verificabili in corso d\'opera; l\'annullamento conserva il risultato parziale</item>
+        <item>Modificare in seguito i dati delle sessioni importate; salva con nome come ZIP o cartella</item>
+        <item>Le voci umane vengono nascoste nell\'esportazione (attivo per impostazione predefinita)</item>
+        <item>Memo di sessione tenendo premuto; blocco Memo nell\'analisi</item>
+        <item>Schede specie live più calme: cambio al massimo ogni 5 s, i risultati nella top 5 lampeggiano in blu</item>
+        <item>Pulsante guida «?»: modalità guida e manuale offline</item>
+        <item>Comune tramite Google solo come opzione, disattivato per impostazione predefinita</item>
+        <item>App completamente tradotta: francese, italiano, catalano, portoghese, olandese, svizzero tedesco bernese (bozza)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">La cartella di destinazione si trova nell\'archivio PIROL. Scegli una cartella esterna; nulla è stato spostato.</string>
     <string name="analysis_batch_ziel_gleich_quelle">La cartella di destinazione è la registrazione selezionata stessa o la sua cartella. Nulla è stato spostato.</string>

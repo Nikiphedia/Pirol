@@ -623,15 +623,15 @@
     <string name="settings_whats_new_button">Wat is nieuw</string>
     <string name="settings_info_version">Versie %1$s</string>
     <string-array name="whats_new_items">
-        <item>Soortgroepen: Vogels, Sprinkhanen, Amfibieën, Zoogdieren en Overige elk Uit / Alle / Auto / Lijst. Controleer: oude filters staan op Vogels Auto, rest Uit</item>
-        <item>Tweede model (bijv. Perch of BirdNET 2.4) toont per soort procent en rang</item>
-        <item>Alarmbel op de soortkaart: blijvend of voor 24 u</item>
-        <item>Compact-knop: soortkaarten compact of uitgebreid, ook in de analyse</item>
-        <item>Installatieassistent bij de eerste start; instellingen met schakelaar \"Expertinstellingen\"</item>
-        <item>Analyse: opnieuw analyseren met model, lijst en drempel draait op de achtergrond; audio-import (WAV, FLAC, MP3, M4A)</item>
-        <item>Episodes afzonderlijk delen; koptekst met gemeente en opmerking</item>
-        <item>Exportbestandsnamen met tijd en opmerking, bijv. 202604201430_Amsel_Garten.wav</item>
-        <item>Kaart: grotere zoomknoppen; opslaan en uploaden robuuster</item>
+        <item>Raven: één regel per episode, nieuwe kolom Memo</item>
+        <item>Opnieuw analyseren en import: resultaten direct zichtbaar en controleerbaar; annuleren behoudt het deelresultaat</item>
+        <item>Gegevens van geïmporteerde sessies achteraf bewerken; opslaan als ZIP of map</item>
+        <item>Menselijke stemmen worden in de export verborgen (standaard aan)</item>
+        <item>Sessiememo door ingedrukt te houden; blok Memo\'s in de analyse</item>
+        <item>Rustigere live-soortkaarten: wisseling hooguit elke 5 s, treffers in de top 5 knipperen blauw</item>
+        <item>Hulpknop "?": hulpmodus en handleiding offline</item>
+        <item>Gemeente via Google alleen nog als optie, standaard uit</item>
+        <item>App volledig vertaald: Frans, Italiaans, Catalaans, Portugees, Nederlands, Berndeutsch (concept)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">De doelmap staat in de PIROL-opslag. Kies een map buiten die opslag; er is niets verplaatst.</string>
     <string name="analysis_batch_ziel_gleich_quelle">De doelmap is de gekozen opname zelf of de map ervan. Er is niets verplaatst.</string>

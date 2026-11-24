@@ -2,7 +2,7 @@
 
 Real-time acoustic species recognition for Android, designed for field work.
 
-*Applies from version v0.1.2 (in progress, status 2026-11-24). What has changed between versions is listed in `CHANGELOG.md`.*
+*Applies from version v0.1.2 (status 2026-11-24). What has changed between versions is listed in `CHANGELOG.md`.*
 
 The app has five tabs: **Live**, **Analysis**, **References**, **Map** and **Settings**. The **?** (Help) button is not a tab: one tap turns help mode on, a double-tap opens this manual (chapter 1, section "Help button").
 
@@ -406,7 +406,7 @@ The switch **Expert settings** (under "Start setup") hides everything rare in th
 
 The complete list is in `CHANGELOG.md` in the project.
 
-### Version 0.1.2 (in progress)
+### Version 0.1.2
 - Edit details of imported sessions (start time, location, note) afterwards (chapter 5)
 - "Save as" as ZIP or folder (chapter 6)
 - Raven: one row per episode, new columns `Cluster`, `Windows` and `Memo` (chapters 6, 7)
@@ -420,4 +420,4 @@ The complete list is in `CHANGELOG.md` in the project.
 
 ---
 
-*PIROL v0.1.2 (in progress) — ETA Systems — status 2026-11-24*
+*PIROL v0.1.2 — ETA Systems — status 2026-11-24*

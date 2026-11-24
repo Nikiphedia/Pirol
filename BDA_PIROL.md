@@ -2,7 +2,7 @@
 
 Akustische Echtzeit-Artenerkennung für Android, gedacht für die Feldarbeit.
 
-*Gilt ab Version v0.1.2 (in Arbeit, Stand 2026-11-24). Was sich zwischen den Versionen geändert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.1.2 (Stand 2026-11-24). Was sich zwischen den Versionen geändert hat, steht in `CHANGELOG.md`.*
 
 Die App hat fünf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**. Der Knopf **?** (Hilfe) ist kein Tab: Ein Tipp schaltet den Hilfemodus ein, ein Doppeltipp öffnet diese Anleitung (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
@@ -406,7 +406,7 @@ Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im 
 
 Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
-### Version 0.1.2 (in Arbeit)
+### Version 0.1.2
 - Angaben importierter Sessions (Startzeit, Ort, Bemerkung) nachträglich bearbeiten (Kapitel 5)
 - "Speichern unter" als ZIP oder Ordner (Kapitel 6)
 - Raven: eine Zeile pro Episode, neue Spalten `Cluster`, `Windows` und `Memo` (Kapitel 7)
@@ -420,4 +420,4 @@ Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.2 (in Arbeit) — ETA Systems — Stand 2026-11-24*
+*PIROL v0.1.2 — ETA Systems — Stand 2026-11-24*
