@@ -68,4 +68,39 @@ class MemoExclusionTest {
         assertTrue(MemoExclusion.subtract(s, listOf(TimeSpan(5f, 25f))).isEmpty())
         assertEquals(s, MemoExclusion.subtract(s, emptyList()))
     }
+    // ── T264: Session-Memos ──────────────────────────────────────────
+
+    private fun sm(start: Float?, end: Float?) = ch.etasystems.pirol.data.repository.SessionMemo(
+        file = "memos/session_x.wav", startedAt = "2026-11-24T10:00:00+01:00", endedAt = "2026-11-24T10:00:10+01:00",
+        startSec = start, endSec = end, durationSec = 10f
+    )
+
+    @Test
+    fun sessionMemoSpans_margin_clip_and_invalid() {
+        val r = MemoExclusion.sessionMemoSpans(listOf(sm(10f, 20f), sm(0.2f, 1f), sm(null, null), sm(100f, 110f), sm(5f, 400f)), 60f)
+        // 0.2..1 -> 0..1.5, 10..20 -> 9.5..20.5; ohne Lage, ausserhalb und unplausibel lang (395 s) entfallen
+        assertEquals(listOf(TimeSpan(0f, 1.5f), TimeSpan(9.5f, 20.5f)), r)
+        // 3 min (Obergrenze) bleibt gueltig
+        assertEquals(1, MemoExclusion.sessionMemoSpans(listOf(sm(10f, 190f)), 600f).size)
+    }
+
+    @Test
+    fun session_memo_cut_from_human_sections_together_with_art_memo() {
+        val sections = listOf(TimeSpan(0f, 60f))
+        val session = MemoExclusion.sessionMemoSpans(listOf(sm(10f, 20f)), 60f)
+        val art = MemoExclusion.toSessionSpans(listOf(WallSpan(140_000, 145_000)), 100_000, 60f)  // 40..45 s
+        val r = MemoExclusion.subtract(sections, HumanWindows.union(art + session))
+        assertEquals(listOf(TimeSpan(0f, 9.5f), TimeSpan(20.5f, 39.5f), TimeSpan(45.5f, 60f)), r)
+    }
+
+    @Test
+    fun wallSpansByDetection_keyed() {
+        val m = MemoExclusion.wallSpansByDetection(
+            listOf(
+                ev("a", VerificationEvent.ACTION_MEMO_RECORDED, 1000, 5000),
+                ev("b", VerificationEvent.ACTION_MEMO_RECORDED)
+            )
+        )
+        assertEquals(mapOf("a" to WallSpan(1000, 5000)), m)
+    }
 }

@@ -97,7 +97,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Spicherort nid erreichbar — Ufnahm im Fallback-Ordner gspicheret.</string>
     <string name="live_preroll_stoppen">Preroll stoppe</string>
     <string name="live_preroll_starten">Preroll starte</string>
-    <string name="live_sprach_memo_funktion_wird_in">Sprach-Memo-Funktion — wird im Cluster E implementiert</string>
     <string name="live_live_aufnahme">Live-Ufnahm</string>
     <string name="live_farbpalette_wechseln">Farbpalette wächsle (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Bemerkig zur Session (fakultativ)</string>

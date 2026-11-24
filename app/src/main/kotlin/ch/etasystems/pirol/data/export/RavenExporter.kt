@@ -2,6 +2,7 @@ package ch.etasystems.pirol.data.export
 
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.RecordingSegment
+import ch.etasystems.pirol.data.repository.SessionMemo
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ui.analysis.DetectionOccurrences
 import java.io.File
@@ -20,6 +21,7 @@ import java.util.Locale
  * T259: eine Zeile pro Episode (zusammenhaengende Fenster eines Clusters, [RavenEpisodes]); Spalten
  * "Cluster" (Anker-Id) und "Windows" (Fensterzahl) hinter "Corrected Species", vor "Session-Bemerkung".
  * T263: Spalte "Memo" (voiceMemoFile) hinter "Windows", vor "Session-Bemerkung"; auf jeder Episoden-Zeile der Detektion.
+ * T264: Session-Memos als eigene Zeilen (Species/Common Name "Memo", Confidence/Status/Cluster leer, Spalte Memo = Pfad).
  */
 object RavenExporter {
 
@@ -92,6 +94,7 @@ object RavenExporter {
      * @param linkMap          Simultan/Moeglich/Gleich-Links pro DetectionId (T85)
      * @param sessionNote      T109: Session-Bemerkung; wenn nicht leer, als letzte Spalte "Session-Bemerkung" (gleicher Wert je Zeile)
      * @param merges           T259: absorbierte Fenster je Anker-Id (CLUSTER_MERGED); leer = eine Zeile je Detektion
+     * @param sessionMemos     T264: Session-Memos; je eines mit Lage eine Zeile Species "Memo", chronologisch einsortiert
      * @return Anzahl geschriebener Zeilen
      */
     fun export(
@@ -102,7 +105,8 @@ object RavenExporter {
         enabledFields: Set<String>? = null,
         linkMap: Map<String, SimultaneousLinkSummary> = emptyMap(),
         sessionNote: String? = null,
-        merges: Map<String, List<DetectionOccurrences.MergeInfo>> = emptyMap()
+        merges: Map<String, List<DetectionOccurrences.MergeInfo>> = emptyMap(),
+        sessionMemos: List<SessionMemo> = emptyList()
     ): Int {
         val sessionStart = OffsetDateTime.parse(sessionStartedAt)
         fun on(key: String) = enabledFields == null || key in enabledFields
@@ -135,11 +139,19 @@ object RavenExporter {
             if (noteCell.isNotEmpty()) header += "Session-Bemerkung"
             w.appendLine(header.joinToString("\t"))
 
+            // T264: Session-Memos (mit Lage auf der Session-Achse) chronologisch zwischen die Detektions-Zeilen
+            val detLines = detections.flatMap { d -> RavenEpisodes.rows(d, merges[d.id].orEmpty()).map { ep -> d to ep } }
+            val lines = interleaveMemos(detLines, { it.second.startSec }, sessionMemos)
+
             var index = 0
-            for (d in detections) for (ep in RavenEpisodes.rows(d, merges[d.id].orEmpty())) {
+            for (line in lines) {
+                val det = line as? Pair<*, *>
+                val d = det?.first as? DetectionResult
+                val ep = det?.second as? RavenEpisodes.Row
+                val memo = line as? SessionMemo
                 // T259: Episode (Rueckfall T186: bestes Fenster des Clusters); Segment = das des Beginns
-                val winStart = ep.startSec
-                val winEnd = ep.endSec
+                val winStart = ep?.startSec ?: memo?.startSec ?: continue
+                val winEnd = ep?.endSec ?: memo?.endSec ?: continue
                 val segment = recordingSegments?.firstOrNull {
                     winStart >= it.startSec && winStart < it.startSec + it.durationSec
                 }
@@ -160,6 +172,25 @@ object RavenExporter {
                 if (on(FIELD_LOW_FREQ))        row += LOW_FREQ_HZ.toString()
                 if (on(FIELD_HIGH_FREQ))       row += HIGH_FREQ_HZ.toString()
                 if (on(FIELD_BEGIN_DATE_TIME)) row += beginDateTime
+                if (d == null || ep == null) {
+                    // T264: Session-Memo: sprachneutral "Memo", ohne Score, Status und Cluster
+                    if (on(FIELD_SPECIES))     { row += MEMO_SPECIES; row += MEMO_SPECIES }
+                    if (on(FIELD_CONFIDENCE))  row += ""
+                    if (on(FIELD_LAT))         row += ""
+                    if (on(FIELD_LON))         row += ""
+                    if (on(FIELD_SIMULTAN))    row += ""
+                    if (on(FIELD_MOEGLICH))    row += ""
+                    if (on(FIELD_GLEICH))      row += ""
+                    if (secondary) repeat(6) { row += "" }
+                    row += ""  // Status
+                    row += ""  // Corrected Species
+                    row += ""  // Cluster
+                    row += ""  // Windows
+                    if (on(FIELD_MEMO)) row += sanitize(memo?.file.orEmpty())
+                    if (noteCell.isNotEmpty()) row += noteCell
+                    w.appendLine(row.joinToString("\t"))
+                    continue
+                }
                 if (on(FIELD_SPECIES))         { row += sanitize(d.scientificName); row += sanitize(d.commonName) }
                 if (on(FIELD_CONFIDENCE))      row += ep.confidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
                 if (on(FIELD_LAT))             row += d.latitude?.let  { String.format(Locale.US, "%.6f", it) } ?: ""
@@ -185,6 +216,26 @@ object RavenExporter {
             }
             index
         }
+    }
+
+    /** T264: Species und Common Name einer Session-Memo-Zeile (sprachneutral) */
+    const val MEMO_SPECIES = "Memo"
+
+    /**
+     * T264: Session-Memos mit Lage (startSec/endSec) in die Zeilenfolge einsortieren: jedes Memo vor die erste
+     * Zeile, die spaeter beginnt; die Reihenfolge der uebrigen Zeilen bleibt unveraendert. Memos ohne Lage entfallen.
+     */
+    internal fun <T : Any> interleaveMemos(rows: List<T>, startOf: (T) -> Float, memos: List<SessionMemo>): List<Any> {
+        val placed = memos.filter { it.startSec != null && it.endSec != null }.sortedBy { it.startSec }
+        if (placed.isEmpty()) return rows
+        val out = ArrayList<Any>(rows.size + placed.size)
+        var mi = 0
+        for (r in rows) {
+            while (mi < placed.size && placed[mi].startSec!! < startOf(r)) out += placed[mi++]
+            out += r
+        }
+        while (mi < placed.size) out += placed[mi++]
+        return out
     }
 
     /** Tabs/Newlines aus Strings entfernen, damit das TSV-Format nicht bricht. */

@@ -155,6 +155,8 @@ class RecordingPipeline(
 ) {
     companion object {
         private const val TAG = "RecordingPipeline"
+        /** T264: Hoechstens so weit ueber den letzten Audio-Block hinaus schaetzen (Block-Abstand Oboe << 1 s) */
+        private const val AXIS_MAX_EXTRAPOLATION_MS = 1_000L
         /** T152: Timeout des Startfixes (Audio-Puffer des Service ist begrenzt) */
         private const val STARTUP_FIX_TIMEOUT_MS = 3_000L
         /** T218: Abstand der Pruefung auf Wochen-/Ortswechsel */
@@ -239,6 +241,11 @@ class RecordingPipeline(
     // T137: Persistenz-Zaehler (an die Persistenz uebergebene Samples), pro Session zurueckgesetzt
     private val persistedSamples = AtomicLong(0L)
     @Volatile private var persistSampleRate = 0
+
+    // T264: Session-Achse der zuletzt eingespeisten Samples (Preroll + Live) und Wanduhr dazu;
+    // Grundlage fuer die Position eines Session-Memos (Persistenz hinkt um bis zu einen Hop hinterher)
+    private val axisFedSamples = AtomicLong(0L)
+    @Volatile private var axisFedWallMs = 0L
 
     // T143_STATS
     private val detectionFixes = AtomicLong(0L)
@@ -369,6 +376,8 @@ class RecordingPipeline(
             prerollToFeed = preroll
             humanWindows = HumanWindowCollector(classifier.modelId)  // T261: neue Session, neue Merkliste
             persistedSamples.set(0L)
+            axisFedSamples.set(0L)  // T264
+            axisFedWallMs = 0L
             prerollSamplesFed.set(0L)
             detectionFixes.set(0L)
             staleAttached.set(0L)
@@ -415,6 +424,8 @@ class RecordingPipeline(
         } else {
             // Bereits laufende Session: Zaehler an die bisher geschriebene Laenge anlehnen
             persistedSamples.set(session.recordedSampleCount)
+            axisFedSamples.set(session.recordedSampleCount)  // T264
+            axisFedWallMs = 0L
             sessionReady.complete(Unit)
         }
 
@@ -530,6 +541,7 @@ class RecordingPipeline(
                             backlog = true
                         )
                         prerollSamplesFed.addAndGet(preroll.samples.size.toLong())
+                        markAxisFed(preroll.samples.size, preroll.captureEpochMs)  // T264
                     }
                 }
                 .collect { chunk ->
@@ -539,8 +551,28 @@ class RecordingPipeline(
                     feedSecondaryRing(chunk.samples, chunk.sampleRate)  // T231: vor der Analyse des Fensters
                     inferenceWorker.processChunk(chunk)
                     liveSamplesFed.addAndGet(chunk.samples.size.toLong())
+                    markAxisFed(chunk.samples.size, System.currentTimeMillis())  // T264
                 }
         }
+    }
+
+    /** T264: eingespeiste Samples auf der Session-Achse zaehlen; [wallMs] = Wanduhr am Ende des Blocks */
+    private fun markAxisFed(samples: Int, wallMs: Long) {
+        axisFedSamples.addAndGet(samples.toLong())
+        axisFedWallMs = wallMs
+    }
+
+    /**
+     * T264: Session-Sekunde zur Wanduhr [nowMs] (fuer Session-Memos): eingespeiste Samples plus die seit dem
+     * letzten Block vergangene Zeit (hoechstens [AXIS_MAX_EXTRAPOLATION_MS]). null = keine Aufnahme/Session.
+     */
+    fun sessionPositionSec(nowMs: Long = System.currentTimeMillis()): Float? {
+        val rate = persistSampleRate
+        if (!running || !session.isActive || rate <= 0) return null
+        val wall = axisFedWallMs
+        val base = axisFedSamples.get().toDouble() / rate
+        val extra = if (wall > 0L) (nowMs - wall).coerceIn(0L, AXIS_MAX_EXTRAPOLATION_MS) / 1000.0 else 0.0
+        return (base + extra).toFloat()
     }
 
     /** T231: Rohaudio fuer das Zweitmodell mitschreiben (gleiche Reihenfolge wie Persistenz = Session-Achse) */

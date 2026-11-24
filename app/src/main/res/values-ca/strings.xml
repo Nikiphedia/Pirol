@@ -97,7 +97,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Ubicació no accessible: l\'enregistrament s\'ha desat a la carpeta de reserva.</string>
     <string name="live_preroll_stoppen">Atura el preroll</string>
     <string name="live_preroll_starten">Inicia el preroll</string>
-    <string name="live_sprach_memo_funktion_wird_in">Memo de veu: s\'implementarà al Clúster E</string>
     <string name="live_live_aufnahme">Enregistrament en directe</string>
     <string name="live_farbpalette_wechseln">Canvia la paleta (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Observació de la sessió (opcional)</string>

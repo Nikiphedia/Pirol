@@ -1,0 +1,127 @@
+package ch.etasystems.pirol.ui.analysis
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import ch.etasystems.pirol.R
+import ch.etasystems.pirol.audio.PlaybackKeys
+
+/**
+ * T264: Block "Memos" zuoberst in der Analyse (aufklappbar): Session- und Art-Memos chronologisch.
+ * Zeile: Uhrzeit von-bis, Art (Art-Memo) bzw. "Session-Memo", Play-Knopf. Tippen auf die Zeile springt
+ * (Session-Memo: Stelle in der Aufnahme, Art-Memo: Artkarte).
+ *
+ * @param displayName Anzeigename einer Art (SpeciesNameResolver.displayName)
+ */
+@Composable
+fun MemoBlock(
+    items: List<MemoItem>,
+    playingKey: String?,
+    displayName: (String) -> String,
+    onPlay: (MemoItem) -> Unit,
+    onOpen: (MemoItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (items.isEmpty()) return
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 48.dp)
+                .clickable { expanded = !expanded }
+        ) {
+            Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.analysis_memos_titel, items.size),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null
+            )
+        }
+        if (expanded) {
+            // Begrenzte Hoehe: die Artenliste darunter bleibt sichtbar
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 200.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                for (item in items) MemoRow(item, playingKey, displayName, onPlay, onOpen)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoRow(
+    item: MemoItem,
+    playingKey: String?,
+    displayName: (String) -> String,
+    onPlay: (MemoItem) -> Unit,
+    onOpen: (MemoItem) -> Unit
+) {
+    val isPlaying = playingKey == PlaybackKeys.memo(item.key)
+    val time = MemoList.timeLabel(item)
+    val timeText = if (item.approximate && time.isNotEmpty()) stringResource(R.string.analysis_memo_ungefaehr, time) else time
+    val label = item.scientificName?.let(displayName) ?: stringResource(R.string.analysis_memo_session)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .clickable { onOpen(item) }
+            .padding(start = 4.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (timeText.isNotEmpty()) {
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        IconButton(onClick = { onPlay(item) }, modifier = Modifier.size(48.dp)) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                contentDescription = stringResource(R.string.analysis_memo_abspielen)
+            )
+        }
+    }
+}

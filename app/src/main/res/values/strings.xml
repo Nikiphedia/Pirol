@@ -100,7 +100,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Speicherort nicht erreichbar — Aufnahme im Fallback-Ordner gespeichert.</string>
     <string name="live_preroll_stoppen">Preroll stoppen</string>
     <string name="live_preroll_starten">Preroll starten</string>
-    <string name="live_sprach_memo_funktion_wird_in">Sprach-Memo Funktion — wird in Cluster E implementiert</string>
     <string name="live_live_aufnahme">Live-Aufnahme</string>
     <string name="live_farbpalette_wechseln">Farbpalette wechseln (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Bemerkung zur Session (optional)</string>
@@ -848,4 +847,15 @@
     <string name="human_mask_wahl_ohne">Ohne Ausblenden exportieren</string>
     <string name="human_mask_wahl_ohne_warnung">Achtung: Ohne Ausblenden bleiben Gespräche und Stimmen unbeteiligter Personen im Export hörbar.</string>
     <string name="live_upload_wartet_entscheid">Upload wartet: Stimmen sind mit dem Modell nicht erkennbar. Beim manuellen Export in der Analyse wählen.</string>
+    <!-- T264: Session-Memo und Memo-Block -->
+    <string name="live_memo_halten">Memo: gedrückt halten und sprechen</string>
+    <string name="live_memo_nur_bei_aufnahme">Memos gibt es nur während einer Aufnahme</string>
+    <string name="live_memo_fehler">Memo konnte nicht aufgenommen werden</string>
+    <string name="live_memo_gedrueckt_halten">Zu kurz – zum Aufnehmen gedrückt halten</string>
+    <string name="live_memo_gespeichert">Memo gespeichert (%1$d s)</string>
+    <string name="analysis_memos_titel">Memos (%1$d)</string>
+    <string name="analysis_memo_session">Session-Memo</string>
+    <string name="analysis_memo_ungefaehr">ca. %1$s (Zeit der Detektion)</string>
+    <string name="analysis_memo_abspielen">Memo abspielen</string>
+    <string name="analysis_memo_nicht_gefunden">Memo-Datei nicht gefunden</string>
 </resources>

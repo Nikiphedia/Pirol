@@ -653,6 +653,85 @@ class SessionManager(
             ch.etasystems.pirol.audio.export.MemoExclusion.wallSpans(SessionTextParser.events(text))
         }
 
+    // ── T264: Session-Memos ───────────────────────────────────────────
+
+    /**
+     * T264: Ziel einer neuen Session-Memo-Aufnahme in der aktiven Session.
+     * @param sessionKey Session-Ordner (File-Modus) bzw. Platzhalter mit dem Ordnernamen (SAF), fuer [appendSessionMemo]
+     * @param fileName   Dateiname in memos/ (`session_<yyyyMMdd-HHmmss>[-n].wav`)
+     * @param file       Zieldatei (File-Modus) oder null
+     * @param uri        Ziel-Dokument (SAF-Modus) oder null
+     */
+    class SessionMemoTarget(val sessionKey: File, val fileName: String, val file: File?, val uri: android.net.Uri?)
+
+    /** T264: Ziel fuer ein Session-Memo anlegen (Name nach Startzeit, Kollision -2, -3 ...); null ohne aktive Session. */
+    suspend fun newSessionMemoTarget(epochMs: Long): SessionMemoTarget? = withContext(Dispatchers.IO) {
+        val a = active ?: return@withContext null
+        val zone = ZoneId.systemDefault()
+        val dir = a.dir
+        val doc = a.doc
+        if (doc != null) {
+            val memos = doc.findFile(SessionMemos.DIR) ?: doc.createDirectory(SessionMemos.DIR) ?: return@withContext null
+            val name = SessionMemos.fileName(epochMs, zone) { memos.findFile(it) != null }
+            val created = memos.createFile("audio/wav", name) ?: return@withContext null
+            // Provider koennen den Namen anpassen; der tatsaechliche Name zaehlt
+            val key = locator.resolveSessionDirFromDoc(doc) ?: doc.name?.let { SessionFilesLogic.safKey(null, it) }
+                ?: return@withContext null
+            SessionMemoTarget(key, created.name ?: name, null, created.uri)
+        } else if (dir != null) {
+            val memos = File(dir, SessionMemos.DIR).apply { mkdirs() }
+            val name = SessionMemos.fileName(epochMs, zone) { File(memos, it).exists() }
+            SessionMemoTarget(dir, name, File(memos, name), null)
+        } else null
+    }
+
+    /** T264: Memo-Datei wieder loeschen (zu kurz/fehlgeschlagen). */
+    suspend fun discardSessionMemo(target: SessionMemoTarget) = withContext(Dispatchers.IO) {
+        try {
+            target.file?.delete()
+            target.uri?.let { DocumentFile.fromSingleUri(context, it)?.delete() }
+        } catch (e: Exception) {
+            Log.w(TAG, "T264: Memo-Datei nicht geloescht", e)
+        }
+        Unit
+    }
+
+    /** T264: Eintrag an memos.jsonl anhaengen (aktive Session; nach dem Ende direkt in den Ordner). */
+    suspend fun appendSessionMemo(sessionKey: File, memo: SessionMemo) = withContext(Dispatchers.IO) {
+        val line = SessionMemos.encode(memo)
+        fileMutex.withLock {
+            val a = active
+            if (a != null && a.matches(sessionKey)) a.appendLocked(SessionMemos.FILE, line)
+            else accessFor(sessionKey).append(SessionMemos.FILE, line)
+        }
+    }
+
+    /** T264: Session-Memos einer Session (leer = keine/unlesbar). */
+    suspend fun loadSessionMemos(sessionDir: File): List<SessionMemo> = withContext(Dispatchers.IO) {
+        SessionMemos.parse(try { readSessionText(sessionDir, SessionMemos.FILE) } catch (_: Exception) { null })
+    }
+
+    /**
+     * T264: Art-Memo-Zeitraeume (Wanduhr) je Detektion aus den MEMO_RECORDED-Events des Originals
+     * (nur noch vorhandene Memos mit gespeichertem Beginn und Ende).
+     */
+    suspend fun loadMemoWallSpansByDetection(sessionDir: File): Map<String, ch.etasystems.pirol.audio.export.MemoExclusion.WallSpan> =
+        withContext(Dispatchers.IO) {
+            val text = readVerifications(sessionDir, null) ?: return@withContext emptyMap()
+            ch.etasystems.pirol.audio.export.MemoExclusion.wallSpansByDetection(SessionTextParser.events(text))
+        }
+
+    /** T264: Abspielquelle einer Memo-Datei ([relPath] relativ zum Session-Ordner): File, Uri (SAF) oder null. */
+    fun memoSource(sessionDir: File, relPath: String): Any? {
+        val doc = docFor(sessionDir)
+        if (doc != null) {
+            var cur: DocumentFile = doc
+            for (part in relPath.split('/').filter { it.isNotEmpty() }) cur = cur.findFile(part) ?: return null
+            return cur.uri
+        }
+        return File(sessionDir, relPath).takeIf { it.isFile }
+    }
+
     /** T191: Route einer Session aus track.jsonl (leer, wenn keine Spur oder unlesbar). */
     suspend fun loadTrack(sessionDir: File): List<TrackPoint> = withContext(Dispatchers.IO) {
         val text = try { readSessionText(sessionDir, TrackLogic.TRACK_FILE) } catch (_: Exception) { null }
@@ -1071,7 +1150,9 @@ class SessionManager(
         val linkMap = veriText?.let { SessionTextParser.simultaneousLinks(it) } ?: emptyMap()
         // T259: absorbierte Fenster (CLUSTER_MERGED) -> eine Raven-Zeile pro Episode
         val merges = veriText?.let { SessionTextParser.mergeTimestamps(it) } ?: emptyMap()
-        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note, merges)
+        // T264: Session-Memos als eigene Zeilen (Species "Memo")
+        val memos = SessionMemos.parse(try { readSessionText(sessionDir, SessionMemos.FILE) } catch (_: Exception) { null })
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note, merges, memos)
         if (isDoc) {
             fileMutex.withLock { access.writeReplacing(ravenName, outputFile.readText()) }
             outputFile.delete()

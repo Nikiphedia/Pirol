@@ -86,6 +86,9 @@ data class AnalysisUiState(
     val playingOccurrenceStartSec: Float? = null,
     // T167: Wanduhr-Zeiten absorbierter Fenster je Detektions-ID (aus CLUSTER_MERGED)
     val mergeTimestamps: Map<String, List<DetectionOccurrences.MergeInfo>> = emptyMap(),
+    // T264: Session-Memos (memos.jsonl) und Zeitraeume der Art-Memos (MEMO_RECORDED) fuer den Block "Memos"
+    val sessionMemos: List<ch.etasystems.pirol.data.repository.SessionMemo> = emptyList(),
+    val artMemoSpans: Map<String, ch.etasystems.pirol.audio.export.MemoExclusion.WallSpan> = emptyMap(),
     // T62: MediaPlayer-Fehler fuer Snackbar/Toast-Feedback (AC7).
     val playerError: String? = null,
 

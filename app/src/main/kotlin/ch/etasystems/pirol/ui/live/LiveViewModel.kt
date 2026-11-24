@@ -21,6 +21,7 @@ import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.AtlasCodeRepository
 import ch.etasystems.pirol.data.repository.ReferenceRepository
 import ch.etasystems.pirol.data.repository.SessionManager
+import ch.etasystems.pirol.data.repository.SessionMemos
 import ch.etasystems.pirol.data.repository.SessionMetadata
 import ch.etasystems.pirol.data.sync.UploadManager
 import ch.etasystems.pirol.data.sync.UploadStatus
@@ -190,6 +191,85 @@ class LiveViewModel(
     /** T173: Memo-Wiedergabe nutzt den geteilten Player (Start/Stopp ueber [PlaybackController]). */
     val memoAudioPlayer: AudioPlayer get() = audioPlayer
 
+    // --- T264: Session-Memo (gedrueckt halten) ---
+
+    /** Eigener Recorder (Obergrenze 3 min), gleiche Mikrofon-Teilung wie das Art-Memo (AudioRecord neben Oboe). */
+    val sessionMemoRecorder = VoiceMemoRecorder(SessionMemos.MAX_DURATION_SEC)
+
+    /** Start-Wanduhr des laufenden Session-Memos (Laufzeit-Anzeige); null = keins */
+    private val _sessionMemoStartedAtMs = MutableStateFlow<Long?>(null)
+    val sessionMemoStartedAtMs: StateFlow<Long?> = _sessionMemoStartedAtMs.asStateFlow()
+
+    /** Start und Stopp nacheinander (kurzes Antippen: Stopp wartet auf den Start) */
+    private val sessionMemoMutex = Mutex()
+    private var sessionMemoTarget: SessionManager.SessionMemoTarget? = null
+    private var sessionMemoStartSec: Float? = null
+
+    /** T264: Knopf gedrueckt: Session-Memo starten (nur bei laufender Aufnahme). */
+    fun startSessionMemo() {
+        viewModelScope.launch {
+            sessionMemoMutex.withLock {
+                if (sessionMemoTarget != null || sessionMemoRecorder.isRecording.value) return@withLock
+                if (!_uiState.value.isRecording) {
+                    _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_nur_bei_aufnahme)))
+                    return@withLock
+                }
+                if (voiceMemoRecorder.isRecording.value) return@withLock  // Art-Memo laeuft (ein Mikrofon-Zweig)
+                val target = sessionManager.newSessionMemoTarget(System.currentTimeMillis())
+                if (target == null) {
+                    _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_fehler)))
+                    return@withLock
+                }
+                val uri = target.uri
+                val file = target.file
+                val result = when {
+                    uri != null -> sessionMemoRecorder.startRecordingSaf(context, uri)
+                    file != null -> sessionMemoRecorder.startRecording(file)
+                    else -> Result.failure(IllegalStateException("kein Ziel"))
+                }
+                if (result.isFailure) {
+                    Log.w(TAG, "T264: Session-Memo nicht gestartet", result.exceptionOrNull())
+                    sessionManager.discardSessionMemo(target)
+                    _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_fehler)))
+                    return@withLock
+                }
+                val startMs = sessionMemoRecorder.lastSpan?.startMs ?: System.currentTimeMillis()
+                // Lage auf der Session-Achse: aktuelle Position minus die seit dem Mikrofon-Start vergangene Zeit
+                val now = System.currentTimeMillis()
+                sessionMemoStartSec = pipeline.sessionPositionSec(now)?.let { (it - (now - startMs) / 1000f).coerceAtLeast(0f) }
+                sessionMemoTarget = target
+                _sessionMemoStartedAtMs.value = startMs
+            }
+        }
+    }
+
+    /** T264: Knopf losgelassen: Session-Memo beenden und speichern (< 0.5 s wird verworfen). */
+    fun stopSessionMemo() {
+        viewModelScope.launch { finishSessionMemo() }
+    }
+
+    private suspend fun finishSessionMemo() = sessionMemoMutex.withLock {
+        val target = sessionMemoTarget ?: return@withLock
+        sessionMemoTarget = null
+        _sessionMemoStartedAtMs.value = null
+        sessionMemoRecorder.stopRecording()
+        val span = sessionMemoRecorder.lastSpan?.takeIf { it.endMs > 0L }
+        if (span == null || SessionMemos.isTooShort(span.startMs, span.endMs)) {
+            sessionManager.discardSessionMemo(target)
+            _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_gedrueckt_halten)))
+            return@withLock
+        }
+        val memo = SessionMemos.create(target.fileName, span.startMs, span.endMs, sessionMemoStartSec, java.time.ZoneId.systemDefault())
+        try {
+            sessionManager.appendSessionMemo(target.sessionKey, memo)
+            Log.i(TAG, "T264_MEMO file=${memo.file} dur=${"%.1f".format(memo.durationSec)} startSec=${memo.startSec}")
+            _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_gespeichert, Math.round(memo.durationSec))))
+        } catch (e: Exception) {
+            Log.e(TAG, "T264: memos.jsonl nicht geschrieben", e)
+            _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_fehler)))
+        }
+    }
+
     // --- T164/T173: Detektion direkt auf der Artkarte anhoeren ---
 
     /** T168: Mikrofon ist stumm, solange ueber den Lautsprecher abgespielt wird (UI-Hinweis) */
@@ -354,6 +434,10 @@ class LiveViewModel(
                 _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.analysis_memo_auf_60s_gekuerzt)))
             }
         }
+        // T264: Session-Memo erreicht die Obergrenze -> wie Loslassen speichern
+        viewModelScope.launch {
+            sessionMemoRecorder.capReached.collect { finishSessionMemo() }
+        }
     }
 
     // --- Service Connection ---
@@ -476,6 +560,7 @@ class LiveViewModel(
     fun stopRecording() {
         val svc = service ?: return
         if (!svc.isRecording.value) return
+        stopSessionMemo()  // T264: laufendes Session-Memo gehoert noch zur Session
         svc.stopRecording()
         // Collection-Job und MelSpectrogram werden via Recording-Observer gestoppt
         // T122: Preroll war aktiv → nach dem Stopp wieder puffern (vorher musste man ihn zweimal umschalten)
@@ -1269,6 +1354,7 @@ class LiveViewModel(
         // Service-Unbinding muss vom Screen gemacht werden (braucht Context)
         // T69: Voice-Memo Cleanup
         voiceMemoRecorder.release()
+        sessionMemoRecorder.release()  // T264
         playback.stop()  // T173
     }
 }

@@ -563,6 +563,8 @@ private fun SessionDetailContent(
     val detailResolver: ch.etasystems.pirol.ml.SpeciesNameResolver = org.koin.compose.koinInject()
     var detailSearchOpen by remember { mutableStateOf(false) }
     var detailSearch by remember { mutableStateOf("") }
+    // T264: Art-Memo angetippt -> zu dieser Artkarte scrollen (null = nichts offen)
+    var scrollToDetectionId by remember { mutableStateOf<String?>(null) }
 
     // T74: Phenology
     val phenologyRepository: ch.etasystems.pirol.ml.PhenologyRepository = org.koin.compose.koinInject()
@@ -1036,6 +1038,28 @@ private fun SessionDetailContent(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // T264: Block "Memos" (Session- und Art-Memos) ueber der Artenliste; nur mit Memos sichtbar
+        val memoItems = remember(state.sessionMemos, state.detections, state.artMemoSpans) {
+            MemoList.build(state.sessionMemos, state.detections, state.artMemoSpans)
+        }
+        if (memoItems.isNotEmpty()) {
+            MemoBlock(
+                items = memoItems,
+                playingKey = state.playingKey,
+                displayName = { detailResolver.displayName(it) },
+                onPlay = { viewModel.playMemo(it) },
+                onOpen = { item ->
+                    if (item.isSessionMemo) viewModel.jumpToSessionMemo(item)
+                    else {
+                        detailSearch = ""  // Artkarte muss in der Liste stehen
+                        scrollToDetectionId = item.detectionId
+                    }
+                }
+            )
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         // Detektionsliste — Header mit "+ Art"-Button (T72)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1094,6 +1118,16 @@ private fun SessionDetailContent(
                     compareByDescending<ch.etasystems.pirol.ml.DetectionResult> { it.lockSpecies }
                         .thenByDescending { it.lastSeenAtMs }
                 )
+            }
+
+            // T264: zur Artkarte eines angetippten Art-Memos scrollen
+            LaunchedEffect(scrollToDetectionId, sortedDetections) {
+                val id = scrollToDetectionId ?: return@LaunchedEffect
+                val index = sortedDetections.indexOfFirst { it.id == id }
+                if (index >= 0) {
+                    listState.animateScrollToItem(index)
+                    scrollToDetectionId = null
+                }
             }
 
             // T167: aufgeklappte Arten (Einzelvorkommen sichtbar)
