@@ -200,6 +200,31 @@ internal fun MapGpsSettingsSection(
                         }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // T262: Online-Rueckfall Gemeinde (Geocoder)
+                var geocoderFallback by remember { mutableStateOf(appPreferences.geocoderFallbackEnabled) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_geocoder_fallback), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = stringResource(R.string.settings_geocoder_fallback_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = geocoderFallback,
+                        onCheckedChange = {
+                            geocoderFallback = it
+                            appPreferences.geocoderFallbackEnabled = it
+                        }
+                    )
+                }
             }
         }
     }

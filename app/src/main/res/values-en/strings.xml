@@ -817,4 +817,6 @@
     <string name="analysis_saveas_aufnahme_laeuft">Not possible while this session is recording</string>
     <string name="analysis_saveas_ziel_in_basis">The target folder is inside the PIROL storage. Please choose a folder outside it; nothing was saved.</string>
     <string name="analysis_saveas_ziel_gleich_quelle">The target folder is the session itself. Nothing was saved.</string>
+    <string name="settings_geocoder_fallback">Look up municipality online (Google)</string>
+    <string name="settings_geocoder_fallback_hint">Outside Switzerland, look up the municipality online via Google; the coordinates are sent to Google.</string>
 </resources>

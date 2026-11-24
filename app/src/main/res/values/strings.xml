@@ -818,4 +818,6 @@
     <string name="analysis_saveas_aufnahme_laeuft">Waehrend der Aufnahme dieser Session nicht moeglich</string>
     <string name="analysis_saveas_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts gespeichert.</string>
     <string name="analysis_saveas_ziel_gleich_quelle">Zielordner ist die Session selbst. Es wurde nichts gespeichert.</string>
+    <string name="settings_geocoder_fallback">Gemeinde online ermitteln (Google)</string>
+    <string name="settings_geocoder_fallback_hint">Ausserhalb der Schweiz Gemeinde online ueber Google ermitteln; dabei werden die Koordinaten an Google gesendet.</string>
 </resources>

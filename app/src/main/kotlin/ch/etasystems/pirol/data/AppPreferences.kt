@@ -213,6 +213,11 @@ class AppPreferences(context: Context) {
     val gpsOnDetectionOnly: Boolean get() = gpsMode == GPS_MODE_ON_DETECTION
 
     /** T191: GPS-Spur waehrend der Aufnahme aufzeichnen (track.jsonl + track.gpx). Default an. */
+    /** T262: Online-Rueckfall (Android-Geocoder/Google) fuer die Gemeinde, Default aus (Datenschutz). */
+    var geocoderFallbackEnabled: Boolean
+        get() = prefs.getBoolean("pirol_geocoder_fallback_enabled", false)
+        set(value) = prefs.edit().putBoolean("pirol_geocoder_fallback_enabled", value).apply()
+
     var trackRecordingEnabled: Boolean
         get() = prefs.getBoolean("pirol_track_recording_enabled", true)
         set(value) = prefs.edit().putBoolean("pirol_track_recording_enabled", value).apply()

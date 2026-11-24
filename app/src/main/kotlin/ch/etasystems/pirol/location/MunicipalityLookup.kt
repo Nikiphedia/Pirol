@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Geocoder
 import android.os.Build
 import android.util.Log
+import ch.etasystems.pirol.data.AppPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -15,7 +16,8 @@ import kotlin.coroutines.resume
 /**
  * T195: Gemeinde zu einer GPS-Position ("Name KT").
  * Hauptweg offline ueber die Asset-Datei regions/ch_municipalities.bin (nur Schweiz/FL),
- * Rueckfall online ueber den Android-Geocoder (ausserhalb der Schweiz oder ohne Treffer).
+ * Rueckfall online ueber den Android-Geocoder (sendet Koordinaten an Google) nur, wenn die
+ * Einstellung pirol_geocoder_fallback_enabled eingeschaltet ist (T262, Default aus).
  */
 class MunicipalityLookup(context: Context) {
 
@@ -41,9 +43,13 @@ class MunicipalityLookup(context: Context) {
         return withContext(Dispatchers.Default) { idx.find(p.e, p.n) }
     }
 
-    /** Offline zuerst, dann Geocoder; null = nicht ermittelbar. */
+    /** Offline zuerst, dann Geocoder (nur bei eingeschalteter Option); null = nicht ermittelbar. */
     suspend fun lookup(lat: Double, lon: Double): String? =
-        lookupOffline(lat, lon) ?: lookupOnline(lat, lon)
+        resolveMunicipality(
+            fallbackEnabled = AppPreferences(appContext).geocoderFallbackEnabled,
+            offline = { lookupOffline(lat, lon) },
+            online = { lookupOnline(lat, lon) }
+        )
 
     private suspend fun lookupOnline(lat: Double, lon: Double): String? {
         if (!Geocoder.isPresent()) return null
@@ -81,3 +87,10 @@ class MunicipalityLookup(context: Context) {
         const val ASSET_PATH = "regions/ch_municipalities.bin"
     }
 }
+
+/** T262: Entscheidungslogik. Online-Rueckfall wird nur aufgerufen, wenn er erlaubt ist. */
+internal suspend fun resolveMunicipality(
+    fallbackEnabled: Boolean,
+    offline: suspend () -> String?,
+    online: suspend () -> String?
+): String? = offline() ?: if (fallbackEnabled) online() else null
