@@ -99,7 +99,10 @@ data class VerificationEvent(
     val correctedSpecies: String? = null,
     val verifiedAtMs: Long,
     val actionType: String? = null,          // null = Legacy-Eintrag (V0.0.6)
-    val newValue: String? = null             // T69: Nutzlast (z.B. Memo-Pfad, Atlascode)
+    val newValue: String? = null,            // T69: Nutzlast (z.B. Memo-Pfad, Atlascode)
+    /** T263: nur MEMO_RECORDED, nur Live: Wanduhr (Epoch ms) von Beginn und Ende der Memo-Aufnahme; null = unbekannt */
+    val memoStartMs: Long? = null,
+    val memoEndMs: Long? = null
 ) {
     companion object {
         // Bestehend (implizit verwendet, jetzt explizit definiert):

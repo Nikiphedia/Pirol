@@ -34,6 +34,60 @@ fun HumanMaskNotice(masks: Boolean) {
     }
 }
 
+/**
+ * T263: Das Modell der Aufnahme kennt keine Menschen. Entscheid: mit BirdNET 3.0 suchen (nur wenn installiert und
+ * keine Aufnahme laeuft; [birdNetModelFile] = null sonst), ohne Ausblenden exportieren (mit Warnung) oder abbrechen.
+ * [onChoice] mit null = Abbrechen.
+ */
+@Composable
+fun HumanMaskChoiceDialog(
+    birdNetModelFile: String?,
+    onChoice: (ch.etasystems.pirol.data.export.HumanExportMask.Choice?) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { onChoice(null) },
+        title = { Text(stringResource(R.string.human_mask_wahl_titel)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.human_mask_wahl_text), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(
+                        if (birdNetModelFile != null) R.string.human_mask_wahl_birdnet_info else R.string.human_mask_wahl_birdnet_fehlt
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.human_mask_wahl_ohne_warnung),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        confirmButton = {
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                if (birdNetModelFile != null) {
+                    TextButton(
+                        onClick = { onChoice(ch.etasystems.pirol.data.export.HumanExportMask.Choice.BirdNet(birdNetModelFile)) },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) { Text(stringResource(R.string.human_mask_wahl_birdnet)) }
+                }
+                TextButton(
+                    onClick = { onChoice(ch.etasystems.pirol.data.export.HumanExportMask.Choice.Skip) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text(stringResource(R.string.human_mask_wahl_ohne), color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onChoice(null) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        }
+    )
+}
+
 /** T261: Fortschritt des Mensch-Scans vor einem Export, mit Abbrechen. */
 @Composable
 fun HumanScanProgressDialog(progress: Float, onCancel: () -> Unit) {

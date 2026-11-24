@@ -35,6 +35,10 @@ class SessionUploadWorker(
 
     companion object {
         const val KEY_SESSION_DIR = "session_dir"
+        /** T263: true = vom Nutzer ausgeloest (Dialog bei Modell ohne Mensch-Klasse), false = Auto-Upload */
+        const val KEY_MANUAL = "manual"
+        /** T263: Entscheid aus dem Dialog ([HumanExportMask.Choice.encode]); leer = Standard */
+        const val KEY_MASK_CHOICE = "mask_choice"
         private const val TAG = "SessionUploadWorker"
         /** Maximale Anzahl Versuche inkl. erstem (danach endgueltig fehlgeschlagen) */
         const val MAX_ATTEMPTS = 5
@@ -73,12 +77,16 @@ class SessionUploadWorker(
 
         // T261: Menschliche Stimmen ausblenden (Merkliste, fehlende Bereiche nachscannen)
         val maskPlan = try {
-            humanMask.prepare(sessionDir)
+            val choice = ch.etasystems.pirol.data.export.HumanExportMask.Choice.decode(
+                inputData.getString(KEY_MASK_CHOICE)?.takeIf { it.isNotEmpty() }
+            )
+            humanMask.prepare(sessionDir, choice = choice)
         } catch (e: ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException) {
-            Log.e(TAG, "T261: Menschen nicht erkennbar, Export abgebrochen")
+            // T263: nie unmaskiert hochladen; Entscheid beim naechsten manuellen Export (Dialog)
+            Log.e(TAG, "T261: Menschen nicht erkennbar, Export wartet auf Entscheid")
             val prefs = AppPreferences(applicationContext)
-            record(prefs, "Fehlgeschlagen: ${e.message}")
-            UploadStatusHolder.set(UploadStatus.Failed(metadata.sessionId, e.message ?: "T261"))
+            record(prefs, "Wartet auf Entscheid: Menschen mit dem aktiven Modell nicht erkennbar")
+            UploadStatusHolder.set(UploadStatus.AwaitingDecision(metadata.sessionId, inputData.getBoolean(KEY_MANUAL, false)))
             return Result.failure()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

@@ -1059,13 +1059,60 @@ class AnalysisViewModel(
     /** T194: Upload-Status fuer den Knopf in der Kopfzeile. */
     val uploadStatus get() = uploadManager.status
 
-    /** T194: geoeffnete Session zum Upload einreihen (gleiche Einstellungen wie im Live-Tab). */
-    fun uploadSession() {
+    /**
+     * T194: geoeffnete Session zum Upload einreihen (gleiche Einstellungen wie im Live-Tab).
+     * T263: manuell ausgeloest; kennt das Modell keine Menschen, fragt der Dialog nach ([resolveMaskChoice]).
+     * @param maskChoice Entscheid aus dem Dialog (null = noch keiner)
+     */
+    fun uploadSession(maskChoice: String? = null) {
         val dir = _uiState.value.selectedSession?.sessionDir ?: return
         uploadManager.wifiOnly = appPreferences.wifiOnly
         uploadManager.autoUpload = appPreferences.autoUpload
-        uploadManager.enqueue(dir)
+        uploadManager.enqueue(dir, manual = true, maskChoice = maskChoice)
+        awaitingUploadDecision = true
+        if (uploadDecisionObserver == null) {
+            uploadDecisionObserver = viewModelScope.launch {
+                uploadManager.status.collect { s ->
+                    if (awaitingUploadDecision && s is ch.etasystems.pirol.data.sync.UploadStatus.AwaitingDecision && s.manual) {
+                        awaitingUploadDecision = false
+                        _uiState.update { it.copy(pendingMaskChoice = PendingMaskExport.Upload) }
+                    } else if (s is ch.etasystems.pirol.data.sync.UploadStatus.Success ||
+                        s is ch.etasystems.pirol.data.sync.UploadStatus.Failed
+                    ) awaitingUploadDecision = false
+                }
+            }
+        }
         reportError(AppStrings.get(R.string.analysis_upload_eingereiht))
+    }
+
+    // T263: Warten auf den Entscheid bei Modell ohne Mensch-Klasse (nur fuer von hier ausgeloeste Uploads)
+    private var awaitingUploadDecision = false
+    private var uploadDecisionObserver: Job? = null
+
+    /** T263: BirdNET-3-Datei fuer den Ersatz-Scan (null = nicht installiert oder Aufnahme laeuft) */
+    fun birdNetScanModelFile(): String? = humanMask.birdNetScanModelFile()
+
+    /** T263: Antwort des Dialogs "Modell ohne Mensch-Klasse"; [choice] null = Abbrechen. */
+    fun resolveMaskChoice(choice: ch.etasystems.pirol.data.export.HumanExportMask.Choice?) {
+        val pending = _uiState.value.pendingMaskChoice ?: return
+        _uiState.update { it.copy(pendingMaskChoice = null) }
+        when (pending) {
+            is PendingMaskExport.Zip -> {
+                if (choice == null) {
+                    // Zieldatei war schon angelegt (leer): nicht liegen lassen
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, pending.target) }
+                    }
+                    reportError(AppStrings.get(R.string.human_mask_abgebrochen))
+                } else saveSessionAsZip(pending.target, choice)
+            }
+            is PendingMaskExport.Folder ->
+                if (choice == null) reportError(AppStrings.get(R.string.human_mask_abgebrochen))
+                else saveSessionToFolder(pending.treeUri, choice)
+            PendingMaskExport.Upload ->
+                if (choice == null) reportError(AppStrings.get(R.string.human_mask_abgebrochen))
+                else uploadSession(ch.etasystems.pirol.data.export.HumanExportMask.Choice.encode(choice))
+        }
     }
 
     // ── T258: Speichern unter (ZIP oder Ordner) ──────────────────────
@@ -1091,10 +1138,11 @@ class AnalysisViewModel(
      */
     private suspend fun maskedEntries(
         sessionDir: java.io.File,
-        entries: List<ch.etasystems.pirol.data.repository.ExportEntry>
+        entries: List<ch.etasystems.pirol.data.repository.ExportEntry>,
+        choice: ch.etasystems.pirol.data.export.HumanExportMask.Choice = ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active
     ): List<ch.etasystems.pirol.data.repository.ExportEntry> {
         try {
-            val plan = humanMask.prepare(sessionDir, onProgress = { p -> _uiState.update { it.copy(humanScanProgress = p) } })
+            val plan = humanMask.prepare(sessionDir, choice = choice, onProgress = { p -> _uiState.update { it.copy(humanScanProgress = p) } })
             return humanMask.wrap(entries, plan)
         } finally {
             _uiState.update { it.copy(humanScanProgress = null) }
@@ -1121,7 +1169,7 @@ class AnalysisViewModel(
     }
 
     /** Geoeffnete Session als ZIP (Inhalt wie Upload-ZIP) in die per SAF gewaehlte Datei [target] schreiben. */
-    fun saveSessionAsZip(target: Uri) {
+    fun saveSessionAsZip(target: Uri, choice: ch.etasystems.pirol.data.export.HumanExportMask.Choice = ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) {
         val session = _uiState.value.selectedSession ?: return
         if (!canSaveAs()) return
         val label = target.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: suggestedZipName()
@@ -1129,12 +1177,17 @@ class AnalysisViewModel(
         saveAsJob = viewModelScope.launch(Dispatchers.IO) {
             val failure: Throwable? = try {
                 val detections = try { sessionManager.detectionsForExport(session.sessionDir) } catch (e: Exception) { null }
-                val entries = maskedEntries(session.sessionDir, saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir)))
+                val entries = maskedEntries(session.sessionDir, saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir)), choice)
                 saveAs.saveZip(entries, detections, target, session.metadata.sessionId)
                 null
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "Speichern unter (ZIP) fehlgeschlagen", e)
                 e
+            }
+            // T263: Modell ohne Mensch-Klasse: Dialog (Zieldatei bleibt fuer den zweiten Anlauf stehen)
+            if (failure is ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException && choice is ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) {
+                _uiState.update { it.copy(pendingMaskChoice = PendingMaskExport.Zip(target)) }
+                return@launch
             }
             // T261: nach Abbruch des Scans bzw. ohne Mensch-Erkennung die leere Zieldatei nicht liegen lassen
             if (failure is kotlinx.coroutines.CancellationException ||
@@ -1148,7 +1201,7 @@ class AnalysisViewModel(
     }
 
     /** Geoeffnete Session als Unterordner im per SAF gewaehlten Ordner [treeUri] ablegen. */
-    fun saveSessionToFolder(treeUri: Uri) {
+    fun saveSessionToFolder(treeUri: Uri, choice: ch.etasystems.pirol.data.export.HumanExportMask.Choice = ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) {
         val session = _uiState.value.selectedSession ?: return
         if (!canSaveAs()) return
         // Ziel in der PIROL-Basis oder in der Session selbst: ablehnen (wie beim Verschieben, T181)
@@ -1173,12 +1226,17 @@ class AnalysisViewModel(
             var failure: Throwable? = null
             val name = try {
                 val detections = try { sessionManager.detectionsForExport(session.sessionDir) } catch (e: Exception) { null }
-                val entries = maskedEntries(session.sessionDir, saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir)))
+                val entries = maskedEntries(session.sessionDir, saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir)), choice)
                 saveAs.saveFolder(root, base, entries, detections)
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "Speichern unter (Ordner) fehlgeschlagen", e)
                 failure = e
                 null
+            }
+            // T263: Modell ohne Mensch-Klasse: Dialog (noch nichts angelegt)
+            if (failure is ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException && choice is ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) {
+                _uiState.update { it.copy(pendingMaskChoice = PendingMaskExport.Folder(treeUri)) }
+                return@launch
             }
             reportError(
                 if (name != null) AppStrings.get(R.string.analysis_saveas_ok, name)

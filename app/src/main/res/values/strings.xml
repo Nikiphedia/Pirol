@@ -840,4 +840,12 @@
     <string name="human_mask_warnung_text">Exporte enthalten dann Gespräche und Stimmen unbeteiligter Personen. Teile solche Aufnahmen nur, wenn das erlaubt ist (Datenschutz). Für Forschung, die das Original braucht, kannst du ausschalten.</string>
     <string name="human_mask_warnung_ausschalten">Ausschalten</string>
     <string name="human_mask_warnung_behalten">Eingeschaltet lassen</string>
+    <string name="human_mask_wahl_titel">Stimmen nicht erkennbar</string>
+    <string name="human_mask_wahl_text">Das Modell dieser Aufnahme kennt keine menschlichen Stimmen. Wie soll exportiert werden?</string>
+    <string name="human_mask_wahl_birdnet">Mit BirdNET 3.0 nach Menschen suchen</string>
+    <string name="human_mask_wahl_birdnet_info">BirdNET 3.0 durchsucht die Aufnahme in einem eigenen Lauf nach Stimmen (kann einige Minuten dauern) und blendet sie aus.</string>
+    <string name="human_mask_wahl_birdnet_fehlt">BirdNET 3.0 steht nicht zur Verfügung (nicht installiert oder eine Aufnahme läuft).</string>
+    <string name="human_mask_wahl_ohne">Ohne Ausblenden exportieren</string>
+    <string name="human_mask_wahl_ohne_warnung">Achtung: Ohne Ausblenden bleiben Gespräche und Stimmen unbeteiligter Personen im Export hörbar.</string>
+    <string name="live_upload_wartet_entscheid">Upload wartet: Stimmen sind mit dem Modell nicht erkennbar. Beim manuellen Export in der Analyse wählen.</string>
 </resources>

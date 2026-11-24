@@ -51,6 +51,16 @@ class VoiceMemoRecorder {
 
     val maxDurationSec: Int = MAX_DURATION_SEC
 
+    /**
+     * T263: Wanduhr der letzten Memo-Aufnahme. [fileName] = Dateiname der Memo-WAV (z.B. `<id>.wav`),
+     * [endMs] = 0 solange die Aufnahme laeuft. Dient dazu, den Zeitraum in der Session-Aufnahme zu finden.
+     */
+    data class Span(val fileName: String, val startMs: Long, val endMs: Long)
+
+    @Volatile
+    var lastSpan: Span? = null
+        private set
+
     private var audioRecord: AudioRecord? = null
     private var writer: StreamingWavWriter? = null
     private var recordingJob: Job? = null
@@ -69,7 +79,7 @@ class VoiceMemoRecorder {
             IllegalStateException("Aufnahme laeuft bereits")
         )
         val w = StreamingWavWriter.forFile(targetFile, SAMPLE_RATE)
-        startInternal(w)
+        startInternal(w, targetFile.name)
     }
 
     /**
@@ -90,7 +100,7 @@ class VoiceMemoRecorder {
             } catch (e: Exception) {
                 return@withContext Result.failure(e)
             }
-            startInternal(w)
+            startInternal(w, targetUri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty())
         }
 
     // ── Aufnahme stoppen ─────────────────────────────────────────────
@@ -114,7 +124,7 @@ class VoiceMemoRecorder {
 
     // ── Interne Implementierung ───────────────────────────────────────
 
-    private fun startInternal(w: StreamingWavWriter): Result<Unit> {
+    private fun startInternal(w: StreamingWavWriter, fileName: String): Result<Unit> {
         val minBuf = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
@@ -147,6 +157,7 @@ class VoiceMemoRecorder {
             return Result.failure(e)
         }
         ar.startRecording()
+        lastSpan = Span(fileName, System.currentTimeMillis(), 0L)  // T263
         audioRecord = ar
         writer = w
         _isRecording.value = true
@@ -195,6 +206,7 @@ class VoiceMemoRecorder {
         _amplitude.value = 0f
         try { ar.stop() } catch (_: Exception) {}
         ar.release()
+        lastSpan = lastSpan?.let { if (it.endMs == 0L) it.copy(endMs = System.currentTimeMillis()) else it }  // T263
         audioRecord = null
         try { writer?.close() } catch (_: Exception) {}
         writer = null

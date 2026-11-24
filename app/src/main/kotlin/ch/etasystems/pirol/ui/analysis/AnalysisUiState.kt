@@ -121,8 +121,17 @@ data class AnalysisUiState(
     val audioImportProbes: List<ch.etasystems.pirol.data.importer.AudioProbe>? = null,
     val rescanRequest: Boolean = false,
     /** T261: Fortschritt 0..1 des Mensch-Scans vor "Speichern unter" (null = keiner) */
-    val humanScanProgress: Float? = null
+    val humanScanProgress: Float? = null,
+    /** T263: Export wartet auf den Entscheid "Modell ohne Mensch-Klasse" (null = keiner) */
+    val pendingMaskChoice: PendingMaskExport? = null
 )
+
+/** T263: Welcher Export auf den Entscheid wartet (Dialog Scan mit BirdNET / ohne Ausblenden / Abbrechen) */
+sealed class PendingMaskExport {
+    data class Zip(val target: android.net.Uri) : PendingMaskExport()
+    data class Folder(val treeUri: android.net.Uri) : PendingMaskExport()
+    data object Upload : PendingMaskExport()
+}
 
 /** T237: Snackbar-Hinweis mit Rueckgaengig-Knopf (Analyse-Tab). */
 data class UndoOffer(val message: String, val actionLabel: String, val onUndo: () -> Unit)

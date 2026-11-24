@@ -113,7 +113,13 @@ val appModule = module {
     single { SpeciesColorRepository(androidContext()) }
 
     // DetectionExporter — Singleton, Detektions-Ausschnitt teilen (T116)
-    single { ch.etasystems.pirol.data.export.HumanExportMask(get(), get(), get()) }  // T261
+    // T261; T263: + Context, ModelManager (BirdNET-3-Ersatz-Scan), Aufnahme-Status (kein zweites Modell neben Live-Inferenz)
+    single {
+        ch.etasystems.pirol.data.export.HumanExportMask(
+            get(), get(), get(), androidContext(), get(),
+            isRecordingRunning = { get<ch.etasystems.pirol.audio.RecordingPipeline>().isRunning }
+        )
+    }
     single { ch.etasystems.pirol.data.export.DetectionExporter(androidContext(), get(), get(), get(), get()) }  // T261: + HumanExportMask
 
     // T94: Embedding-DB-Datei (Laden/Modellwechsel/Speichern) — vorher im LiveViewModel
