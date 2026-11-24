@@ -177,7 +177,8 @@ fun SpeciesCard(
             }
         }
     }
-    val blinkColor = MaterialTheme.colorScheme.primary
+    // T265: feste Blau-Farbe (kollidiert nicht mit gruen/orange der Verifikation)
+    val blinkColor = androidx.compose.ui.graphics.Color(0xFF2196F3)
     val blinkCorner = with(androidx.compose.ui.platform.LocalDensity.current) { 12.dp.toPx() }
 
     val confidencePercent = (detection.confidence * 100).toInt()
