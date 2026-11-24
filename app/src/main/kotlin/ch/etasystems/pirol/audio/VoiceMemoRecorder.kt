@@ -30,14 +30,18 @@ import kotlin.math.abs
  *
  * Lifetime: Feld im ViewModel. release() in onCleared() aufrufen.
  */
-class VoiceMemoRecorder {
+class VoiceMemoRecorder(
+    /** Obergrenze einer Aufnahme (s); Art-Memo 60 s, Session-Memo 180 s (T264) */
+    val maxDurationSec: Int = DEFAULT_MAX_DURATION_SEC
+) {
 
     companion object {
         private const val TAG = "VoiceMemoRecorder"
         private const val SAMPLE_RATE = 16_000
-        private const val MAX_DURATION_SEC = 60
-        private const val MAX_SAMPLES = SAMPLE_RATE * MAX_DURATION_SEC
+        const val DEFAULT_MAX_DURATION_SEC = 60
     }
+
+    private val maxSamples = SAMPLE_RATE.toLong() * maxDurationSec
 
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
@@ -48,8 +52,6 @@ class VoiceMemoRecorder {
     /** Emittiert Unit wenn der 60s-Cap greift — Screen soll Snackbar anzeigen. */
     private val _capReached = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val capReached: SharedFlow<Unit> = _capReached.asSharedFlow()
-
-    val maxDurationSec: Int = MAX_DURATION_SEC
 
     /**
      * T263: Wanduhr der letzten Memo-Aufnahme. [fileName] = Dateiname der Memo-WAV (z.B. `<id>.wav`),
@@ -181,8 +183,8 @@ class VoiceMemoRecorder {
                     }
                     _amplitude.value = peak.toFloat() / Short.MAX_VALUE.toFloat()
                     // 60s-Cap
-                    if (totalSamples >= MAX_SAMPLES) {
-                        Log.i(TAG, "60s-Cap erreicht — stoppe Aufnahme")
+                    if (totalSamples >= maxSamples) {
+                        Log.i(TAG, "${maxDurationSec}s-Cap erreicht — stoppe Aufnahme")
                         _capReached.tryEmit(Unit)
                         break
                     }

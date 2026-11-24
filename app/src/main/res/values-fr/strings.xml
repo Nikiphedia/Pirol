@@ -97,7 +97,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Emplacement inaccessible, enregistrement sauvegardé dans le dossier de secours.</string>
     <string name="live_preroll_stoppen">Arrêter le préroll</string>
     <string name="live_preroll_starten">Démarrer le préroll</string>
-    <string name="live_sprach_memo_funktion_wird_in">Mémo vocal, sera implémenté dans Cluster E</string>
     <string name="live_live_aufnahme">Enregistrement en direct</string>
     <string name="live_farbpalette_wechseln">Changer la palette (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Remarque sur la session (facultatif)</string>

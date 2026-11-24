@@ -45,8 +45,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import ch.etasystems.pirol.ui.components.AddManualDetectionDialog
 import androidx.compose.material.icons.filled.Warning
@@ -337,7 +335,6 @@ private fun CompactLiveLayout(
     onRequestLocationPermission: () -> Unit = {}
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
-    var showMemoDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -440,18 +437,9 @@ private fun CompactLiveLayout(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Memo-Button
+                // T264: Session-Memo (gedrueckt halten)
                 AnimatedVisibility(visible = uiState.isRecording) {
-                    IconButton(
-                        onClick = { showMemoDialog = true },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Mic,
-                            contentDescription = stringResource(R.string.ui_memo_aufnehmen),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    SessionMemoButton(viewModel = viewModel)
                 }
                 // +Art-Button
                 AnimatedVisibility(visible = uiState.isRecording) {
@@ -517,16 +505,6 @@ private fun CompactLiveLayout(
             onDismiss = { showAddManualDialog = false }
         )
     }
-    if (showMemoDialog) {
-        AlertDialog(
-            onDismissRequest = { showMemoDialog = false },
-            title = { Text(stringResource(R.string.ui_sprach_memo)) },
-            text = { Text(stringResource(R.string.live_sprach_memo_funktion_wird_in)) },
-            confirmButton = {
-                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
-            }
-        )
-    }
 }
 
 // =============================================================================
@@ -542,7 +520,6 @@ private fun MediumLiveLayout(
     compact: Boolean = false  // T174: niedrige Fensterhoehe (Telefon quer)
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
-    var showMemoDialog by remember { mutableStateOf(false) }
 
     val similarity: @Composable () -> Unit = {
             // Aehnlichkeitssuche (T12b)
@@ -573,18 +550,9 @@ private fun MediumLiveLayout(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Memo-Button
+                    // T264: Session-Memo (gedrueckt halten)
                     AnimatedVisibility(visible = uiState.isRecording) {
-                        IconButton(
-                            onClick = { showMemoDialog = true },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Mic,
-                                contentDescription = stringResource(R.string.ui_memo_aufnehmen),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        SessionMemoButton(viewModel = viewModel)
                     }
                     // +Art-Button
                     AnimatedVisibility(visible = uiState.isRecording) {
@@ -740,16 +708,6 @@ private fun MediumLiveLayout(
             onDismiss = { showAddManualDialog = false }
         )
     }
-    if (showMemoDialog) {
-        AlertDialog(
-            onDismissRequest = { showMemoDialog = false },
-            title = { Text(stringResource(R.string.ui_sprach_memo)) },
-            text = { Text(stringResource(R.string.live_sprach_memo_funktion_wird_in)) },
-            confirmButton = {
-                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
-            }
-        )
-    }
 }
 
 // =============================================================================
@@ -764,7 +722,6 @@ private fun ExpandedLiveLayout(
     onRequestLocationPermission: () -> Unit = {}
 ) {
     var showAddManualDialog by remember { mutableStateOf(false) }
-    var showMemoDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -866,18 +823,9 @@ private fun ExpandedLiveLayout(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Memo-Button
+                    // T264: Session-Memo (gedrueckt halten)
                     AnimatedVisibility(visible = uiState.isRecording) {
-                        IconButton(
-                            onClick = { showMemoDialog = true },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Mic,
-                                contentDescription = stringResource(R.string.ui_memo_aufnehmen),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        SessionMemoButton(viewModel = viewModel)
                     }
                     // +Art-Button
                     AnimatedVisibility(visible = uiState.isRecording) {
@@ -942,16 +890,6 @@ private fun ExpandedLiveLayout(
                 showAddManualDialog = false
             },
             onDismiss = { showAddManualDialog = false }
-        )
-    }
-    if (showMemoDialog) {
-        AlertDialog(
-            onDismissRequest = { showMemoDialog = false },
-            title = { Text(stringResource(R.string.ui_sprach_memo)) },
-            text = { Text(stringResource(R.string.live_sprach_memo_funktion_wird_in)) },
-            confirmButton = {
-                TextButton(onClick = { showMemoDialog = false }) { Text("OK") }
-            }
         )
     }
 }

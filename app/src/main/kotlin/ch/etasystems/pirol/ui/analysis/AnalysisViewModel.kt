@@ -61,6 +61,10 @@ import ch.etasystems.pirol.ui.AppStrings
  */
 /** T122: Wiedergabe im Analyse-Tab auf -10 dBFS normalisieren (Wunsch Feldtest) */
 private const val PLAYBACK_DBFS = -10f
+/** T264: Rand links/rechts um ein Session-Memo beim Sprung (s) */
+private const val MEMO_VIEW_MARGIN_SEC = 2f
+/** T264: Mindestbreite des Ausschnitts beim Sprung zu einem Memo (s) */
+private const val MEMO_VIEW_MIN_SEC = 10f
 
 class AnalysisViewModel(
     private val sessionManager: SessionManager,
@@ -359,6 +363,8 @@ class AnalysisViewModel(
             val rec = sessionManager.loadRecording(summary.sessionDir)
             recording = rec
             val mergeTimes = sessionManager.loadMergeTimestamps(summary.sessionDir)  // T167
+            val sessionMemos = sessionManager.loadSessionMemos(summary.sessionDir)  // T264
+            val artMemoSpans = sessionManager.loadMemoWallSpansByDetection(summary.sessionDir)  // T264
             val variants = rescanEngine.variants(summary.sessionDir)  // T221
             // T62: URI aus File ableiten; T131: bei SAF content://-URI des ersten Segments
             val recUri  = recFile?.let { Uri.fromFile(it) }
@@ -372,6 +378,8 @@ class AnalysisViewModel(
                     // T186: bestes Fenster auch fuer Sessions vor T186 aus den Merge-Events ableiten
                     detections = detections.map { d -> DetectionOccurrences.withBestWindow(d, mergeTimes[d.id].orEmpty()) },
                     mergeTimestamps = mergeTimes,
+                    sessionMemos = sessionMemos,
+                    artMemoSpans = artMemoSpans,
                     recordingFile = recFile,
                     hasRecording = rec != null || recFile != null,
                     recordingUri  = recUri,
@@ -407,6 +415,8 @@ class AnalysisViewModel(
                 activeVariant = null,
                 detections = emptyList(),
                 mergeTimestamps = emptyMap(),
+                sessionMemos = emptyList(),
+                artMemoSpans = emptyMap(),
                 recordingFile = null,
                 hasRecording = false,
                 recordingUri = null,
@@ -481,6 +491,41 @@ class AnalysisViewModel(
             ?: if (forward) -1f else Float.MAX_VALUE / 2
         val target = (if (forward) PlaybackNav.next(sorted, from) else PlaybackNav.previous(sorted, from)) ?: return
         playDetection(target)
+    }
+
+    /**
+     * T264: Memo aus dem Block "Memos" abspielen (Start/Stopp ueber den zentralen Controller).
+     * Art-Memos nutzen denselben Schluessel wie die Memo-Zeile der Artkarte.
+     */
+    fun playMemo(item: MemoItem) {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        val key = PlaybackKeys.memo(item.key)
+        if (playback.isPlaying(key)) {
+            playback.stop()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val source = sessionManager.memoSource(dir, item.file)
+            withContext(Dispatchers.Main) {
+                when (source) {
+                    is File -> playback.play(key) { audioPlayer.play(source) }
+                    is Uri -> playback.play(key) { audioPlayer.play(source) }
+                    else -> reportError(AppStrings.get(R.string.analysis_memo_nicht_gefunden))
+                }
+            }
+        }
+    }
+
+    /** T264: an die Stelle eines Session-Memos springen (Ausschnitt um das Memo, Startposition auf den Beginn). */
+    fun jumpToSessionMemo(item: MemoItem) {
+        val start = item.sessionStartSec ?: return
+        val s = _uiState.value
+        if (!s.hasRecording || start >= s.recordingDurationSec) return
+        val end = (item.sessionEndSec ?: start).coerceAtLeast(start)
+        val width = (end - start + 2 * MEMO_VIEW_MARGIN_SEC).coerceAtLeast(MEMO_VIEW_MIN_SEC)
+            .coerceAtMost(s.recordingDurationSec)
+        showWindow(start - MEMO_VIEW_MARGIN_SEC, width)
+        seekTo(start)
     }
 
     /** Aufnahme abspielen (spielt recording.wav) */

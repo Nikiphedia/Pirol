@@ -99,7 +99,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Storage location not reachable — recording saved in fallback folder.</string>
     <string name="live_preroll_stoppen">Stop preroll</string>
     <string name="live_preroll_starten">Start preroll</string>
-    <string name="live_sprach_memo_funktion_wird_in">Voice memo function — will be implemented in cluster E</string>
     <string name="live_live_aufnahme">Live recording</string>
     <string name="live_farbpalette_wechseln">Change color palette (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Session note (optional)</string>
@@ -847,4 +846,15 @@
     <string name="human_mask_wahl_ohne">Export without hiding</string>
     <string name="human_mask_wahl_ohne_warnung">Warning: without hiding, conversations and voices of bystanders stay audible in the export.</string>
     <string name="live_upload_wartet_entscheid">Upload waiting: voices cannot be detected with the model. Choose at the manual export in Analysis.</string>
+    <!-- T264: session memo and memo block -->
+    <string name="live_memo_halten">Memo: press and hold to speak</string>
+    <string name="live_memo_nur_bei_aufnahme">Memos are only available during a recording</string>
+    <string name="live_memo_fehler">Memo could not be recorded</string>
+    <string name="live_memo_gedrueckt_halten">Too short – press and hold to record</string>
+    <string name="live_memo_gespeichert">Memo saved (%1$d s)</string>
+    <string name="analysis_memos_titel">Memos (%1$d)</string>
+    <string name="analysis_memo_session">Session memo</string>
+    <string name="analysis_memo_ungefaehr">approx. %1$s (detection time)</string>
+    <string name="analysis_memo_abspielen">Play memo</string>
+    <string name="analysis_memo_nicht_gefunden">Memo file not found</string>
 </resources>

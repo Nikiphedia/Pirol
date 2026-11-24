@@ -97,7 +97,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Localização inacessível: a gravação foi guardada na pasta de recurso.</string>
     <string name="live_preroll_stoppen">Parar pré-gravação</string>
     <string name="live_preroll_starten">Iniciar pré-gravação</string>
-    <string name="live_sprach_memo_funktion_wird_in">Memo de voz: será implementado no Cluster E</string>
     <string name="live_live_aufnahme">Gravação em direto</string>
     <string name="live_farbpalette_wechseln">Mudar paleta (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Observação sobre a sessão (opcional)</string>

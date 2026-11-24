@@ -97,7 +97,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Opslaglocatie niet bereikbaar: opname opgeslagen in de noodmap.</string>
     <string name="live_preroll_stoppen">Preroll stoppen</string>
     <string name="live_preroll_starten">Preroll starten</string>
-    <string name="live_sprach_memo_funktion_wird_in">Spraakmemo: wordt geïmplementeerd in Cluster E</string>
     <string name="live_live_aufnahme">Live-opname</string>
     <string name="live_farbpalette_wechseln">Kleurenpalet wisselen (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Opmerking bij de sessie (optioneel)</string>

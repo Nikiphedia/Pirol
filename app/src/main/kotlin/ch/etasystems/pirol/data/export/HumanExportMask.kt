@@ -151,12 +151,16 @@ class HumanExportMask(
      */
     private suspend fun memoCuts(sessionDir: File, totalSec: Float): List<TimeSpan> {
         return try {
+            // T264: Session-Memos tragen ihre Lage auf der Session-Achse selbst
+            val sessionCuts = MemoExclusion.sessionMemoSpans(sessionManager.loadSessionMemos(sessionDir), totalSec)
             val spans = sessionManager.loadMemoWallSpans(sessionDir)
-            if (spans.isEmpty()) return emptyList()
-            val dets = sessionManager.loadDetections(sessionDir)
-            val epoch0 = if (dets.any { !it.manualEntry }) RescanPlan.epochAtZero(dets, null) else null
-            MemoExclusion.toSessionSpans(spans, epoch0, totalSec).also {
-                Log.i(TAG, "T263_MEMO session=${sessionDir.name} memos=${spans.size} cutSec=${"%.1f".format(it.sumOf { s -> s.durationSec.toDouble() })}")
+            val artCuts = if (spans.isEmpty()) emptyList() else {
+                val dets = sessionManager.loadDetections(sessionDir)
+                val epoch0 = if (dets.any { !it.manualEntry }) RescanPlan.epochAtZero(dets, null) else null
+                MemoExclusion.toSessionSpans(spans, epoch0, totalSec)
+            }
+            HumanWindows.union(artCuts + sessionCuts).also {
+                Log.i(TAG, "T263_MEMO session=${sessionDir.name} memos=${spans.size} sessionMemos=${sessionCuts.size} cutSec=${"%.1f".format(it.sumOf { s -> s.durationSec.toDouble() })}")
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

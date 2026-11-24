@@ -97,7 +97,6 @@
     <string name="live_speicherort_nicht_erreichbar_aufnahm">Posizione di salvataggio non raggiungibile, registrazione salvata nella cartella di emergenza.</string>
     <string name="live_preroll_stoppen">Ferma preroll</string>
     <string name="live_preroll_starten">Avvia preroll</string>
-    <string name="live_sprach_memo_funktion_wird_in">Memo vocale: sarà implementato nel Cluster E</string>
     <string name="live_live_aufnahme">Registrazione live</string>
     <string name="live_farbpalette_wechseln">Cambia tavolozza (%1$s)</string>
     <string name="live_bemerkung_zur_session_optional">Nota sulla sessione (facoltativo)</string>
