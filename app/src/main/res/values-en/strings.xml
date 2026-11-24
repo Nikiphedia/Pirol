@@ -806,4 +806,15 @@
     <string name="analysis_angaben_fehler">Details could not be saved</string>
     <string name="analysis_angaben_aufnahme_laeuft">Not possible while this session is recording</string>
     <string name="analysis_angaben_rescan_laeuft">Not possible while a rescan is running</string>
+    <string name="analysis_saveas_menue">Save as …</string>
+    <string name="analysis_saveas_titel">Save session as</string>
+    <string name="analysis_saveas_frage">Save as a ZIP file or as a folder? You then choose the destination freely.</string>
+    <string name="analysis_saveas_zip">ZIP</string>
+    <string name="analysis_saveas_ordner">Folder</string>
+    <string name="analysis_saveas_laeuft">Saving …</string>
+    <string name="analysis_saveas_ok">Saved: %1$s</string>
+    <string name="analysis_saveas_fehler">Saving failed</string>
+    <string name="analysis_saveas_aufnahme_laeuft">Not possible while this session is recording</string>
+    <string name="analysis_saveas_ziel_in_basis">The target folder is inside the PIROL storage. Please choose a folder outside it; nothing was saved.</string>
+    <string name="analysis_saveas_ziel_gleich_quelle">The target folder is the session itself. Nothing was saved.</string>
 </resources>

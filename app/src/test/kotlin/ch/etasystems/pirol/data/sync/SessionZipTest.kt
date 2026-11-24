@@ -65,4 +65,27 @@ class SessionZipTest {
         createZip(dir, zip)
         assertTrue(entries()["detections.jsonl"]!!.contains("\"count\":1"))
     }
+
+    // T258: gemeinsame Ausschlussregel
+    @Test
+    fun exclusionRule_matchesZipContent() {
+        File(dir, "session.json").writeText("{}")
+        File(dir, "detections.jsonl").writeText(line("a", 1) + "\n")
+        File(dir, DetectionUpdateLog.FILE).writeText(line("a", 2) + "\n")
+        File(dir, "session.edit.pending.json").writeText("{}")
+        File(dir, "session.json.new").writeText("x")
+        File(dir, "session.json.new.ok").writeText("")
+        File(dir, "memos").mkdirs()
+        File(dir, "memos/m1.wav").writeText("w")
+        createZip(dir, zip, null)
+        assertEquals(setOf("session.json", "detections.jsonl", "memos/m1.wav"), entries().keys)
+        val rule = ch.etasystems.pirol.data.repository.SessionExportRules
+        assertTrue(rule.isExcluded(DetectionUpdateLog.FILE))
+        assertTrue(rule.isExcluded("session.edit.pending.json"))
+        assertTrue(rule.isExcluded("x.new"))
+        assertTrue(rule.isExcluded("x.new.ok"))
+        assertFalse(rule.isExcluded("detections.jsonl"))
+        assertFalse(rule.isExcluded("recording-002.wav"))
+        assertEquals(setOf("session.json", "detections.jsonl", "memos/m1.wav"), rule.entriesOf(dir).map { it.path }.toSet())
+    }
 }

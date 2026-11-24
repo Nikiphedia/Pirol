@@ -7,13 +7,14 @@ import androidx.work.WorkerParameters
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.repository.SessionMetadata
 import kotlinx.serialization.json.Json
-import ch.etasystems.pirol.data.repository.DetectionUpdateLog
 import ch.etasystems.pirol.data.repository.SessionManager
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.BufferedOutputStream
 import java.io.File
-import java.io.FileInputStream
+import java.io.OutputStream
+import ch.etasystems.pirol.data.repository.ExportEntry
+import ch.etasystems.pirol.data.repository.SessionExportRules
 import java.io.FileOutputStream
 import ch.etasystems.pirol.data.export.ExportNames
 import java.util.zip.ZipEntry
@@ -193,23 +194,23 @@ class SessionUploadWorker(
 // Packt einen Session-Ordner als ZIP.
 // Enthaelt: session.json, detections.jsonl, verifications.jsonl (falls vorhanden), audio/*.wav
 // T253: detections.jsonl kommt aus [detectionsText] (zusammengefuehrter Stand), falls gegeben; die Zusatzdatei
-// der Detektions-Updates kommt nie ins ZIP.
+// der Detektions-Updates kommt nie ins ZIP. T258: Ausschlussregel in SessionExportRules.
 internal fun createZip(sessionDir: File, zipFile: File, detectionsText: String? = null) {
-    ZipOutputStream(BufferedOutputStream(FileOutputStream(zipFile))).use { zos ->
-        sessionDir.walkTopDown()
-            .filter { it.isFile && !ch.etasystems.pirol.data.repository.ShadowReplace.isShadowFile(it.name) }  // T240
-            .filter { it.name != DetectionUpdateLog.FILE && it.name != ch.etasystems.pirol.data.repository.SessionInfoEdit.JOURNAL_FILE }  // T257: Auftragsdatei nicht ins ZIP
-            .forEach { file ->
-                val entryName = file.relativeTo(sessionDir).path.replace('\\', '/')
-                zos.putNextEntry(ZipEntry(entryName))
-                if (detectionsText != null && entryName == "detections.jsonl") {
-                    zos.write(detectionsText.toByteArray(Charsets.UTF_8))
-                } else {
-                    FileInputStream(file).use { fis ->
-                        fis.copyTo(zos, bufferSize = 8192)
-                    }
-                }
-                zos.closeEntry()
-            }
+    FileOutputStream(zipFile).use { writeZip(it, SessionExportRules.entriesOf(sessionDir), detectionsText) }
+}
+
+/** T258: ZIP aus beliebigen Quellen (Dateisystem oder SAF); schliesst [out] nicht. */
+internal fun writeZip(out: OutputStream, entries: List<ExportEntry>, detectionsText: String? = null) {
+    val zos = ZipOutputStream(BufferedOutputStream(out))
+    entries.forEach { e ->
+        zos.putNextEntry(ZipEntry(e.path))
+        if (detectionsText != null && e.path == SessionExportRules.DETECTIONS_ENTRY) {
+            zos.write(detectionsText.toByteArray(Charsets.UTF_8))
+        } else {
+            e.open().use { it.copyTo(zos, bufferSize = 8192) }
+        }
+        zos.closeEntry()
     }
+    zos.finish()
+    zos.flush()
 }

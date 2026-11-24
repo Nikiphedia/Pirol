@@ -87,4 +87,12 @@ class ExportNamesTest {
         assertEquals("a_neu.zip", ExportNames.chooseZipName("a_b-2.zip", "a_neu") { false })
         assertEquals(false, ExportNames.storedMatchesBase("a_bc.zip", "a_b"))
     }
+
+    // T258: Ordnername im Ordner-Modus
+    @Test
+    fun uniqueFolderName_collision() {
+        assertEquals("20260101120000_Wald", ExportNames.uniqueFolderName("20260101120000_Wald") { false })
+        val taken = setOf("20260101120000_Wald", "20260101120000_Wald-2")
+        assertEquals("20260101120000_Wald-3", ExportNames.uniqueFolderName("20260101120000_Wald") { it in taken })
+    }
 }
