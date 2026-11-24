@@ -23,23 +23,39 @@ import java.time.format.DateTimeFormatter
  * - `detections.rescan-<id>.jsonl` — Detektionen des Rescans
  * - `verifications.rescan-<id>.jsonl` — Cluster-Merges, uebernommene und spaetere Verifikationen
  * - `recording.rescan-<id>.selections.txt` — Raven-Tabelle der Variante
- * - `rescan-<id>.json` — Einstellungen; wird zuletzt geschrieben (Variante erst dann sichtbar)
+ * - `rescan-<id>.json` — Einstellungen und Status (T260: zu Beginn mit RUNNING geschrieben, damit die
+ *   Analyse die Variante schon waehrend des Scans zeigt; am Ende DONE oder ABORTED)
+ * - `detections.updates.rescan-<id>.jsonl` — T260: Updates waehrend des Scans (append-only wie live,
+ *   [ch.etasystems.pirol.data.repository.DetectionUpdateLog]); am Ende in die Detektionsdatei uebernommen
  */
 object RescanFiles {
     const val DETECTIONS = "detections.jsonl"
     const val VERIFICATIONS = "verifications.jsonl"
     const val RAVEN = "recording.selections.txt"
+    /** Zusatzdatei der Detektions-Updates des Originals (T251) */
+    const val UPDATES = "detections.updates.jsonl"
 
-    private val META_REGEX = Regex("""rescan-(\d{8}-\d{6}(?:-\d+)?)\.json""")
+    private const val ID_PATTERN = """\d{8}-\d{6}(?:-\d+)?"""
+    private val META_REGEX = Regex("""rescan-($ID_PATTERN)\.json""")
+    private val DETECTIONS_REGEX = Regex("""detections\.rescan-($ID_PATTERN)\.jsonl""")
     private val ID_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
     fun detections(id: String?): String = if (id == null) DETECTIONS else "detections.rescan-$id.jsonl"
     fun verifications(id: String?): String = if (id == null) VERIFICATIONS else "verifications.rescan-$id.jsonl"
     fun raven(id: String?): String = if (id == null) RAVEN else "recording.rescan-$id.selections.txt"
     fun meta(id: String): String = "rescan-$id.json"
+    /** T260: Zusatzdatei der Detektions-Updates (Original: [UPDATES]). Bewusst nicht `detections.rescan-...`. */
+    fun updates(id: String?): String = if (id == null) UPDATES else "detections.updates.rescan-$id.jsonl"
+
+    /** T260: Zusatzdatei zu einer Detektionsdatei (Original oder Variante); null = keine Detektionsdatei. */
+    fun updatesFor(detectionsName: String): String? {
+        if (detectionsName == DETECTIONS) return UPDATES
+        val m = DETECTIONS_REGEX.matchEntire(detectionsName) ?: return null
+        return updates(m.groupValues[1])
+    }
 
     /** Alle Dateien einer Variante; Metadaten zuerst (beim Loeschen verschwindet die Variante sofort). */
-    fun filesOf(id: String): List<String> = listOf(meta(id), detections(id), verifications(id), raven(id))
+    fun filesOf(id: String): List<String> = listOf(meta(id), detections(id), updates(id), verifications(id), raven(id))
 
     /** Kennungen aller Varianten im Ordner (aus den Metadaten-Dateien), aufsteigend. */
     fun idsIn(names: Collection<String>): List<String> =
@@ -52,6 +68,67 @@ object RescanFiles {
         var n = 2
         while ("$base-$n" in existing) n++
         return "$base-$n"
+    }
+}
+
+/**
+ * T260: Status einer Variante in `rescan-<id>.json` (reine Logik).
+ * RUNNING = Scan laeuft (Variante schon sichtbar und verifizierbar), DONE = fertig, ABORTED = abgebrochen
+ * (Knopf, Aufnahme gestartet, Fehler) oder nach Prozess-Kill wiederhergestellt; Teilergebnis bleibt.
+ */
+object RescanStatus {
+    const val RUNNING = "RUNNING"
+    const val DONE = "DONE"
+    const val ABORTED = "ABORTED"
+
+    /**
+     * Angezeigter Status: RUNNING ohne laufenden Rescan dieser Variante ([runningId] = Kennung des Rescans,
+     * der in diesem Prozess laeuft, sonst null) war ein Prozess-Kill -> ABORTED.
+     */
+    fun effective(info: RescanInfo, runningId: String?): String =
+        if (info.status == RUNNING && info.id != runningId) ABORTED else info.status
+
+    /** Liegengebliebene Varianten (RUNNING, aber nicht in diesem Prozess aktiv), die abzuschliessen sind. */
+    fun stale(list: List<RescanInfo>, runningId: String?): List<RescanInfo> =
+        list.filter { it.status == RUNNING && it.id != runningId }
+
+    /** Abgeschlossene Metadaten: Status, gescannte Sekunden und Zaehler der Endfassung. */
+    fun finished(info: RescanInfo, status: String, scannedSec: Float?, detections: Int, transferred: Int): RescanInfo =
+        info.copy(status = status, scannedSec = scannedSec ?: info.scannedSec, detectionCount = detections,
+            transferredVerifications = transferred)
+
+    /** Ganze Minuten fuer "abgebrochen bei x min" (abgerundet, nie negativ). */
+    fun minutes(scannedSec: Float?): Int = ((scannedSec ?: 0f) / 60f).toInt().coerceAtLeast(0)
+}
+
+/**
+ * T260: Update des Rescans (Cluster-Merge, Zweitmodell) auf den AKTUELLEN Stand einer Detektion anwenden,
+ * die der Nutzer waehrend des Scans schon bearbeitet haben kann (reine Logik).
+ *
+ * Regel: Der Rescan setzt nur seine eigenen Felder (detectionCount, lastSeenAtMs/lastDetectedMs, Konfidenz und bestes
+ * Fenster des Clusters, secondary*). Nutzerfelder bleiben immer: Status, Korrektur, verifiedAtMs, Stueckzahl,
+ * Atlascode, Bemerkung, Memo, Sperre, Position, Art samt Kandidaten. Hat der Nutzer eine Alternative
+ * gewaehlt (Art anders als im Rescan), gelten Konfidenz, bestes Fenster und Zweitmodell der alten Art nicht.
+ */
+object RescanLiveMerge {
+    fun applyRunnerUpdate(current: DetectionResult, runner: DetectionResult): DetectionResult {
+        val clustered = current.copy(
+            detectionCount = maxOf(current.detectionCount, runner.detectionCount),
+            lastSeenAtMs = maxOf(current.lastSeenAtMs, runner.lastSeenAtMs),
+            lastDetectedMs = maxOf(current.lastDetectedMs, runner.lastDetectedMs)
+        )
+        if (SpeciesKey.of(current.scientificName) != SpeciesKey.of(runner.scientificName)) return clustered
+        return clustered.copy(
+            confidence = runner.confidence,
+            bestStartSec = runner.bestStartSec,
+            bestEndSec = runner.bestEndSec,
+            secondaryModelId = runner.secondaryModelId,
+            secondaryStatus = runner.secondaryStatus,
+            secondaryConfidence = runner.secondaryConfidence,
+            secondaryTopSpecies = runner.secondaryTopSpecies,
+            secondaryTopConfidence = runner.secondaryTopConfidence,
+            secondaryRank = runner.secondaryRank
+        )
     }
 }
 
@@ -140,6 +217,19 @@ object RescanVerification {
         val (bS, bE) = span(b)
         return (minOf(aE, bE) - maxOf(aS, bS)).coerceAtLeast(0f)
     }
+
+    /**
+     * T260: Uebernahme am Ende (oder nach Kill beim naechsten Oeffnen) nur fuer Detektionen, die der Nutzer
+     * waehrend des Scans nicht angefasst hat ([rescan] mit angewendeten Verifikationen der Variante:
+     * UNVERIFIED und ohne verifiedAtMs). Nutzer-Verifikationen werden so nie ueberschrieben, und ein
+     * wiederholter Aufruf (Kill zwischen Uebernahme und Metadaten) haengt nichts doppelt an.
+     */
+    fun transferUntouched(rescan: List<DetectionResult>, originals: List<DetectionResult>, nowMs: Long): List<VerificationEvent> =
+        transfer(rescan.filter { it.verificationStatus == VerificationStatus.UNVERIFIED && it.verifiedAtMs == null }, originals, nowMs)
+
+    /** T260: Zahl der Uebernahme-Events (`rescan_from:`) in einer Verifikationsdatei der Variante. */
+    fun countTransferred(verificationsText: String?): Int =
+        verificationsText?.lineSequence()?.count { it.contains("\"newValue\":\"$SOURCE_PREFIX") } ?: 0
 
     fun transfer(rescan: List<DetectionResult>, originals: List<DetectionResult>, nowMs: Long): List<VerificationEvent> {
         val verified = originals.filter { it.verificationStatus != VerificationStatus.UNVERIFIED }

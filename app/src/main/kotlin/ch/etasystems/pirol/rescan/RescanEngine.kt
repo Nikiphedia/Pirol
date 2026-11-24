@@ -30,6 +30,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.NonCancellable
+import kotlinx.serialization.encodeToString
+import ch.etasystems.pirol.data.repository.DetectionUpdateLog
+import ch.etasystems.pirol.data.repository.SessionJson
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
@@ -67,6 +72,8 @@ class RescanEngine(
 ) {
     companion object {
         private const val TAG = "RescanEngine"
+        /** T260: Flush-Intervall der laufenden Variante (wie live, T236) */
+        private const val FLUSH_INTERVAL_MS = 10_000L
     }
 
     class NoRecordingException : Exception("Keine Aufnahme")
@@ -83,8 +90,12 @@ class RescanEngine(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
 
-    /** Laufender Rescan (Session-Ordner + Fortschritt 0..1), null = keiner */
-    data class Active(val sessionDir: File, val progress: Float)
+    /**
+     * Laufender Rescan (Session-Ordner + Fortschritt 0..1), null = keiner.
+     * T260: [variantId] = Kennung der schon sichtbaren Variante (null bis sie angelegt ist),
+     * [version] zaehlt die Flushes (UI laedt die Liste je Flush neu).
+     */
+    data class Active(val sessionDir: File, val progress: Float, val variantId: String? = null, val version: Int = 0)
     private val _active = MutableStateFlow<Active?>(null)
     val active: StateFlow<Active?> = _active.asStateFlow()
 
@@ -92,8 +103,9 @@ class RescanEngine(
     sealed class Outcome {
         abstract val sessionDir: File
         data class Done(override val sessionDir: File, val info: RescanInfo) : Outcome()
-        data class Cancelled(override val sessionDir: File) : Outcome()
-        data class Failed(override val sessionDir: File, val error: Throwable) : Outcome()
+        /** T260: [variantId] = behaltenes Teilergebnis (ABORTED), null = Abbruch vor dem Anlegen */
+        data class Cancelled(override val sessionDir: File, val variantId: String? = null) : Outcome()
+        data class Failed(override val sessionDir: File, val error: Throwable, val variantId: String? = null) : Outcome()
     }
     private val _outcomes = MutableSharedFlow<Outcome>(extraBufferCapacity = 4)
     val outcomes: SharedFlow<Outcome> = _outcomes.asSharedFlow()
@@ -110,14 +122,14 @@ class RescanEngine(
                         val pct = (p * 100).toInt()
                         if (pct != lastPct) {
                             lastPct = pct
-                            _active.value = Active(sessionDir, p)
+                            _active.update { it?.copy(progress = p) }
                         }
                     })
                 } catch (e: CancellationException) {
-                    Outcome.Cancelled(sessionDir)
+                    Outcome.Cancelled(sessionDir, _active.value?.variantId)
                 } catch (e: Exception) {
                     Log.e(TAG, "Rescan fehlgeschlagen", e)
-                    Outcome.Failed(sessionDir, e)
+                    Outcome.Failed(sessionDir, e, _active.value?.variantId)
                 } finally {
                     _active.value = null
                 }
@@ -126,7 +138,7 @@ class RescanEngine(
         }
     }
 
-    /** Laufenden Rescan abbrechen (nichts wird geschrieben, ausser er ist schon im Schreiben) */
+    /** Laufenden Rescan abbrechen; T260: das Teilergebnis bleibt als Variante (ABORTED) */
     fun cancel() { job?.cancel() }
 
     /** Installierte Modelle (aktives zuerst) */
@@ -156,12 +168,71 @@ class RescanEngine(
         )
     }
 
-    /** Varianten einer Session (aelteste zuerst) */
-    suspend fun variants(sessionDir: File): List<RescanInfo> =
-        runCatching { sessionManager.withSessionFiles(sessionDir) { RescanStore.list(it) } }.getOrElse { emptyList() }
+    /**
+     * T260: Variante, die gerade in diesem Prozess geschrieben wird (Session-Pfad, Kennung). Wird gesetzt,
+     * BEVOR die Metadaten mit RUNNING entstehen, und erst nach dem Abschluss geloescht; alles andere mit
+     * RUNNING ist liegengeblieben (Prozess-Kill) und wird beim Oeffnen abgeschlossen.
+     */
+    @Volatile private var writing: Pair<String, String>? = null
 
-    suspend fun deleteVariant(sessionDir: File, id: String): Boolean =
-        sessionManager.withSessionFiles(sessionDir) { RescanStore.delete(it, id) }
+    /** T260: Kennung der Variante, die gerade fuer diese Session geschrieben wird (null = keine) */
+    fun runningVariant(sessionDir: File): String? =
+        writing?.takeIf { it.first == sessionDir.absolutePath }?.second
+
+    /**
+     * Varianten einer Session (aelteste zuerst). T260: liegengebliebene RUNNING-Varianten (Prozess-Kill)
+     * werden dabei als ABORTED abgeschlossen (Updates uebernehmen, Uebernahme, Raven), wie beim Oeffnen
+     * einer Session mit liegengebliebener Zusatzdatei (T251).
+     */
+    suspend fun variants(sessionDir: File): List<RescanInfo> {
+        val list = runCatching { sessionManager.withSessionFiles(sessionDir) { RescanStore.list(it) } }.getOrElse { emptyList() }
+        val stale = RescanStatus.stale(list, runningVariant(sessionDir))
+        if (stale.isEmpty()) return list
+        for (info in stale) {
+            runCatching { finish(sessionDir, info, RescanStatus.ABORTED, scannedSec = null) }
+                .onFailure { Log.w(TAG, "T260 Variante ${info.id} nicht abgeschlossen", it) }
+        }
+        val running = runningVariant(sessionDir)
+        return runCatching { sessionManager.withSessionFiles(sessionDir) { RescanStore.list(it) } }.getOrElse { list }
+            .map { it.copy(status = RescanStatus.effective(it, running)) }
+    }
+
+    suspend fun deleteVariant(sessionDir: File, id: String): Boolean {
+        if (runningVariant(sessionDir) == id) return false  // T260: laufende Variante nicht loeschen
+        return sessionManager.withSessionFiles(sessionDir) { RescanStore.delete(it, id) }
+    }
+
+    /**
+     * T260: Variante abschliessen (Ende, Abbruch oder nach Kill). Idempotent; Reihenfolge:
+     * 1. Zusatzdatei in die Detektionsdatei uebernehmen (atomar, danach Zusatzdatei weg)
+     * 2. Verifikationen des Originals uebernehmen, nur fuer vom Nutzer nicht angefasste Detektionen
+     * 3. Metadaten mit Endstatus (erst damit gilt die Variante als abgeschlossen)
+     * 4. Raven-Datei der Variante
+     * Ein Kill vor 3. laesst RUNNING stehen -> beim naechsten Oeffnen dasselbe noch einmal (1. und 2. ohne Doppel).
+     */
+    private suspend fun finish(sessionDir: File, info: RescanInfo, status: String, scannedSec: Float?): RescanInfo {
+        val id = info.id
+        sessionManager.withSessionFiles(sessionDir) {
+            DetectionUpdateLog.consolidate(it, detectionsName = RescanFiles.detections(id))
+        }
+        val originals = sessionManager.loadDetectionsWithVerifications(sessionDir)
+        val current = sessionManager.loadDetectionsWithVerifications(sessionDir, id)
+        val transfer = RescanVerification.transferUntouched(current, originals, System.currentTimeMillis())
+        if (transfer.isNotEmpty()) {
+            sessionManager.appendVerificationLine(
+                sessionDir, variant = id,
+                line = transfer.joinToString("") { SessionJson.compact.encodeToString(it) + "\n" }
+            )
+        }
+        val transferred = sessionManager.withSessionFiles(sessionDir) { f ->
+            RescanVerification.countTransferred(f.readText(RescanFiles.verifications(id)))
+        }
+        val done = RescanStatus.finished(info, status, scannedSec, current.size, transferred)
+        sessionManager.withSessionFiles(sessionDir) { RescanStore.writeMeta(it, done) }
+        runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = id) }
+            .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
+        return done
+    }
 
     /**
      * Rescan ausfuehren und als neue Variante speichern (Original bleibt unveraendert).
@@ -240,50 +311,91 @@ class RescanEngine(
                 secondaryOverlapPercent = appPreferences.secondaryOverlapPercent
             )
             val t0 = System.currentTimeMillis()
-            val result = withContext(Dispatchers.Default) {
-                runner.run(
-                    recording = recording,
-                    epochAtZeroMs = epoch0,
-                    wallClockAt = RescanPlan.wallClockAt(meta?.recordingSegments, recording.sampleRate, epoch0),  // T255
-                    positionAt = { t -> RescanPlan.positionAt(t, track, sessionPos) },
-                    onProgress = onProgress,
-                    isAborted = { pipeline.isRunning }
+            // T260: Variante sofort anlegen (RUNNING), damit die Analyse sie waehrend des Scans zeigt
+            val begun = sessionManager.withSessionFiles(sessionDir) { files ->
+                val newId = RescanFiles.newId(t0, ZoneId.systemDefault(), RescanFiles.idsIn(files.listNames()))
+                val info = RescanInfo(
+                    id = newId,
+                    createdAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                    modelId = cls.modelId,
+                    modelName = cls.modelName,
+                    regionFilter = region,
+                    confidenceThreshold = options.confidenceThreshold,
+                    overlapPercent = options.overlapPercent,
+                    speciesFilter = filterInfo,
+                    status = RescanStatus.RUNNING,
+                    scannedSec = 0f,
+                    totalSec = recording.durationSec
                 )
+                writing = sessionDir.absolutePath to newId  // vor dem Schreiben: sonst gilt RUNNING als liegengeblieben
+                RescanStore.begin(files, info)
+                info
+            }
+            val id = begun.id
+            _active.update { it?.copy(variantId = id) }
+            val writer = RescanLiveWriter(id)
+            var scanned = 0f
+            var lastFlush = System.currentTimeMillis()
+
+            // Flush wie live: gebuendelt, unter dem fileMutex (gegen Nutzer-Aenderungen derselben Variante)
+            suspend fun flush() {
+                val m = begun.copy(scannedSec = scanned, detectionCount = writer.detectionCount)
+                sessionManager.withSessionFiles(sessionDir) { files ->
+                    writer.flushLocked(files)
+                    RescanStore.writeMeta(files, m)
+                }
+                _active.update { it?.copy(version = it.version + 1) }
+            }
+
+            val result = try {
+                withContext(Dispatchers.Default) {
+                    runner.run(
+                        recording = recording,
+                        epochAtZeroMs = epoch0,
+                        wallClockAt = RescanPlan.wallClockAt(meta?.recordingSegments, recording.sampleRate, epoch0),  // T255
+                        positionAt = { t -> RescanPlan.positionAt(t, track, sessionPos) },
+                        onProgress = onProgress,
+                        isAborted = { pipeline.isRunning },
+                        sink = writer,
+                        onWindow = { sec ->
+                            scanned = sec
+                            val now = System.currentTimeMillis()
+                            if (now - lastFlush >= FLUSH_INTERVAL_MS) {
+                                lastFlush = now
+                                // Fehler: Gesammeltes bleibt stehen, neuer Versuch beim naechsten Intervall
+                                try { flush() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                                    Log.w(TAG, "T260 Flush der Variante $id fehlgeschlagen", e)
+                                }
+                            }
+                        }
+                    )
+                }
+            } catch (e: Throwable) {
+                // T260: Abbruch (Knopf, Aufnahme, Fehler) behaelt das Teilergebnis
+                withContext(NonCancellable) {
+                    runCatching { flush() }.onFailure { Log.e(TAG, "T260 letzter Flush der Variante $id fehlgeschlagen", it) }
+                    runCatching { finish(sessionDir, begun, RescanStatus.ABORTED, scanned) }
+                        .onFailure { Log.e(TAG, "T260 Variante $id nicht abgeschlossen (wird beim Oeffnen nachgeholt)", it) }
+                }
+                Log.i(TAG, "T260_RESCAN_ABORTED id=$id scannedSec=$scanned reason=${e.javaClass.simpleName}")
+                throw e
+            }
+            // T240: ab hier nicht mehr abbrechbar, sonst meldet der Abbruch "abgebrochen" trotz fertiger Variante
+            val info = withContext(NonCancellable) {
+                flush()
+                finish(sessionDir, begun, RescanStatus.DONE, recording.durationSec)
             }
             val now = System.currentTimeMillis()
-            val transfer = RescanVerification.transfer(result.detections, originals, now)
-            val existing = sessionManager.withSessionFiles(sessionDir) { RescanFiles.idsIn(it.listNames()) }
-            val id = RescanFiles.newId(now, ZoneId.systemDefault(), existing)
-            val info = RescanInfo(
-                id = id,
-                createdAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                modelId = cls.modelId,
-                modelName = cls.modelName,
-                regionFilter = region,
-                confidenceThreshold = options.confidenceThreshold,
-                overlapPercent = options.overlapPercent,
-                speciesFilter = filterInfo,
-                detectionCount = result.detections.size,
-                transferredVerifications = transfer.size
-            )
-            // T240: ab hier nicht mehr abbrechbar, sonst meldet der Abbruch "abgebrochen" trotz geschriebener Variante
-            withContext(kotlinx.coroutines.NonCancellable) {
-                sessionManager.withSessionFiles(sessionDir) {
-                    RescanStore.write(it, info, result.detections, result.mergeEvents, transfer)
-                }
-                // Raven-Datei der Variante (wie beim Session-Stopp fuer das Original)
-                runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = id) }
-                    .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
-            }
             Log.i(TAG, "T221_RESCAN id=$id model=${cls.modelId} region=$region thr=${options.confidenceThreshold} " +
-                "overlap=${options.overlapPercent} hop=${config.hopMsFor(options.overlapPercent, cls.windowMs)} windows=${result.windows} detections=${result.detections.size} " +
-                "merges=${result.mergeEvents.size} transferred=${transfer.size} ms=${now - t0}")
+                "overlap=${options.overlapPercent} hop=${config.hopMsFor(options.overlapPercent, cls.windowMs)} windows=${result.windows} detections=${info.detectionCount} " +
+                "merges=${result.mergeEvents.size} transferred=${info.transferredVerifications} ms=${now - t0}")
             return info
         } finally {
             classifier?.close()  // ORT-Session des Rescans sofort freigeben
             secondaryClassifier?.close()
             secondaryFile?.let { modelManager.unmarkInUse(it) }
             modelManager.unmarkInUse(options.modelFileName)
+            writing = null
             busy.unlock()
         }
     }

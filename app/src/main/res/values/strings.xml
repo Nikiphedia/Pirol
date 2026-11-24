@@ -639,7 +639,7 @@
     <string name="analysis_rescan_laeuft">Neu-Analyse: %1$d %%</string>
     <string name="analysis_rescan_aufnahme_laeuft">Während einer Aufnahme nicht möglich.</string>
     <string name="analysis_rescan_fertig">Neu-Analyse fertig: %1$d Detektionen, %2$d Verifikationen übernommen</string>
-    <string name="analysis_rescan_abgebrochen">Neu-Analyse abgebrochen</string>
+    <string name="analysis_rescan_abgebrochen">Neu-Analyse abgebrochen, Teilergebnis behalten</string>
     <string name="analysis_rescan_keine_aufnahme">Keine Aufnahme vorhanden.</string>
     <string name="analysis_rescan_modell_fehlt">Modell nicht verfügbar.</string>
     <string name="analysis_rescan_fehler">Neu-Analyse fehlgeschlagen</string>
@@ -820,4 +820,8 @@
     <string name="analysis_saveas_ziel_gleich_quelle">Zielordner ist die Session selbst. Es wurde nichts gespeichert.</string>
     <string name="settings_geocoder_fallback">Gemeinde online ermitteln (Google)</string>
     <string name="settings_geocoder_fallback_hint">Ausserhalb der Schweiz Gemeinde online ueber Google ermitteln; dabei werden die Koordinaten an Google gesendet.</string>
+    <!-- T260: Rescan live -->
+    <string name="analysis_variante_laeuft">läuft</string>
+    <string name="analysis_variante_abgebrochen_bei">abgebrochen bei %1$d min</string>
+    <string name="analysis_rescan_live_hinweis">Ergebnisse erscheinen laufend und lassen sich schon verifizieren.</string>
 </resources>

@@ -41,17 +41,28 @@ import ch.etasystems.pirol.R
 import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.rescan.RescanInfo
 import ch.etasystems.pirol.rescan.RescanOptions
+import ch.etasystems.pirol.rescan.RescanStatus
 import ch.etasystems.pirol.ui.settings.SpeciesGroupSettings
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
-/** T221: Kurzname einer Variante fuer Chips und Kopfzeile ("23.11. 14:30 · Modell"). */
+/**
+ * T221: Kurzname einer Variante fuer Chips und Kopfzeile ("23.11. 14:30 · Modell").
+ * T260: mit Status ("· laeuft", "· abgebrochen bei 12 min"); DONE ohne Zusatz.
+ */
+@Composable
 internal fun variantLabel(info: RescanInfo): String {
     val time = runCatching {
         OffsetDateTime.parse(info.createdAt).format(DateTimeFormatter.ofPattern("dd.MM. HH:mm"))
     }.getOrDefault(info.id)
-    return "$time · ${info.modelName}"
+    val base = "$time · ${info.modelName}"
+    return when (info.status) {
+        RescanStatus.RUNNING -> "$base · " + stringResource(R.string.analysis_variante_laeuft)
+        RescanStatus.ABORTED -> "$base · " +
+            stringResource(R.string.analysis_variante_abgebrochen_bei, RescanStatus.minutes(info.scannedSec))
+        else -> base
+    }
 }
 
 /**
@@ -70,6 +81,12 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
                     style = MaterialTheme.typography.labelMedium
                 )
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                // T260: Ergebnisse erscheinen laufend in der Variante
+                Text(
+                    stringResource(R.string.analysis_rescan_live_hinweis),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Text(
                     stringResource(R.string.analysis_rescan_hinweis),
                     style = MaterialTheme.typography.labelSmall,
@@ -105,7 +122,9 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
                 )
             }
         }
+        // T260: laufende Variante nicht loeschbar (erst abbrechen)
         val active = state.variants.firstOrNull { it.id == state.activeVariant }
+            ?.takeIf { it.status != RescanStatus.RUNNING }
         if (active != null) {
             IconButton(onClick = { confirmDelete = active }) {
                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.analysis_variante_loeschen))

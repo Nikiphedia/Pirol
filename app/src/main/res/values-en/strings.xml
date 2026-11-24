@@ -638,7 +638,7 @@
     <string name="analysis_rescan_laeuft">Re-analysis: %1$d %%</string>
     <string name="analysis_rescan_aufnahme_laeuft">Not possible while recording.</string>
     <string name="analysis_rescan_fertig">Re-analysis done: %1$d detections, %2$d verifications carried over</string>
-    <string name="analysis_rescan_abgebrochen">Re-analysis cancelled</string>
+    <string name="analysis_rescan_abgebrochen">Re-analysis cancelled, partial result kept</string>
     <string name="analysis_rescan_keine_aufnahme">No recording available.</string>
     <string name="analysis_rescan_modell_fehlt">Model not available.</string>
     <string name="analysis_rescan_fehler">Re-analysis failed</string>
@@ -819,4 +819,8 @@
     <string name="analysis_saveas_ziel_gleich_quelle">The target folder is the session itself. Nothing was saved.</string>
     <string name="settings_geocoder_fallback">Look up municipality online (Google)</string>
     <string name="settings_geocoder_fallback_hint">Outside Switzerland, look up the municipality online via Google; the coordinates are sent to Google.</string>
+    <!-- T260: Rescan live -->
+    <string name="analysis_variante_laeuft">running</string>
+    <string name="analysis_variante_abgebrochen_bei">cancelled at %1$d min</string>
+    <string name="analysis_rescan_live_hinweis">Results appear as they come in and can be verified right away.</string>
 </resources>

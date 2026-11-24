@@ -72,8 +72,8 @@ class DetectionUpdateLog(private val queue: DetectionUpdateQueue = DetectionUpda
     }
 
     companion object {
-        /** Zusatzdatei neben detections.jsonl (nur Original, nie Rescan-Varianten) */
-        const val FILE = "detections.updates.jsonl"
+        /** Zusatzdatei neben detections.jsonl (Original; T260: Varianten siehe [RescanFiles.updates]) */
+        const val FILE = RescanFiles.UPDATES
         private const val DETECTIONS = RescanFiles.DETECTIONS
 
         /** Letzte Zeile je ID aus der Zusatzdatei (unlesbare Zeilen werden uebersprungen). */
@@ -90,10 +90,17 @@ class DetectionUpdateLog(private val queue: DetectionUpdateQueue = DetectionUpda
         fun applyTo(main: String, updates: Map<String, String>): SessionFilesLogic.ReplaceResult =
             SessionFilesLogic.replaceLinesById(main, updates)
 
-        /** Zusammengefuehrter Inhalt (nur lesen); null = detections.jsonl fehlt. */
-        fun mergedText(files: SessionFiles): String? {
-            val main = files.readText(DETECTIONS) ?: return null
-            val updates = latestLines(files.readText(FILE))
+        /** Zusatzdatei zur Detektionsdatei [detectionsName] (Original oder T260 Rescan-Variante). */
+        private fun sideOf(detectionsName: String): String =
+            requireNotNull(RescanFiles.updatesFor(detectionsName)) { "Keine Detektionsdatei: $detectionsName" }
+
+        /**
+         * Zusammengefuehrter Inhalt (nur lesen); null = Detektionsdatei fehlt.
+         * T260: [detectionsName] = detections.jsonl oder detections.rescan-<id>.jsonl (laufender Rescan).
+         */
+        fun mergedText(files: SessionFiles, detectionsName: String = DETECTIONS): String? {
+            val main = files.readText(detectionsName) ?: return null
+            val updates = latestLines(files.readText(sideOf(detectionsName)))
             return if (updates.isEmpty()) main else applyTo(main, updates).text
         }
 
@@ -104,21 +111,38 @@ class DetectionUpdateLog(private val queue: DetectionUpdateQueue = DetectionUpda
          * Loeschen fuehrt beim naechsten Mal zum gleichen Ergebnis.
          * @return true wenn detections.jsonl neu geschrieben wurde
          */
-        fun consolidate(files: SessionFiles, extra: Map<String, DetectionResult> = emptyMap()): Boolean {
-            val sideText = files.readText(FILE)
+        fun consolidate(
+            files: SessionFiles,
+            extra: Map<String, DetectionResult> = emptyMap(),
+            /** T260: auch fuer Rescan-Varianten (detections.rescan-<id>.jsonl + Zusatzdatei der Variante) */
+            detectionsName: String = DETECTIONS
+        ): Boolean {
+            val side = sideOf(detectionsName)
+            val sideText = files.readText(side)
             if (sideText == null && extra.isEmpty()) return false
-            val main = files.readText(DETECTIONS)
+            val main = files.readText(detectionsName)
             var written = false
             if (main != null) {
                 val updates = latestLines(sideText) + extra.mapValues { SessionJson.compact.encodeToString(it.value) }
                 val result = applyTo(main, updates)
                 if (result.matchedIds.isNotEmpty() && result.text != main) {
-                    files.writeReplacing(DETECTIONS, result.text)
+                    files.writeReplacing(detectionsName, result.text)
                     written = true
                 }
             }
-            if (sideText != null) files.delete(FILE)
+            if (sideText != null) files.delete(side)
             return written
+        }
+
+        /** T260: aktuelle Fassungen der Detektionen [ids] aus JSONL-Text (letzte Zeile je ID; unlesbare fehlen). */
+        fun currentOf(text: String, ids: Set<String>): Map<String, DetectionResult> {
+            if (ids.isEmpty()) return emptyMap()
+            val out = HashMap<String, DetectionResult>()
+            text.lineSequence().filter { it.isNotBlank() }.forEach { l ->
+                val id = SessionFilesLogic.detectionIdOf(l) ?: return@forEach
+                if (id in ids) decode(l)?.let { out[id] = it }
+            }
+            return out
         }
 
         private fun findLine(text: String, id: String): String? =

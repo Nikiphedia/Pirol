@@ -383,6 +383,8 @@ class AnalysisViewModel(
                     zoomPcm = null
                 )
             }
+            // T260: laeuft fuer diese Session ein Rescan, gleich dessen Variante zeigen (waechst je Flush)
+            rescanEngine.runningVariant(summary.sessionDir)?.let { loadVariant(summary.sessionDir, it) }
             // T62: Sonogramm streaming rendern (kein readBytes() auf ganzes File)
             if (rec != null && rec.parts.size > 1) {
                 renderSessionSonogramStreaming(rec.virtualWavLength) { rec.openWavStream() }
@@ -1638,11 +1640,17 @@ class AnalysisViewModel(
             .onFailure { Log.w("AnalysisViewModel", "Rescan-Dienst nicht gestartet", it) }
     }
 
+    /** T260: zuletzt gesehene laufende Variante / Flush-Stand (automatisch oeffnen bzw. neu laden) */
+    private var seenRescanVariant: String? = null
+    private var seenRescanVersion = -1
+    private var rescanReloadJob: kotlinx.coroutines.Job? = null
+
     /** T250/M4: Zustand und Ende des Rescans aus dem Singleton in den UI-State spiegeln (auch nach neuem ViewModel) */
     private fun observeRescan() {
         viewModelScope.launch {
             rescanEngine.active.collect { a ->
                 _uiState.update { it.copy(rescanProgress = a?.progress, rescanSessionDir = a?.sessionDir) }
+                onRescanFlush(a)
             }
         }
         viewModelScope.launch {
@@ -1651,15 +1659,20 @@ class AnalysisViewModel(
                     is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Done -> {
                         val info = o.info
                         if (_uiState.value.selectedSession?.sessionDir == o.sessionDir) {
+                            rescanReloadJob?.cancel()
                             val variants = rescanEngine.variants(o.sessionDir)
                             _uiState.update { it.copy(variants = variants) }
-                            loadVariant(o.sessionDir, info.id)
+                            verificationMutex.withLock { loadVariant(o.sessionDir, info.id) }
                         }
                         reportError(AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications))
                     }
-                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Cancelled ->
+                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Cancelled -> {
+                        refreshAfterRescan(o.sessionDir, o.variantId)  // T260: Teilergebnis bleibt sichtbar
                         reportError(AppStrings.get(R.string.analysis_rescan_abgebrochen))
-                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Failed -> when (o.error) {
+                    }
+                    is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Failed -> {
+                        refreshAfterRescan(o.sessionDir, o.variantId)
+                        when (o.error) {
                         is ch.etasystems.pirol.rescan.RescanAbortedException,
                         is ch.etasystems.pirol.rescan.RescanEngine.RecordingActiveException ->
                             reportError(AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
@@ -1668,13 +1681,50 @@ class AnalysisViewModel(
                         is ch.etasystems.pirol.rescan.RescanEngine.ModelUnavailableException ->
                             reportError(AppStrings.get(R.string.analysis_rescan_modell_fehlt))
                         else -> reportError(AppStrings.get(R.string.analysis_rescan_fehler))
+                        }
                     }
                 }
             }
         }
     }
 
-    /** Laufenden Rescan abbrechen (nichts wird geschrieben). */
+    /**
+     * T260: Laufende Variante der geoeffneten Session: beim Anlegen automatisch oeffnen, danach je Flush neu
+     * laden (nur wenn sie angezeigt wird). Laden unter der Verifikations-Sperre, damit gerade gespeicherte
+     * Nutzer-Aktionen schon in der Datei stehen.
+     */
+    private fun onRescanFlush(a: ch.etasystems.pirol.rescan.RescanEngine.Active?) {
+        val id = a?.variantId ?: return
+        val dir = a.sessionDir
+        if (_uiState.value.selectedSession?.sessionDir != dir) return
+        val opened = id != seenRescanVariant
+        if (!opened && a.version == seenRescanVersion) return
+        seenRescanVariant = id
+        seenRescanVersion = a.version
+        if (!opened && _uiState.value.activeVariant != id) return
+        rescanReloadJob?.cancel()
+        rescanReloadJob = viewModelScope.launch(Dispatchers.IO) {
+            val variants = rescanEngine.variants(dir)
+            _uiState.update { st -> if (st.selectedSession?.sessionDir != dir) st else st.copy(variants = variants) }
+            verificationMutex.withLock { loadVariant(dir, id) }
+        }
+    }
+
+    /** T260: nach Abbruch/Fehler die (abgebrochene) Variante zeigen */
+    private fun refreshAfterRescan(dir: File, variantId: String?) {
+        if (_uiState.value.selectedSession?.sessionDir != dir) return
+        rescanReloadJob?.cancel()
+        viewModelScope.launch(Dispatchers.IO) {
+            val variants = rescanEngine.variants(dir)
+            _uiState.update { st -> if (st.selectedSession?.sessionDir != dir) st else st.copy(variants = variants) }
+            if (variantId != null && variants.any { it.id == variantId } &&
+                _uiState.value.activeVariant == variantId) {
+                verificationMutex.withLock { loadVariant(dir, variantId) }
+            }
+        }
+    }
+
+    /** Laufenden Rescan abbrechen (T260: Teilergebnis bleibt als abgebrochene Variante). */
     fun cancelRescan() { rescanEngine.cancel() }
 
     /** Variante anzeigen: null = Original, sonst Rescan-Kennung. */
