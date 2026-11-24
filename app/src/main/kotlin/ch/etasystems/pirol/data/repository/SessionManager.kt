@@ -204,7 +204,8 @@ class SessionManager(
 
         /** Lesen einer Session-Datei; detections.jsonl mit der Zusatzdatei zusammengefuehrt (T251, nur lesen). */
         private fun readMerged(files: SessionFiles, name: String): String? =
-            if (name == DETECTIONS_FILE) DetectionUpdateLog.mergedText(files) else files.readText(name)
+            // T260: auch Rescan-Varianten (laufender Rescan schreibt Updates in die Zusatzdatei der Variante)
+            if (RescanFiles.updatesFor(name) != null) DetectionUpdateLog.mergedText(files, name) else files.readText(name)
 
         private fun findDetection(text: String, id: String): DetectionResult? =
             text.lineSequence().lastOrNull { it.isNotBlank() && SessionFilesLogic.detectionIdOf(it) == id }
@@ -606,11 +607,12 @@ class SessionManager(
             }
             val access = accessFor(sessionDir)
             if (variant != null) {
-                // T221: Variante wird nie live geschrieben -> Text ersetzen (File atomar, SAF Schattenkopie)
+                // T221/T260: Variante (auch waehrend des Rescans) auf dem zusammengefuehrten Stand aendern und
+                // mit ihrer Zusatzdatei in einem Rewrite uebernehmen (File atomar, SAF Schattenkopie)
                 val name = RescanFiles.detections(variant)
-                val text = access.readText(name) ?: return@withLock null
+                val text = DetectionUpdateLog.mergedText(access, name) ?: return@withLock null
                 val next = findDetection(text, id)?.let(transform) ?: return@withLock null
-                access.writeReplacing(name, SessionFilesLogic.replaceDetectionInText(text, next))
+                DetectionUpdateLog.consolidate(access, mapOf(id to next), name)
                 return@withLock next
             }
             val text = DetectionUpdateLog.mergedText(access) ?: return@withLock null

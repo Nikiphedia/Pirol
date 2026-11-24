@@ -141,7 +141,11 @@ class RescanChainTest {
             regionFilter = null, confidenceThreshold = 0.5f, overlapPercent = 0,
             detectionCount = result.detections.size, transferredVerifications = transfer.size
         )
-        RescanStore.write(files, info, result.detections, result.mergeEvents, transfer)
+        // T260: Variante wie die Engine schreiben: anlegen, Detektionen anhaengen, Uebernahme, Metadaten
+        RescanStore.begin(files, info.copy(status = RescanStatus.RUNNING))
+        files.append(RescanFiles.detections(info.id), result.detections.joinToString("") { json.encodeToString(it) + "\n" })
+        files.append(RescanFiles.verifications(info.id), (result.mergeEvents + transfer).joinToString("") { json.encodeToString(it) + "\n" })
+        RescanStore.writeMeta(files, info)
 
         // AC1: alle Original-Dateien byte-gleich, nur Variantendateien dazu
         val after = snapshot(dir)
@@ -239,8 +243,8 @@ class RescanChainTest {
         val dir = session()
         val files = FileSessionFiles(dir)
         val info = RescanInfo(id = "20261123-143000", createdAt = "x", modelName = "fake", confidenceThreshold = 0.5f, overlapPercent = 0)
-        RescanStore.write(files, info, emptyList(), emptyList(), emptyList())
-        val failed = runCatching { RescanStore.write(files, info, emptyList(), emptyList(), emptyList()) }.isFailure
+        RescanStore.begin(files, info)
+        val failed = runCatching { RescanStore.begin(files, info) }.isFailure
         assertTrue(failed)
         assertFalse(File(dir, "detections.jsonl").readText().isEmpty())
     }

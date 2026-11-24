@@ -35,7 +35,13 @@ data class RescanInfo(
     val overlapPercent: Int,
     val speciesFilter: SpeciesFilterInfo? = null,
     val detectionCount: Int = 0,
-    val transferredVerifications: Int = 0
+    val transferredVerifications: Int = 0,
+    /** T260: [RescanStatus] RUNNING / DONE / ABORTED; alte Varianten ohne Feld = DONE */
+    val status: String = RescanStatus.DONE,
+    /** T260: gescannte Sekunden der Session-Achse (Stand des letzten Flushs; bei DONE = Dauer) */
+    val scannedSec: Float? = null,
+    /** T260: Dauer der Aufnahme in Sekunden */
+    val totalSec: Float? = null
 )
 
 /** T221: Abbruch, weil waehrend des Rescans eine Aufnahme gestartet wurde. */
@@ -48,7 +54,9 @@ class RescanAbortedException : Exception("Rescan abgebrochen: Aufnahme laeuft")
  * Klassifikation, Regionsfilter), [RecordingPipeline.splitByThreshold] (Mehrfachdetektion,
  * gemeinsame Schwelle), Artnamen, Cluster/Dedup ueber [DetectionListState.addOrCluster]. Die
  * Fenster liegen auf der Session-Achse ueber alle WAV-Segmente (inkl. Preroll); Bezugszeit des
- * Clusters ist die Aufnahmezeit, nicht die Wanduhr. Schreibt nichts — siehe [RescanStore].
+ * Clusters ist die Aufnahmezeit, nicht die Wanduhr. Schreibt nichts selbst; T260: meldet neue Detektionen,
+ * Updates und Merge-Events an einen [Sink] (z.B. [RescanLiveWriter]), damit die Variante waehrend des
+ * Scans waechst.
  */
 class RescanRunner(
     private val classifier: AudioClassifier,
@@ -62,6 +70,16 @@ class RescanRunner(
     private val secondary: SecondaryChecker? = null,
     private val secondaryOverlapPercent: Int = 0
 ) {
+    /**
+     * T260: Ereignisse waehrend des Scans in der Reihenfolge, in der sie entstehen (wie live: neue Detektion,
+     * Update des Ankers, CLUSTER_MERGED). Aufrufe kommen sequenziell aus [run].
+     */
+    interface Sink {
+        fun onNew(detection: DetectionResult)
+        fun onUpdate(detection: DetectionResult)
+        fun onMerge(event: VerificationEvent)
+    }
+
     class Result(
         /** Detektionen wie in detections.jsonl (Merges bereits im Anker), nach Startzeit sortiert */
         val detections: List<DetectionResult>,
@@ -92,7 +110,11 @@ class RescanRunner(
         isAborted: () -> Boolean = { false },
         nowMs: () -> Long = { System.currentTimeMillis() },
         /** T255: Wanduhr je Frame (Segmente mit Luecken, [RescanPlan.wallClockAt]); null = linear ab [epochAtZeroMs] */
-        wallClockAt: ((Long) -> Long)? = null
+        wallClockAt: ((Long) -> Long)? = null,
+        /** T260: Ereignisse fuer das laufende Schreiben der Variante; null = nur [Result] */
+        sink: Sink? = null,
+        /** T260: nach jedem Fenster mit der gescannten Zeit (Sekunden, Fensterende), z.B. fuer den Flush */
+        onWindow: suspend (scannedSec: Float) -> Unit = {}
     ): Result {
         val sr = recording.sampleRate
         val windowMs = classifier.windowMs
@@ -125,20 +147,25 @@ class RescanRunner(
                         nowMs = startEpoch + windowMs)) {
                         is ClusterResult.New -> {
                             persisted[r.detection.id] = r.detection
+                            sink?.onNew(r.detection)
                             targets += SecondaryChecker.SecondaryWindow.Target(r.detection.id, det.scientificName)
                         }
                         is ClusterResult.Merged -> {
                             persisted[r.anchor.id] = r.anchor
-                            merges += RecordingPipeline.clusterMergedEvent(r, nowMs())
+                            sink?.onUpdate(r.anchor)
+                            val event = RecordingPipeline.clusterMergedEvent(r, nowMs())
+                            merges += event
+                            sink?.onMerge(event)
                             targets += SecondaryChecker.SecondaryWindow.Target(r.anchor.id, det.scientificName)
                         }
                     }
                 }
                 if (secondary != null && gate != null) {
-                    checkSecondary(secondary, gate, targets, recording, start, pcm.samples, startSec, list, persisted)
+                    checkSecondary(secondary, gate, targets, recording, start, pcm.samples, startSec, list, persisted, sink)
                 }
             }
             onProgress((i + 1).toFloat() / starts.size)
+            onWindow(((start + windowFrames).toDouble() / sr).toFloat())
         }
         return Result(persisted.values.sortedBy { it.chunkStartSec }, merges, starts.size)
     }
@@ -157,7 +184,8 @@ class RescanRunner(
         samples: ShortArray,
         startSec: Float,
         list: DetectionListState,
-        persisted: MutableMap<String, DetectionResult>
+        persisted: MutableMap<String, DetectionResult>,
+        sink: Sink?
     ) {
         val accepted = targets.filter { gate.accept(it.scientificName, startSec) }
         if (accepted.isEmpty()) return
@@ -177,42 +205,35 @@ class RescanRunner(
             }
             // Cluster aus: die Liste haelt nur die neueste Detektion je Art, aeltere stehen nur in [persisted]
             val updated = list.modifyDetection(t.id, update) ?: persisted[t.id]?.let(update)
-            if (updated != null) persisted[t.id] = updated
+            if (updated != null) {
+                persisted[t.id] = updated
+                sink?.onUpdate(updated)
+            }
         }
     }
 }
 
-/** T221: Varianten im Session-Ordner schreiben, auflisten, loeschen (ueber [SessionFiles], File + SAF). */
+/**
+ * T221: Varianten im Session-Ordner anlegen, auflisten, loeschen (ueber [SessionFiles], File + SAF).
+ * T260: Die Variante entsteht zu Beginn des Scans ([begin], Status RUNNING) und waechst append-only
+ * ([RescanLiveWriter]); die Metadaten werden je Flush und am Ende atomar ersetzt ([writeMeta]).
+ */
 object RescanStore {
-    private val json = Json { prettyPrint = false; encodeDefaults = true }
     private val jsonPretty = Json { prettyPrint = true; encodeDefaults = true }
     private val jsonLenient = Json { ignoreUnknownKeys = true }
 
     /**
-     * Schreibt eine neue Variante. Original-Dateien werden nicht beruehrt. Reihenfolge: Detektionen,
-     * Verifikationen (Merges, dann Uebernahmen), zuletzt die Metadaten — erst damit ist die Variante sichtbar.
+     * Neue Variante anlegen: nur die Metadaten (RUNNING). Detektions- und Verifikationsdatei entstehen beim
+     * ersten Anhaengen. Original-Dateien werden nicht beruehrt.
      */
-    fun write(
-        files: SessionFiles,
-        info: RescanInfo,
-        detections: List<DetectionResult>,
-        mergeEvents: List<VerificationEvent>,
-        transferEvents: List<VerificationEvent>
-    ) {
-        val id = info.id
-        require(id !in RescanFiles.idsIn(files.listNames())) { "Variante $id existiert bereits" }
-        try {
-            files.writeReplacing(RescanFiles.detections(id), detections.joinToString("") { json.encodeToString(it) + "\n" })
-            files.writeReplacing(
-                RescanFiles.verifications(id),
-                (mergeEvents + transferEvents).joinToString("") { json.encodeToString(it) + "\n" }
-            )
-            files.writeReplacing(RescanFiles.meta(id), jsonPretty.encodeToString(info))
-        } catch (e: Exception) {
-            // T240: halb geschriebene Variante aufraeumen (keine verwaisten Dateien ohne Meta)
-            runCatching { delete(files, id) }
-            throw e
-        }
+    fun begin(files: SessionFiles, info: RescanInfo) {
+        require(info.id !in RescanFiles.idsIn(files.listNames())) { "Variante ${info.id} existiert bereits" }
+        writeMeta(files, info)
+    }
+
+    /** Metadaten ersetzen (File atomar, SAF Schattenkopie). */
+    fun writeMeta(files: SessionFiles, info: RescanInfo) {
+        files.writeReplacing(RescanFiles.meta(info.id), jsonPretty.encodeToString(info))
     }
 
     /** Alle lesbaren Varianten, aelteste zuerst. */
