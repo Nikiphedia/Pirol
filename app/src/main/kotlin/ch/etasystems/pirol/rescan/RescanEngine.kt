@@ -333,7 +333,7 @@ class RescanEngine(
             }
             val id = begun.id
             _active.update { it?.copy(variantId = id) }
-            val writer = RescanLiveWriter(id)
+            val writer = RescanLiveWriter(id, cls.modelId)  // T261: + Modell fuer die Mensch-Merkliste
             var scanned = 0f
             var lastFlush = System.currentTimeMillis()
 

@@ -209,6 +209,7 @@ internal fun ExportSettingsSection(
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
+        HumanMaskSettings(appPreferences, expert)  // T261
         UploadSettingsSection(appPreferences)
     }
 }

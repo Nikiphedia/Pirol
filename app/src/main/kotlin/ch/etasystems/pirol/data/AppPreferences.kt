@@ -594,6 +594,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("pirol_upload_delete_local_zip", false)
         set(value) = prefs.edit().putBoolean("pirol_upload_delete_local_zip", value).apply()
 
+    /** T261: menschliche Stimmen im Export (Speichern unter, ZIP, Upload, Teilen) ausblenden; Default an */
+    var exportMaskHumans: Boolean
+        get() = prefs.getBoolean("pirol_export_mask_humans", true)
+        set(value) = prefs.edit().putBoolean("pirol_export_mask_humans", value).apply()
+
+    /** T261: Mensch-Score (Rohausgang), ab dem ein Fenster ausgeblendet wird (nur Experte, Default 0.10) */
+    var exportHumanThreshold: Float
+        get() = prefs.getFloat("pirol_export_human_threshold", ch.etasystems.pirol.audio.export.HumanWindows.DEFAULT_THRESHOLD)
+        set(value) = prefs.edit().putFloat("pirol_export_human_threshold", value.coerceIn(0.02f, 0.9f)).apply()
+
     /** Zeitpunkt des letzten Upload-Versuchs (ms, 0 = nie) */
     var lastUploadTimeMs: Long
         get() = prefs.getLong("pirol_last_upload_time", 0L)

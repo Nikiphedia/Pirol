@@ -628,6 +628,24 @@ class SessionManager(
         Unit
     }
 
+    /** T261: Zeilen an human_windows.jsonl der aktiven Session anhaengen (no-op ohne Session). */
+    suspend fun appendHumanWindowLines(text: String) = withContext(Dispatchers.IO) {
+        if (text.isEmpty()) return@withContext
+        fileMutex.withLock { active?.appendLocked(ch.etasystems.pirol.audio.export.HumanWindows.FILE, text) }
+        Unit
+    }
+
+    /** T261: Zeilen an human_windows.jsonl einer beliebigen Session anhaengen (Rescan nutzt [withSessionFiles], Export-Scan dies). */
+    suspend fun appendHumanWindowLinesTo(sessionDir: File, text: String) = withContext(Dispatchers.IO) {
+        if (text.isEmpty()) return@withContext
+        fileMutex.withLock { accessFor(sessionDir).append(ch.etasystems.pirol.audio.export.HumanWindows.FILE, text) }
+    }
+
+    /** T261: Merkliste der Mensch-Fenster (null = keine). */
+    suspend fun readHumanWindows(sessionDir: File): String? = withContext(Dispatchers.IO) {
+        try { readSessionText(sessionDir, ch.etasystems.pirol.audio.export.HumanWindows.FILE) } catch (_: Exception) { null }
+    }
+
     /** T191: Route einer Session aus track.jsonl (leer, wenn keine Spur oder unlesbar). */
     suspend fun loadTrack(sessionDir: File): List<TrackPoint> = withContext(Dispatchers.IO) {
         val text = try { readSessionText(sessionDir, TrackLogic.TRACK_FILE) } catch (_: Exception) { null }

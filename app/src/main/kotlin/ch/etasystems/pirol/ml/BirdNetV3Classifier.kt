@@ -115,6 +115,14 @@ class BirdNetV3Classifier(
     private var labels: List<Pair<String, String>> = emptyList() // (scientific, common)
     @Volatile private var labelNameSet: Set<String> = emptySet()
     @Volatile private var labelNameList: List<String> = emptyList()  // T250/N3: einmal je Labelladen
+    // T261: Indizes der Stimm-Klassen, je Labelliste einmal berechnet
+    @Volatile private var humanIndexCache: Pair<List<String>, IntArray>? = null
+
+    private fun humanIndices(): IntArray {
+        val names = labelNameList
+        humanIndexCache?.let { if (it.first === names) return it.second }
+        return HumanLabels.indicesOf(names).also { humanIndexCache = names to it }
+    }
 
     // T103a: Profil, mit dem Session und Labels geladen wurden (wechselt nur ueber resetSession)
     @Volatile private var profile: ModelProfile = currentProfile()
@@ -234,7 +242,8 @@ class BirdNetV3Classifier(
             // 4. Top-K filtern und sortieren (via extrahierte Companion-Funktion, T71)
             AudioClassifier.ClassificationOutput(
                 filterAndRank(scores, labels, topK, threshold, p.windowSec),
-                embedding
+                embedding,
+                humanScore = if (scores.size == labelNameList.size) HumanLabels.score(scores, humanIndices()) else null  // T261
             )
         } catch (e: Exception) {
             Log.e(TAG, "Klassifizierung fehlgeschlagen", e)

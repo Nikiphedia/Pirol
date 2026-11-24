@@ -583,7 +583,7 @@ class AnalysisViewModel(
         val dir = _uiState.value.selectedSession?.sessionDir
         viewModelScope.launch {
             val note = dir?.let { sessionManager.loadMetadata(it)?.note }
-            _uiState.update { it.copy(shareRequest = DetectionShareRequest(detection, f, note, recording)) }
+            _uiState.update { it.copy(shareRequest = DetectionShareRequest(detection, f, note, recording, sessionDir = dir)) }
         }
     }
 
@@ -1072,6 +1072,41 @@ class AnalysisViewModel(
 
     private val saveAs = ch.etasystems.pirol.data.export.SessionSaveAs(context)
     private var saveAsJob: Job? = null
+    // T261: Menschen im Export ausblenden (Koin-Singleton, ohne Konstruktor-Aenderung)
+    private val humanMask: ch.etasystems.pirol.data.export.HumanExportMask by lazy {
+        org.koin.core.context.GlobalContext.get().get()
+    }
+
+    /** T261: Stimmen werden beim Speichern ausgeblendet (Hinweis im Dialog) */
+    val masksHumans: Boolean get() = humanMask.enabled
+
+    /** T261: laufendes Speichern (inkl. Mensch-Scan) abbrechen */
+    fun cancelSaveAs() {
+        saveAsJob?.cancel()
+    }
+
+    /**
+     * T261: Exporteintraege mit ausgeblendeten Stimmen (vorher ggf. scannen, Fortschritt im UiState).
+     * Wirft [ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException].
+     */
+    private suspend fun maskedEntries(
+        sessionDir: java.io.File,
+        entries: List<ch.etasystems.pirol.data.repository.ExportEntry>
+    ): List<ch.etasystems.pirol.data.repository.ExportEntry> {
+        try {
+            val plan = humanMask.prepare(sessionDir, onProgress = { p -> _uiState.update { it.copy(humanScanProgress = p) } })
+            return humanMask.wrap(entries, plan)
+        } finally {
+            _uiState.update { it.copy(humanScanProgress = null) }
+        }
+    }
+
+    /** T261: Meldung fuer einen fehlgeschlagenen/abgebrochenen Speichervorgang */
+    private fun saveAsFailure(e: Throwable): String = when (e) {
+        is kotlinx.coroutines.CancellationException -> AppStrings.get(R.string.human_mask_abgebrochen)
+        is ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException -> AppStrings.get(R.string.human_mask_nicht_moeglich)
+        else -> AppStrings.get(R.string.analysis_saveas_fehler)
+    }
 
     /** Vorgeschlagener ZIP-Name der geoeffneten Session (`yyyyMMddHHmmss_Bemerkung.zip`). */
     fun suggestedZipName(): String {
@@ -1092,18 +1127,22 @@ class AnalysisViewModel(
         val label = target.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: suggestedZipName()
         reportError(AppStrings.get(R.string.analysis_saveas_laeuft))
         saveAsJob = viewModelScope.launch(Dispatchers.IO) {
-            val ok = try {
+            val failure: Throwable? = try {
                 val detections = try { sessionManager.detectionsForExport(session.sessionDir) } catch (e: Exception) { null }
-                val entries = saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir))
+                val entries = maskedEntries(session.sessionDir, saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir)))
                 saveAs.saveZip(entries, detections, target, session.metadata.sessionId)
-                true
+                null
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "Speichern unter (ZIP) fehlgeschlagen", e)
-                false
+                e
             }
+            // T261: nach Abbruch des Scans bzw. ohne Mensch-Erkennung die leere Zieldatei nicht liegen lassen
+            if (failure is kotlinx.coroutines.CancellationException ||
+                failure is ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException
+            ) runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, target) }
             reportError(
-                if (ok) AppStrings.get(R.string.analysis_saveas_ok, label)
-                else AppStrings.get(R.string.analysis_saveas_fehler)
+                if (failure == null) AppStrings.get(R.string.analysis_saveas_ok, label)
+                else saveAsFailure(failure)
             )
         }
     }
@@ -1131,17 +1170,19 @@ class AnalysisViewModel(
         val base = ch.etasystems.pirol.data.export.ExportNames.sessionName(m.startedAt, m.note, m.sessionId)
         reportError(AppStrings.get(R.string.analysis_saveas_laeuft))
         saveAsJob = viewModelScope.launch(Dispatchers.IO) {
+            var failure: Throwable? = null
             val name = try {
                 val detections = try { sessionManager.detectionsForExport(session.sessionDir) } catch (e: Exception) { null }
-                val entries = saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir))
+                val entries = maskedEntries(session.sessionDir, saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir)))
                 saveAs.saveFolder(root, base, entries, detections)
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "Speichern unter (Ordner) fehlgeschlagen", e)
+                failure = e
                 null
             }
             reportError(
                 if (name != null) AppStrings.get(R.string.analysis_saveas_ok, name)
-                else AppStrings.get(R.string.analysis_saveas_fehler)
+                else saveAsFailure(failure ?: IllegalStateException())
             )
         }
     }

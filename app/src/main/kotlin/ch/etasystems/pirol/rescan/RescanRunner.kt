@@ -78,7 +78,12 @@ class RescanRunner(
         fun onNew(detection: DetectionResult)
         fun onUpdate(detection: DetectionResult)
         fun onMerge(event: VerificationEvent)
+        /** T261: bewertetes Fenster fuer die Mensch-Merkliste (Rohscore; null = Modell kennt keine Menschen) */
+        fun onHumanWindow(startSec: Float, endSec: Float, humanScore: Float?) {}
     }
+
+    /** T261: Sink des laufenden [run] (Fenster-Callback des Workers) */
+    @Volatile private var activeSink: Sink? = null
 
     class Result(
         /** Detektionen wie in detections.jsonl (Merges bereits im Anker), nach Startzeit sortiert */
@@ -93,7 +98,8 @@ class RescanRunner(
         regionalFilter = regionalFilter,
         config = config,
         onAudioPersist = { null },
-        onWindowAnalyzed = { _, _ -> }
+        onWindowAnalyzed = { _, _ -> },
+        onWindowScored = { start, end, human -> activeSink?.onHumanWindow(start, end, human) }  // T261
     )
 
     /**
@@ -116,6 +122,7 @@ class RescanRunner(
         /** T260: nach jedem Fenster mit der gescannten Zeit (Sekunden, Fensterende), z.B. fuer den Flush */
         onWindow: suspend (scannedSec: Float) -> Unit = {}
     ): Result {
+        activeSink = sink
         val sr = recording.sampleRate
         val windowMs = classifier.windowMs
         val starts = RescanPlan.windowStarts(recording.totalFrames, sr, windowMs, config.overlapPercent, config.maxHopMs)

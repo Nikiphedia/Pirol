@@ -823,4 +823,20 @@
     <string name="analysis_variante_laeuft">running</string>
     <string name="analysis_variante_abgebrochen_bei">cancelled at %1$d min</string>
     <string name="analysis_rescan_live_hinweis">Results appear as they come in and can be verified right away.</string>
+    <!-- T261: Hide humans in exports -->
+    <string name="human_mask_hinweis_an">Human voices are hidden (speech band replaced by noise).</string>
+    <string name="human_mask_hinweis_aus">Warning: human voices are NOT hidden. Conversations stay audible in the export.</string>
+    <string name="human_mask_scan_titel">Searching for human voices</string>
+    <string name="human_mask_scan_text">Parts of the recording have not been checked for humans yet and are being scanned now.</string>
+    <string name="human_mask_abgebrochen">Saving cancelled.</string>
+    <string name="human_mask_nicht_moeglich">Human voices cannot be detected (model not loaded or without a human class). Switch the model or turn hiding off in the settings.</string>
+    <string name="human_mask_settings_titel">Privacy</string>
+    <string name="human_mask_settings_schalter">Hide human voices in exports</string>
+    <string name="human_mask_settings_info">Applies to Save as, ZIP, upload and sharing. Where the model detects humans, the speech band (approx. 300–3900 Hz) is replaced by noise. The original recording stays unchanged.</string>
+    <string name="human_mask_settings_schwelle">Human threshold: %1$d %%</string>
+    <string name="human_mask_settings_schwelle_info">Hidden from this score on. Lower = more cautious (more is hidden).</string>
+    <string name="human_mask_warnung_titel">Stop hiding voices?</string>
+    <string name="human_mask_warnung_text">Exports will then contain conversations and voices of bystanders. Only share such recordings where this is allowed (privacy). You can turn it off for research that needs the original.</string>
+    <string name="human_mask_warnung_ausschalten">Turn off</string>
+    <string name="human_mask_warnung_behalten">Keep on</string>
 </resources>
