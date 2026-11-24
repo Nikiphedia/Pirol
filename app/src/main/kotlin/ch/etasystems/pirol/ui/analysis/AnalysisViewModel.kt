@@ -1104,6 +1104,43 @@ class AnalysisViewModel(
         }
     }
 
+    /**
+     * T257: Startzeit, Ort und Bemerkung einer importierten Session aendern; danach Kopfzeile, Liste und
+     * angezeigte Variante neu laden. [lat]/[lon] beide null = Ort entfernen. Fehler als Snackbar.
+     */
+    fun updateImportedSessionInfo(start: java.time.ZonedDateTime, lat: Double?, lon: Double?, note: String) {
+        val current = _uiState.value.selectedSession ?: return
+        if (_uiState.value.rescanProgress != null) {
+            reportError(AppStrings.get(R.string.analysis_angaben_rescan_laeuft))
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val dir = current.sessionDir
+            val result = sessionManager.updateImportedSessionInfo(dir, start, lat, lon, note.take(200), appPreferences)
+            val updated = when (result) {
+                is SessionManager.InfoEditResult.Ok -> result.metadata
+                SessionManager.InfoEditResult.Active -> {
+                    reportError(AppStrings.get(R.string.analysis_angaben_aufnahme_laeuft)); return@launch
+                }
+                else -> {
+                    reportError(AppStrings.get(R.string.analysis_angaben_fehler)); return@launch
+                }
+            }
+            _uiState.update { st ->
+                st.copy(
+                    selectedSession = st.selectedSession?.takeIf { it.sessionDir == dir }
+                        ?.copy(metadata = updated) ?: st.selectedSession,
+                    sessions = st.sessions.map { if (it.sessionDir == dir) it.copy(metadata = updated) else it }
+                )
+            }
+            if (_uiState.value.selectedSession?.sessionDir == dir) {
+                loadVariant(dir, _uiState.value.activeVariant)
+                val variants = rescanEngine.variants(dir)
+                _uiState.update { st -> if (st.selectedSession?.sessionDir != dir) st else st.copy(variants = variants) }
+            }
+        }
+    }
+
     /** Raven-Export-Feedback nach Anzeige zuruecksetzen */
     fun consumeRavenExportMessage() {
         _uiState.update { it.copy(ravenExportMessage = null) }

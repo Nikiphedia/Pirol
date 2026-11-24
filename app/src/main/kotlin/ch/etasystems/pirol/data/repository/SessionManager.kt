@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import ch.etasystems.pirol.audio.export.SegmentedRecording
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.export.ExportNames
 import ch.etasystems.pirol.data.export.GpxExporter
 import ch.etasystems.pirol.data.export.RavenExporter
 import ch.etasystems.pirol.location.TrackLogic
@@ -752,6 +753,7 @@ class SessionManager(
     suspend fun recoverOrphanSessions(): Int = withContext(Dispatchers.IO) {
         var recovered = 0
         val sessions = listSessions()
+        val editsResumed = mutableListOf<Pair<File, String>>()  // T257
         for (sessionDir in sessions) {
             try {
                 fileMutex.withLock {
@@ -763,11 +765,18 @@ class SessionManager(
                         DetectionUpdateLog.consolidate(access)
                         Log.i(TAG, "recoverOrphan: Detektions-Updates zusammengefuehrt: ${sessionDir.name}")
                     }
+                    // T257: abgebrochene "Angaben bearbeiten" zu Ende fuehren (ohne doppelte Verschiebung)
+                    if (access.exists(SessionInfoEdit.JOURNAL_FILE)) {
+                        SessionInfoEdit.resumePending(access, SESSION_JSON)?.let { editsResumed += sessionDir to it.metadata.sessionId }
+                        Log.i(TAG, "recoverOrphan: Bearbeitung der Angaben abgeschlossen: ${sessionDir.name}")
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "recoverOrphan: Reste pruefen fehlgeschlagen: ${sessionDir.name}", e)
             }
         }
+        // T257: Exporte der fertig bearbeiteten Sessions nachziehen (Upload-Namen verwerfen; Name evtl. geaendert)
+        editsResumed.forEach { (dir, id) -> afterInfoEdit(dir, id, appPreferences, forgetNames = true) }
         sessions.forEach { sessionDir ->
             val jsonFile = File(sessionDir, SESSION_JSON)
             if (!jsonFile.exists()) return@forEach
@@ -845,6 +854,81 @@ class SessionManager(
             catch (e: Exception) { Log.e(TAG, "updateSessionNote: Raven-Re-Export fehlgeschlagen", e) }
         }
         updated
+    }
+
+    /** T257: Ergebnis von [updateImportedSessionInfo] */
+    sealed class InfoEditResult {
+        data class Ok(val metadata: SessionMetadata) : InfoEditResult()
+        /** Session ist die laufende Aufnahme */
+        data object Active : InfoEditResult()
+        /** keine importierte Session (importedFrom == null) oder session.json/Startzeit nicht lesbar */
+        data object NotEditable : InfoEditResult()
+        data class Failed(val error: Exception) : InfoEditResult()
+    }
+
+    /**
+     * T257: Startzeit, Ort und Bemerkung einer importierten Session aendern ([SessionInfoEdit]).
+     * Unter dem fileMutex: liegengebliebenen Auftrag abschliessen, Detektions-Updates uebernehmen, Auftrag
+     * schreiben, Dateien umrechnen (je atomar), session.json zuletzt. Danach Raven-Tabellen (Original und
+     * Varianten, nur vorhandene) und track.gpx neu, reservierte Upload-Namen der Session verwerfen.
+     * @param newLatitude/newLongitude beide null = Ort entfernen
+     */
+    suspend fun updateImportedSessionInfo(
+        sessionDir: File,
+        newStart: ZonedDateTime,
+        newLatitude: Double?,
+        newLongitude: Double?,
+        note: String?,
+        appPreferences: AppPreferences? = null
+    ): InfoEditResult = withContext(Dispatchers.IO) {
+        if (isActiveDir(sessionDir)) return@withContext InfoEditResult.Active
+        val access = accessFor(sessionDir)
+        var exportNameChanged = false
+        val meta: InfoEditResult = try {
+            fileMutex.withLock {
+                if (isActiveDir(sessionDir)) return@withLock InfoEditResult.Active
+                SessionInfoEdit.resumePending(access, SESSION_JSON)
+                if (access.exists(DetectionUpdateLog.FILE)) DetectionUpdateLog.consolidate(access)
+                val old = access.readText(SESSION_JSON)
+                    ?.let { runCatching { SessionJson.lenient.decodeFromString<SessionMetadata>(it) }.getOrNull() }
+                    ?: return@withLock InfoEditResult.NotEditable
+                if (old.importedFrom == null) return@withLock InfoEditResult.NotEditable
+                if (active?.metadata?.sessionId == old.sessionId) return@withLock InfoEditResult.Active
+                val plan = SessionInfoEdit.plan(old, newStart, newLatitude, newLongitude, note, ZoneId.systemDefault())
+                    ?: return@withLock InfoEditResult.NotEditable
+                val prepared = SessionInfoEdit.prepare(access, plan, SESSION_JSON)
+                val n = SessionInfoEdit.execute(access, prepared, SESSION_JSON)
+                exportNameChanged = ExportNames.sessionName(old.startedAt, old.note, old.sessionId) !=
+                    ExportNames.sessionName(prepared.metadata.startedAt, prepared.metadata.note, old.sessionId)
+                Log.i(TAG, "Angaben bearbeitet: ${old.sessionId} delta=${plan.deltaMs} ms, Ort=${plan.relocate}, $n Dateien")
+                InfoEditResult.Ok(prepared.metadata)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateImportedSessionInfo fehlgeschlagen: ${sessionDir.name}", e)
+            return@withContext InfoEditResult.Failed(e)
+        }
+        if (meta is InfoEditResult.Ok) afterInfoEdit(sessionDir, meta.metadata.sessionId, appPreferences, exportNameChanged)
+        meta
+    }
+
+    /**
+     * T257: Exporte nach einer Bearbeitung neu schreiben (Fehler nur protokolliert). Aendert sich der Exportname
+     * (Startzeit/Bemerkung), reservierte Upload-Namen der Session verwerfen (naechster Upload mit neuem Namen).
+     */
+    private suspend fun afterInfoEdit(sessionDir: File, sessionId: String, appPreferences: AppPreferences?, forgetNames: Boolean) {
+        val access = accessFor(sessionDir)
+        val names = runCatching { access.listNames() }.getOrDefault(emptyList())
+        val variants: List<String?> = listOf<String?>(null) + RescanFiles.idsIn(names)
+        for (v in variants) {
+            if (RescanFiles.raven(v) !in names) continue
+            try { exportRavenSelectionTable(sessionDir, appPreferences, v) }
+            catch (e: Exception) { Log.e(TAG, "Raven-Re-Export nach Bearbeitung fehlgeschlagen (${v ?: "Original"})", e) }
+        }
+        if (TrackLogic.TRACK_FILE in names) {
+            try { fileMutex.withLock { GpxExporter.exportFrom(access, sessionId) } }
+            catch (e: Exception) { Log.e(TAG, "GPX-Export nach Bearbeitung fehlgeschlagen", e) }
+        }
+        if (forgetNames) ch.etasystems.pirol.data.sync.SessionUploadWorker.forgetExportNames(context, sessionId)
     }
 
     /** Alle Detektionen einer Session (T251: inkl. Updates der Zusatzdatei). */
