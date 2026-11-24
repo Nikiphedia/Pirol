@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
@@ -505,6 +506,33 @@ private fun SessionDetailContent(
     var manualPositionSec by remember { mutableStateOf<Float?>(null) }
     var showNoteDialog by remember { mutableStateOf(false) }  // T109
     var showInfoDialog by remember { mutableStateOf(false) }  // T257
+    // T258: Speichern unter: Auswahl ZIP/Ordner, danach System-Dialog (Berechtigung nur fuer diesen Vorgang)
+    var showSaveAsChoice by remember { mutableStateOf(false) }
+    val saveZipLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri -> if (uri != null) viewModel.saveSessionAsZip(uri) }
+    val saveFolderLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { uri -> if (uri != null) viewModel.saveSessionToFolder(uri) }
+    if (showSaveAsChoice) {
+        AlertDialog(
+            onDismissRequest = { showSaveAsChoice = false },
+            title = { Text(stringResource(R.string.analysis_saveas_titel)) },
+            text = { Text(stringResource(R.string.analysis_saveas_frage)) },
+            confirmButton = {
+                TextButton(
+                    onClick = { showSaveAsChoice = false; saveZipLauncher.launch(viewModel.suggestedZipName()) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text(stringResource(R.string.analysis_saveas_zip)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showSaveAsChoice = false; saveFolderLauncher.launch(null) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text(stringResource(R.string.analysis_saveas_ordner)) }
+            }
+        )
+    }
     var showRescanDialog by remember { mutableStateOf(false) }  // T221
     if (showRescanDialog) RescanDialog(viewModel) { showRescanDialog = false }
     // T255: nach einem Fremdaudio-Import den Rescan-Dialog fuer die neue Session oeffnen
@@ -674,6 +702,19 @@ private fun SessionDetailContent(
                             modifier = Modifier.heightIn(min = 48.dp)
                         )
                     }
+                    // T258: Speichern unter (ZIP oder Ordner); die laufende Aufnahme-Session ist ausgegraut
+                    val saveAsRecActive by viewModel.recordingActive.collectAsState()
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.analysis_saveas_menue)) },
+                        leadingIcon = { Icon(Icons.Filled.SaveAlt, contentDescription = null) },
+                        enabled = !saveAsRecActive || viewModel.canSaveAs(),
+                        onClick = {
+                            menuOpen = false
+                            if (viewModel.canSaveAs()) showSaveAsChoice = true
+                            else viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_saveas_aufnahme_laeuft))
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.analysis_session_hochladen)) },
                         leadingIcon = { Icon(Icons.Filled.Upload, contentDescription = null) },

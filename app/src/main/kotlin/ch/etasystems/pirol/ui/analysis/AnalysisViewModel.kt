@@ -1066,6 +1066,84 @@ class AnalysisViewModel(
         reportError(AppStrings.get(R.string.analysis_upload_eingereiht))
     }
 
+    // ── T258: Speichern unter (ZIP oder Ordner) ──────────────────────
+
+    private val saveAs = ch.etasystems.pirol.data.export.SessionSaveAs(context)
+    private var saveAsJob: Job? = null
+
+    /** Vorgeschlagener ZIP-Name der geoeffneten Session (`yyyyMMddHHmmss_Bemerkung.zip`). */
+    fun suggestedZipName(): String {
+        val m = _uiState.value.selectedSession?.metadata ?: return "session.zip"
+        return ch.etasystems.pirol.data.export.ExportNames.sessionZipName(m.startedAt, m.note, m.sessionId)
+    }
+
+    /** Speichern unter ist fuer die laufende Aufnahme-Session und waehrend eines laufenden Speicherns gesperrt. */
+    fun canSaveAs(): Boolean {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return false
+        return !sessionManager.isActiveSession(dir) && saveAsJob?.isActive != true
+    }
+
+    /** Geoeffnete Session als ZIP (Inhalt wie Upload-ZIP) in die per SAF gewaehlte Datei [target] schreiben. */
+    fun saveSessionAsZip(target: Uri) {
+        val session = _uiState.value.selectedSession ?: return
+        if (!canSaveAs()) return
+        val label = target.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: suggestedZipName()
+        reportError(AppStrings.get(R.string.analysis_saveas_laeuft))
+        saveAsJob = viewModelScope.launch(Dispatchers.IO) {
+            val ok = try {
+                val detections = try { sessionManager.detectionsForExport(session.sessionDir) } catch (e: Exception) { null }
+                val entries = saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir))
+                saveAs.saveZip(entries, detections, target, session.metadata.sessionId)
+                true
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "Speichern unter (ZIP) fehlgeschlagen", e)
+                false
+            }
+            reportError(
+                if (ok) AppStrings.get(R.string.analysis_saveas_ok, label)
+                else AppStrings.get(R.string.analysis_saveas_fehler)
+            )
+        }
+    }
+
+    /** Geoeffnete Session als Unterordner im per SAF gewaehlten Ordner [treeUri] ablegen. */
+    fun saveSessionToFolder(treeUri: Uri) {
+        val session = _uiState.value.selectedSession ?: return
+        if (!canSaveAs()) return
+        // Ziel in der PIROL-Basis oder in der Session selbst: ablehnen (wie beim Verschieben, T181)
+        val targetId = runCatching { android.provider.DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()
+        if (targetId != null) {
+            val verdict = ch.etasystems.pirol.data.repository.MoveTargetGuard.check(
+                targetId, sessionManager.baseDocumentIds(), listOfNotNull(sessionManager.sessionDocumentId(session.sessionDir))
+            )
+            val msgRes = when (verdict) {
+                ch.etasystems.pirol.data.repository.MoveTargetGuard.Verdict.INSIDE_BASE -> R.string.analysis_saveas_ziel_in_basis
+                ch.etasystems.pirol.data.repository.MoveTargetGuard.Verdict.SAME_AS_SOURCE -> R.string.analysis_saveas_ziel_gleich_quelle
+                else -> null
+            }
+            if (msgRes != null) { reportError(AppStrings.get(msgRes)); return }
+        }
+        val root = saveAs.targetRoot(treeUri)
+        if (root == null) { reportError(AppStrings.get(R.string.analysis_batch_ziel_nicht_schreibbar)); return }
+        val m = session.metadata
+        val base = ch.etasystems.pirol.data.export.ExportNames.sessionName(m.startedAt, m.note, m.sessionId)
+        reportError(AppStrings.get(R.string.analysis_saveas_laeuft))
+        saveAsJob = viewModelScope.launch(Dispatchers.IO) {
+            val name = try {
+                val detections = try { sessionManager.detectionsForExport(session.sessionDir) } catch (e: Exception) { null }
+                val entries = saveAs.entriesOf(session.sessionDir, sessionManager.docFor(session.sessionDir))
+                saveAs.saveFolder(root, base, entries, detections)
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "Speichern unter (Ordner) fehlgeschlagen", e)
+                null
+            }
+            reportError(
+                if (name != null) AppStrings.get(R.string.analysis_saveas_ok, name)
+                else AppStrings.get(R.string.analysis_saveas_fehler)
+            )
+        }
+    }
+
     /**
      * T194: Ausschnitt auf der Session-Achse verschieben/setzen (Uebersichtsleiste).
      * Rendert nur den Ausschnitt neu (wie der Detektions-Zoom).

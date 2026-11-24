@@ -807,4 +807,15 @@
     <string name="analysis_angaben_fehler">Angaben konnten nicht gespeichert werden</string>
     <string name="analysis_angaben_aufnahme_laeuft">Waehrend der Aufnahme dieser Session nicht moeglich</string>
     <string name="analysis_angaben_rescan_laeuft">Waehrend eines Rescans nicht moeglich</string>
+    <string name="analysis_saveas_menue">Speichern unter …</string>
+    <string name="analysis_saveas_titel">Session speichern unter</string>
+    <string name="analysis_saveas_frage">Als ZIP-Datei oder als Ordner speichern? Das Ziel waehlst du anschliessend frei.</string>
+    <string name="analysis_saveas_zip">ZIP</string>
+    <string name="analysis_saveas_ordner">Ordner</string>
+    <string name="analysis_saveas_laeuft">Wird gespeichert …</string>
+    <string name="analysis_saveas_ok">Gespeichert: %1$s</string>
+    <string name="analysis_saveas_fehler">Speichern fehlgeschlagen</string>
+    <string name="analysis_saveas_aufnahme_laeuft">Waehrend der Aufnahme dieser Session nicht moeglich</string>
+    <string name="analysis_saveas_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb waehlen, es wurde nichts gespeichert.</string>
+    <string name="analysis_saveas_ziel_gleich_quelle">Zielordner ist die Session selbst. Es wurde nichts gespeichert.</string>
 </resources>

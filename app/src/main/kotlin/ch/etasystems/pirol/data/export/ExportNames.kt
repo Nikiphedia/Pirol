@@ -78,6 +78,14 @@ object ExportNames {
         return candidate
     }
 
+    /** T258: Ordnername ohne Endung; haengt bei Kollision `-2`, `-3` ... an. */
+    fun uniqueFolderName(baseName: String, exists: (String) -> Boolean): String {
+        var candidate = baseName
+        var n = 2
+        while (exists(candidate)) candidate = "$baseName-${n++}"
+        return candidate
+    }
+
     /** Gemerkten Namen weiterverwenden (Retry), sonst erster freier Name im Ziel. */
     fun chooseZipName(stored: String?, baseName: String, exists: (String) -> Boolean): String =
         chooseZipName(stored, baseName, emptySet(), exists)
