@@ -1040,8 +1040,11 @@ class SessionManager(
         val startedAt = meta?.startedAt ?: "1970-01-01T00:00:00+00:00"
         // T78/T249: enabledFields aus AppPreferences (eine Liste); null = alle Felder (Fallback)
         val enabledFields: Set<String>? = appPreferences?.let { RavenExporter.enabledFields(it) }
-        val linkMap = readVerifications(sessionDir, variant)?.let { SessionTextParser.simultaneousLinks(it) } ?: emptyMap()
-        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note)
+        val veriText = readVerifications(sessionDir, variant)
+        val linkMap = veriText?.let { SessionTextParser.simultaneousLinks(it) } ?: emptyMap()
+        // T259: absorbierte Fenster (CLUSTER_MERGED) -> eine Raven-Zeile pro Episode
+        val merges = veriText?.let { SessionTextParser.mergeTimestamps(it) } ?: emptyMap()
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note, merges)
         if (isDoc) {
             fileMutex.withLock { access.writeReplacing(ravenName, outputFile.readText()) }
             outputFile.delete()

@@ -22,7 +22,26 @@ internal object SessionTextParser {
             try { SessionJson.lenient.decodeFromString<VerificationEvent>(line) } catch (_: Exception) { null }
         }.toList()
 
-    /** Verifikations-Events auf die Detektionen anwenden (T165: POSITION_MOVED setzt nur die Position). */
+    /**
+     * T259: Aktionstypen, die Status, correctedSpecies und verifiedAtMs setzen. null = Legacy und normale
+     * Verifikation (Bestaetigen/Ablehnen/Unsicher/Korrigieren sowie Rescan-Uebernahme `rescan_from:`).
+     * ALTERNATIVE_CONFIRMED (T237) und MANUAL_ADD (Status CONFIRMED, die Detektionszeile bleibt UNVERIFIED)
+     * bleiben wie bisher wirksam. Alle anderen Ereignisse (CLUSTER_MERGED, COUNT_CHANGED, ATLAS_SET,
+     * NOTE_ADDED, MEMO_*, SPECIES_LOCKED, Links) tragen ihren Wert bereits in detections.jsonl
+     * (modifyDetectionIn) bzw. werden separat gelesen und aendern den Status nicht.
+     */
+    private val VERIFYING_ACTIONS = setOf(
+        null,
+        VerificationEvent.ACTION_CONFIRMED, VerificationEvent.ACTION_REJECTED,
+        VerificationEvent.ACTION_UNCERTAIN, VerificationEvent.ACTION_CORRECTED,
+        VerificationEvent.ACTION_REPLACED, VerificationEvent.ACTION_UNDO,
+        VerificationEvent.ACTION_ALTERNATIVE_CONFIRMED, VerificationEvent.ACTION_MANUAL_ADD
+    )
+
+    /**
+     * Verifikations-Events auf die Detektionen anwenden (T165: POSITION_MOVED setzt nur die Position;
+     * T259: nur [VERIFYING_ACTIONS] setzen Status/Korrektur, z.B. CLUSTER_MERGED nicht mehr).
+     */
     fun applyVerifications(detections: List<DetectionResult>, events: List<VerificationEvent>): List<DetectionResult> {
         val out = detections.toMutableList()
         val index = HashMap<String, Int>(out.size * 2)
@@ -34,7 +53,7 @@ internal object SessionTextParser {
                 out[idx] = out[idx].copy(latitude = moved.first, longitude = moved.second)
                 continue
             }
-            if (v.actionType == VerificationEvent.ACTION_POSITION_MOVED) continue
+            if (v.actionType !in VERIFYING_ACTIONS) continue
             out[idx] = out[idx].copy(
                 verificationStatus = v.status,
                 correctedSpecies = v.correctedSpecies,
