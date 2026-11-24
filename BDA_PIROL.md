@@ -2,9 +2,9 @@
 
 Akustische Echtzeit-Artenerkennung fuer Android, gedacht fuer die Feldarbeit.
 
-*Gilt ab Version v0.1.1 (Stand 2026-11-23). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.1.2 (in Arbeit, Stand 2026-11-24). Was sich zwischen den Versionen geaendert hat, steht in `CHANGELOG.md`.*
 
-Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**.
+Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**. Der Knopf **?** (Hilfe) ist kein Tab: Ein Tipp schaltet den Hilfemodus ein, ein Doppeltipp oeffnet diese Anleitung (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
 ---
 
@@ -13,11 +13,16 @@ Die App hat fuenf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 1. App oeffnen. Der Einrichtungsassistent fuehrt durch Sprache, Niveau (Einsteiger/Experte), Einsatzzweck, Artenliste, Modell (inkl. Geomodel), Berechtigungen (Mikrofon, GPS, Benachrichtigungen) und Zusammenfassung. Die Werte werden erst bei "Fertig" uebernommen.
 2. **Artenliste** waehlen (Kapitel 11): Die Artgruppen (Voegel, Heuschrecken, Amphibien, Saeugetiere, Andere) filtern die Erkennung auf plausible Arten. Spaeter aenderbar unter Settings > Arten & Alarm.
 3. **Modell** herunterladen: Es lassen sich mehrere Modelle auf einmal auswaehlen. Standard ist BirdNET 3.0 FP16 (empfohlen, ca. 170 MB). Der Download laeuft im Hintergrund weiter, kann abgebrochen und spaeter fortgesetzt werden. Alternativ eine Modell-Datei manuell auswaehlen.
-4. **Speicherort** pruefen (Settings > Aufnahme & Speicher). Standard: `Downloads/PIROL/`, per USB sichtbar.
+4. **Speicherort** pruefen (Settings > Aufnahme). Standard: `Downloads/PIROL/`, per USB sichtbar.
 
 **Installation (APK):** Die Release-APK gibt es pro Prozessor-Architektur. Fuer aktuelle Geraete (Telefone und Tablets) die Datei `Pirol-<Version>-arm64-v8a-release.apk` installieren, nur fuer alte 32-Bit-Geraete die Datei `...-armeabi-v7a-release.apk`. Die APKs sind dadurch deutlich kleiner als frueher die gemeinsame APK. Die App hat ein neues Symbol (gelber Vogel), auch als einfarbiges Symbol fuer Themed Icons.
 
 **Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Aenderungen der Version. Er kann jederzeit in den Einstellungen unter "Info" erneut aufgerufen werden.
+
+### Hilfe-Knopf
+Der Knopf **?** (Tablet und schmale Navigation: unter Einstellungen; Telefon: ganz rechts in der Leiste) bietet zwei Wege:
+- **Antippen** schaltet den **Hilfemodus** ein oder aus. Oben erscheint die Leiste "Hilfemodus: Knopf beruehren fuer Erklaerung". Ein Tipp auf einen Knopf oder Regler loest dann nichts aus, sondern zeigt eine kurze Erklaerung, bei Bedarf mit "Mehr in der Anleitung" (springt zum passenden Kapitel). Beenden: X in der Leiste, Zurueck oder nochmals **?**.
+- **Doppeltippen** oeffnet diese Anleitung offline, in der App-Sprache (fehlt die Uebersetzung, auf Deutsch). Ein Inhaltsverzeichnis fuehrt zu den Abschnitten.
 
 **Update von aelteren Versionen:** Ab v0.0.8 ist PIROL signiert. Wer v0.0.7 oder aelter installiert hat, muss einmal deinstallieren und vorher die Sessions per USB sichern (`Android/data/ch.etasystems.pirol/files/PIROL/`). Von v0.0.8 bis v0.0.10 auf v0.0.11 geht das Update ohne Deinstallation, Sessions und Modelle bleiben erhalten. Achtung bei v0.0.11: Die Konfidenz-Schwelle ist neu eine gemeinsame Schwelle fuer alle Arten (Kapitel 2 und 13), den Regler danach pruefen. Von v0.0.11 auf v0.1.1 geht das Update ohne Deinstallation. Danach die Artgruppen (Kapitel 11) pruefen: alte Filter stehen auf Voegel Auto, Rest Aus. Sessions aus v0.0.6 und aelter werden nicht mehr speziell unterstuetzt.
 
@@ -37,7 +42,7 @@ Erkannte Arten erscheinen als Karten unter dem Sonogramm:
 - Alternativen (aufklappbar, antippbar)
 - Hinweise "Selten", "Saison-untypisch", Watchlist-Markierung
 - **Abspielen:** Der Play-Knopf auf der Karte spielt den Ausschnitt der Detektion (3 s davor, 5 s danach) ab, auch waehrend der Aufnahme. Ein zweiter Tipp stoppt die Wiedergabe.
-- **Blinken:** Wird eine Art erneut erkannt, blinkt ihre Karte kurz auf. Die Liste springt dabei nicht.
+- **Blinken:** Wird eine Art erneut erkannt, blinkt ihre Karte kurz blau auf. Die Liste springt dabei nicht (siehe "Ruhige Liste").
 - **Alarm-Glocke:** Im Menue der vollen Artkarte legt man die Art dauerhaft in die Alarmliste oder fuer 24 h an. 24-h-Alarme zeigen eine Glocke mit dem Abzeichen "24h"; nach Ablauf verschwindet es automatisch.
 - **Kompakt-Knopf:** Schaltet alle Artkarten zwischen kompakt und ausfuehrlich um. Auf dem Telefon sitzt er in der Statuszeile, auf dem Tablet in der Kopfzeile. Die Alternativen lassen sich ueber den Kopf der Karte auf- und zuklappen.
 
@@ -52,13 +57,17 @@ Erkannte Arten erscheinen als Karten unter dem Sonogramm:
 
 **Status-Zeile:** Laufzeit in mm:ss. **GPS-Leiste:** aktuelle Genauigkeit in ±m, rot bei laenger als 30 s ohne gueltigen Fix.
 
-**Ruhige Liste:** Eine bereits gesehene Art rueckt nur dann wieder an Platz 1, wenn sie seit mindestens 10 s nicht mehr gehoert wurde.
-
 **Bemerkung:** Pro Aufnahme kann ein Titel eingegeben werden. Er erscheint in der Session-Liste, im ZIP-Namen und im Raven-Export.
 
 **Manuell hinzufuegen:** Eine Art von Hand eintragen (mit Stueckzahl, Atlascode, Bemerkung). Pro Detektion lassen sich ausserdem Stueckzahl, Atlascode, Bemerkung und ein Sprach-Memo erfassen. Eine Art kann gesperrt werden (nur eine Meldung pro Session).
 
 **Zusammenfassen:** Detektionen derselben Art werden raeumlich und zeitlich zu einem Eintrag zusammengefasst (Radius und Zeitfenster einstellbar, Settings > Modell & Erkennung).
+
+### Ruhige Liste
+Die Reihenfolge der Artkarten aendert sich hoechstens alle 5 s. Neue Arten werden gesammelt und gemeinsam oben eingefuegt (die allererste Karte erscheint sofort); sie koennen also bis zu 5 s spaeter sichtbar werden, Alarme kommen weiterhin sofort. Wird eine Art in den obersten 5 Karten erneut erkannt, bleibt sie stehen und blinkt blau. Eine Art weiter unten rueckt beim naechsten Wechsel nach oben und blinkt. Loeschen, Verifizieren und gesperrte Arten wirken sofort. Detektionen, Alarm, Zusammenfassung und Analyse sind davon nicht betroffen.
+
+### Session-Memo
+Der Memo-Knopf im Live-Tab (nur waehrend einer Aufnahme sichtbar) funktioniert wie ein Walkie-Talkie: **gedrueckt halten und sprechen**, beim Loslassen endet das Memo. Waehrend der Aufnahme ist der Knopf rot und zeigt die Laufzeit; danach erscheint "Memo gespeichert (n s)". Memos unter 0.5 s werden verworfen ("Zu kurz"), nach 3 Minuten endet ein Memo automatisch. Das Memo wird mit seiner Lage in der Aufnahme gespeichert (`memos.jsonl`, Dateien unter `memos/`), erscheint in der Analyse im Block "Memos" (Kapitel 6) und als Zeile "Memo" im Raven-Export (Kapitel 7). Memos werden nie als Stimme ausgeblendet (Kapitel 7). Sprach-Memos zu einzelnen Arten bleiben davon getrennt.
 
 ### Mehrfacherkennung und Konfidenz-Schwelle
 Im selben 3-s-Fenster werden alle Arten erkannt, die die Schwelle erreichen, nicht nur die oberste. Der Regler heisst "Konfidenz-Schwelle (alle Arten)" (Settings > Modell & Erkennung, Standard 50 %) und gilt fuer alle Arten gleich. Arten darunter, aber ueber der Kandidaten-Grenze, bleiben als Kandidaten bei den Detektionen des Fensters. Frueher steuerte der Regler eine andere Schwelle (TopK, Standard 0.3); deshalb nach dem Update pruefen. Watchlist-Alarme loesen erst ab der Schwelle aus.
@@ -86,7 +95,7 @@ Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt
 
 **Anzeige-Modi (Live-Tab):** Im Anzeige-Panel (Langdruck) schaltet man zwischen **Sonogramm**, **Spektrum** und **Oszillogramm** um. Das Spektrum zeigt die Lautstaerke je Frequenz mit echter FFT (dBFS, Mittelung, Peak-Halten mit verblassenden Spitzen, Cursor). Das Oszillogramm zeigt den Zeitverlauf mit Pegelanzeige (Peak/RMS), Bandpass und roter Markierung bei Uebersteuerung. Frequenz, Dynamik und Farbmuster gelten fuer alle drei Ansichten gemeinsam. In der Analyse stehen Spektrum und Oszillogramm ebenfalls zur Verfuegung.
 
-**Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) oeffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Sonogramm. Das Panel gilt fuer Live, Analyse und Settings gemeinsam. Oben im Panel steht "Fertig" in einer eigenen Zeile; Voreinstellungen und Farbpaletten sind Kacheln, die bei Platzmangel umbrechen.
+**Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) oeffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Anzeige. Das Panel gilt fuer Live, Analyse und Settings gemeinsam. Oben im Panel steht "Fertig" in einer eigenen Zeile; Voreinstellungen und Farbpaletten sind Kacheln, die bei Platzmangel umbrechen.
 
 | Regler | Wirkung |
 |--------|---------|
@@ -102,7 +111,7 @@ Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt
 
 **Tab-Wechsel:** Verlaesst man den Live-Tab oder schaltet den Bildschirm aus, rechnet PIROL das Sonogramm bei der Rueckkehr nach (bis zum eingestellten Zeitfenster), sodass es lueckenlos weiterlaeuft. War man laenger weg als das Zeitfenster, beginnt es neu.
 
-**Modus** (Settings > Sonogramm): Voegel, Fledermaus oder Breitband. Der Fledermaus-Modus nimmt mit 96 kHz auf (Ultraschall); dabei gibt es keinen Preroll.
+**Modus** (Settings > Anzeige): Voegel, Fledermaus oder Breitband. Der Fledermaus-Modus nimmt mit 96 kHz auf (Ultraschall); dabei gibt es keinen Preroll.
 
 ---
 
@@ -136,15 +145,18 @@ detections.updates.jsonl Zusatzdatei waehrend der Aufnahme (wird beim Stopp in d
 recording.wav             Aufnahme (16-bit, Mono, 48 kHz); bei langen Sessions
 recording-002.wav ...     weitere Segmente
 recording.selections.txt  Raven Selection Table (automatisch beim Stopp)
+memos.jsonl               Session-Memos mit Lage in der Aufnahme (Dateien unter memos/)
+human_windows.jsonl       Merkliste fuer das Ausblenden menschlicher Stimmen (nie exportiert)
 ```
 
 - **Speicherbedarf:** ca. 5.5 MB pro Minute Aufnahme.
 - **Zeitstempel:** immer Ortszeit mit Zonen-Offset (z.B. `+02:00`).
 - **Auto-Loeschen:** Kurze Sessions ohne Detektion werden geloescht (Mindestdauer einstellbar, 0 = aus).
 - **Loeschen** einer Session in der Analyse: mit Bestaetigung.
+- **Angaben importierter Sessions bearbeiten:** Bei importierten Sessions gibt es im Ueberlaufmenue der Kopfzeile (Symbol mit drei Punkten) den Eintrag "Angaben bearbeiten": Startzeit, Ort und Bemerkung lassen sich nachtraeglich aendern. Eine neue Startzeit verschiebt alle Zeiten der Session (Detektionen, Verifikationen, Varianten, Route) um dieselbe Differenz; Positionen in der Aufnahme bleiben. Raven und GPX werden neu geschrieben. Der Ort gilt fuer die Session und alle Detektionen ohne eigenen GPS-Fix; auf der Karte verschobene Punkte bleiben. Nicht moeglich waehrend eines Rescans.
 
 ### Speicherort wechseln
-Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: interner Speicher, SD-Karte, Cloud-Ordner). Optional mit Tages-Unterordnern. Ist der Ordner nicht erreichbar, speichert PIROL im Fallback-Ordner der App und meldet das. Einzelne Aufnahmen lassen sich auch im Analyse-Tab verschieben (Kapitel 6).
+Settings > Aufnahme > Speicherort: "Anderen Ordner waehlen" (SAF: interner Speicher, SD-Karte, Cloud-Ordner). Optional mit Tages-Unterordnern. Ist der Ordner nicht erreichbar, speichert PIROL im Fallback-Ordner der App und meldet das. Einzelne Aufnahmen lassen sich auch im Analyse-Tab verschieben (Kapitel 6).
 
 **Sessions verschieben:** Beim Wechsel fragt PIROL, ob bestehende Sessions an den neuen Ort **kopiert** werden sollen ("Kopieren") oder nur der Ort gewechselt wird ("Nur wechseln").
 
@@ -167,8 +179,10 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 - **Uebersicht:** Eine Uebersichtsleiste zeigt die Detektionen ueber die ganze Aufnahme; die Raven-Tabelle listet sie als Tabelle.
 - **Raven-Datei neu erzeugen**, z.B. nach nachtraeglicher Verifikation.
 - **Episoden teilen:** Jede Episode hat einen eigenen Teilen-Knopf; geteilt wird der Ausschnitt dieser Episode.
-- **Rescan:** Der Rescan-Knopf neben der Lupe (nur wenn eine Aufnahme vorhanden ist) oeffnet die Wahl von Modell, Liste bzw. Artgruppen, Konfidenz-Schwelle, Overlap und Zweitmodell. Der Rescan laeuft im Hintergrund als Vordergrund-Dienst mit Fortschritt und Abbrechen; das Ergebnis erscheint als Chip neben dem Original ("Datum Zeit · Modell"). Waehrend eines Rescans ist keine Aufnahme moeglich.
+- **Memos:** Gibt es Memos, zeigt die Analyse unter Sonogramm und Uebersicht den aufklappbaren Block "Memos (n)" (hoechstens 200 dp hoch, scrollbar) mit Abspielen. Er listet Session-Memos und Memos zu Arten; bei Art-Memos ohne bekannte Aufnahmezeit steht "ca. ... (Zeit der Detektion)".
+- **Rescan:** Der Rescan-Knopf neben der Lupe (nur wenn eine Aufnahme vorhanden ist) oeffnet die Wahl von Modell, Liste bzw. Artgruppen, Konfidenz-Schwelle, Overlap und Zweitmodell. Der Rescan laeuft im Hintergrund als Vordergrund-Dienst mit Fortschritt und Abbrechen; das Ergebnis erscheint als Chip neben dem Original ("Datum Zeit · Modell"). Die Ergebnisse erscheinen **laufend**: Die Variante oeffnet sich sofort, die Detektionsliste waechst alle paar Sekunden und laesst sich schon waehrend des Scans verifizieren (Kopfzeile "· laeuft"). Beim Abbrechen bleibt das Teilergebnis erhalten ("abgebrochen bei x min"); dasselbe gilt, wenn die App waehrend des Scans beendet wird. Bereits vorgenommene Verifikationen werden nie ueberschrieben. Waehrend eines Rescans ist keine Aufnahme moeglich und die laufende Variante nicht loeschbar. Der Import von Audiodateien nutzt denselben Weg.
 - **Audio importieren:** Der Import-Knopf im Kopf der Session-Liste uebernimmt eine PIROL-Session (ZIP oder Ordner) oder Audiodateien (WAV, FLAC, MP3, M4A, OGG) als neue Session. Die Startzeit steht vorbelegt (z.B. aus einem AudioMoth-Kommentar) und ist aenderbar. Bei mehreren Dateien waehlt man: je Datei eine Session oder alle zu einer Session (Segmente, nach Zeit sortiert).
+- **Speichern unter:** Im Ueberlaufmenue der Kopfzeile. Man waehlt **ZIP** oder **Ordner** und danach das Ziel (auch SD-Karte, USB oder Cloud-Ordner). Der Inhalt entspricht dem Upload-ZIP; beim Ordner entsteht ein Unterordner mit dem Exportnamen (Kapitel 7). Ein Ziel in der PIROL-Ablage oder in der Session selbst wird abgelehnt. Fuer die laufende Aufnahme ist der Eintrag ausgegraut. Menschliche Stimmen werden je nach Einstellung ausgeblendet (Kapitel 7).
 - **Kopfzeile:** Datum · Gemeinde · Bemerkung in einer Zeile; ein Tipp auf die Bemerkung oeffnet den Dialog. Der Kompakt/Gross-Umschalter entspricht dem der Artkarte.
 
 **Mehrere Aufnahmen auswaehlen:** Langdruck auf eine Aufnahme in der Session-Liste startet den Auswahlmodus; weitere Aufnahmen werden per Tipp gewaehlt. Die Kopfleiste zeigt "N ausgewaehlt" mit den Aktionen "Alle", "Verschieben" und "Loeschen"; das X oder die Zurueck-Taste beendet den Modus. Die gerade laufende Aufnahme ist nicht auswaehlbar.
@@ -181,9 +195,21 @@ Settings > Aufnahme & Speicher > Speicherort: "Anderen Ordner waehlen" (SAF: int
 
 **Raven Selection Table** (`recording.selections.txt`): wird beim Stopp automatisch neben der WAV geschrieben, Tab-getrennt, UTF-8. Oeffnet in Cornell Raven, Audacity (als Label-Spur) und Sonic Visualiser.
 
-Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Begin/End Time (s), Low/High Freq (Hz), Begin Date Time (mit Offset), Species, Confidence, Status (bei Zweitmodell Second Rank). Welche weiteren Spalten geschrieben werden, steht unter Settings > Analyse & Export > Raven-Export Felder. KML-Export gibt es nicht mehr.
+Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Begin/End Time (s), Low/High Freq (Hz), Begin Date Time (mit Offset), Species, Confidence, Status (bei Zweitmodell Second Rank). Welche weiteren Spalten geschrieben werden, steht unter Settings > Export & Upload > Raven-Export Felder. KML-Export gibt es nicht mehr.
+
+### Raven: eine Zeile pro Episode
+Aufeinanderfolgende Erkennungen einer Art bilden eine **Episode**; die Tabelle hat pro Episode eine Zeile (nicht mehr pro zusammengefasstem Eintrag). Eine neue Zeile beginnt, wenn die Luecke groesser als ein Analysefenster ist. Confidence ist das Maximum der Episode, Begin File das Segment ihres Beginns. Zusaetzliche Spalten: `Cluster` (Kennung des ersten Eintrags) und `Windows` (Anzahl Fenster). Die Raven-Tabelle in der App zeigt dieselben Zeilen.
+
+### Raven: Memos
+Jedes Session-Memo (Kapitel 2) erscheint als eigene Zeile mit Species `Memo` an seiner Position in der Aufnahme. Die Spalte `Memo` enthaelt den Pfad der Memo-Datei (auch bei Art-Memos); sie laesst sich unter Raven-Export Felder abschalten. Memo-Zeilen stehen auch in den Tabellen von Rescan-Varianten.
 
 **ZIP-Paket:** die Session als ZIP, fuer manuelles Teilen oder den automatischen Upload (Kapitel 12).
+
+### Menschliche Stimmen ausblenden (Datenschutz)
+PIROL ersetzt in **Export-Kopien** (Speichern unter als ZIP oder Ordner, Upload-ZIP, Teilen von Ausschnitten) menschliche Stimmen durch Rauschen: Wo das Modell Menschen erkennt, wird das Sprachband (ca. 300-3900 Hz) ersetzt, mit 0.5 s Rand; der Rest bleibt unveraendert. Originalaufnahme, Detektionen und Raven werden nie veraendert. Die Merkliste `human_windows.jsonl` entsteht live und beim Rescan; noch nicht bewertete Bereiche (importierte oder alte Sessions) scannt PIROL beim Export nach (mit Fortschritt, abbrechbar).
+- **Einstellung:** Settings > Export & Upload > Datenschutz > "Menschliche Stimmen im Export ausblenden" (Standard an). Beim Ausschalten warnt PIROL ("Stimmen nicht mehr ausblenden?"), weil Exporte dann Gespraeche unbeteiligter Personen enthalten koennen. Im Expertenmodus stellt "Mensch-Schwelle" ein, ab welchem Score ausgeblendet wird (tiefer = vorsichtiger).
+- **Memos** bleiben immer unbearbeitet; der Zeitraum eines Live-Memos in der Aufnahme wird vom Ausblenden ausgenommen.
+- **Modell ohne Mensch-Klasse:** Kennt das Modell einer Session keine menschlichen Stimmen, fragt PIROL beim Speichern, Hochladen und Teilen: mit BirdNET 3.0 nach Menschen suchen (nicht waehrend einer Aufnahme, kann Minuten dauern), ohne Ausblenden exportieren (mit Warnung) oder abbrechen. Der automatische Upload laedt in diesem Fall nichts unmaskiert hoch, sondern wartet auf den Entscheid.
 
 **Dateinamen:** Geteilte Detektionen heissen `YYYYMMDDHHMMSS_Art_Bemerkung.ext` (z.B. `20260420143005_Amsel_Garten_hinten.wav`), ZIP-Pakete `YYYYMMDDHHMMSS_Bemerkung.zip` (Zeit = Session-Start). Fehlt die Bemerkung, entfaellt der Teil; Leer- und Sonderzeichen werden zu `_`.
 
@@ -191,7 +217,7 @@ Enthalten sind u.a. Selection, Begin File (bei Segmenten die jeweilige WAV), Beg
 
 ## 8. Karte
 
-Georeferenzierte Detektionen auf einer Karte. Das Menue oeffnet sich per Wisch vom Rand oder ueber das Kartenmenue-Symbol.
+Georeferenzierte Detektionen auf einer Karte. Das **Kartenmenue** oeffnet sich per Wisch vom linken Rand oder ueber das Menue-Symbol oben links ("Kartenmenue oeffnen"). Es enthaelt Anzeige, Kartenquelle, Offline-Karten und den Artfilter.
 
 - **Kartenquelle:** Automatisch (swisstopo in der Schweiz, OpenStreetMap ausserhalb), OpenStreetMap, swisstopo Karte, swisstopo Luftbild.
 - **Offline:** Fuer swisstopo-Karten laesst sich der sichtbare Ausschnitt herunterladen ("Ausschnitt herunterladen", mit Angabe der Kachelzahl und Groesse). Ein Abbruch behaelt bereits geladene Kacheln; ein erneuter Start laedt nur Fehlendes. "Offline-Karten loeschen" entfernt alle gespeicherten Kacheln.
@@ -199,7 +225,7 @@ Georeferenzierte Detektionen auf einer Karte. Das Menue oeffnet sich per Wisch v
 - **Punkt antippen:** Ein Tipp auf einen Punkt oeffnet ein Menue mit Verifizieren (Bestaetigen, Unsicher, Ablehnen), "Bearbeiten", "Position verschieben" und Abspielen (Play bzw. "Wiedergabe stoppen"). Ein Langdruck oeffnet dasselbe Menue und erlaubt zusaetzlich, Beobachtungen als Simultanbeobachtung zu verknuepfen. Abgespielt wird der Ausschnitt der Detektion aus der Session-Aufnahme; fehlt sie, erscheint eine Meldung.
 - **Mehrere Punkte uebereinander (Cluster):** Ein Tipp auf einen Cluster zeigt die Liste der Detektionen. Pro Eintrag gibt es Verifizieren, Abspielen und "Position verschieben".
 - **Position verschieben:** Die Karte zeigt oben den Hinweis "Karte verschieben: Fadenkreuz auf die neue Position von ..., dann Uebernehmen." Die Karte so schieben, dass das Fadenkreuz in der Mitte auf der neuen Position liegt, dann unten "Uebernehmen" (oder "Abbrechen"). Danach erscheint eine Snackbar mit **Rueckgaengig**. Das Verschieben geht auch fuer Live-Punkte; laeuft keine Session, gilt die neue Position nur bis zum Schliessen der App.
-- **Legende und Filter:** Der Trichter-Knopf oben links oeffnet den Artfilter: "Nur Alarmarten" oder einzelne Arten ausblenden (Alle/Keine). Der Filter gilt bis zum Schliessen der App; Routen bleiben sichtbar.
+- **Artfilter:** Im Kartenmenue steht der Artfilter: "Nur Alarmarten" oder einzelne Arten ausblenden (Alle/Keine). Der Filter gilt bis zum Schliessen der App; Routen bleiben sichtbar.
 - **Route:** Eine waehrend der Aufnahme aufgezeichnete Route erscheint als Linie (bei Modus "Nur bei Detektion" gestrichelt, nur an Detektionspunkten). Siehe Kapitel 14.
 - **Standort-Knopf:** Zentriert die Karte auf die eigene Position und zoomt so, dass die sichtbare Kartenhoehe etwa 200 m betraegt.
 - **Zoom-Knoepfe:** Die +/- Knoepfe sind 50 % groesser und liegen ueber dem Standort-Knopf.
@@ -304,7 +330,7 @@ Jede Detektion erhaelt einen frischen Standort, auch bei ausgeschaltetem Bildsch
 
 **Route:** Die Route ("Route aufzeichnen", Standard an) wird waehrend der Aufnahme mitgeschrieben (`track.jsonl`) und beim Stopp als `track.gpx` neben die Aufnahme gelegt (Zeiten in UTC).
 
-**Gemeinde:** Der Knopf "Gemeinde einfuegen" traegt die Gemeinde aus der Position in die Bemerkung ein (im Detail-Dialog, in der Session-Bemerkung und in der Analyse). Die Gemeindedaten liegen offline in der App.
+**Gemeinde:** Der Knopf "Gemeinde einfuegen" traegt die Gemeinde aus der Position in die Bemerkung ein (im Detail-Dialog, in der Session-Bemerkung und in der Analyse). Die Gemeindedaten (Schweiz) liegen offline in der App. Ausserhalb davon wird nichts ermittelt, ausser der Experten-Schalter Settings > Karte & GPS > Erweitert > "Gemeinde online ermitteln (Google)" ist an (Standard aus; dabei werden die Koordinaten an Google gesendet).
 
 ---
 
@@ -354,8 +380,9 @@ Die Settings sind in einklappbare Sektionen gegliedert; der Zustand wird gemerkt
 | Modell & Erkennung | Modelle (Download, Import, Loeschen), Erkennungs-Schwelle (alle Arten), Alternativen ab, Max. Arten pro Fenster, Voreinstellungen, Artvorschlaege, Zusammenfassen von Detektionen, Aehnliche Arten und Embedding-Limit |
 | Arten & Alarm | Regionaler Filter und eigene Listen, Watchlist, Alarm-Pause und -Ausgabe, Alarm testen, PIROL-Ordner, Saisonalitaet und Seltenheit |
 | Anzeige | Artnamen-Sprache, Vollbild, Sonogramm (Modus, Voreinstellung, Kontrast, Gamma, Deckel, Palette, Frequenz, Zeitfenster), kompakte Artkarte |
-| Karte & GPS | GPS-Modus, Route aufzeichnen, GPS-Intervall, Genauigkeit und Glaettung |
-| Export & Upload | Raven-Export-Felder, Upload (Ziel Ordner/NAS, Passwort, Verbindungstest, nur WLAN) |
+| Karte & GPS | GPS-Modus, Route aufzeichnen, GPS-Intervall, Genauigkeit und Glaettung; Experten (Erweitert): "Gemeinde online ermitteln (Google)" |
+| Export & Upload | Raven-Export-Felder (inkl. Memo), Datenschutz (menschliche Stimmen ausblenden, Mensch-Schwelle), Upload (Ziel Ordner/NAS, Passwort, Verbindungstest, nur WLAN) |
+| Aehnliche Arten & Referenzen | Aehnlichkeitssuche, Zeilenzahl, Vergleichsaufnahmen (Kapitel 9) |
 | Info | Version, Quellen, Was ist neu, Diagnose (Benchmark) |
 
 Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im Einfach-Modus alles Seltene aus; im Expertenmodus ist alles sichtbar. Keine Einstellung geht dabei verloren. Seltene Optionen stehen im einklappbaren Unterblock "Erweitert" der jeweiligen Sektion (z.B. Hochpassfilter, Detektions-Cluster, Phaenologie, Max. Aufnahmelaenge).
@@ -377,8 +404,20 @@ Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im 
 
 ## 19. Aenderungen
 
-Die Liste der Aenderungen pro Version steht in `CHANGELOG.md` im Projekt.
+Die vollstaendige Liste steht in `CHANGELOG.md` im Projekt.
+
+### Version 0.1.2 (in Arbeit)
+- Angaben importierter Sessions (Startzeit, Ort, Bemerkung) nachtraeglich bearbeiten (Kapitel 5)
+- "Speichern unter" als ZIP oder Ordner (Kapitel 6)
+- Raven: eine Zeile pro Episode, neue Spalten `Cluster`, `Windows` und `Memo` (Kapitel 7)
+- Rescan und Import: Ergebnisse laufend sichtbar und verifizierbar, Abbruch behaelt das Teilergebnis (Kapitel 6)
+- Menschliche Stimmen werden im Export ausgeblendet, Standard an; Rueckfrage bei Modell ohne Mensch-Klasse (Kapitel 7)
+- Gemeinde online ueber Google nur noch als Option, Standard aus (Kapitel 17)
+- Session-Memo per Gedrueckt-halten, Block "Memos" in der Analyse, Memo-Zeile in Raven (Kapitel 2, 6, 7)
+- Live-Artkarten ruhiger: Wechsel hoechstens alle 5 s, Treffer in den Top 5 blinken blau (Kapitel 2)
+- Hilfe-Knopf "?": Hilfemodus und Anleitung offline (Kapitel 1)
+- Anleitung korrigiert: Artfilter im Kartenmenue (Kapitel 8), Settings-Sektionsnamen (Kapitel 1, 5, 7, 17)
 
 ---
 
-*PIROL v0.1.1 — ETA Systems — Stand 2026-11-23*
+*PIROL v0.1.2 (in Arbeit) — ETA Systems — Stand 2026-11-24*
