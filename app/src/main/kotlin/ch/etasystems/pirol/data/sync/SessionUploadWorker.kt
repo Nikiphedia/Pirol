@@ -31,6 +31,7 @@ class SessionUploadWorker(
 ) : CoroutineWorker(context, params), KoinComponent {
 
     private val sessionManager: SessionManager by inject()
+    private val humanMask: ch.etasystems.pirol.data.export.HumanExportMask by inject()  // T261
 
     companion object {
         const val KEY_SESSION_DIR = "session_dir"
@@ -70,6 +71,22 @@ class SessionUploadWorker(
             return Result.failure()
         }
 
+        // T261: Menschliche Stimmen ausblenden (Merkliste, fehlende Bereiche nachscannen)
+        val maskPlan = try {
+            humanMask.prepare(sessionDir)
+        } catch (e: ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException) {
+            Log.e(TAG, "T261: Menschen nicht erkennbar, Export abgebrochen")
+            val prefs = AppPreferences(applicationContext)
+            record(prefs, "Fehlgeschlagen: ${e.message}")
+            UploadStatusHolder.set(UploadStatus.Failed(metadata.sessionId, e.message ?: "T261"))
+            return Result.failure()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "T261: Ausblenden nicht vorbereitet, neuer Versuch", e)
+            return if (runAttemptCount >= MAX_ATTEMPTS - 1) Result.failure() else Result.retry()
+        }
+
         // ZIP erstellen (temporaer)
         val zipFile = File(applicationContext.cacheDir, "upload_${ExportNames.sanitizePart(metadata.sessionId, 80).ifEmpty { "session" }}.zip")
         try {
@@ -80,7 +97,7 @@ class SessionUploadWorker(
                 Log.w(TAG, "Zusammengefuehrte Detektionen nicht lesbar, Datei wie sie ist", e)
                 null
             }
-            createZip(sessionDir, zipFile, detections)
+            createZip(sessionDir, zipFile, detections) { humanMask.wrap(it, maskPlan) }
         } catch (e: Exception) {
             Log.e(TAG, "ZIP erstellen fehlgeschlagen", e)
             zipFile.delete()
@@ -195,8 +212,14 @@ class SessionUploadWorker(
 // Enthaelt: session.json, detections.jsonl, verifications.jsonl (falls vorhanden), audio/*.wav
 // T253: detections.jsonl kommt aus [detectionsText] (zusammengefuehrter Stand), falls gegeben; die Zusatzdatei
 // der Detektions-Updates kommt nie ins ZIP. T258: Ausschlussregel in SessionExportRules.
-internal fun createZip(sessionDir: File, zipFile: File, detectionsText: String? = null) {
-    FileOutputStream(zipFile).use { writeZip(it, SessionExportRules.entriesOf(sessionDir), detectionsText) }
+internal fun createZip(
+    sessionDir: File,
+    zipFile: File,
+    detectionsText: String? = null,
+    /** T261: WAV-Eintraege bearbeiten (Menschen ausblenden); Default unveraendert */
+    transform: (List<ExportEntry>) -> List<ExportEntry> = { it }
+) {
+    FileOutputStream(zipFile).use { writeZip(it, transform(SessionExportRules.entriesOf(sessionDir)), detectionsText) }
 }
 
 /** T258: ZIP aus beliebigen Quellen (Dateisystem oder SAF); schliesst [out] nicht. */

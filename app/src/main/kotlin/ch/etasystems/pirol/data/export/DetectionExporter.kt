@@ -36,7 +36,9 @@ data class DetectionShareRequest(
     val recordingFile: File?,
     val sessionNote: String?,
     /** T130: alle Segmente der Session; null = aus [recordingFile] und Nachbar-Segmenten ableiten */
-    val recording: SegmentedRecording? = null
+    val recording: SegmentedRecording? = null,
+    /** T261: Session-Ordner (Merkliste der Mensch-Fenster); null = aus [recordingFile] ableiten */
+    val sessionDir: File? = null
 )
 
 /** Export-Formate (T116). */
@@ -56,8 +58,12 @@ class DetectionExporter(
     private val context: Context,
     private val settingsRepository: SpectrogramSettingsRepository,
     private val prefs: AppPreferences,
-    private val nameResolver: SpeciesNameResolver
+    private val nameResolver: SpeciesNameResolver,
+    private val humanMask: HumanExportMask
 ) {
+    /** T261: Menschliche Stimmen werden im geteilten Ausschnitt ausgeblendet */
+    val masksHumans: Boolean get() = humanMask.enabled
+
 
     /** Formate, die auf diesem Geraet angeboten werden (MP3/FLAC nur mit vorhandenem Encoder). */
     fun availableFormats(): List<ShareFormat> = buildList {
@@ -84,8 +90,21 @@ class DetectionExporter(
                 request.recordingFile ?: throw IllegalStateException("Aufnahme nicht verfuegbar")
             )
         val range = recording.excerptRange(det, prefs.excerptMaxSec.toFloat())
-        val pcm = recording.readRange(range.startSec, range.endSec)
+        val raw = recording.readRange(range.startSec, range.endSec)
             ?: throw IllegalStateException("Ausschnitt nicht lesbar (Aufnahme leer oder ausserhalb)")
+        // T261: Sprachband an Mensch-Stellen durch Rauschen ersetzen (ggf. Bereich erst scannen: erste Haelfte des Fortschritts)
+        val sessionDir = request.sessionDir ?: request.recordingFile?.parentFile
+        val plan = if (humanMask.enabled && sessionDir != null) {
+            humanMask.prepare(
+                sessionDir,
+                ch.etasystems.pirol.audio.export.TimeSpan(range.startSec, range.endSec),
+                onProgress = { onProgress(it * 0.5f) },
+                recordingIn = recording
+            )
+        } else null
+        if (humanMask.enabled && sessionDir == null) throw HumanExportMask.UnavailableException()
+        val startFrame = Math.round(range.startSec.toDouble() * recording.sampleRate)
+        val pcm = humanMask.maskPcm(raw, startFrame, plan)
 
         val dir = File(context.cacheDir, "share").apply { mkdirs() }
         // Alte Dateien aufraeumen

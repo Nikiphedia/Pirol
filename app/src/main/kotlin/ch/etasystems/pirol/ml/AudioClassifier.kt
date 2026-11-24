@@ -73,7 +73,9 @@ interface AudioClassifier {
     /** Ergebnis von [classifyWithEmbedding]: Treffer + optionales Embedding (roh, nicht normalisiert) */
     class ClassificationOutput(
         val results: List<ClassifierResult>,
-        val embedding: FloatArray?
+        val embedding: FloatArray?,
+        /** T261: Mensch-Score aus dem Rohausgang ([HumanLabels.score]); null = Modell kennt keine Menschen */
+        val humanScore: Float? = null
     )
 
     /** Klassifizierungsergebnis */

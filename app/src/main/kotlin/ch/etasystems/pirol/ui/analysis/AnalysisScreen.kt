@@ -518,7 +518,13 @@ private fun SessionDetailContent(
         AlertDialog(
             onDismissRequest = { showSaveAsChoice = false },
             title = { Text(stringResource(R.string.analysis_saveas_titel)) },
-            text = { Text(stringResource(R.string.analysis_saveas_frage)) },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(stringResource(R.string.analysis_saveas_frage))
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                    ch.etasystems.pirol.ui.components.HumanMaskNotice(viewModel.masksHumans)  // T261
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = { showSaveAsChoice = false; saveZipLauncher.launch(viewModel.suggestedZipName()) },
@@ -532,6 +538,10 @@ private fun SessionDetailContent(
                 ) { Text(stringResource(R.string.analysis_saveas_ordner)) }
             }
         )
+    }
+    // T261: Mensch-Scan vor dem Speichern (Fortschritt, abbrechbar)
+    state.humanScanProgress?.let { p ->
+        ch.etasystems.pirol.ui.components.HumanScanProgressDialog(p) { viewModel.cancelSaveAs() }
     }
     var showRescanDialog by remember { mutableStateOf(false) }  // T221
     if (showRescanDialog) RescanDialog(viewModel) { showRescanDialog = false }

@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
+import ch.etasystems.pirol.audio.export.HumanWindowCollector
+import ch.etasystems.pirol.audio.export.HumanWindows
 
 /**
  * T94: Schreib-/Session-Schnittstelle der Pipeline (Produktiv: SessionManager, Test: Fake).
@@ -66,6 +68,8 @@ interface PipelineSession {
         speciesFilter: SpeciesFilterInfo? = null  // T218
     ): String
     suspend fun endSession(gpsStats: GpsStats?)
+    /** T261: fertige Zeilen an human_windows.jsonl der aktiven Session anhaengen (Default: nichts) */
+    suspend fun appendHumanWindows(text: String) {}
 }
 
 /**
@@ -229,6 +233,8 @@ class RecordingPipeline(
     private var flushJob: Job? = null  // T236
     @Volatile private var running = false
     private var currentSessionId: String? = null
+    /** T261: bewertete Fenster (Mensch-Merkliste) der laufenden Session, gebuendelt geschrieben */
+    @Volatile private var humanWindows = HumanWindowCollector(null)
 
     // T137: Persistenz-Zaehler (an die Persistenz uebergebene Samples), pro Session zurueckgesetzt
     private val persistedSamples = AtomicLong(0L)
@@ -294,8 +300,22 @@ class RecordingPipeline(
             }
         },
         onOverlapReduced = { percent -> _overlapReduced.tryEmit(percent) },
-        onWindowAnalyzed = { block, detections -> handleDetections(block, detections) }
+        onWindowAnalyzed = { block, detections -> handleDetections(block, detections) },
+        onWindowScored = { start, end, human -> humanWindows.add(start, end, human) }  // T261
     )
+
+    /** T261: gesammelte Mensch-Fenster schreiben; bei Fehler bleiben sie fuer den naechsten Versuch stehen */
+    private suspend fun flushHumanWindows() {
+        val collector = humanWindows
+        val lines = collector.drain()
+        if (lines.isEmpty()) return
+        try {
+            session.appendHumanWindows(HumanWindows.encode(lines))
+        } catch (e: Exception) {
+            collector.restore(lines)
+            Log.w(TAG, "human_windows.jsonl: Schreiben fehlgeschlagen", e)
+        }
+    }
 
     /** Inference-Einstellungen live aendern (Settings/LiveScreen). T110: Overlap aus den Prefs. */
     fun setInferenceConfig(config: InferenceConfig) {
@@ -335,6 +355,7 @@ class RecordingPipeline(
                 try { session.flushDetectionUpdates() } catch (e: Exception) {
                     Log.w(TAG, "detections.jsonl: gebuendeltes Schreiben fehlgeschlagen", e)
                 }
+                flushHumanWindows()  // T261
             }
         }
 
@@ -346,6 +367,7 @@ class RecordingPipeline(
         // auf dem sessionDispatcher hinter dem Ende ein (sonst lief die neue Aufnahme ohne Session)
         if (!session.isActive || pendingEnds.get() > 0) {
             prerollToFeed = preroll
+            humanWindows = HumanWindowCollector(classifier.modelId)  // T261: neue Session, neue Merkliste
             persistedSamples.set(0L)
             prerollSamplesFed.set(0L)
             detectionFixes.set(0L)
@@ -562,6 +584,7 @@ class RecordingPipeline(
             Log.i(TAG, "T118_STATS preroll_samples=$statsPreroll live_samples=$statsLive wav_samples=${session.recordedSampleCount}")
             val finishedSessionId = currentSessionId
             currentSessionId = null
+            flushHumanWindows()  // T261: Rest der Merkliste vor dem Session-Ende
             try {
                 hooks.stopTrack()  // T191: vor endSession (GPX-Export liest track.jsonl)
             } catch (e: Exception) {

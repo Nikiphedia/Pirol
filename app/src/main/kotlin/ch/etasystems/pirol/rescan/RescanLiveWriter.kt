@@ -7,6 +7,8 @@ import ch.etasystems.pirol.data.repository.SessionJson
 import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
 import kotlinx.serialization.encodeToString
+import ch.etasystems.pirol.audio.export.HumanWindowCollector
+import ch.etasystems.pirol.audio.export.HumanWindows
 
 /**
  * T260: Schreibt eine Rescan-Variante waehrend des Scans, nach demselben Muster wie die Live-Session (T236/T251):
@@ -27,7 +29,10 @@ import kotlinx.serialization.encodeToString
  * Nicht thread-sicher fuer gleichzeitige Aufrufe: der Runner meldet und flusht sequenziell; [flushLocked]
  * laeuft unter dem fileMutex des SessionManagers (gegen Nutzer-Aenderungen derselben Dateien).
  */
-class RescanLiveWriter(val id: String) : RescanRunner.Sink {
+class RescanLiveWriter(val id: String, modelId: String? = null) : RescanRunner.Sink {
+
+    /** T261: Mensch-Merkliste; gemeinsame Datei der Session (`human_windows.jsonl`), nicht je Variante */
+    private val humanWindows = HumanWindowCollector(modelId)
 
     /** Neue Detektionen, noch nicht angehaengt (Reihenfolge des Entstehens) */
     private val pendingNew = ArrayList<DetectionResult>()
@@ -43,6 +48,8 @@ class RescanLiveWriter(val id: String) : RescanRunner.Sink {
     override fun onNew(detection: DetectionResult) { pendingNew += detection }
     override fun onUpdate(detection: DetectionResult) = queue.put(detection)
     override fun onMerge(event: VerificationEvent) { pendingMerges += event }
+    override fun onHumanWindow(startSec: Float, endSec: Float, humanScore: Float?) =
+        humanWindows.add(startSec, endSec, humanScore)
 
     fun hasPending(): Boolean = pendingNew.isNotEmpty() || !queue.isEmpty() || pendingMerges.isNotEmpty()
 
@@ -86,6 +93,17 @@ class RescanLiveWriter(val id: String) : RescanRunner.Sink {
             )
             lines += pendingMerges.size
             pendingMerges.clear()
+        }
+        // 4. T261: Mensch-Merkliste (gehoert zur Aufnahme, nicht zur Variante)
+        val human = humanWindows.drain()
+        if (human.isNotEmpty()) {
+            try {
+                files.append(HumanWindows.FILE, HumanWindows.encode(human))
+                lines += human.size
+            } catch (e: Exception) {
+                humanWindows.restore(human)
+                throw e
+            }
         }
         return lines
     }

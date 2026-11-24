@@ -174,7 +174,7 @@ class LiveViewModel(
             val note = sessionManager.loadMetadata(dir)?.note
             // T130: alle WAV-Segmente der Session
             val recording = sessionManager.loadRecording(dir)
-            _shareRequest.value = ch.etasystems.pirol.data.export.DetectionShareRequest(detection, wav, note, recording)
+            _shareRequest.value = ch.etasystems.pirol.data.export.DetectionShareRequest(detection, wav, note, recording, sessionDir = dir)
         }
     }
 

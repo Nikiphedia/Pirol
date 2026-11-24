@@ -39,6 +39,7 @@ class SessionManagerPipelineSession(private val sm: SessionManager) : PipelineSe
         confidenceThreshold: Float, note: String?, modelId: String?, speciesFilter: SpeciesFilterInfo?
     ): String = sm.startSession(sampleRate, latitude, longitude, regionFilter, confidenceThreshold, note, modelId, speciesFilter)
     override suspend fun endSession(gpsStats: GpsStats?) { sm.endSession(gpsStats) }
+    override suspend fun appendHumanWindows(text: String) { sm.appendHumanWindowLines(text) }  // T261
 }
 
 /**

@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *   oder null wenn keine Session aktiv ist
  * @param onOverlapReduced einmal pro Session bei der ersten automatischen Reduktion (neuer Wert in %)
  * @param onWindowAnalyzed AudioBlock des Fensters (inkl. Embedding) + Detektionen (nie leer)
+ * @param onWindowScored T261: jedes erfolgreich bewertete Fenster mit Position auf der Session-Achse (s) und
+ *   Mensch-Score aus dem Rohausgang (vor Filter und Schwelle; null = Modell kennt keine Menschen)
  */
 class InferenceWorker(
     private val classifier: AudioClassifier,
@@ -39,6 +41,8 @@ class InferenceWorker(
     var config: InferenceConfig = InferenceConfig.DEFAULT,
     private val onAudioPersist: (ShortArray) -> Float?,
     private val onOverlapReduced: (Int) -> Unit = {},
+    // T261: vor onWindowAnalyzed, damit bestehende Aufrufer mit nachgestelltem Lambda unveraendert bleiben
+    private val onWindowScored: (startSec: Float, endSec: Float, humanScore: Float?) -> Unit = { _, _, _ -> },
     private val onWindowAnalyzed: (AudioBlock, List<DetectionResult>) -> Unit
 ) {
     companion object {
@@ -316,6 +320,10 @@ class InferenceWorker(
             embedding = output.embedding
             logUnmappedRegionSpecies()
             detections = mapResults(filterRegional(output.results, job).take(resultLimit(config)), job)
+            // T261: Mensch-Merkliste (nur mit Position in der Aufnahme)
+            job.recordingOffsetSec?.let { start ->
+                onWindowScored(start, start + window.pcm.size.toFloat() / window.sampleRate, output.humanScore)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Inference fehlgeschlagen", e)
         }

@@ -119,7 +119,9 @@ data class AnalysisUiState(
     // T255: Fremdaudio-Import: Dialog offen, Vorpruefung (null = laeuft), Rescan-Dialog nach dem Import anbieten
     val audioImportOpen: Boolean = false,
     val audioImportProbes: List<ch.etasystems.pirol.data.importer.AudioProbe>? = null,
-    val rescanRequest: Boolean = false
+    val rescanRequest: Boolean = false,
+    /** T261: Fortschritt 0..1 des Mensch-Scans vor "Speichern unter" (null = keiner) */
+    val humanScanProgress: Float? = null
 )
 
 /** T237: Snackbar-Hinweis mit Rueckgaengig-Knopf (Analyse-Tab). */

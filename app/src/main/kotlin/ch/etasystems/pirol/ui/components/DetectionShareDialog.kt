@@ -49,6 +49,8 @@ fun DetectionShareDialog(
     var busy by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
+    // T261: laufender Export (inkl. Mensch-Scan) ist abbrechbar
+    var job by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -60,6 +62,8 @@ fun DetectionShareDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(4.dp))
+                HumanMaskNotice(exporter.masksHumans)  // T261
                 Spacer(Modifier.height(8.dp))
                 formats.forEach { format ->
                     Row(
@@ -86,11 +90,16 @@ fun DetectionShareDialog(
                 onClick = {
                     busy = true
                     val format = selected
-                    scope.launch {
+                    job = scope.launch {
                         try {
                             val file = exporter.export(request, format) { progress = it }
                             exporter.share(file, format)
                             onDismiss()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            busy = false  // T261: abgebrochen, Dialog bleibt offen
+                        } catch (e: ch.etasystems.pirol.data.export.HumanExportMask.UnavailableException) {
+                            busy = false
+                            onError(AppStrings.get(R.string.human_mask_nicht_moeglich))
                         } catch (e: Exception) {
                             busy = false
                             onError(AppStrings.get(R.string.ui_export_fehlgeschlagen, e.message ?: e.javaClass.simpleName))
@@ -100,7 +109,8 @@ fun DetectionShareDialog(
             ) { Text(stringResource(R.string.ui_teilen)) }
         },
         dismissButton = {
-            TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            // T261: waehrend des Exports bricht "Abbrechen" ihn ab
+            TextButton(onClick = { if (busy) job?.cancel() else onDismiss() }) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

@@ -824,4 +824,20 @@
     <string name="analysis_variante_laeuft">läuft</string>
     <string name="analysis_variante_abgebrochen_bei">abgebrochen bei %1$d min</string>
     <string name="analysis_rescan_live_hinweis">Ergebnisse erscheinen laufend und lassen sich schon verifizieren.</string>
+    <!-- T261: Menschen im Export ausblenden -->
+    <string name="human_mask_hinweis_an">Menschliche Stimmen werden ausgeblendet (Sprachband durch Rauschen ersetzt).</string>
+    <string name="human_mask_hinweis_aus">Achtung: Menschliche Stimmen werden NICHT ausgeblendet. Gespräche bleiben im Export hörbar.</string>
+    <string name="human_mask_scan_titel">Menschliche Stimmen suchen</string>
+    <string name="human_mask_scan_text">Teile der Aufnahme sind noch nicht auf Menschen geprüft und werden jetzt gescannt.</string>
+    <string name="human_mask_abgebrochen">Speichern abgebrochen.</string>
+    <string name="human_mask_nicht_moeglich">Menschliche Stimmen können nicht erkannt werden (Modell nicht geladen oder ohne Mensch-Klasse). Modell wechseln oder Ausblenden in den Einstellungen ausschalten.</string>
+    <string name="human_mask_settings_titel">Datenschutz</string>
+    <string name="human_mask_settings_schalter">Menschliche Stimmen im Export ausblenden</string>
+    <string name="human_mask_settings_info">Gilt für Speichern unter, ZIP, Upload und Teilen. Wo das Modell Menschen erkennt, wird das Sprachband (ca. 300–3900 Hz) durch Rauschen ersetzt. Die Originalaufnahme bleibt unverändert.</string>
+    <string name="human_mask_settings_schwelle">Mensch-Schwelle: %1$d %%</string>
+    <string name="human_mask_settings_schwelle_info">Ab diesem Score wird ausgeblendet. Tiefer = vorsichtiger (mehr ausgeblendet).</string>
+    <string name="human_mask_warnung_titel">Stimmen nicht mehr ausblenden?</string>
+    <string name="human_mask_warnung_text">Exporte enthalten dann Gespräche und Stimmen unbeteiligter Personen. Teile solche Aufnahmen nur, wenn das erlaubt ist (Datenschutz). Für Forschung, die das Original braucht, kannst du ausschalten.</string>
+    <string name="human_mask_warnung_ausschalten">Ausschalten</string>
+    <string name="human_mask_warnung_behalten">Eingeschaltet lassen</string>
 </resources>
