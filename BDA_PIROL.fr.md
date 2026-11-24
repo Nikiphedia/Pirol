@@ -2,7 +2,7 @@
 
 Reconnaissance acoustique des espèces en temps réel pour Android, conçue pour le travail sur le terrain.
 
-*Valable à partir de la version v0.1.2 (en cours, état 2026-11-24). Les changements entre les versions figurent dans `CHANGELOG.md`.*
+*Valable à partir de la version v0.1.2 (état 2026-11-24). Les changements entre les versions figurent dans `CHANGELOG.md`.*
 
 L'application comporte cinq onglets : **Live**, **Analyse**, **Références**, **Carte** et **Réglages**. Le bouton **?** (Aide) n'est pas un onglet : un appui active le mode aide, un double appui ouvre ce mode d'emploi (chapitre 1, section « Bouton d'aide »).
 
@@ -405,7 +405,7 @@ L'interrupteur **Réglages experts** (sous « Lancer la configuration ») masque
 
 La liste complète figure dans `CHANGELOG.md` du projet.
 
-### Version 0.1.2 (en cours)
+### Version 0.1.2
 - Modifier après coup les données de sessions importées (heure de début, lieu, remarque) (chapitre 5)
 - « Enregistrer sous » en ZIP ou en dossier (chapitre 6)
 - Raven : une ligne par épisode, nouvelles colonnes `Cluster`, `Windows` et `Memo` (chapitre 7)
@@ -419,4 +419,4 @@ La liste complète figure dans `CHANGELOG.md` du projet.
 
 ---
 
-*PIROL v0.1.2 (en cours) — ETA Systems — état 2026-11-24*
+*PIROL v0.1.2 — ETA Systems — état 2026-11-24*

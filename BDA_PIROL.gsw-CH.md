@@ -4,7 +4,7 @@
 
 Akustischi Echtziit-Artekennig für Android, gmacht für d Fäldarbet.
 
-*Gilt ab Version v0.1.2 (in Arbet, Stand 2026-11-24). Was sich zwüsche de Versione gänderet het, steit i `CHANGELOG.md`.*
+*Gilt ab Version v0.1.2 (Stand 2026-11-24). Was sich zwüsche de Versione gänderet het, steit i `CHANGELOG.md`.*
 
 Di App het fönf Tab: **Live**, **Analyse**, **Referänze**, **Charte** und **Istellige**. De Knopf **?** (Hilfe) isch kei Tab: Ei Tipp schaltet de Hilfemodus ii, en Doppeltipp öffnet di Aleitig (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
@@ -408,7 +408,7 @@ De Schalter **Experteistellige** (under "Iirichtig starte") blendet im Ii-fach-M
 
 D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
-### Version 0.1.2 (in Arbet)
+### Version 0.1.2
 - Aagaabe vo importierte Sessione (Startziit, Ort, Bemerkig) nachträglich bearbeite (Kapitel 5)
 - "Speichere unter" als ZIP oder Ordner (Kapitel 6)
 - Raven: eini Zile pro Episode, nöii Spalte `Cluster`, `Windows` und `Memo` (Kapitel 7)
@@ -422,4 +422,4 @@ D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.2 (in Arbet) — ETA Systems — Stand 2026-11-24*
+*PIROL v0.1.2 — ETA Systems — Stand 2026-11-24*

@@ -1,5 +1,30 @@
 # Changelog PIROL
 
+## v0.1.2 — 2026-11-24
+
+Update ueber v0.1.1 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu".
+
+### Hauptunterschied zu v0.1.1
+**Rescan und Import laufen live:** Ergebnisse erscheinen waehrend der Analyse und lassen sich sofort verifizieren; ein Abbruch behaelt das Teilergebnis (T260). **Menschliche Stimmen** werden im Export standardmaessig ausgeblendet (T261).
+
+### Analyse und Export
+- Angaben importierter Sessions (Startzeit, Ort, Bemerkung) nachtraeglich bearbeiten (T257)
+- "Speichern unter" als ZIP oder Ordner (T258)
+- Raven: eine Zeile pro Episode, neue Spalten Cluster, Windows und Memo; Korrektur beim Einlesen von Corrected Species (T259, T263)
+- Menschliche Stimmen im Export ausgeblendet (Schalter, Default an); Rueckfrage bei Modell ohne Mensch-Klasse (T261, T263)
+- Memos werden nie gedaempft (T263)
+- Session-Memo per Gedrueckt-halten, Block "Memos" in der Analyse (T264)
+
+### Live-Tab
+- Ruhigere Artkarten: Wechsel hoechstens alle 5 s, Treffer in den Top 5 blinken blau (T265)
+
+### Datenschutz
+- Gemeinde ueber Google nur noch als Option, Standard aus (T262)
+
+### Hilfe und Sprachen
+- Hilfe-Knopf "?": Hilfemodus und Anleitung offline (T266)
+- Anleitung aktualisiert und in alle App-Sprachen uebersetzt; App vollstaendig uebersetzt (Franzoesisch, Italienisch, Katalanisch, Portugiesisch, Niederlaendisch, Baerndeutsch als Entwurf) (T267 bis T270)
+
 ## v0.1.1 — 2026-11-23
 
 Update ueber v0.0.11 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu" (auch unter Einstellungen > Info).

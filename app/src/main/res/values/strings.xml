@@ -528,15 +528,15 @@
     <string name="settings_whats_new_button">Was ist neu</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Artgruppen: Vögel, Heuschrecken, Amphibien, Säugetiere und Andere je Aus / Alle / Auto / Liste. Bitte prüfen: alte Filter stehen auf Vögel Auto, Rest Aus</item>
-        <item>Zweitmodell (z.B. Perch oder BirdNET 2.4) zeigt pro Art Prozent und Rang</item>
-        <item>Alarm-Glocke auf der Artkarte: dauerhaft oder für 24 h</item>
-        <item>Kompakt-Knopf: Artkarten kompakt oder ausführlich, auch in der Analyse</item>
-        <item>Einrichtungsassistent beim ersten Start; Einstellungen mit Schalter "Experteneinstellungen"</item>
-        <item>Analyse: Rescan mit Modell, Liste und Schwelle läuft im Hintergrund; Audio-Import (WAV, FLAC, MP3, M4A)</item>
-        <item>Episoden einzeln teilen; Kopfzeile mit Gemeinde und Bemerkung</item>
-        <item>Export-Dateinamen mit Zeit und Bemerkung, z.B. 202604201430_Amsel_Garten.wav</item>
-        <item>Karte: größere Zoom-Knöpfe; Speichern und Hochladen robuster</item>
+        <item>Raven: eine Zeile pro Episode, neue Spalte Memo</item>
+        <item>Rescan und Import: Ergebnisse laufend sichtbar und verifizierbar; Abbruch behält das Teilergebnis</item>
+        <item>Angaben importierter Sessions nachträglich bearbeiten; Speichern unter als ZIP oder Ordner</item>
+        <item>Menschliche Stimmen werden im Export ausgeblendet (Standard an)</item>
+        <item>Session-Memo per Gedrückt-halten; Block Memos in der Analyse</item>
+        <item>Ruhigere Live-Artkarten: Wechsel höchstens alle 5 s, Treffer in den Top 5 blinken blau</item>
+        <item>Hilfe-Knopf "?": Hilfemodus und Anleitung offline</item>
+        <item>Gemeinde über Google nur noch als Option, Standard aus</item>
+        <item>App vollständig übersetzt: Französisch, Italienisch, Katalanisch, Portugiesisch, Niederländisch, Berndeutsch (Entwurf)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb wählen, es wurde nichts verschoben.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewählte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>

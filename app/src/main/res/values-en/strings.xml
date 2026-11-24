@@ -527,15 +527,15 @@
     <string name="settings_whats_new_button">What\'s new</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Species groups: birds, grasshoppers, amphibians, mammals and others each set to Off / All / Auto / List. Please check: old filters are now Birds Auto, rest Off</item>
-        <item>Second model (e.g. Perch or BirdNET 2.4) shows percent and rank per species</item>
-        <item>Alarm bell on the species card: permanent or for 24 h</item>
-        <item>Compact button: species cards compact or detailed, also in Analysis</item>
-        <item>Setup assistant on first start; Settings with an "Expert settings" switch</item>
-        <item>Analysis: rescan with model, list and threshold runs in the background; audio import (WAV, FLAC, MP3, M4A)</item>
-        <item>Share single episodes; header shows municipality and note</item>
-        <item>Export file names with time and note, e.g. 202604201430_Blackbird_Garden.wav</item>
-        <item>Map: larger zoom buttons; saving and uploading more robust</item>
+        <item>Raven: one row per episode, new Memo column</item>
+        <item>Rescan and import: results visible and verifiable as they arrive; cancel keeps the partial result</item>
+        <item>Edit details of imported sessions afterwards; Save as ZIP or folder</item>
+        <item>Human voices are hidden in the export (default on)</item>
+        <item>Session memo by press-and-hold; Memos block in the analysis</item>
+        <item>Calmer live species cards: changes at most every 5 s, top 5 hits flash blue</item>
+        <item>Help button "?": help mode and manual offline</item>
+        <item>Municipality via Google only as an option, default off</item>
+        <item>App fully translated: French, Italian, Catalan, Portuguese, Dutch, Bernese German (draft)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>

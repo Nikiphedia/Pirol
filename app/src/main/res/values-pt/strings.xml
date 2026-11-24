@@ -622,15 +622,15 @@
     <string name="settings_whats_new_button">Novidades</string>
     <string name="settings_info_version">Versão %1$s</string>
     <string-array name="whats_new_items">
-        <item>Grupos de espécies: aves, gafanhotos, anfíbios, mamíferos e outros, cada um Desligado / Todas / Auto / Lista. Verificar: os filtros antigos ficam Aves Auto, o resto Desligado</item>
-        <item>Um segundo modelo (p. ex. Perch ou BirdNET 2.4) mostra por espécie percentagem e posição</item>
-        <item>Sino de alarme no cartão da espécie: permanente ou durante 24 h</item>
-        <item>Botão compacto: cartões de espécie compactos ou detalhados, também na análise</item>
-        <item>Assistente de configuração no primeiro arranque; definições com o interruptor «Definições avançadas»</item>
-        <item>Análise: a nova análise com modelo, lista e limiar corre em segundo plano; importação de áudio (WAV, FLAC, MP3, M4A)</item>
-        <item>Partilhar episódios individualmente; cabeçalho com município e observação</item>
-        <item>Nomes de exportação com hora e observação, p. ex. 202604201430_Melro_Jardim.wav</item>
-        <item>Mapa: botões de zoom maiores; guardar e carregar mais robustos</item>
+        <item>Raven: uma linha por episódio, nova coluna Memo</item>
+        <item>Nova análise e importação: resultados visíveis e verificáveis em curso; cancelar mantém o resultado parcial</item>
+        <item>Editar depois os dados das sessões importadas; guardar como ZIP ou pasta</item>
+        <item>As vozes humanas são ocultadas na exportação (ativado por predefinição)</item>
+        <item>Memo de sessão com toque prolongado; bloco Memos na análise</item>
+        <item>Cartões de espécie em direto mais calmos: mudança no máximo a cada 5 s, os resultados do top 5 piscam a azul</item>
+        <item>Botão de ajuda «?»: modo de ajuda e manual offline</item>
+        <item>Município via Google apenas como opção, desativado por predefinição</item>
+        <item>Aplicação totalmente traduzida: francês, italiano, catalão, português, neerlandês, alemão suíço de Berna (rascunho)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">A pasta de destino está dentro do arquivo PIROL. Escolha uma pasta fora dele; nada foi movido.</string>
     <string name="analysis_batch_ziel_gleich_quelle">A pasta de destino é a própria gravação selecionada ou a sua pasta. Nada foi movido.</string>

@@ -623,15 +623,15 @@
     <string name="settings_whats_new_button">Was isch neu</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Artgruppe: Vögel, Heuschrecke, Amphibie, Säugetier und Anderi je Uus / Alli / Auto / Liste. Bitte prüefe: alti Filter stönd uf Vögel Auto, Rescht Uus</item>
-        <item>Zweitmodäll (z.B. Perch oder BirdNET 2.4) zeigt pro Art Prozänt und Rang</item>
-        <item>Alarm-Glogge uf dr Artkarte: dauerhaft oder für 24 h</item>
-        <item>Kompakt-Chnopf: Artkarte kompakt oder usfüerlich, au i dr Analyse</item>
-        <item>Einrichtigs-Assistänt bim erschte Start; Iischtellige mit Schalter \"Experteiischtellige\"</item>
-        <item>Analyse: Rescan mit Modäll, Liste und Schwelle louft im Hindergrund; Audio-Import (WAV, FLAC, MP3, M4A)</item>
-        <item>Episode eizeln teile; Chopfziile mit Gmeind und Bemerkig</item>
-        <item>Exportname mit Ziit und Bemerkig, z.B. 202604201430_Amsel_Garten.wav</item>
-        <item>Charte: grössere Zoom-Chnöpf; Speichere und Uflade robuschter</item>
+        <item>Raven: eini Zile pro Episode, neui Spalte Memo</item>
+        <item>Rescan und Import: Ergäbnis louffend sichtbar und verifizierbar; Abbräche bhaltet s Teilergäbnis</item>
+        <item>Aagabe vo importierte Sessione nachträglich bearbeite; Speichere under als ZIP oder Ordner</item>
+        <item>Menschlichi Stimme wärde im Export usbländet (Standard a)</item>
+        <item>Session-Memo dur Drückt-bhalte; Block Memos i dr Analyse</item>
+        <item>Ruhigeri Live-Artkarte: Wächsel höchstens alli 5 s, Träffer i dr Top 5 blinke blau</item>
+        <item>Hilf-Chnopf "?": Hilfemodus und Aleitig offline</item>
+        <item>Gmeind übers Google nume no als Option, Standard us</item>
+        <item>App vollständig übersetzt: Französisch, Italienisch, Katalanisch, Portugiesisch, Niderländisch, Bärndütsch (Entwurf)</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Dr Zielordner lit i dr PIROL-Ablag. Bitte ei Ordner usserhalb wähle, es isch nüt verschoben wore.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Dr Zielordner isch d gwählt Ufnahm sälber oder dr Ordner dervo. Es isch nüt verschoben wore.</string>
