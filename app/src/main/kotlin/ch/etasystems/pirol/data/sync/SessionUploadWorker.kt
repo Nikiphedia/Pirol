@@ -198,7 +198,7 @@ internal fun createZip(sessionDir: File, zipFile: File, detectionsText: String? 
     ZipOutputStream(BufferedOutputStream(FileOutputStream(zipFile))).use { zos ->
         sessionDir.walkTopDown()
             .filter { it.isFile && !ch.etasystems.pirol.data.repository.ShadowReplace.isShadowFile(it.name) }  // T240
-            .filter { it.name != DetectionUpdateLog.FILE }
+            .filter { it.name != DetectionUpdateLog.FILE && it.name != ch.etasystems.pirol.data.repository.SessionInfoEdit.JOURNAL_FILE }  // T257: Auftragsdatei nicht ins ZIP
             .forEach { file ->
                 val entryName = file.relativeTo(sessionDir).path.replace('\\', '/')
                 zos.putNextEntry(ZipEntry(entryName))
