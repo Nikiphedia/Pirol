@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.map
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -899,6 +901,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp)
+                    .helpTopic(R.string.help_map_my_location, "8")
                     .size(84.dp)  // T245: 56 dp * 1.5
             ) {
                 Icon(Icons.Filled.MyLocation, contentDescription = stringResource(R.string.map_mein_standort), modifier = Modifier.size(36.dp))
@@ -911,13 +914,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             ) {
                 FloatingActionButton(
                     onClick = { mapViewRef.value?.controller?.zoomIn() },
-                    modifier = Modifier.size(84.dp)
+                    modifier = Modifier.helpTopic(R.string.help_map_zoom, "8").size(84.dp)
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.map_zoom_in), modifier = Modifier.size(36.dp))
                 }
                 FloatingActionButton(
                     onClick = { mapViewRef.value?.controller?.zoomOut() },
-                    modifier = Modifier.size(84.dp)
+                    modifier = Modifier.helpTopic(R.string.help_map_zoom, "8").size(84.dp)
                 ) {
                     Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.map_zoom_out), modifier = Modifier.size(36.dp))
                 }
@@ -1020,7 +1023,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 shadowElevation = 6.dp
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { panelOpen = true }, modifier = Modifier.size(72.dp)) {
+                    IconButton(onClick = { panelOpen = true }, modifier = Modifier.helpTopic(R.string.help_map_menu, "8").size(72.dp)) {
                         Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_kartenmenue_oeffnen), modifier = Modifier.size(36.dp))
                     }
                     Text(
@@ -1132,7 +1135,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
 
                         Text(stringResource(R.string.map_anzeige), style = MaterialTheme.typography.titleSmall)
                         @OptIn(ExperimentalLayoutApi::class)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.helpTopic(R.string.help_map_filter, "8")) {
                             FilterChip(
                                 selected = state.filterMode == FilterMode.ALL,
                                 onClick = { viewModel.setFilter(FilterMode.ALL) },
@@ -1157,6 +1160,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(min = 48.dp)
+                                    .helpTopic(R.string.help_map_source, "8")
                                     .clickable {
                                         sourceMode = mode
                                         prefs.mapSourceMode = mode.name
@@ -1172,7 +1176,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
 
                         Text(stringResource(R.string.map_offline_karten), style = MaterialTheme.typography.titleSmall)
                         Button(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            modifier = Modifier.helpTopic(R.string.help_map_offline_download, "8").fillMaxWidth().heightIn(min = 48.dp),
                             enabled = downloadTask == null,
                             onClick = {
                                 panelOpen = false
@@ -1199,7 +1203,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             }
                         ) { Text(stringResource(R.string.map_ausschnitt_herunterladen_2)) }
                         OutlinedButton(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            modifier = Modifier.helpTopic(R.string.help_map_offline_delete, "8").fillMaxWidth().heightIn(min = 48.dp),
                             onClick = {
                                 panelOpen = false
                                 offlineDialog = OfflineDialog.ConfirmDelete
@@ -1222,6 +1226,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                    .helpTopic(R.string.help_map_only_alarm, "8")
                                     .clickable { viewModel.setOnlyAlarm(!state.onlyAlarm) },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1229,7 +1234,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 Spacer(Modifier.width(8.dp))
                                 Text(stringResource(R.string.map_nur_alarmarten), style = MaterialTheme.typography.bodyMedium)
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.helpTopic(R.string.help_map_legend, "8")) {
                                 TextButton(
                                     onClick = { viewModel.setSpeciesVisible(legendEntries.map { it.key }, true) },
                                     modifier = Modifier.heightIn(min = 48.dp)
@@ -1247,6 +1252,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                                         .alpha(if (visible) 1f else 0.5f)
+                                        .helpTopic(R.string.help_map_legend, "8")
                                         .clickable { viewModel.toggleSpecies(e.key) },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {

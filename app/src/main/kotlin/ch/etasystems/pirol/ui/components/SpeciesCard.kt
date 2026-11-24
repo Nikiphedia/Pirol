@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -498,6 +500,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = if (isConfirmed) (onMarkUncertain ?: onConfirm) else onConfirm,
                             icon = if (isConfirmed) Icons.AutoMirrored.Filled.Undo else Icons.Filled.Check,
+                            help = R.string.help_card_confirm,
                             description = if (isConfirmed) AppStrings.get(R.string.ui_bestaetigung_rueckgaengig) else AppStrings.get(R.string.ui_bestaetigen),
                             containerColor = if (isConfirmed) Color(0xFF4CAF50) else neutralContainer,
                             contentColor = if (isConfirmed) Color.White else neutralContent
@@ -510,6 +513,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onMarkUncertain,
                             icon = Icons.AutoMirrored.Filled.Help,
+                            help = R.string.help_card_uncertain,
                             description = AppStrings.get(R.string.ui_unsicher),
                             containerColor = if (active) Color(0xFFFF9800) else neutralContainer,
                             contentColor = if (active) Color.White else neutralContent
@@ -522,6 +526,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onReject,
                             icon = Icons.Filled.Close,
+                            help = R.string.help_card_reject,
                             description = AppStrings.get(R.string.ui_ablehnen),
                             containerColor = if (active) MaterialTheme.colorScheme.error else neutralContainer,
                             contentColor = if (active) MaterialTheme.colorScheme.onError else neutralContent
@@ -537,6 +542,7 @@ fun SpeciesCard(
                                 showCorrectionDialog = true
                             },
                             icon = Icons.Filled.Edit,
+                            help = R.string.help_card_correct,
                             description = AppStrings.get(R.string.ui_korrigieren),
                             containerColor = if (active) Color(0xFF2196F3) else neutralContainer,
                             contentColor = if (active) Color.White else neutralContent
@@ -548,6 +554,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = { showEditDialog = true },
                             icon = Icons.AutoMirrored.Filled.List,
+                            help = R.string.help_card_details,
                             description = AppStrings.get(R.string.ui_detail_eingaben),
                             containerColor = if (hasCustomData) MaterialTheme.colorScheme.primaryContainer else neutralContainer,
                             contentColor = if (hasCustomData) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent
@@ -560,6 +567,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onSaveAsReference!!,
                             icon = if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd,
+                            help = R.string.help_card_reference,
                             description = if (isReference) AppStrings.get(R.string.ui_referenz_entfernen) else AppStrings.get(R.string.ui_als_referenz_speichern),
                             containerColor = if (isReference) MaterialTheme.colorScheme.primary else neutralContainer,
                             contentColor = if (isReference) MaterialTheme.colorScheme.onPrimary else neutralContent
@@ -569,6 +577,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onCompare,
                             icon = Icons.AutoMirrored.Filled.CompareArrows,
+                            help = R.string.help_card_compare,
                             description = AppStrings.get(R.string.ui_vergleichen),
                             containerColor = neutralContainer,
                             contentColor = neutralContent
@@ -580,6 +589,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onPlay,
                             icon = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                            help = R.string.help_card_play,
                             description = if (isPlaying) AppStrings.get(R.string.ui_wiedergabe_stoppen) else AppStrings.get(R.string.common_play),
                             containerColor = if (isPlaying) MaterialTheme.colorScheme.primaryContainer else neutralContainer,
                             contentColor = if (isPlaying) MaterialTheme.colorScheme.onPrimaryContainer else neutralContent,
@@ -591,6 +601,7 @@ fun SpeciesCard(
                         CardActionButton(
                             onClick = onShare,
                             icon = Icons.Filled.Share,
+                            help = R.string.help_card_share,
                             description = AppStrings.get(R.string.ui_teilen),
                             containerColor = neutralContainer,
                             contentColor = neutralContent
@@ -601,6 +612,7 @@ fun SpeciesCard(
                         Box {
                             CardActionButton(
                                 onClick = { overflowOpen = true },
+                                help = R.string.help_card_overflow,
                                 icon = Icons.Filled.MoreVert,
                                 description = AppStrings.get(R.string.ui_mehr_aktionen),
                                 containerColor = neutralContainer,
@@ -611,6 +623,7 @@ fun SpeciesCard(
                                     DropdownMenuItem(
                                         text = { Text(if (isReference) stringResource(R.string.ui_referenz_entfernen) else stringResource(R.string.ui_als_referenz_speichern)) },
                                         leadingIcon = { Icon(if (isReference) Icons.Filled.Bookmark else Icons.Filled.BookmarkAdd, null) },
+                                        modifier = Modifier.helpTopic(R.string.help_card_reference, "4"),
                                         onClick = { overflowOpen = false; onSaveAsReference!!() }
                                     )
                                 }
@@ -618,6 +631,7 @@ fun SpeciesCard(
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.ui_vergleichen)) },
                                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.CompareArrows, null) },
+                                        modifier = Modifier.helpTopic(R.string.help_card_compare, "4"),
                                         onClick = { overflowOpen = false; onCompare() }
                                     )
                                 }
@@ -625,6 +639,7 @@ fun SpeciesCard(
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.ui_teilen)) },
                                         leadingIcon = { Icon(Icons.Filled.Share, null) },
+                                        modifier = Modifier.helpTopic(R.string.help_card_share, "4"),
                                         onClick = { overflowOpen = false; onShare() }
                                     )
                                 }
@@ -648,6 +663,7 @@ fun SpeciesCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
+                            .helpTopic(R.string.help_card_alternatives, "4")
                             .clickable { candidatesExpanded = !candidatesExpanded }
                             .padding(top = 2.dp, start = 4.dp)
                             .wrapContentHeight(Alignment.CenterVertically)
@@ -892,6 +908,7 @@ private fun CompactRow(
             CardActionButton(
                 onClick = onConfirm,
                 icon = Icons.Filled.Check,
+                help = R.string.help_card_confirm,
                 description = AppStrings.get(R.string.ui_bestaetigen),
                 containerColor = if (isConfirmed) Color(0xFF4CAF50) else Color.Transparent,
                 contentColor = if (isConfirmed) Color.White else neutralContent
@@ -902,6 +919,7 @@ private fun CompactRow(
             CardActionButton(
                 onClick = onReject,
                 icon = Icons.Filled.Close,
+                help = R.string.help_card_reject,
                 description = AppStrings.get(R.string.ui_ablehnen),
                 containerColor = if (active) MaterialTheme.colorScheme.error else Color.Transparent,
                 contentColor = if (active) MaterialTheme.colorScheme.onError else neutralContent
@@ -911,6 +929,7 @@ private fun CompactRow(
             Box {
                 CardActionButton(
                     onClick = { menuOpen = true },
+                    help = R.string.help_card_compact_more,
                     icon = Icons.Filled.Add,
                     description = AppStrings.get(R.string.ui_mehr_aktionen),
                     containerColor = if (hasCustomData || candidatesExpanded) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
@@ -943,7 +962,7 @@ private fun CompactRow(
                             text = { Text(label) },
                             leadingIcon = { Icon(icon, null) },
                             enabled = entry != CompactMenuEntry.PLAY_TOGGLE || isPlayEnabled,
-                            modifier = Modifier.heightIn(min = 48.dp),
+                            modifier = Modifier.helpTopic(compactMenuHelp(entry), "4").heightIn(min = 48.dp),
                             onClick = { menuOpen = false; action?.invoke() }
                         )
                     }
@@ -970,12 +989,13 @@ private fun CardActionButton(
     description: String,
     containerColor: Color,
     contentColor: Color,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    @androidx.annotation.StringRes help: Int? = null  // T266: Erklaerung im Hilfemodus
 ) {
     IconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.size(48.dp),
+        modifier = (if (help != null) Modifier.helpTopic(help, "4") else Modifier).size(48.dp),
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = containerColor,
             contentColor = contentColor
@@ -1051,4 +1071,17 @@ private fun ModelScoreRow(
             }
         }
     }
+}
+
+/** T266: Hilfetext je Eintrag des "+"-Menues der kompakten Artkarte */
+private fun compactMenuHelp(entry: CompactMenuEntry): Int = when (entry) {
+    CompactMenuEntry.PLAY_TOGGLE -> R.string.help_card_play
+    CompactMenuEntry.UNCERTAIN -> R.string.help_card_uncertain
+    CompactMenuEntry.CORRECT -> R.string.help_card_correct
+    CompactMenuEntry.DETAILS -> R.string.help_card_details
+    CompactMenuEntry.ALTERNATIVES -> R.string.help_card_alternatives
+    CompactMenuEntry.REFERENCE -> R.string.help_card_reference
+    CompactMenuEntry.COMPARE -> R.string.help_card_compare
+    CompactMenuEntry.SHARE -> R.string.help_card_share
+    CompactMenuEntry.LOCK -> R.string.help_card_lock
 }

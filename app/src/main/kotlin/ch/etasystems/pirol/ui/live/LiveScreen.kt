@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.live
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import android.os.SystemClock
 import android.widget.Chronometer
 import androidx.compose.animation.AnimatedVisibility
@@ -439,13 +441,13 @@ private fun CompactLiveLayout(
             ) {
                 // T264: Session-Memo (gedrueckt halten)
                 AnimatedVisibility(visible = uiState.isRecording) {
-                    SessionMemoButton(viewModel = viewModel)
+                    SessionMemoButton(viewModel = viewModel, modifier = Modifier.helpTopic(R.string.help_live_memo, "2"))
                 }
                 // +Art-Button
                 AnimatedVisibility(visible = uiState.isRecording) {
                     IconButton(
                         onClick = { showAddManualDialog = true },
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.helpTopic(R.string.help_live_add_species, "4").size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.AddCircle,
@@ -464,6 +466,7 @@ private fun CompactLiveLayout(
                 // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
                 if (uiState.isPrerollEnabled && !uiState.isRecording) {
                     SmallFloatingActionButton(
+                        modifier = Modifier.helpTopic(R.string.help_live_preroll, "2"),
                         onClick = {
                             if (uiState.isPrerollRunning) viewModel.userStopPreroll()
                             else viewModel.userStartPreroll()
@@ -552,13 +555,13 @@ private fun MediumLiveLayout(
                 ) {
                     // T264: Session-Memo (gedrueckt halten)
                     AnimatedVisibility(visible = uiState.isRecording) {
-                        SessionMemoButton(viewModel = viewModel)
+                        SessionMemoButton(viewModel = viewModel, modifier = Modifier.helpTopic(R.string.help_live_memo, "2"))
                     }
                     // +Art-Button
                     AnimatedVisibility(visible = uiState.isRecording) {
                         IconButton(
                             onClick = { showAddManualDialog = true },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.helpTopic(R.string.help_live_add_species, "4").size(40.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.AddCircle,
@@ -577,6 +580,7 @@ private fun MediumLiveLayout(
                     // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
                     if (uiState.isPrerollEnabled && !uiState.isRecording) {
                         SmallFloatingActionButton(
+                            modifier = Modifier.helpTopic(R.string.help_live_preroll, "2"),
                             onClick = {
                                 if (uiState.isPrerollRunning) viewModel.userStopPreroll()
                                 else viewModel.userStartPreroll()
@@ -825,13 +829,13 @@ private fun ExpandedLiveLayout(
                 ) {
                     // T264: Session-Memo (gedrueckt halten)
                     AnimatedVisibility(visible = uiState.isRecording) {
-                        SessionMemoButton(viewModel = viewModel)
+                        SessionMemoButton(viewModel = viewModel, modifier = Modifier.helpTopic(R.string.help_live_memo, "2"))
                     }
                     // +Art-Button
                     AnimatedVisibility(visible = uiState.isRecording) {
                         IconButton(
                             onClick = { showAddManualDialog = true },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.helpTopic(R.string.help_live_add_species, "4").size(40.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.AddCircle,
@@ -850,6 +854,7 @@ private fun ExpandedLiveLayout(
                     // Preroll-Toggle (F5): nur sichtbar wenn Preroll in Settings aktiviert und keine Aufnahme
                     if (uiState.isPrerollEnabled && !uiState.isRecording) {
                         SmallFloatingActionButton(
+                            modifier = Modifier.helpTopic(R.string.help_live_preroll, "2"),
                             onClick = {
                                 if (uiState.isPrerollRunning) viewModel.userStopPreroll()
                                 else viewModel.userStartPreroll()
@@ -921,7 +926,7 @@ private fun LiveHeader(
             // Palette-Umschaltung
             val specRepo: SpectrogramSettingsRepository = koinInject()
             val palette = specRepo.settings.collectAsState().value.palette
-            IconButton(onClick = {
+            IconButton(modifier = Modifier.helpTopic(R.string.help_live_palette, "3"), onClick = {
                 val next = when (palette) {
                     SpectrogramPalette.MAGMA -> SpectrogramPalette.VIRIDIS
                     SpectrogramPalette.VIRIDIS -> SpectrogramPalette.GRAYSCALE
@@ -991,6 +996,7 @@ private fun SessionNoteField(viewModel: LiveViewModel) {
         } else null,
         modifier = Modifier
             .weight(1f)
+            .helpTopic(R.string.help_live_session_note, "5")
             .padding(horizontal = 4.dp, vertical = 2.dp)
     )
     ch.etasystems.pirol.ui.components.MunicipalityInsertButton(
@@ -1049,14 +1055,14 @@ private fun ScanStatusRow(
             text = "${modelLabel} · $configLabel · ${(uiState.inferenceConfig.confidenceThreshold * 100).roundToInt()}% · $regionLabel$sessionTimeLabel",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            modifier = Modifier.helpTopic(R.string.help_live_status_line, "2").padding(horizontal = 4.dp, vertical = 4.dp)
         )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
         if (showCardToggle) ch.etasystems.pirol.ui.components.CompactCardToggleButton()
         // Upload-Button (T17): nur sichtbar nach abgeschlossener Session
         if (uiState.lastSessionId != null && !uiState.isRecording) {
-            IconButton(onClick = { viewModel.uploadLastSession() }) {
+            IconButton(onClick = { viewModel.uploadLastSession() }, modifier = Modifier.helpTopic(R.string.help_live_upload, "12")) {
                 if (uiState.uploadStatus is UploadStatus.InProgress) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
@@ -1190,6 +1196,7 @@ private fun SpectrogramBox(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(if (settings.palette.isLight) Color.White else Color.Black)
+            .helpTopic(R.string.help_live_display, "3")
             .onSpectrogramLongPress(onLongPress)
     ) {
         // T176: beobachtbarer State statt availableFrames (nicht beobachtbar → Platzhalter blieb stehen)
@@ -1358,7 +1365,7 @@ private fun RecordingFab(
         Modifier
     }
 
-    Box(modifier = ringModifier.padding(4.dp)) {
+    Box(modifier = ringModifier.helpTopic(R.string.help_live_record, "2").padding(4.dp)) {
         if (fabState == RecordingFabState.RECORDING) {
             // F7: Stop nur per Long-Press (verhindert versehentliches Stoppen)
             Box(
@@ -1458,6 +1465,7 @@ private fun LocationBar(
         Row(
             modifier = Modifier
                 .padding(start = 4.dp, top = 2.dp)
+                .helpTopic(R.string.help_live_gps, "14")
                 .clickable { if (!uiState.locationPermissionGranted) onRequestLocationPermission() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1486,6 +1494,7 @@ private fun LocationBar(
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier
                 .padding(start = 4.dp, top = 2.dp)
+                .helpTopic(R.string.help_live_gps, "14")
                 .clickable { onRequestLocationPermission() }
         )
     }

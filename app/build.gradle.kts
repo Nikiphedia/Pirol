@@ -127,6 +127,38 @@ android {
     }
 }
 
+// T266: Bedienungsanleitung offline. Quelle BDA_PIROL.md (Deutsch) und BDA_PIROL.<lang>.md im Repo-Root
+// werden beim Build nach assets/manual/ kopiert (generierter Ordner unter build/, nicht eingecheckt).
+abstract class CopyManualTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val target = outputDir.get().asFile.resolve("manual")
+        target.deleteRecursively()
+        target.mkdirs()
+        sources.files.filter { it.isFile }.forEach { it.copyTo(File(target, it.name), overwrite = true) }
+    }
+}
+
+val manualNameRegex = Regex("""BDA_PIROL(\.[A-Za-z]{2,3}(-[A-Za-z0-9]+)?)?\.md""")
+val copyManual = tasks.register<CopyManualTask>("copyManualAssets") {
+    sources.from(provider {
+        rootProject.projectDir.listFiles { f -> f.isFile && manualNameRegex.matches(f.name) }?.toList().orEmpty()
+    })
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyManual, CopyManualTask::outputDir)
+    }
+}
+
 dependencies {
     // Compose BOM
     val composeBom = platform(libs.compose.bom)

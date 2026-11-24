@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.analysis
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -290,7 +292,7 @@ private fun SessionListView(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { viewModel.clearSelection() }, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = { viewModel.clearSelection() }, modifier = Modifier.helpTopic(R.string.help_analysis_selection_cancel, "5").size(48.dp)) {
                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
                 }
                 Text(
@@ -298,20 +300,20 @@ private fun SessionListView(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(onClick = { viewModel.selectAllSessions() }) {
+                TextButton(onClick = { viewModel.selectAllSessions() }, modifier = Modifier.helpTopic(R.string.help_analysis_selection_all, "5")) {
                     Text(stringResource(R.string.analysis_batch_alle))
                 }
                 IconButton(
                     onClick = { moveLauncher.launch(null) },
                     enabled = selectedCount > 0,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.helpTopic(R.string.help_analysis_selection_move, "5").size(48.dp)
                 ) {
                     Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = stringResource(R.string.analysis_batch_verschieben))
                 }
                 IconButton(
                     onClick = { showBatchDeleteDialog = true },
                     enabled = selectedCount > 0,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.helpTopic(R.string.help_analysis_selection_delete, "5").size(48.dp)
                 ) {
                     Icon(
                         Icons.Filled.Delete,
@@ -331,7 +333,7 @@ private fun SessionListView(
                 style = MaterialTheme.typography.headlineSmall
             )
             // T202: Artsuche gleich neben der Ueberschrift (Feld klappt per Icon auf)
-            IconButton(onClick = {
+            IconButton(modifier = Modifier.helpTopic(R.string.help_analysis_list_search, "6"), onClick = {
                 searchOpen = !searchOpen
                 if (!searchOpen) viewModel.setSessionSearch("")
             }) {
@@ -413,7 +415,8 @@ private fun SessionListView(
                             selectionMode = state.selectionMode,
                             selected = summary.metadata.sessionId in state.selectedIds,
                             selectable = !active,
-                            onLongClick = { viewModel.startSelection(summary) }
+                            onLongClick = { viewModel.startSelection(summary) },
+                            modifier = Modifier.helpTopic(R.string.help_analysis_session_card, "5")
                         )
                         searchCounts?.get(summary.metadata.sessionId)?.let { n ->
                             Text(
@@ -598,7 +601,7 @@ private fun SessionDetailContent(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
         ) {
-            IconButton(onClick = { viewModel.closeSession() }) {
+            IconButton(onClick = { viewModel.closeSession() }, modifier = Modifier.helpTopic(R.string.help_analysis_back, "6")) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
             }
             Spacer(modifier = Modifier.width(4.dp))
@@ -622,6 +625,7 @@ private fun SessionDetailContent(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     color = if (noteText0 == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
+                        .helpTopic(R.string.help_analysis_title_note, "6")
                         .clickable(onClickLabel = stringResource(R.string.analysis_bemerkung_bearbeiten)) { showNoteDialog = true }
                         .heightIn(min = 48.dp)
                         .wrapContentHeight(Alignment.CenterVertically)
@@ -649,7 +653,7 @@ private fun SessionDetailContent(
             // T254: schmale Fenster (Telefon hoch): Suche und Rescan ins Ueberlaufmenue, damit der Titel Platz hat
             val narrowHeader = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
             if (!narrowHeader) {
-                IconButton(onClick = {
+                IconButton(modifier = Modifier.helpTopic(R.string.help_analysis_detail_search, "6"), onClick = {
                     detailSearchOpen = !detailSearchOpen
                     if (!detailSearchOpen) detailSearch = ""
                 }) {
@@ -659,7 +663,7 @@ private fun SessionDetailContent(
                 if (state.hasRecording) {
                     val recordingActive by viewModel.recordingActive.collectAsState()
                     val rescanRunning = state.rescanProgress != null
-                    IconButton(onClick = {
+                    IconButton(modifier = Modifier.helpTopic(R.string.help_analysis_rescan, "6"), onClick = {
                         when {
                             recordingActive -> viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_rescan_aufnahme_laeuft))
                             !rescanRunning -> showRescanDialog = true
@@ -674,12 +678,12 @@ private fun SessionDetailContent(
                     }
                 }
             }
-            IconButton(onClick = { viewModel.openRavenTable() }) {
+            IconButton(onClick = { viewModel.openRavenTable() }, modifier = Modifier.helpTopic(R.string.help_analysis_raven, "7")) {
                 Icon(Icons.Filled.TableChart, contentDescription = stringResource(R.string.analysis_raven_oeffnen))
             }
             Box {
                 var menuOpen by remember { mutableStateOf(false) }
-                IconButton(onClick = { menuOpen = true }) {
+                IconButton(onClick = { menuOpen = true }, modifier = Modifier.helpTopic(R.string.help_analysis_more, "6")) {
                     if (uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     } else {
@@ -691,6 +695,7 @@ private fun SessionDetailContent(
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.analysis_menu_suche)) },
                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            modifier = Modifier.helpTopic(R.string.help_analysis_detail_search, "6"),
                             onClick = {
                                 menuOpen = false
                                 detailSearchOpen = !detailSearchOpen
@@ -702,6 +707,7 @@ private fun SessionDetailContent(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.analysis_rescan)) },
                                 leadingIcon = { Icon(Icons.Filled.Autorenew, contentDescription = null) },
+                                modifier = Modifier.helpTopic(R.string.help_analysis_rescan, "6"),
                                 enabled = state.rescanProgress == null,
                                 onClick = {
                                     menuOpen = false
@@ -718,7 +724,7 @@ private fun SessionDetailContent(
                             leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                             enabled = state.rescanProgress == null,
                             onClick = { menuOpen = false; showInfoDialog = true },
-                            modifier = Modifier.heightIn(min = 48.dp)
+                            modifier = Modifier.helpTopic(R.string.help_analysis_edit_info, "6").heightIn(min = 48.dp)
                         )
                     }
                     // T258: Speichern unter (ZIP oder Ordner); die laufende Aufnahme-Session ist ausgegraut
@@ -732,13 +738,14 @@ private fun SessionDetailContent(
                             if (viewModel.canSaveAs()) showSaveAsChoice = true
                             else viewModel.reportError(ch.etasystems.pirol.ui.AppStrings.get(R.string.analysis_saveas_aufnahme_laeuft))
                         },
-                        modifier = Modifier.heightIn(min = 48.dp)
+                        modifier = Modifier.helpTopic(R.string.help_analysis_save_as, "7").heightIn(min = 48.dp)
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.analysis_session_hochladen)) },
                         leadingIcon = { Icon(Icons.Filled.Upload, contentDescription = null) },
                         enabled = !(uploadStatus is ch.etasystems.pirol.data.sync.UploadStatus.InProgress),
-                        onClick = { menuOpen = false; viewModel.uploadSession() }
+                        onClick = { menuOpen = false; viewModel.uploadSession() },
+                        modifier = Modifier.helpTopic(R.string.help_analysis_upload, "12")
                     )
                 }
             }
@@ -751,17 +758,17 @@ private fun SessionDetailContent(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { viewModel.playAdjacent(navList, forward = false) }) {
+                IconButton(onClick = { viewModel.playAdjacent(navList, forward = false) }, modifier = Modifier.helpTopic(R.string.help_analysis_prev, "6")) {
                     Icon(Icons.Filled.SkipPrevious, contentDescription = stringResource(R.string.analysis_vorherige_detektion))
                 }
-                IconButton(onClick = { viewModel.playCurrentChunk() }) {  // T173: Start/Stopp-Umschalter
+                IconButton(onClick = { viewModel.playCurrentChunk() }, modifier = Modifier.helpTopic(R.string.help_analysis_play, "6")) {  // T173: Start/Stopp-Umschalter
                     Icon(
                         imageVector = if (state.playingKey == PlaybackKeys.SESSION)
                             Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = stringResource(R.string.common_play)
                     )
                 }
-                IconButton(onClick = { viewModel.playAdjacent(navList, forward = true) }) {
+                IconButton(onClick = { viewModel.playAdjacent(navList, forward = true) }, modifier = Modifier.helpTopic(R.string.help_analysis_next, "6")) {
                     Icon(Icons.Filled.SkipNext, contentDescription = stringResource(R.string.analysis_naechste_detektion))
                 }
                 Text(
@@ -891,6 +898,7 @@ private fun SessionDetailContent(
                     .height(150.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (settings.palette.isLight) Color.White else Color.Black)
+                    .helpTopic(R.string.help_analysis_sonogram, "6")
                     // T210: Tippen setzt die Wiedergabe (nur Sonogramm; das Oszillogramm meldet selbst), Langdruck = Panel
                     .pointerInput(mode, zoom, state.recordingDurationSec) {
                         detectTapGestures(
@@ -983,7 +991,7 @@ private fun SessionDetailContent(
                 if (zoom != null && mode == LiveDisplayMode.SONOGRAM) {
                     TextButton(
                         onClick = { viewModel.clearZoom() },
-                        modifier = Modifier.align(Alignment.TopEnd).defaultMinSize(minHeight = 48.dp)
+                        modifier = Modifier.align(Alignment.TopEnd).helpTopic(R.string.help_analysis_whole_session, "6").defaultMinSize(minHeight = 48.dp)
                     ) {
                         Text(stringResource(R.string.analysis_gesamte_session), color = Color.White)
                     }
@@ -1000,7 +1008,8 @@ private fun SessionDetailContent(
                 viewEndSec = zoom?.endSec,
                 markers = markers,
                 contentDescription = stringResource(R.string.analysis_uebersichtsleiste),
-                onWindowChange = { start, width -> viewModel.showWindow(start, width) }
+                onWindowChange = { start, width -> viewModel.showWindow(start, width) },
+                modifier = Modifier.helpTopic(R.string.help_analysis_overview_bar, "6")
             )
             if (showPanel) {
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1078,7 +1087,7 @@ private fun SessionDetailContent(
                 },
                 style = MaterialTheme.typography.titleSmall
             )
-            TextButton(onClick = {
+            TextButton(modifier = Modifier.helpTopic(R.string.help_analysis_add_species, "4"), onClick = {
                 manualPositionSec = state.playbackPositionSec ?: state.lastPlaybackPositionSec
                 showAddManualDialog = true
             }) {

@@ -1,5 +1,7 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
+
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ViewAgenda
@@ -22,7 +24,7 @@ import org.koin.compose.koinInject
 fun CompactCardToggleButton(modifier: Modifier = Modifier) {
     val prefs: AppPreferences = koinInject()
     val compact by prefs.compactCardSetting.flow.collectAsState()
-    IconButton(onClick = { prefs.compactCardSetting.toggle() }, modifier = modifier.size(48.dp)) {
+    IconButton(onClick = { prefs.compactCardSetting.toggle() }, modifier = modifier.helpTopic(R.string.help_card_toggle_compact, "4").size(48.dp)) {
         Icon(
             imageVector = if (compact) Icons.Filled.ViewList else Icons.Filled.ViewAgenda,
             contentDescription = stringResource(
