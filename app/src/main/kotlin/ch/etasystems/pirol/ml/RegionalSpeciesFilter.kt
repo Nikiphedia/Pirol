@@ -46,7 +46,7 @@ class RegionalSpeciesFilter(
         internal fun autoFallbackId(g: TaxonGroup, birdsFallback: String?): String = when (g) {
             TaxonGroup.BIRDS -> birdsFallbackId(birdsFallback)
             TaxonGroup.ORTHOPTERA, TaxonGroup.AMPHIBIANS -> "ch_orthoptera_anura"
-            TaxonGroup.MAMMALS, TaxonGroup.OTHER -> "all"
+            TaxonGroup.MAMMALS, TaxonGroup.BATS, TaxonGroup.OTHER -> "all"
         }
 
         /** T246: Ersatzlisten der Gruppen auf Auto (Gruppen-Code -> Liste) fuer session.json */

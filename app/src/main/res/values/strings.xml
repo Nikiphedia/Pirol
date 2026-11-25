@@ -1018,4 +1018,9 @@
     <string name="model_min_source_rate">Braucht Aufnahmen ab %1$d kHz</string>
     <string name="model_taxon_group">Artgruppe: %1$s</string>
     <string name="model_freq_range">Frequenzbereich %1$d–%2$d kHz</string>
+    <!-- T295: Artgruppe Fledermäuse -->
+    <string name="group_bats">Fledermäuse</string>
+    <string name="group_letter_bats">F</string>
+    <string name="rescan_model_ultrasonic_hidden">Ultraschall-Modelle werden nicht angeboten: Die Aufnahme hat nur %1$d kHz.</string>
+    <string name="help_group_bats">Fledermäuse haben eine eigene Artgruppe: Aus, Alle oder eine Liste wie «CH Fledermäuse». «Auto» gibt es nicht, das Geomodell kennt keine Fledermäuse.</string>
 </resources>

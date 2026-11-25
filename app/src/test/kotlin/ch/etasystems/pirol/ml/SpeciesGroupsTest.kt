@@ -42,8 +42,8 @@ class SpeciesGroupsTest {
         assertEquals(TaxonGroup.ORTHOPTERA, TaxonGroups.of("Gryllus campestris"))
         assertEquals(TaxonGroup.AMPHIBIANS, TaxonGroups.of("Rana_temporaria"))         // Grasfrosch
         assertEquals(TaxonGroup.AMPHIBIANS, TaxonGroups.of("Bufo bufo"))
-        assertEquals(TaxonGroup.MAMMALS, TaxonGroups.of("Pipistrellus_pipistrellus"))  // Fledermaus
-        assertEquals(TaxonGroup.MAMMALS, TaxonGroups.of("Nyctalus noctula"))
+        assertEquals(TaxonGroup.BATS, TaxonGroups.of("Pipistrellus_pipistrellus"))  // Fledermaus
+        assertEquals(TaxonGroup.BATS, TaxonGroups.of("Nyctalus noctula"))
         assertEquals(TaxonGroup.OTHER, TaxonGroups.of("Dog"))
         assertEquals(TaxonGroup.OTHER, TaxonGroups.of("Engine"))
         assertEquals(TaxonGroup.OTHER, TaxonGroups.of("Alligator mississippiensis"))   // Reptil
@@ -62,12 +62,12 @@ class SpeciesGroupsTest {
         assertEquals(TaxonGroup.ORTHOPTERA, TaxonGroups.classify("Insecta", "Orthoptera"))
         assertEquals(TaxonGroup.OTHER, TaxonGroups.classify("Insecta", "Hemiptera"))
         assertEquals(TaxonGroup.AMPHIBIANS, TaxonGroups.classify("Amphibia", "Anura"))
-        assertEquals(TaxonGroup.MAMMALS, TaxonGroups.classify("Mammalia", "Chiroptera"))
+        assertEquals(TaxonGroup.BATS, TaxonGroups.classify("Mammalia", "Chiroptera"))
         assertEquals(TaxonGroup.BIRDS, TaxonGroups.classify("Aves", "Passeriformes"))
         assertEquals(TaxonGroup.OTHER, TaxonGroups.classify("Reptilia", null))
         assertNull(TaxonGroups.fromTaxonGroup("insecta"))
         assertEquals(TaxonGroup.AMPHIBIANS, TaxonGroups.fromTaxonGroup("anura"))
-        assertEquals(TaxonGroup.MAMMALS, TaxonGroups.fromTaxonGroup("chiroptera"))
+        assertEquals(TaxonGroup.BATS, TaxonGroups.fromTaxonGroup("chiroptera"))
         assertEquals(TaxonGroup.OTHER, TaxonGroups.fromTaxonGroup("reptilia"))
     }
 
@@ -124,12 +124,12 @@ class SpeciesGroupsTest {
 
     @Test fun `Kurzanzeige`() {
         val letters = mapOf(TaxonGroup.BIRDS to "V", TaxonGroup.ORTHOPTERA to "H", TaxonGroup.AMPHIBIANS to "A",
-            TaxonGroup.MAMMALS to "S", TaxonGroup.OTHER to "O")
+            TaxonGroup.MAMMALS to "S", TaxonGroup.BATS to "F", TaxonGroup.OTHER to "O")
         val label: (String) -> String = { when (it) { "off" -> "–"; "auto_geo" -> "Auto"; "ch_orthoptera_anura" -> "CH"; else -> it } }
         val s = SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "auto_geo", TaxonGroup.ORTHOPTERA to "ch_orthoptera_anura",
             TaxonGroup.AMPHIBIANS to "ch_orthoptera_anura"))
-        assertEquals("V:Auto H:CH A:CH S:–", SpeciesGroupSelection.shortLabel(s, letters, label))
-        assertEquals("V:– H:– A:– S:– O:all",
+        assertEquals("V:Auto H:CH A:CH S:– F:–", SpeciesGroupSelection.shortLabel(s, letters, label))
+        assertEquals("V:– H:– A:– S:– F:– O:all",
             SpeciesGroupSelection.shortLabel(SpeciesGroupSelection(mapOf(TaxonGroup.OTHER to "all")), letters, label))
     }
 

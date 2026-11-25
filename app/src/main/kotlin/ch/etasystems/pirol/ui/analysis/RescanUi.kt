@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.rescan.RescanInfo
+import ch.etasystems.pirol.rescan.RescanModelOffer
 import ch.etasystems.pirol.rescan.RescanOptions
 import ch.etasystems.pirol.rescan.RescanStatus
 import ch.etasystems.pirol.ui.settings.SpeciesGroupSettings
@@ -153,13 +154,15 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
 @Composable
 internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
     val defaults = remember { viewModel.rescanDefaults() } ?: return
-    val models = remember { viewModel.rescanModels() }
+    val offer = remember { viewModel.rescanModelOffer() }  // T295
+    val models = offer.offered
+    val sessionRateKHz = remember { viewModel.rescanSessionRateHz() / 1000 }
     var allRegions by remember { mutableStateOf<List<RegionInfo>>(emptyList()) }
     LaunchedEffect(Unit) { allRegions = viewModel.rescanRegions() }
     // T239: Gruppenwahl der Session (Voreinstellung), im Dialog aenderbar; T246: einziger Filter
     var groups by remember { mutableStateOf(defaults.groups) }
 
-    var model by remember { mutableStateOf(defaults.modelFileName) }
+    var model by remember { mutableStateOf(RescanModelOffer.defaultModel(models, defaults.modelFileName) ?: defaults.modelFileName) }
     var threshold by remember { mutableFloatStateOf(defaults.confidenceThreshold.coerceIn(0.05f, 0.95f)) }
     var overlap by remember { mutableIntStateOf(defaults.overlapPercent) }
     var secondary by remember { mutableStateOf(defaults.secondaryModelFileName) }
@@ -188,6 +191,13 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                 Text(stringResource(R.string.analysis_rescan_modell), style = MaterialTheme.typography.titleSmall)
                 if (models.isEmpty()) {
                     Text(stringResource(R.string.analysis_rescan_kein_modell), color = MaterialTheme.colorScheme.error)
+                }
+                if (offer.hidden.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.rescan_model_ultrasonic_hidden, sessionRateKHz),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     models.forEach { m ->

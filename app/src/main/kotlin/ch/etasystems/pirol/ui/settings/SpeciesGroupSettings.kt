@@ -28,6 +28,7 @@ import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.ml.SpeciesGroupSelection
 import ch.etasystems.pirol.ml.TaxonGroup
 import ch.etasystems.pirol.ui.AppStrings
+import ch.etasystems.pirol.ui.help.helpTopic
 
 /** T232: Anzeigenamen fuer Artgruppen und Quellen (ausserhalb von Composables nutzbar). */
 object SpeciesGroupLabels {
@@ -37,6 +38,7 @@ object SpeciesGroupLabels {
         TaxonGroup.ORTHOPTERA -> R.string.group_orthoptera
         TaxonGroup.AMPHIBIANS -> R.string.group_amphibians
         TaxonGroup.MAMMALS -> R.string.group_mammals
+        TaxonGroup.BATS -> R.string.group_bats
         TaxonGroup.OTHER -> R.string.group_other
     })
 
@@ -45,6 +47,7 @@ object SpeciesGroupLabels {
         TaxonGroup.ORTHOPTERA to AppStrings.get(R.string.group_letter_orthoptera),
         TaxonGroup.AMPHIBIANS to AppStrings.get(R.string.group_letter_amphibians),
         TaxonGroup.MAMMALS to AppStrings.get(R.string.group_letter_mammals),
+        TaxonGroup.BATS to AppStrings.get(R.string.group_letter_bats),
         TaxonGroup.OTHER to AppStrings.get(R.string.group_letter_other)
     )
 
@@ -53,7 +56,7 @@ object SpeciesGroupLabels {
         GroupSource.OFF -> "–"
         GroupSource.ALL -> AppStrings.get(R.string.common_all)
         GroupSource.AUTO -> AppStrings.get(R.string.live_region_auto)
-        "ch_breeding", "ch_orthoptera_anura" -> "CH"
+        "ch_breeding", "ch_orthoptera_anura", "ch_bats" -> "CH"
         "ch_all" -> "CH+"
         "central_europe" -> "EU"
         else -> src.removePrefix(CustomSpeciesLists.ID_PREFIX)
@@ -83,15 +86,19 @@ fun ColumnScope.SpeciesGroupSettings(
             val src = selection.sourceOf(g)
             fun set(v: String) = onChange(selection.with(g, v))
             Spacer(modifier = Modifier.height(8.dp))
-            Text(SpeciesGroupLabels.name(g), style = MaterialTheme.typography.titleSmall)
+            Text(SpeciesGroupLabels.name(g), style = MaterialTheme.typography.titleSmall,
+                modifier = if (g == TaxonGroup.BATS) Modifier.helpTopic(R.string.help_group_bats, "11") else Modifier)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = src == GroupSource.OFF, onClick = { set(GroupSource.OFF) },
                     label = { Text(stringResource(R.string.common_off)) })
                 FilterChip(selected = src == GroupSource.ALL, onClick = { set(GroupSource.ALL) },
                     label = { Text(stringResource(R.string.common_all)) })
                 if (g != TaxonGroup.OTHER) {
-                    FilterChip(selected = src == GroupSource.AUTO, onClick = { set(GroupSource.AUTO) },
-                        label = { Text(stringResource(R.string.live_region_auto)) })
+                    // T295: Auto nur fuer Gruppen, die das Geomodel kennt (Fledermaeuse nicht)
+                    if (g != TaxonGroup.BATS) {
+                        FilterChip(selected = src == GroupSource.AUTO, onClick = { set(GroupSource.AUTO) },
+                            label = { Text(stringResource(R.string.live_region_auto)) })
+                    }
                     var open by remember { mutableStateOf(false) }
                     Box {
                         val isList = GroupSource.isList(src)

@@ -15,6 +15,8 @@ enum class TaxonGroup(val code: String) {
     ORTHOPTERA("orthoptera"),
     AMPHIBIANS("amphibians"),
     MAMMALS("mammals"),
+    /** T295: Fledermaeuse (Chiroptera), getrennt von den uebrigen Saeugetieren; ab Ultraschall-Modellen (T293) */
+    BATS("bats"),
     /** uebrige Insekten, Reptilien, Fische, Pflanzen und Geraeuschklassen (Wind, Hund, Motor ...) */
     OTHER("other");
 
@@ -54,7 +56,8 @@ object TaxonGroups {
         return when {
             o == "orthoptera" -> TaxonGroup.ORTHOPTERA
             o == "anura" || c == "amphibia" -> TaxonGroup.AMPHIBIANS
-            o == "chiroptera" || c == "mammalia" -> TaxonGroup.MAMMALS
+            o == "chiroptera" -> TaxonGroup.BATS
+            c == "mammalia" -> TaxonGroup.MAMMALS
             c == "aves" -> TaxonGroup.BIRDS
             else -> TaxonGroup.OTHER
         }
@@ -69,13 +72,25 @@ object TaxonGroups {
         "aves" -> TaxonGroup.BIRDS
         "orthoptera" -> TaxonGroup.ORTHOPTERA
         "amphibia", "anura" -> TaxonGroup.AMPHIBIANS
-        "mammalia", "chiroptera" -> TaxonGroup.MAMMALS
+        "chiroptera", "bats" -> TaxonGroup.BATS
+        "mammalia" -> TaxonGroup.MAMMALS
         else -> TaxonGroup.OTHER
     }
+
+    /**
+     * T295: Fledermausgattungen (Kleinschreibung). Haben Vorrang vor Tabellen, die Fledermaeuse nur als
+     * "Mammalia" fuehren (species_master). Nur Gattungen, die ausschliesslich Fledermaeuse enthalten.
+     */
+    internal val BAT_GENERA: Set<String> = setOf(
+        "myotis", "pipistrellus", "nyctalus", "eptesicus", "plecotus", "barbastella", "rhinolophus",
+        "vespertilio", "hypsugo", "miniopterus", "tadarida", "nyctinomus", "otonycteris",
+        "pteropus", "rousettus", "taphozous", "murina", "kerivoula", "lasiurus", "antrozous", "corynorhinus"
+    )
 
     /** Gruppe einer Art (Name oder Schluessel). Ohne Eintrag: Gattung (nur eindeutige), sonst OTHER. */
     fun of(name: String): TaxonGroup {
         val key = SpeciesKey.of(name)
+        if (key.substringBefore('_', "") in BAT_GENERA) return TaxonGroup.BATS
         index[key]?.let { return it }
         extra[key]?.let { return it }
         val genus = key.substringBefore('_', "")
@@ -222,7 +237,14 @@ object GroupSource {
  */
 data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
 
-    fun sourceOf(g: TaxonGroup): String = sources[g] ?: GroupSource.OFF
+    /**
+     * Fehlende Gruppe = Aus (auch Fledermaeuse, T295: sonst erschienen BirdNET-Fledermauslabels neu).
+     * Auto gibt es fuer Fledermaeuse nicht (das Geomodel kennt keine): gespeichertes Auto gilt als Alle.
+     */
+    fun sourceOf(g: TaxonGroup): String {
+        val v = sources[g] ?: return GroupSource.OFF
+        return if (g == TaxonGroup.BATS && v == GroupSource.AUTO) GroupSource.ALL else v
+    }
 
     fun with(g: TaxonGroup, source: String) = SpeciesGroupSelection(sources + (g to source))
 
