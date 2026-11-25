@@ -5,6 +5,7 @@ import ch.etasystems.pirol.R
 import ch.etasystems.pirol.audio.dsp.MelFilterbank
 import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MAX_DBFS
 import ch.etasystems.pirol.audio.dsp.SONOGRAM_DEFAULT_MIN_DBFS
+import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -30,6 +31,8 @@ import kotlin.math.floor
  * @param autoHighPct Auto-Kontrast: oberes Perzentil
  * @param autoMinSpanDb Auto-Kontrast: Mindestspanne in dB
  * @param displayMode T193: Live-Darstellung (Sonogramm, Spektrum, Oszillogramm); Analyse ignoriert das
+ * @param ultraFreqMinHz T294: unterer Anzeigebereich bei Ultraschall-Sessions (eigener Wert, Voegel unberuehrt)
+ * @param ultraFreqMaxHz T294: oberer Anzeigebereich bei Ultraschall-Sessions
  */
 data class SpectrogramDisplaySettings(
     val autoContrast: Boolean = true,
@@ -44,8 +47,21 @@ data class SpectrogramDisplaySettings(
     val autoLowPct: Float = 0.02f,
     val autoHighPct: Float = 0.98f,
     val autoMinSpanDb: Float = 20f,
-    val displayMode: LiveDisplayMode = LiveDisplayMode.SONOGRAM
+    val displayMode: LiveDisplayMode = LiveDisplayMode.SONOGRAM,
+    val ultraFreqMinHz: Float = SpectrogramConfig.ULTRASOUND_DISPLAY_MIN_HZ,
+    val ultraFreqMaxHz: Float = SpectrogramConfig.ULTRASOUND_DISPLAY_MAX_HZ
 ) {
+    /**
+     * T294: Einstellungen fuer die Anzeige mit [config]: bei linearer (Ultraschall-)Config gilt der eigene
+     * Ultraschall-Frequenzbereich, sonst unveraendert. Idempotent.
+     */
+    fun forConfig(config: SpectrogramConfig): SpectrogramDisplaySettings =
+        if (config.linearFreq) copy(freqMinHz = ultraFreqMinHz, freqMaxHz = ultraFreqMaxHz) else this
+
+    /** T294: Frequenzbereich setzen; bei Ultraschall-Config in die eigenen Ultraschall-Felder. */
+    fun withFreqRange(config: SpectrogramConfig, lo: Float, hi: Float): SpectrogramDisplaySettings =
+        if (config.linearFreq) copy(ultraFreqMinHz = lo, ultraFreqMaxHz = hi) else copy(freqMinHz = lo, freqMaxHz = hi)
+
     /** Setzt die Preset-Werte; Palette und Zeitfenster bleiben unveraendert. */
     fun withPreset(preset: SpectrogramPreset): SpectrogramDisplaySettings = when (preset) {
         SpectrogramPreset.STANDARD -> copy(
@@ -121,14 +137,16 @@ fun visibleBinRange(
     configFMin: Float,
     configFMax: Float,
     freqMinHz: Float,
-    freqMaxHz: Float
+    freqMaxHz: Float,
+    linear: Boolean = false  // T294: Baender linear in Hz (Ultraschall)
 ): IntRange {
     if (numBins <= MIN_VISIBLE_BINS) return 0 until numBins
-    val melMin = MelFilterbank.hzToMel(configFMin)
-    val melMax = MelFilterbank.hzToMel(configFMax)
+    fun scale(hz: Float) = if (linear) hz else MelFilterbank.hzToMel(hz)
+    val melMin = scale(configFMin)
+    val melMax = scale(configFMax)
     if (melMax <= melMin) return 0 until numBins
     fun frac(hz: Float) =
-        (MelFilterbank.hzToMel(hz.coerceIn(configFMin, configFMax)) - melMin) / (melMax - melMin)
+        (scale(hz.coerceIn(configFMin, configFMax)) - melMin) / (melMax - melMin)
     var first = floor(frac(freqMinHz) * numBins).toInt().coerceIn(0, numBins - MIN_VISIBLE_BINS)
     var last = (ceil(frac(freqMaxHz) * numBins).toInt() - 1).coerceIn(0, numBins - 1)
     if (last - first + 1 < MIN_VISIBLE_BINS) last = (first + MIN_VISIBLE_BINS - 1).coerceAtMost(numBins - 1)
@@ -147,7 +165,7 @@ fun displayBinRange(
     freqMaxHz: Float
 ): IntRange = visibleBinRange(
     config.numMelBins, config.fMin,
-    if (config.fMax <= 0f) 24000f else config.fMax, freqMinHz, freqMaxHz
+    if (config.fMax <= 0f) 24000f else config.fMax, freqMinHz, freqMaxHz, config.linearFreq
 )
 
 /**

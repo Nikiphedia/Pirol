@@ -15,13 +15,15 @@ import kotlin.math.pow
  * @param numMelBins Anzahl Mel-Baender
  * @param fMin Untere Grenzfrequenz in Hz
  * @param fMax Obere Grenzfrequenz in Hz
+ * @param linear T294: Bandmitten gleichmaessig in Hz statt in Mel (Ultraschall-Anzeige)
  */
 class MelFilterbank(
     sampleRate: Int,
     fftSize: Int,
     numMelBins: Int,
     fMin: Float,
-    fMax: Float
+    fMax: Float,
+    linear: Boolean = false
 ) {
     // Vorberechnete Filterbank: sparse Darstellung pro Mel-Bin
     // Jeder Filter hat Start-Index, End-Index und Gewichte
@@ -34,8 +36,8 @@ class MelFilterbank(
 
     init {
         val numFftBins = fftSize / 2 + 1
-        val melMin = hzToMel(fMin)
-        val melMax = hzToMel(fMax)
+        val melMin = if (linear) fMin else hzToMel(fMin)
+        val melMax = if (linear) fMax else hzToMel(fMax)
 
         // numMelBins + 2 gleichmaessig verteilte Punkte auf Mel-Skala
         val melPoints = FloatArray(numMelBins + 2) { i ->
@@ -44,7 +46,7 @@ class MelFilterbank(
 
         // Mel-Punkte zurueck in Hz und dann in FFT-Bin-Indizes
         val binIndices = IntArray(numMelBins + 2) { i ->
-            val hz = melToHz(melPoints[i])
+            val hz = if (linear) melPoints[i] else melToHz(melPoints[i])
             val bin = floor((fftSize + 1).toFloat() * hz / sampleRate).toInt()
             bin.coerceIn(0, numFftBins - 1)
         }

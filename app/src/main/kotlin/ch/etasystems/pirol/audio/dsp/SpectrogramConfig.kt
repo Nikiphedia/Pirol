@@ -10,6 +10,7 @@ package ch.etasystems.pirol.audio.dsp
  * @param fMin Untere Grenzfrequenz in Hz
  * @param fMax Obere Grenzfrequenz in Hz (-1 = Nyquist)
  * @param minDb Rueckfall-Untergrenze der Anzeige in dBFS (T199)
+ * @param linearFreq T294: Baender linear in Hz statt Mel (Ultraschall-Sessions)
  */
 data class SpectrogramConfig(
     val fftSize: Int = 2048,
@@ -17,7 +18,8 @@ data class SpectrogramConfig(
     val numMelBins: Int = 128,
     val fMin: Float = 0f,
     val fMax: Float = -1f,
-    val minDb: Float = SONOGRAM_DEFAULT_MIN_DBFS
+    val minDb: Float = SONOGRAM_DEFAULT_MIN_DBFS,
+    val linearFreq: Boolean = false
 ) {
     companion object {
         /**
@@ -33,6 +35,26 @@ data class SpectrogramConfig(
 
         /** Breitband: gesamtes Spektrum */
         val WIDEBAND = SpectrogramConfig(fMin = 0f, fMax = -1f)
+
+        /**
+         * T294: Ultraschall-Sessions (Rate > [ULTRASOUND_MIN_RATE_EXCLUSIVE]). Lineare Frequenzachse bis Nyquist:
+         * auf der Mel-Skala waere 10-20 kHz so breit wie 100-150 kHz. 256 Baender = 750 Hz je Band bei 384 kHz.
+         */
+        val ULTRASOUND = SpectrogramConfig(numMelBins = 256, fMin = 0f, fMax = -1f, linearFreq = true)
+
+        /** T294: ab hier (exklusiv) gilt eine Session als Ultraschall-Session (Anzeige, Wiedergabe, Raven) */
+        const val ULTRASOUND_MIN_RATE_EXCLUSIVE = 96_000
+
+        /** T294: Standard-Anzeigebereich einer Ultraschall-Session in Hz */
+        const val ULTRASOUND_DISPLAY_MIN_HZ = 10_000f
+        const val ULTRASOUND_DISPLAY_MAX_HZ = 150_000f
+
+        /** T294: Ultraschall-Session? (192-500 kHz; 48/96 kHz nein) */
+        fun isUltrasoundRate(sampleRate: Int): Boolean = sampleRate > ULTRASOUND_MIN_RATE_EXCLUSIVE
+
+        /** T294: Anzeige-Config der Analyse fuer eine Session-Rate (bis 96 kHz unveraendert [BIRDS]). */
+        fun forSessionRate(sampleRate: Int): SpectrogramConfig =
+            if (isUltrasoundRate(sampleRate)) ULTRASOUND else BIRDS
     }
 
     /** T200: Obergrenze in Hz bei [sampleRate] (fMax <= 0 = Nyquist, nie ueber Nyquist). */

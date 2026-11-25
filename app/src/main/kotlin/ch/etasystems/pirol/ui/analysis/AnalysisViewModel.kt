@@ -696,13 +696,19 @@ class AnalysisViewModel(
     /** T116: Mel-Frames nur fuer den Ausschnitt berechnen; Anzeige zoomt darauf. */
     private fun renderZoomSonogram(range: DetectionExcerpt.Range, read: () -> ExcerptWav.Pcm?) {
         zoomJob?.cancel()
+        // T294: langer Ausschnitt einer Ultraschall-Session -> gestreamt, ohne PCM im Speicher
+        val zoomRate = recording?.sampleRate ?: _uiState.value.spectrogramState.sampleRate
+        if (HighRateZoom.needsStreaming(zoomRate, range.durationSec)) {
+            renderZoomSonogramStreaming(range, zoomRate)
+            return
+        }
         zoomJob = viewModelScope.launch(Dispatchers.Default) {
             var excerpt: ExcerptWav.Pcm? = null
             val result = try {
                 val pcm = read() ?: return@launch
                 excerpt = pcm
                 // T200: Anzeige-Config (Mel bis Nyquist), passend zu Achse und Bin-Zuschnitt
-                MelSpectrogram(pcm.sampleRate, SpectrogramConfig.BIRDS).process(pcm.samples) to pcm.sampleRate
+                MelSpectrogram(pcm.sampleRate, SpectrogramConfig.forSessionRate(pcm.sampleRate)).process(pcm.samples) to pcm.sampleRate  // T294
             } catch (e: Exception) {
                 Log.e("AnalysisVM", "T116 Zoom-Sonogramm fehlgeschlagen", e)
                 return@launch
@@ -712,6 +718,31 @@ class AnalysisViewModel(
             val state = SpectrogramState(maxFrames = frames.size, sampleRate = rate)
             state.appendFrames(frames)
             _uiState.update { it.copy(zoomRange = range, zoomSpectrogramState = state, zoomPcm = excerpt) }
+        }
+    }
+
+    /** T294: Zoom-Sonogramm blockweise mit Stride (Ultraschall, langer Ausschnitt); kein Ausschnitt-PCM. */
+    private fun renderZoomSonogramStreaming(range: DetectionExcerpt.Range, rate: Int) {
+        val rec = recording
+        val f = _uiState.value.recordingFile
+        val read: (Long, Long) -> ShortArray? = when {
+            rec != null -> { a, b -> rec.readFrames(a, b)?.samples }
+            f != null -> { a, b -> ExcerptWav.readRange(f, a.toFloat() / rate, b.toFloat() / rate)?.samples }
+            else -> return
+        }
+        zoomJob = viewModelScope.launch(Dispatchers.Default) {
+            val frames = try {
+                val start = (range.startSec.toDouble() * rate).toLong()
+                val end = (range.endSec.toDouble() * rate).toLong()
+                HighRateZoom.stridedFrames(rate, start, end, read) { isActive }
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "T294 Zoom-Sonogramm (Stream) fehlgeschlagen", e)
+                return@launch
+            }
+            if (frames.isEmpty() || _uiState.value.selectedSession == null || !isActive) return@launch
+            val state = SpectrogramState(maxFrames = frames.size, sampleRate = rate)
+            state.appendFrames(frames)
+            _uiState.update { it.copy(zoomRange = range, zoomSpectrogramState = state, zoomPcm = null) }
         }
     }
 
@@ -897,7 +928,7 @@ class AnalysisViewModel(
                 endSec      = d.bestWindowEndSec
             ) ?: return@launch
             val state  = SpectrogramState(maxFrames = 2048, sampleRate = wav.sampleRate)
-            val mel    = MelSpectrogram(wav.sampleRate, SpectrogramConfig.BIRDS)  // T247: echte Abtastrate
+            val mel    = MelSpectrogram(wav.sampleRate, SpectrogramConfig.forSessionRate(wav.sampleRate))  // T247: echte Abtastrate; T294: Ultraschall linear
             val frames = mel.process(wav.samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             _uiState.update { it.copy(detectionSpectrogramState = state) }
@@ -915,7 +946,7 @@ class AnalysisViewModel(
                 endSec      = null
             ) ?: return@launch
             val state  = SpectrogramState(maxFrames = 2048, sampleRate = wav.sampleRate)
-            val mel    = MelSpectrogram(wav.sampleRate, SpectrogramConfig.BIRDS)  // T247: echte Abtastrate
+            val mel    = MelSpectrogram(wav.sampleRate, SpectrogramConfig.forSessionRate(wav.sampleRate))  // T247: echte Abtastrate; T294: Ultraschall linear
             val frames = mel.process(wav.samples)
             if (frames.isNotEmpty()) state.appendFrames(frames)
             _uiState.update { it.copy(referenceSpectrogramState = state) }
@@ -978,8 +1009,7 @@ class AnalysisViewModel(
 
                         // Pass 2: Chunks streamen, Mel berechnen, Stride filtern
                         sessionRate = sampleRate
-                        val mel = MelSpectrogram(sampleRate, SpectrogramConfig.BIRDS)  // T200: wie Achse
-                        var frameCounter = 0
+                        val mel = MelSpectrogram(sampleRate, SpectrogramConfig.forSessionRate(sampleRate))  // T200: wie Achse; T294: Ultraschall linear
                         try {
                             openStream()?.use { stream ->
                                 stream.skip(44)
@@ -992,10 +1022,8 @@ class AnalysisViewModel(
                                         .wrap(chunkBytes, 0, bytesRead)
                                         .order(java.nio.ByteOrder.LITTLE_ENDIAN)
                                     for (i in 0 until numSamples) samples[i] = bbuf.short
-                                    for (frame in mel.process(samples)) {
-                                        if (frameCounter % stride == 0) collectedFrames.add(frame)
-                                        frameCounter++
-                                    }
+                                    // T294: nur behaltene Frames rechnen (gleiche Frames, bei 384 kHz 8x mehr Audio)
+                                    collectedFrames.addAll(mel.process(samples) { it % stride == 0L })
                                 }
                             }
                         } catch (e: Exception) {

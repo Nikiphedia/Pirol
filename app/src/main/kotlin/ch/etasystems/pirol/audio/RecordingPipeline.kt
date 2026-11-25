@@ -449,7 +449,7 @@ class RecordingPipeline(
         } ?: return
         // T231: Ringpuffer nur, wenn das Zweitmodell laengere Fenster als das Hauptmodell hat
         val ring = if (model.classifier.windowMs > classifier.windowMs && persistSampleRate > 0) {
-            AudioRingBuffer(persistSampleRate, persistSampleRate * RING_SECONDS, persistedSamples.get())
+            AudioRingBuffer(persistSampleRate, AudioRingBuffer.capacityFor(persistSampleRate, RING_SECONDS), persistedSamples.get())  // T294: bei hoher Rate gedeckelt
         } else null
         val checker = SecondaryChecker(
             classifier = model.classifier,

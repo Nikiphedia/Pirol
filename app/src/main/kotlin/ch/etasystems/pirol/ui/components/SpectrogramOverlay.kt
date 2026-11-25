@@ -90,14 +90,15 @@ fun FrequencyAxis(
 ) {
     val fMin = config.fMin
     val fMax = if (config.fMax <= 0f) 24000f else config.fMax
-    val ticks = remember(fMin, fMax) { computeFrequencyTicks(fMin, fMax) }
+    val linear = config.linearFreq  // T294: Ultraschall-Achse linear
+    val ticks = remember(fMin, fMax, linear) { computeFrequencyTicks(fMin, fMax, linear) }
     val textColor = if (lightBackground) Color.Black else Color.White
     val stripColor = if (lightBackground) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.4f)
 
     BoxWithConstraints(modifier = modifier.width(40.dp).background(stripColor)) {
         val heightDp = maxHeight
         for (tick in ticks) {
-            val yDp = heightDp * (1f - frequencyFraction(tick.hz, fMin, fMax))
+            val yDp = heightDp * (1f - frequencyFraction(tick.hz, fMin, fMax, linear))
             // Kleine Linie an der Tick-Position (rechter Rand der Achse)
             Box(
                 modifier = Modifier
@@ -188,16 +189,36 @@ private fun TimeAxis(
 /** T144: Feste Frequenz-Marken in Hz (Vogel-Standard). T200: 20k fuer den Bereich bis Nyquist. */
 internal val FIXED_FREQUENCY_TICKS_HZ = floatArrayOf(1000f, 2000f, 4000f, 8000f, 12000f, 20000f)
 
-/** T144: Marken im sichtbaren Bereich [fMin, fMax]. */
-internal fun computeFrequencyTicks(fMin: Float, fMax: Float): List<FrequencyTick> =
-    FIXED_FREQUENCY_TICKS_HZ
+/** T144: Marken im sichtbaren Bereich [fMin, fMax]. T294: lineare Achse mit gleichmaessigen Schritten. */
+internal fun computeFrequencyTicks(fMin: Float, fMax: Float, linear: Boolean = false): List<FrequencyTick> {
+    if (linear) {
+        val step = linearTickStepHz(fMax - fMin)
+        val out = ArrayList<FrequencyTick>()
+        var k = kotlin.math.ceil(fMin / step).toInt().coerceAtLeast(1)
+        while (k * step <= fMax) {
+            val hz = k * step
+            out += FrequencyTick(hz = hz, label = "${(hz / 1000f).toInt()}k")
+            k++
+        }
+        return out
+    }
+    return FIXED_FREQUENCY_TICKS_HZ
         .filter { it >= fMin && it <= fMax }
         .map { FrequencyTick(hz = it, label = "${(it / 1000f).toInt()}k") }
+}
+
+/** T294: Schritt der linearen Achse: kleinster Schritt mit hoechstens 8 Marken (mindestens 1 kHz). */
+internal fun linearTickStepHz(spanHz: Float): Float {
+    val steps = floatArrayOf(1000f, 2000f, 5000f, 10000f, 20000f, 25000f, 50000f, 100000f)
+    return steps.firstOrNull { spanHz / it <= 8f } ?: steps.last()
+}
 
 /**
  * T144: Position einer Frequenz auf der Mel-Skala als Anteil [0, 1] (0 = fMin unten, 1 = fMax oben).
+ * T294: [linear] = lineare Hz-Achse (Ultraschall).
  */
-internal fun frequencyFraction(hz: Float, fMin: Float, fMax: Float): Float {
+internal fun frequencyFraction(hz: Float, fMin: Float, fMax: Float, linear: Boolean = false): Float {
+    if (linear) return if (fMax <= fMin) 0f else ((hz - fMin) / (fMax - fMin)).coerceIn(0f, 1f)
     val melMin = MelFilterbank.hzToMel(fMin)
     val melMax = MelFilterbank.hzToMel(fMax)
     if (melMax <= melMin) return 0f

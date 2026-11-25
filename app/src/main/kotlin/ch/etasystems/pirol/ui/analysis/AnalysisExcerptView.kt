@@ -46,7 +46,7 @@ internal fun AnalysisExcerptView(
     modifier: Modifier = Modifier
 ) {
     if (pcm == null) return
-    val config = SpectrogramConfig.BIRDS.resolved(pcm.sampleRate)
+    val config = SpectrogramConfig.forSessionRate(pcm.sampleRate).resolved(pcm.sampleRate)  // T294: Ultraschall linear
     if (mode == LiveDisplayMode.SPECTRUM) {
         // Ohne Wiedergabe: Mittel + Maximum ueber den ganzen Ausschnitt; bei Wiedergabe: Fenster um die Position
         val state = remember { SpectrumState() }

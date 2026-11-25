@@ -153,7 +153,7 @@ class DetectionExporter(
     ) {
         val settings = settingsRepository.settings.value
         // T200: Mel, Bin-Zuschnitt und Achse aus derselben Config (bis Nyquist der Datei)
-        val config = SpectrogramConfig.BIRDS.resolved(pcm.sampleRate)
+        val config = SpectrogramConfig.forSessionRate(pcm.sampleRate).resolved(pcm.sampleRate)  // T294: Ultraschall linear
         val frames = MelSpectrogram(pcm.sampleRate, config).process(pcm.samples)
         if (frames.isEmpty()) throw IllegalStateException("Ausschnitt zu kurz fuer ein Sonogramm")
         onProgress(0.6f)
@@ -169,7 +169,8 @@ class DetectionExporter(
         } else settings.minDb to settings.maxDb
         val (minDb, maxDb) = effectiveDbRange(lo, hi, settings.ceilingDb)
 
-        val binRange = displayBinRange(config, settings.freqMinHz, settings.freqMaxHz)
+        val shown = settings.forConfig(config)  // T294: Ultraschall-Bereich
+        val binRange = displayBinRange(config, shown.freqMinHz, shown.freqMaxHz)
         val h = binRange.last - binRange.first + 1
         val w = frames.size
         val colorLut = SpectrogramPalette.lutFor(settings.palette)

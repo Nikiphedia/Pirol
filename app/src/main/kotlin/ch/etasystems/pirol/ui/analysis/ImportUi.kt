@@ -203,6 +203,20 @@ fun AudioImportDialog(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            // T294: erkannte Zeitdehnung (TE) bzw. Ultraschall-Rate
+                            when (val info = ImportRateInfo.of(p.sampleRate, p.timeExpansion)) {
+                                is ImportRateInfo.TimeExpanded -> Text(
+                                    stringResource(R.string.import_zeitdehnung_info, info.factor, info.trueRateKhz),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                is ImportRateInfo.Ultrasound -> Text(
+                                    stringResource(R.string.import_ultraschall_info, info.rateKhz),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                null -> Unit
+                            }
                             val base = baseTime(i)
                             DateTimePickerField(
                                 value = times[i],
