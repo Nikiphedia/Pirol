@@ -15,7 +15,7 @@ L'application comporte cinq onglets : **Live**, **Analyse**, **Références**, *
 3. Télécharger le **modèle** : plusieurs modèles peuvent être sélectionnés en même temps. Le standard est BirdNET 3.0 FP16 (recommandé, env. 170 Mo). Le téléchargement se poursuit en arrière-plan, peut être interrompu et repris plus tard. Il est aussi possible de choisir manuellement un fichier de modèle.
 4. Vérifier l'**emplacement de stockage** (Réglages > Enregistrement). Par défaut : `Downloads/PIROL/`, visible par USB.
 
-**Installation (APK) :** La version APK de publication existe pour chaque architecture de processeur. Pour les appareils récents (téléphones et tablettes), installer le fichier `Pirol-<Version>-arm64-v8a-release.apk` ; seulement pour les anciens appareils 32 bits, le fichier `...-armeabi-v7a-release.apk`. Les APK sont ainsi nettement plus petites qu'autrefois avec l'APK commune. L'application a une nouvelle icône (oiseau jaune), également disponible en icône monochrome pour les icônes thématiques.
+**Installation (APK) :** La version APK de publication existe pour chaque architecture de processeur. Pour les appareils récents (téléphones et tablettes), installer le fichier `Pirol-<Version>-arm64-v8a-release.apk` ; seulement pour les anciens appareils 32 bits, le fichier `...-armeabi-v7a-release.apk`. Les APK sont ainsi nettement plus petites qu'autrefois avec l'APK commune. L'application a une nouvelle icône (oiseau jaune), également disponible en icône monochrome pour les icônes thématiques. Les détails sur l'installation et la mise à jour (y compris les appareils Samsung) figurent au chapitre 20.
 
 **Nouveautés :** Après une mise à jour, PIROL affiche une seule fois une fenêtre « Nouveautés » avec les principaux changements de la version. Elle peut être rappelée à tout moment dans les réglages, sous « Infos ».
 
@@ -69,6 +69,8 @@ L'ordre des fiches d'espèces ne change au plus que toutes les 5 s. Les nouvelle
 ### Mémo de session
 Le bouton Mémo de l'onglet Live (visible uniquement pendant un enregistrement) fonctionne comme un talkie-walkie : **maintenir appuyé et parler**, le mémo se termine au relâchement. Pendant l'enregistrement, le bouton est rouge et affiche la durée ; ensuite apparaît « Mémo enregistré (n s) ». Les mémos de moins de 0,5 s sont rejetés (« Trop court »), après 3 minutes un mémo se termine automatiquement. Le mémo est enregistré avec sa position dans l'enregistrement (`memos.jsonl`, fichiers sous `memos/`), apparaît dans l'analyse dans le bloc « Mémos » (chapitre 6) et comme ligne « Memo » dans l'export Raven (chapitre 7). Les mémos ne sont jamais masqués comme voix (chapitre 7). Les mémos vocaux relatifs à une espèce restent séparés.
 
+Au moment de l'appui, PIROL mémorise la dernière position GPS (pas plus de 2 min) et l'enregistre avec le mémo ; sur la carte, le mémo apparaît alors comme marqueur de microphone (chapitre 8). Sans position GPS récente, le mémo n'a pas de lieu. Supprimer, partager et enregistrer sous : chapitre 6.
+
 ### Détections multiples et seuil de confiance
 Dans la même fenêtre de 3 s, toutes les espèces qui atteignent le seuil sont détectées, pas seulement la première. Le réglage s'appelle « Seuil de confiance (toutes les espèces) » (Réglages > Modèle et détection, par défaut 50 %) et s'applique de la même façon à toutes les espèces. Les espèces situées en dessous, mais au-dessus de la limite des candidats, restent comme candidates dans les détections de la fenêtre. Auparavant, le réglage pilotait un autre seuil (TopK, par défaut 0,3) ; il faut donc le vérifier après la mise à jour. Les alarmes de la watchlist ne se déclenchent qu'à partir du seuil.
 
@@ -93,7 +95,7 @@ Le filtre passe-haut (200 Hz) élimine le vent et les bruits de pas ; il est act
 
 Dans l'onglet Live et l'onglet Analyse. L'axe des fréquences affiche 1/2/4/8/12 kHz. L'affichage va par défaut jusqu'à **12 kHz** (préréglage pour les oiseaux), réglable jusqu'à **24 kHz**. Les niveaux du sonogramme sont exprimés en dBFS.
 
-**Modes d'affichage (onglet Live) :** dans le panneau d'affichage (appui long), on bascule entre **Sonogramme**, **Spectre** et **Oscillogramme**. Le spectre montre le volume par fréquence avec une vraie FFT (dBFS, moyennage, maintien des crêtes avec des pics qui s'estompent, curseur). L'oscillogramme montre l'évolution dans le temps avec l'indication de niveau (crête/RMS), le passe-bande et un marquage rouge en cas de saturation. La fréquence, la dynamique et les palettes de couleurs valent pour les trois vues. Dans l'analyse, le spectre et l'oscillogramme sont également disponibles.
+**Modes d'affichage (onglet Live) :** dans le panneau d'affichage (appui long), on bascule entre **Sonogramme**, **Spectre** et **Oscillogramme**. Le spectre montre le volume par fréquence avec une vraie FFT (dBFS, moyennage, maintien des crêtes avec des pics qui s'estompent, curseur). L'axe des fréquences du spectre se règle entre **Linéaire** (par défaut, intervalles de Hz égaux) et **Mel** (basses fréquences dilatées, comme dans le sonogramme) ; le quadrillage et l'affichage du curseur suivent ce choix. Le réglage **Intensité (gamma)** agit aussi sur le spectre (hauteur des courbes et grille en dB) et correspond à la même valeur que dans le sonogramme. L'oscillogramme montre l'évolution dans le temps avec l'indication de niveau (crête/RMS), le passe-bande et un marquage rouge en cas de saturation ; sa **fenêtre temporelle** (5 à 30 s) se règle dans le panneau de l'oscillogramme. Un gamma ne fait pas partie de l'oscillogramme. Tant qu'il n'y a pas encore de données, chaque vue affiche son propre message (« Spectre en cours de chargement », « Oscillogramme en cours de chargement »). La fréquence, la dynamique et les palettes de couleurs valent pour les trois vues. Dans l'analyse, le spectre et l'oscillogramme sont également disponibles.
 
 **Adapter l'affichage :** un appui long sur le sonogramme (Live ou Analyse) ouvre le panneau de réglages sous le sonogramme ; les mêmes réglages se trouvent dans Réglages > Affichage. Le panneau vaut pour Live, Analyse et Réglages. En haut du panneau, « Terminé » figure sur une ligne séparée ; les préréglages et les palettes de couleurs sont des tuiles qui passent à la ligne si la place manque.
 
@@ -153,7 +155,7 @@ human_windows.jsonl       liste de travail pour masquer les voix humaines (jamai
 - **Horodatages :** toujours heure locale avec décalage horaire (p. ex. `+02:00`).
 - **Suppression automatique :** les sessions courtes sans détection sont supprimées (durée minimale réglable, 0 = désactivé).
 - **Supprimer** une session dans l'analyse : avec confirmation.
-- **Modifier les données d'une session importée :** pour les sessions importées, le menu de débordement de l'en-tête (icône à trois points) contient l'entrée « Modifier les données » : heure de début, lieu et remarque peuvent être changés après coup. Une nouvelle heure de début décale toutes les heures de la session (détections, vérifications, variantes, parcours) de la même différence ; les positions dans l'enregistrement restent inchangées. Raven et GPX sont réécrits. Le lieu vaut pour la session et toutes les détections sans propre fix GPS ; les points déplacés sur la carte restent. Impossible pendant un rescan.
+- **Modifier les données d'une session importée :** pour les sessions importées, le menu de débordement de l'en-tête (icône à trois points) contient l'entrée « Modifier les données » : heure de début, lieu et remarque peuvent être changés après coup. Une nouvelle heure de début décale toutes les heures de la session (détections, vérifications, variantes, parcours) de la même différence ; les positions dans l'enregistrement restent inchangées. Si la **date** change, PIROL renomme aussi le dossier de session (nouvel identifiant avec la nouvelle heure locale) et le déplace dans le dossier journalier correspondant (si les sous-dossiers journaliers sont activés). L'heure et la date de début se choisissent avec les sélecteurs de date et d'heure. Raven et GPX sont réécrits. Le lieu vaut pour la session et toutes les détections sans propre fix GPS ; les points déplacés sur la carte restent. Impossible pendant un rescan ; un changement de date n'est pas possible non plus tant qu'un envoi de cette session est en file d'attente ou en cours.
 
 ### Changer l'emplacement de stockage
 Réglages > Enregistrement > Emplacement de stockage : « Choisir un autre dossier » (SAF : stockage interne, carte SD, dossier cloud). En option avec des sous-dossiers par jour. Si le dossier est inaccessible, PIROL enregistre dans le dossier de secours de l'application et le signale. Des enregistrements individuels peuvent aussi être déplacés dans l'onglet Analyse (chapitre 6).
@@ -172,16 +174,20 @@ Réglages > Enregistrement > Emplacement de stockage : « Choisir un autre dossi
 - **Vérifier, corriger, ajouter une espèce :** comme dans l'onglet Live, aussi après coup.
 - **Comparaison :** détection et référence côte à côte, avec lecture synchronisée.
 - **Recherche :** l'icône de loupe dans la liste des sessions filtre par nom d'espèce (partie de mot, nom local ou scientifique). Dans une session ouverte, la recherche filtre la liste des détections.
-- **En-tête et barre de lecture :** retour, date et identifiant, lecture avec indication de position, recherche, Raven et envoi. Avec « détection précédente/suivante », on passe d'une entrée à l'autre.
+- **En-tête et barre de lecture :** retour, date et identifiant, lecture avec indication de position, recherche, Raven et envoi. L'envoi signale son résultat dans une barre (« Envoyé », en cas d'erreur avec la cause, ou lorsque PIROL attend une décision, chapitre 7). Avec « détection précédente/suivante », on passe d'une entrée à l'autre.
 - **Navigation :** un appui sur le sonogramme ou l'oscillogramme saute à cet endroit ; si aucune lecture n'est en cours, PIROL mémorise la position de départ (curseur cyan) pour la prochaine lecture.
-- **Spectre et oscillogramme :** comme dans l'onglet Live ; dans l'oscillogramme, un curseur indique la position de lecture.
-- **+ Espèce :** reprend l'heure de la position de lecture (+/-10 s). Le lieu peut être déterminé via « Choisir sur la carte ».
+- **Spectre et oscillogramme :** comme dans l'onglet Live (y compris Linéaire/Mel et gamma, chapitre 3) ; dans l'oscillogramme, un curseur indique la position de lecture.
+- **Zoom à deux doigts :** dans la vue d'ensemble et le sonogramme, on zoome par pincement (deux doigts). L'extrait fait au moins 3 s (pour les sessions plus courtes, toute la session) et au plus l'enregistrement entier ; en dézoomant jusqu'à l'enregistrement entier, le zoom est annulé. Taper et glisser avec un doigt fonctionnent comme avant.
+- **+ Espèce :** reprend l'heure de la position de lecture (+/-10 s). Pour les sessions composées de plusieurs fichiers avec des lacunes entre les segments, PIROL calcule à partir de l'horloge murale du segment concerné ; la fenêtre reste à l'intérieur du segment. Le lieu peut être déterminé via « Choisir sur la carte ».
 - **Vue d'ensemble :** une barre de vue d'ensemble montre les détections sur tout l'enregistrement ; le tableau Raven les liste sous forme de tableau.
 - **Recréer le fichier Raven**, par exemple après une vérification ultérieure.
 - **Partager les épisodes :** chaque épisode a son propre bouton de partage ; c'est l'extrait de cet épisode qui est partagé.
-- **Mémos :** s'il existe des mémos, l'analyse affiche sous le sonogramme et la vue d'ensemble le bloc dépliable « Mémos (n) » (200 dp de hauteur maximale, défilable) avec lecture. Il liste les mémos de session et les mémos d'espèces ; pour les mémos d'espèces sans heure d'enregistrement connue, il indique « env. ... (heure de la détection) ».
-- **Rescan :** le bouton Rescan à côté de la loupe (uniquement si un enregistrement existe) ouvre le choix du modèle, de la liste ou des groupes d'espèces, du seuil de confiance, du chevauchement et du deuxième modèle. Le rescan s'exécute en arrière-plan comme service de premier plan, avec progression et possibilité d'annulation ; le résultat apparaît comme puce à côté de l'original (« Date Heure · Modèle »). Les résultats apparaissent **en continu** : la variante s'ouvre immédiatement, la liste des détections s'allonge toutes les quelques secondes et peut être vérifiée pendant l'analyse (en-tête « · en cours »). En cas d'annulation, le résultat partiel est conservé (« interrompu à x min ») ; il en va de même si l'application est fermée pendant l'analyse. Les vérifications déjà faites ne sont jamais écrasées. Pendant un rescan, aucun enregistrement n'est possible et la variante en cours ne peut pas être supprimée. L'import de fichiers audio utilise la même voie.
+- **Mémos :** s'il existe des mémos, l'analyse affiche sous le sonogramme et la vue d'ensemble le bloc dépliable « Mémos (n) » (200 dp de hauteur maximale, défilable) avec lecture. Il liste les mémos de session et les mémos d'espèces ; pour les mémos d'espèces sans heure d'enregistrement connue, il indique « env. ... (heure de la détection) ». Le menu de chaque mémo propose **Partager** et **Enregistrer sous** (fichier WAV inchangé, nom `AAAAMMJJHHMMSS_Memo_Remarque.wav`, sans masquage des voix) et, pour les mémos de session, **Supprimer** : le mémo disparaît aussitôt, une barre propose **Annuler** (10 s) ; ce n'est qu'ensuite que le fichier est supprimé définitivement. Pendant l'enregistrement en cours, la suppression est bloquée (« Supprimer (enregistrement en cours) »).
+- **Rescan :** le bouton Rescan à côté de la loupe (uniquement si un enregistrement existe) ouvre le choix du modèle, de la liste ou des groupes d'espèces, du seuil de confiance, du chevauchement et du deuxième modèle. Le rescan s'exécute en arrière-plan comme service de premier plan, avec progression et possibilité d'annulation ; le résultat apparaît comme puce à côté de l'original (« Date Heure · Modèle »). Les résultats apparaissent **en continu** : la variante s'ouvre immédiatement, la liste des détections s'allonge toutes les quelques secondes et peut être vérifiée pendant l'analyse (en-tête « · en cours »). En cas d'annulation, le résultat partiel est conservé (« interrompu à x min ») ; il en va de même si l'application est fermée pendant l'analyse. Le rescan est devenu plus rapide : il utilise davantage de cœurs de calcul, et le deuxième modèle tourne en parallèle du modèle principal ; les résultats sont les mêmes qu'avant. Les vérifications déjà faites ne sont jamais écrasées. Pendant un rescan, aucun enregistrement n'est possible et la variante en cours ne peut pas être supprimée. Après l'import de fichiers audio, le scan emprunte la même voie (voir « Importer de l'audio »).
 - **Importer de l'audio :** le bouton Importer dans l'en-tête de la liste des sessions reprend une session PIROL (ZIP ou dossier) ou des fichiers audio (WAV, FLAC, MP3, M4A, OGG) comme nouvelle session. L'heure de début est préremplie (p. ex. d'après un commentaire AudioMoth) et reste modifiable. Pour plusieurs fichiers, on choisit : une session par fichier ou toutes dans une seule session (segments, triés par heure).
+  - **Heure de début :** on choisit la date et l'heure avec les sélecteurs de date et d'heure. L'heure du fichier correspond souvent à la fin de l'enregistrement ; l'interrupteur **« Heure du fichier = fin de l'enregistrement »** (par défaut activé) calcule alors début = heure du fichier moins la durée ; désactivé, l'heure du fichier vaut comme début. Sous le champ figure la source de l'heure.
+  - **Scan après l'import :** ensuite PIROL propose le scan (boîte de dialogue Rescan). Pour plusieurs fichiers importés chacun comme session propre, le choix vaut pour **toutes** les nouvelles sessions, scannées les unes après les autres. Le premier scan complet d'une session importée sans détections devient l'**original** : `detections.jsonl`, `verifications.jsonl` et le fichier Raven se trouvent alors directement dans le dossier de session, sans étape manuelle. Les scans suivants restent des variantes.
+  - **Annulation :** si l'import est annulé (ou échoue), la session à moitié importée est supprimée ; les sessions déjà terminées d'un import multiple restent. Contrairement au rescan, qui conserve son résultat partiel. Si l'on annule la boîte de dialogue du scan, les scans en attente sont abandonnés.
 - **Enregistrer sous :** dans le menu de débordement de l'en-tête. On choisit **ZIP** ou **Dossier**, puis la destination (aussi carte SD, USB ou dossier cloud). Le contenu correspond au ZIP d'envoi ; pour un dossier, un sous-dossier portant le nom d'export est créé (chapitre 7). Une destination dans l'espace PIROL ou dans la session elle-même est refusée. Pour l'enregistrement en cours, l'entrée est grisée. Les voix humaines sont masquées selon le réglage (chapitre 7).
 - **En-tête :** date · commune · remarque sur une ligne ; un appui sur la remarque ouvre la boîte de dialogue. Le sélecteur Compact/Grand correspond à celui de la fiche d'espèce.
 
@@ -223,6 +229,7 @@ Détections géoréférencées sur une carte. Le **menu de la carte** s'ouvre pa
 - **Hors ligne :** pour les cartes swisstopo, la portion visible peut être téléchargée (« Télécharger le secteur », avec indication du nombre de tuiles et de la taille). Une interruption conserve les tuiles déjà chargées ; un nouveau lancement ne charge que les manquantes. « Supprimer les cartes hors ligne » efface toutes les tuiles enregistrées.
 - **Affichage :** toutes les sessions, « Live seulement » ou « 3 dernières ». Les observations rejetées sont masquées. Les marqueurs qui se chevauchent sont regroupés selon le zoom. La carte démarre sur votre position.
 - **Toucher un point :** un appui sur un point ouvre un menu avec Vérifier (Confirmer, Incertain, Rejeter), « Modifier », « Déplacer la position » et Lecture (Lire ou « Arrêter la lecture »). Un appui long ouvre le même menu et permet en plus de relier des observations en observation simultanée. Est lu l'extrait de la détection issu de l'enregistrement de la session ; s'il manque, un message apparaît.
+- **Marqueur de mémo :** les mémos de session avec position (chapitre 2) apparaissent comme marqueurs de microphone. Un appui ouvre une boîte de dialogue avec l'heure et la lecture. Ils sont visibles avec « toutes les sessions » et « 3 dernières », pas avec « Live seulement ».
 - **Plusieurs points superposés (groupe) :** un appui sur un groupe affiche la liste des détections. Pour chaque entrée : Vérifier, Lire et « Déplacer la position ».
 - **Déplacer la position :** la carte affiche en haut l'indication « Déplacer la carte : mettre la croix sur la nouvelle position de ..., puis Valider. » Déplacer la carte pour que la croix au centre se trouve sur la nouvelle position, puis en bas « Valider » (ou « Annuler »). Ensuite apparaît une barre avec **Annuler**. Le déplacement est possible aussi pour les points en direct ; si aucune session n'est en cours, la nouvelle position n'est valable que jusqu'à la fermeture de l'application.
 - **Filtre d'espèces :** dans le menu de la carte, le filtre d'espèces propose « Seulement les espèces d'alarme » ou masquer des espèces individuelles (Toutes/Aucune). Le filtre vaut jusqu'à la fermeture de l'application ; les parcours restent visibles.
@@ -257,6 +264,8 @@ Dans l'alarme, l'espèce peut être **confirmée** directement ; « Annuler » r
 ## 11. Groupes d'espèces et listes d'espèces
 
 Le filtre d'espèces agit par groupe : **Oiseaux, Orthoptères, Amphibiens, Mammifères**, chacun sur **Arrêt / Tout / Auto / Liste** ; **Autres** seulement sur **Arrêt / Tout** (par défaut Arrêt). « Auto » utilise le géomodèle (position et semaine BirdNET). Les espèces inconnues du géomodèle, ainsi que les groupes sans masque de géomodèle, prennent la liste d'accompagnement du groupe (Oiseaux : liste CH ; Orthoptères et Amphibiens : liste CH ci-dessous ; Mammifères : toutes). « Liste » choisit une des listes fournies ou une liste personnelle. La liste « CH Orthoptères & Amphibiens » est fournie (données GBIF, CC BY 4.0).
+
+**Auto sans GPS :** s'il n'y a pas de position actuelle, la dernière position enregistrée vaut au maximum 30 jours ; ensuite, « Auto » prend la liste de remplacement du groupe. Au démarrage de l'enregistrement, une indication le signale, et Réglages > Espèces et alarme (géomodèle) indique la base (« Sans GPS, la dernière position du [date] s'applique (30 jours au maximum), sinon la liste de remplacement »). La position enregistrée n'est mise à jour que lors d'un calcul avec fix GPS. Facultatif : la **liste annuelle** ignore la saison (interrupteur dans la section géomodèle).
 
 Dans l'éditeur de listes, les espèces se choisissent par ordre, famille et genre ; « Afficher les noms scientifiques » permet de basculer la forme des noms.
 
@@ -307,6 +316,8 @@ Ont été testés **BirdNET 2.4** (6 522 espèces, 48 kHz, environ la moitié du
 **Licences :** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 et Nighthawk uniquement non commercial (CC BY-NC ou BY-NC-SA). La licence est affichée lors de l'import.
 
 **Remarque :** Perch fonctionne à 32 kHz ; les sauterelles chanteuses en ultrasons ne sont donc pas audibles.
+
+**Statistique du deuxième modèle (mode expert) :** dans Réglages > Modèle et détection, le bouton « Statistique du deuxième modèle » ouvre une boîte de dialogue. PIROL lit pour cela toutes les sessions (uniquement les originaux, en lecture seule ; les variantes de rescan et les entrées manuelles ne comptent pas) et affiche un tableau croisé : vérification (confirmé, rejeté, incertain, ouvert, corrigé/remplacé) face au résultat du deuxième modèle (Vérifié, Non vérifiable, Contradictoire, Aucun résultat), au total et pour chaque deuxième modèle. S'y ajoutent des barres de progression vers l'objectif (200 détections confirmées et 50 rejetées avec résultat du deuxième modèle) ainsi que la part des contradictions pour les détections confirmées et pour les rejetées. Cela aide à juger si le deuxième modèle est utile comme aide à la vérification. Fermer la boîte de dialogue interrompt la lecture.
 
 **Perch comme deuxième modèle :** nécessite env. 650 Mo de mémoire supplémentaire. L'application avertit à l'activation si l'appareil dispose de moins de 6 Go de RAM. Le deuxième modèle travaille avec l'audio brut de l'enregistrement, afin que les fenêtres de 5 s contiennent l'environnement réel.
 
@@ -364,7 +375,7 @@ Réglages > Modèle et détection > Profil énergétique :
 
 ## 16. Langues
 
-Réglages > Langue : langue de l'application (langue du système ou choix) : allemand, anglais, français, italien, catalan, portugais, néerlandais, suisse allemand. **Le suisse allemand et le portugais sont des brouillons** ; les textes manquants apparaissent en allemand. La langue des **noms d'espèces** suit la langue de l'application, mais peut être réglée séparément (23 langues).
+Réglages > Langue : langue de l'application (langue du système ou choix) : allemand, anglais, français, italien, catalan, portugais, néerlandais, suisse allemand. **Le suisse allemand et le portugais sont des brouillons** ; les textes manquants apparaissent en allemand. La langue des **noms d'espèces** suit la langue de l'application, mais peut être réglée séparément (23 langues). Les noms d'espèces apparaissent toujours dans la langue choisie, y compris sur la carte, dans Raven et pour les détections plus anciennes (ils sont recalculés à l'affichage ; les fichiers enregistrés restent inchangés) ; les espèces renommées se retrouvent aussi sous leur ancien nom. Si un nom manque dans la langue choisie, PIROL prend pour l'allemand le nom allemand des listes d'espèces fournies, pour les autres langues d'abord le nom anglais.
 
 ---
 
@@ -382,9 +393,11 @@ Les réglages sont répartis en sections repliables ; l'état est mémorisé. Pa
 | Carte et GPS | mode GPS, enregistrer le parcours, intervalle GPS, précision et lissage ; experts (Avancé) : « Déterminer la commune en ligne (Google) » |
 | Export et envoi | champs d'export Raven (dont mémo), protection des données (masquer les voix humaines, seuil humain), envoi (destination dossier/NAS, mot de passe, test de connexion, Wi-Fi seulement) |
 | Espèces similaires et références | recherche de similarité, nombre de lignes, enregistrements de comparaison (chapitre 9) |
-| Infos | version, sources, nouveautés, diagnostic (benchmark) |
+| Infos | version, sources, nouveautés, diagnostic (benchmark), « Soutenir PIROL » |
 
 L'interrupteur **Réglages experts** (sous « Lancer la configuration ») masque en mode simple tout ce qui est rare ; en mode expert, tout est visible. Aucun réglage n'est perdu. Les options rares se trouvent dans le sous-bloc repliable « Avancé » de la section concernée (p. ex. filtre passe-haut, regroupement des détections, phénologie, durée max. d'enregistrement).
+
+**Soutenir PIROL :** dans Réglages > Infos, le bouton « Soutenir PIROL » ouvre la page de don dans le navigateur. Le don est facultatif ; PIROL reste gratuit et complet.
 
 **Rééchantillonneur :** Polyphase (recommandé) filtre les bruits parasites au-dessus de 16 kHz, qui pourraient sinon apparaître comme signaux fantômes. « Linéaire » est l'ancienne méthode. Le changement affiche une indication et prend effet sans redémarrer l'enregistrement.
 
@@ -405,17 +418,47 @@ L'interrupteur **Réglages experts** (sous « Lancer la configuration ») masque
 
 La liste complète figure dans `CHANGELOG.md` du projet.
 
+### Version 0.1.3
+- Mémos de session : suppression avec Annuler, position enregistrée à l'appui et affichée comme marqueur sur la carte, partage et enregistrer sous (chapitres 2, 6, 8)
+- Import : sélecteurs de date et d'heure, interrupteur « Heure du fichier = fin de l'enregistrement », scan pour toutes les sessions importées, le premier scan devient l'original avec Raven dans le dossier (chapitre 6)
+- Changer la date d'une session importée renomme le dossier de session et le déplace dans le bon dossier journalier (chapitre 5)
+- « + Espèce » tient compte des lacunes entre les segments (chapitre 6)
+- Spectre : fréquence linéaire (par défaut) ou Mel, gamma aussi dans le spectre, fenêtre temporelle dans l'oscillogramme (chapitre 3)
+- Analyse : zoom à deux doigts, l'envoi signale son résultat par une barre (chapitre 6)
+- Rescan plus rapide, deuxième modèle en parallèle (chapitre 6)
+- Auto sans GPS : dernière position jusqu'à 30 jours, indication au démarrage, base dans les réglages, liste annuelle (chapitre 11)
+- Statistique du deuxième modèle en mode expert (chapitre 13)
+- Noms d'espèces toujours dans la langue choisie, noms allemands des listes comme repli (chapitre 16)
+- Bouton « Soutenir PIROL » (facultatif) dans Réglages > Infos (chapitre 17)
+- Aide : le mode aide couvre plus d'éléments, y compris les marqueurs de carte et les boîtes de dialogue (chapitre 1)
+- Nouveau chapitre 20 : installation et mise à jour
+
 ### Version 0.1.2
 - Modifier après coup les données de sessions importées (heure de début, lieu, remarque) (chapitre 5)
 - « Enregistrer sous » en ZIP ou en dossier (chapitre 6)
 - Raven : une ligne par épisode, nouvelles colonnes `Cluster`, `Windows` et `Memo` (chapitre 7)
-- Rescan et import : résultats visibles et vérifiables en continu, l'annulation conserve le résultat partiel (chapitre 6)
+- Rescan et import : résultats visibles et vérifiables en continu ; avec le rescan, l'annulation conserve le résultat partiel, avec l'import, elle supprime la session à moitié importée (chapitre 6)
 - Voix humaines masquées dans l'export, activé par défaut ; demande de confirmation si le modèle n'a pas de classe humaine (chapitre 7)
 - Commune en ligne via Google seulement comme option, désactivée par défaut (chapitre 17)
 - Mémo de session par appui maintenu, bloc « Mémos » dans l'analyse, ligne Mémo dans Raven (chapitres 2, 6, 7)
 - Fiches d'espèces en direct plus calmes : changement au plus toutes les 5 s, correspondances dans le top 5 en bleu (chapitre 2)
 - Bouton d'aide « ? » : mode aide et mode d'emploi hors ligne (chapitre 1)
 - Mode d'emploi corrigé : filtre d'espèces dans le menu de la carte (chapitre 8), noms des sections de Réglages (chapitres 1, 5, 7, 17)
+
+---
+
+## 20. Installation et mise à jour
+
+**Quelle APK ?** Chaque version est publiée sur GitHub (Nikiphedia/Pirol, rubrique « Releases ») avec une APK par architecture de processeur :
+- `Pirol-<Version>-arm64-v8a-release.apk` : pour presque tous les téléphones et tablettes récents. En cas de doute, prendre ce fichier.
+- `Pirol-<Version>-armeabi-v7a-release.apk` : seulement pour les anciens appareils 32 bits.
+
+**Installation :**
+1. Télécharger l'APK correspondante depuis la publication GitHub sur l'appareil, puis l'ouvrir. Android demande la première fois si le navigateur ou le gestionnaire de fichiers utilisé peut installer des applications ; l'autoriser une fois.
+2. **Appareils Samsung :** la fonction **« Blocage automatique »** (Auto Blocker ; Réglages > Sécurité et confidentialité) empêche l'installation d'applications hors du store. La désactiver brièvement pour l'installation, installer PIROL, puis la réactiver. Cela doit être refait **à chaque mise à jour**.
+3. Appuyer sur Installer, puis ouvrir l'application. Au premier démarrage, l'assistant de configuration guide à travers les réglages de base (chapitre 1).
+
+**Mise à jour :** installer la nouvelle APK simplement par-dessus l'installation existante (même architecture ; sur Samsung, de nouveau avec le blocage automatique brièvement désactivé). Sessions, modèles, listes et réglages sont conservés ; rien n'a besoin d'être désinstallé. Les remarques sur les anciennes versions figurent au chapitre 1 (mise à jour depuis les anciennes versions). Après la mise à jour, PIROL affiche une fois « Nouveautés ».
 
 ---
 

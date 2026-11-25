@@ -15,7 +15,7 @@ De app heeft vijf tabbladen: **Live**, **Analyse**, **Referenties**, **Kaart** e
 3. **Model downloaden**: er kunnen meerdere modellen tegelijk gekozen worden. Standaard is BirdNET 3.0 FP16 (aanbevolen, ca. 170 MB). De download loopt op de achtergrond door, kan worden onderbroken en later worden voortgezet. Je kunt ook handmatig een modelbestand kiezen.
 4. **Opslaglocatie controleren** (Instellingen > Opname). Standaard: `Downloads/PIROL/`, zichtbaar via USB.
 
-**Installatie (APK):** Er is per processorarchitectuur een release-APK. Voor actuele toestellen (telefoons en tablets) installeer je het bestand `Pirol-<versie>-arm64-v8a-release.apk`; alleen voor oude 32-bit-toestellen het bestand `...-armeabi-v7a-release.apk`. De APK's zijn daardoor veel kleiner dan vroeger de gezamenlijke APK. De app heeft een nieuw pictogram (gele vogel), ook als eenkleurig pictogram voor themapictogrammen.
+**Installatie (APK):** Er is per processorarchitectuur een release-APK. Voor actuele toestellen (telefoons en tablets) installeer je het bestand `Pirol-<versie>-arm64-v8a-release.apk`; alleen voor oude 32-bit-toestellen het bestand `...-armeabi-v7a-release.apk`. De APK's zijn daardoor veel kleiner dan vroeger de gezamenlijke APK. De app heeft een nieuw pictogram (gele vogel), ook als eenkleurig pictogram voor themapictogrammen. De uitgebreide beschrijving van installatie en update (ook voor Samsung-toestellen) staat in hoofdstuk 20.
 
 **Wat is nieuw:** Na een update toont PIROL eenmalig een dialoog "Wat is nieuw" met de belangrijkste wijzigingen van de versie. Hij kan op elk moment opnieuw worden opgeroepen in de instellingen onder "Info".
 
@@ -69,6 +69,8 @@ De volgorde van de soortkaarten verandert hoogstens elke 5 s. Nieuwe soorten wor
 ### Sessiememo
 De memoknop in het tabblad Live (alleen zichtbaar tijdens een opname) werkt als een walkie-talkie: **ingedrukt houden en spreken**, bij loslaten eindigt het memo. Tijdens de opname is de knop rood en toont hij de looptijd; daarna verschijnt "Memo opgeslagen (n s)". Memo's korter dan 0,5 s worden weggegooid ("Te kort"); na 3 minuten eindigt een memo automatisch. Het memo wordt opgeslagen met zijn positie in de opname (`memos.jsonl`, bestanden onder `memos/`), verschijnt in de analyse in het blok "Memo's" (hoofdstuk 6) en als regel "Memo" in de Raven-export (hoofdstuk 7). Memo's worden nooit als stem verborgen (hoofdstuk 7). Spraakmemo's bij afzonderlijke soorten blijven hiervan gescheiden.
 
+Op het moment van indrukken onthoudt PIROL de laatste GPS-fix (niet ouder dan 2 min) en slaat die op bij het memo; op de kaart verschijnt het memo dan als microfoonmarkering (hoofdstuk 8). Zonder actuele fix heeft het memo geen locatie. Wissen, delen en opslaan als: hoofdstuk 6.
+
 ### Meervoudige herkenning en confidentiedrempel
 Binnen hetzelfde venster van 3 s worden alle soorten herkend die de drempel bereiken, niet alleen de bovenste. De schuifregelaar heet "Confidentiedrempel (alle soorten)" (Instellingen > Model & detectie, standaard 50 %) en geldt voor alle soorten gelijk. Soorten daaronder, maar boven de kandidatengrens, blijven als kandidaten bij de detecties van het venster. Vroeger stuurde de regelaar een andere drempel (TopK, standaard 0,3); controleer daarom na de update. Watchlist-alarmen worden pas vanaf de drempel geactiveerd.
 
@@ -93,7 +95,7 @@ Het hoogdoorlaatfilter (200 Hz) filtert wind en voetstappen, standaard aan. Het 
 
 In het tabblad Live en Analyse. De frequentie-as toont 1/2/4/8/12 kHz. Standaard wordt tot **12 kHz** weergegeven (voorinstelling voor vogels), instelbaar tot **24 kHz**. De niveaus van het sonogram zijn in dBFS.
 
-**Weergavemodi (tabblad Live):** In het weergavepaneel (lang indrukken) schakel je tussen **sonogram**, **spectrum** en **oscillogram**. Het spectrum toont de luidheid per frequentie met een echte FFT (dBFS, middeling, piekvasthouding met vervagende pieken, cursor). Het oscillogram toont het tijdsverloop met een niveauweergave (piek/RMS), bandpass en een rode markering bij overstuurd. Frequentie, dynamiek en kleurpatroon gelden gezamenlijk voor alle drie de weergaven. In de analyse zijn spectrum en oscillogram eveneens beschikbaar.
+**Weergavemodi (tabblad Live):** In het weergavepaneel (lang indrukken) schakel je tussen **sonogram**, **spectrum** en **oscillogram**. Het spectrum toont de luidheid per frequentie met een echte FFT (dBFS, middeling, piekvasthouding met vervagende pieken, cursor). De frequentie-as van het spectrum is in te stellen op **Lineair** (standaard, gelijke Hz-afstanden) of **Mel** (lage frequenties gespreid, zoals in het sonogram); raster en cursorweergave volgen die keuze. De regelaar **Intensiteit (gamma)** werkt ook op het spectrum (hoogte van de curven en dB-raster) en is dezelfde waarde als in het sonogram. Het oscillogram toont het tijdsverloop met een niveauweergave (piek/RMS), bandpass en een rode markering bij overstuurd; het **tijdvenster** (5 tot 30 s) stel je in het oscillogram-paneel in. Gamma hoort niet bij het oscillogram. Zolang er nog geen gegevens zijn, toont elke weergave een eigen melding ("Spectrum wordt geladen…", "Oscillogram wordt geladen…"). Frequentie, dynamiek en kleurpatroon gelden gezamenlijk voor alle drie de weergaven. In de analyse zijn spectrum en oscillogram eveneens beschikbaar.
 
 **Weergave aanpassen:** Lang indrukken op het sonogram (Live of Analyse) opent het instellingenpaneel onder het sonogram; dezelfde regelaars staan onder Instellingen > Weergave. Het paneel geldt gezamenlijk voor Live, Analyse en Instellingen. Bovenaan het paneel staat "Gereed" op een eigen regel; voorinstellingen en kleurpaletten zijn tegels die bij gebrek aan ruimte doorlopen naar de volgende regel.
 
@@ -153,7 +155,7 @@ human_windows.jsonl       lijst om menselijke stemmen te verbergen (nooit geëxp
 - **Tijdstempels:** altijd lokale tijd met tijdzoneverschil (bijv. `+02:00`).
 - **Automatisch wissen:** korte sessies zonder detectie worden gewist (minimale duur instelbaar, 0 = uit).
 - **Wissen** van een sessie in de analyse: met bevestiging.
-- **Gegevens van geïmporteerde sessies bewerken:** Bij geïmporteerde sessies staat in het overloopmenu van de kop (pictogram met drie puntjes) het item "Gegevens bewerken": begintijd, locatie en opmerking kunnen achteraf worden gewijzigd. Een nieuwe begintijd verschuift alle tijden van de sessie (detecties, verificaties, varianten, route) met hetzelfde verschil; posities in de opname blijven gelijk. Raven en GPX worden opnieuw geschreven. De locatie geldt voor de sessie en voor alle detecties zonder eigen GPS-fix; op de kaart verplaatste punten blijven behouden. Niet mogelijk tijdens een rescan.
+- **Gegevens van geïmporteerde sessies bewerken:** Bij geïmporteerde sessies staat in het overloopmenu van de kop (pictogram met drie puntjes) het item "Gegevens bewerken": begintijd, locatie en opmerking kunnen achteraf worden gewijzigd. Een nieuwe begintijd verschuift alle tijden van de sessie (detecties, verificaties, varianten, route) met hetzelfde verschil; posities in de opname blijven gelijk. Als de **datum** verandert, hernoemt PIROL ook de sessiemap (nieuwe kenmerk met de nieuwe lokale tijd) en verplaatst die naar de bijbehorende dagmap (als dagelijkse submappen aan staan). Begintijd en datum kies je met de datum- en tijdkiezer. Raven en GPX worden opnieuw geschreven. De locatie geldt voor de sessie en voor alle detecties zonder eigen GPS-fix; op de kaart verplaatste punten blijven behouden. Niet mogelijk tijdens een rescan; ook een datumwijziging is niet mogelijk zolang een upload van deze sessie in de wachtrij staat of bezig is.
 
 ### Opslaglocatie wijzigen
 Instellingen > Opname > Opslaglocatie: "Andere map kiezen" (SAF: intern geheugen, SD-kaart, cloudmap). Optioneel met dagelijkse submappen. Is de map niet bereikbaar, dan slaat PIROL op in de reservemap van de app en meldt dit. Afzonderlijke opnames kun je ook in het tabblad Analyse verplaatsen (hoofdstuk 6).
@@ -172,16 +174,20 @@ Instellingen > Opname > Opslaglocatie: "Andere map kiezen" (SAF: intern geheugen
 - **Verifiëren, corrigeren, soort toevoegen:** zoals in het tabblad Live, ook achteraf.
 - **Vergelijking:** detectie en referentie naast elkaar, met synchroon afspelen.
 - **Zoeken:** Het zoeksymbool in de sessielijst filtert op soortnaam (deel van een woord, Nederlandse of wetenschappelijke naam). In een geopende opname filtert het zoeken de detectielijst.
-- **Kop en afspeelbalk:** Terug, datum en kenmerk, Afspelen met positieaanduiding, Zoeken, Raven en Uploaden. Met vorige/volgende detectie spring je tussen de items.
+- **Kop en afspeelbalk:** Terug, datum en kenmerk, Afspelen met positieaanduiding, Zoeken, Raven en Uploaden. De upload meldt het resultaat met een melding ("Geüpload", bij een fout met de reden, of dat PIROL op een beslissing wacht, hoofdstuk 7). Met vorige/volgende detectie spring je tussen de items.
 - **Navigatie:** Tikken in het sonogram of oscillogram springt naar die plek; loopt er geen afspelen, dan onthoudt PIROL de startpositie (cyaankleurige wijzer) voor het volgende Afspelen.
-- **Spectrum en oscillogram:** zoals in het tabblad Live; in het oscillogram toont een wijzer de afspeelpositie.
-- **+ Soort:** neemt de tijd over van de afspeelpositie (+/-10 s). De locatie kan via "Op kaart kiezen" worden bepaald.
+- **Spectrum en oscillogram:** zoals in het tabblad Live (inclusief Lineair/Mel en gamma, hoofdstuk 3); in het oscillogram toont een wijzer de afspeelpositie.
+- **Zoomen met twee vingers:** in het overzicht en het sonogram zoom je met knijpen (twee vingers). Het fragment is minstens 3 s (bij kortere sessies de hele sessie) en hoogstens de hele opname; uitzoomen tot de hele opname heft de zoom op. Tikken en slepen met één vinger werkt zoals voorheen.
+- **+ Soort:** neemt de tijd over van de afspeelpositie (+/-10 s). Bij sessies uit meerdere bestanden met gaten tussen de segmenten rekent PIROL met de wandklok van het betreffende segment; het venster blijft binnen het segment. De locatie kan via "Op kaart kiezen" worden bepaald.
 - **Overzicht:** Een overzichtsbalk toont de detecties over de hele opname; de Raven-tabel toont ze als tabel.
 - **Raven-bestand opnieuw maken**, bijv. na latere verificatie.
 - **Episodes delen:** elke episode heeft een eigen deelknop; gedeeld wordt het fragment van deze episode.
-- **Memo's:** Zijn er memo's, dan toont de analyse onder sonogram en overzicht het uitklapbare blok "Memo's (n)" (hoogstens 200 dp hoog, scrollbaar) met afspelen. Het toont sessie-memo's en memo's bij soorten; bij soortmemo's zonder bekende opnametijd staat "ca. ... (tijd van de detectie)".
-- **Rescan:** De rescan-knop naast het vergrootglas (alleen als er een opname is) opent de keuze van model, lijst of soortgroepen, confidentiedrempel, overlap en tweede model. De rescan loopt op de achtergrond als voorgronddienst met voortgang en annuleren; het resultaat verschijnt als chip naast het origineel ("datum tijd · model"). De resultaten verschijnen **doorlopend**: de variant opent meteen, de detectielijst groeit elke paar seconden en kan al tijdens de scan worden geverifieerd (kop "· bezig"). Bij annuleren blijft het tussentijdse resultaat bewaard ("afgebroken bij x min"); hetzelfde geldt als de app tijdens de scan wordt afgesloten. Reeds uitgevoerde verificaties worden nooit overschreven. Tijdens een rescan is geen opname mogelijk en is de lopende variant niet wisbaar. Het importeren van audiobestanden gebruikt dezelfde weg.
+- **Memo's:** Zijn er memo's, dan toont de analyse onder sonogram en overzicht het uitklapbare blok "Memo's (n)" (hoogstens 200 dp hoog, scrollbaar) met afspelen. Het toont sessie-memo's en memo's bij soorten; bij soortmemo's zonder bekende opnametijd staat "ca. ... (tijd van de detectie)". Het memomenu biedt **Delen** en **Opslaan als** (het WAV-bestand ongewijzigd, naam `JJJJMMDDUUMMSS_Memo_Opmerking.wav`, zonder verbergen van stemmen) en bij sessiememo's **Verwijderen**: het memo verdwijnt meteen, een melding biedt **Ongedaan maken** (10 s); pas daarna wordt het bestand definitief gewist. Tijdens de lopende opname is verwijderen geblokkeerd ("Verwijderen (opname bezig)").
+- **Rescan:** De rescan-knop naast het vergrootglas (alleen als er een opname is) opent de keuze van model, lijst of soortgroepen, confidentiedrempel, overlap en tweede model. De rescan loopt op de achtergrond als voorgronddienst met voortgang en annuleren; het resultaat verschijnt als chip naast het origineel ("datum tijd · model"). De resultaten verschijnen **doorlopend**: de variant opent meteen, de detectielijst groeit elke paar seconden en kan al tijdens de scan worden geverifieerd (kop "· bezig"). Bij annuleren blijft het tussentijdse resultaat bewaard ("afgebroken bij x min"); hetzelfde geldt als de app tijdens de scan wordt afgesloten. Het rescan is sneller geworden: het gebruikt meer rekenkernen en het tweede model draait parallel aan het hoofdmodel; de resultaten zijn dezelfde als voorheen. Reeds uitgevoerde verificaties worden nooit overschreven. Tijdens een rescan is geen opname mogelijk en is de lopende variant niet wisbaar. Na het importeren van audiobestanden volgt de scan dezelfde weg (zie "Audio importeren").
 - **Audio importeren:** De importknop in de kop van de sessielijst neemt een PIROL-sessie (ZIP of map) of audiobestanden (WAV, FLAC, MP3, M4A, OGG) over als nieuwe sessie. De begintijd is vooringevuld (bijv. uit een AudioMoth-opmerking) en is aanpasbaar. Bij meerdere bestanden kies je: per bestand een sessie of alles in één sessie (segmenten, op tijd gesorteerd).
+  - **Begintijd:** je kiest datum en tijd met de datum- en tijdkiezer. De bestandstijd is bij recorders vaak het einde van de opname; de schakelaar **"Bestandstijd = einde van de opname"** (standaard aan) rekent dan begin = bestandstijd min de looptijd; uit betekent dat de bestandstijd als begin geldt. Onder het veld staat waar de tijd vandaan komt.
+  - **Scan na import:** daarna biedt PIROL de scan aan (Rescan-dialoog). Bij meerdere bestanden die elk als eigen sessie worden geïmporteerd, geldt de keuze voor **alle** nieuwe sessies, die na elkaar worden gescand. De eerste volledige scan van een geïmporteerde sessie zonder detecties wordt het **origineel**: `detections.jsonl`, `verifications.jsonl` en het Raven-bestand staan dan direct in de sessiemap, zonder handmatige stap. Latere scans blijven varianten.
+  - **Afbreken:** breek je de import af (of mislukt die), dan wordt de halfgeïmporteerde sessie verwijderd; reeds voltooide sessies van een meervoudige import blijven bewaard. Anders dan bij de rescan, die zijn tussentijdse resultaat bewaart. Breek je de scan-dialoog af, dan vervallen de wachtende scans.
 - **Opslaan als:** In het overloopmenu van de kop. Je kiest **ZIP** of **Map** en daarna het doel (ook SD-kaart, USB of cloudmap). De inhoud komt overeen met de upload-ZIP; bij een map ontstaat een submap met de exportnaam (hoofdstuk 7). Een doel in de PIROL-opslag of in de sessie zelf wordt geweigerd. Voor de lopende opname is het item grijs. Menselijke stemmen worden afhankelijk van de instelling verborgen (hoofdstuk 7).
 - **Kop:** Datum · gemeente · opmerking in één regel; een tik op de opmerking opent het dialoogvenster. De compact/groot-schakelaar komt overeen met die van de soortkaart.
 
@@ -223,6 +229,7 @@ Georeferentieerde detecties op een kaart. Het **kaartmenu** opent zich door van 
 - **Offline:** Voor swisstopo-kaarten kan het zichtbare gebied worden gedownload ("Gebied downloaden", met het aantal tegels en de grootte). Een afbreking behoudt reeds geladen tegels; een nieuwe start laadt alleen wat ontbreekt. "Offline kaarten verwijderen" verwijdert alle opgeslagen tegels.
 - **Weergave:** alle sessies, "Alleen live" of "Laatste 3". Afgewezen waarnemingen zijn verborgen. Overlappende markers worden afhankelijk van de zoom gegroepeerd. De kaart start op je eigen locatie.
 - **Punt aantikken:** Een tik op een punt opent een menu met Verifiëren (Bevestigen, Onzeker, Afwijzen), "Bewerken", "Positie verplaatsen" en Afspelen (Afspelen bzw. "Afspelen stoppen"). Een lang indrukken opent hetzelfde menu en staat bovendien toe waarnemingen als gelijktijdige waarneming te koppelen. Afgespeeld wordt het fragment van de detectie uit de sessieopname; ontbreekt die, dan verschijnt een melding.
+- **Memomarkering:** sessiememo's met positie (hoofdstuk 2) verschijnen als microfoonmarkering. Een tik opent een dialoog met tijd en afspelen. Ze zijn zichtbaar bij "Alle sessies" en "Laatste 3", niet bij "Alleen live".
 - **Meerdere punten op elkaar (cluster):** Een tik op een cluster toont de lijst van detecties. Per item is er Verifiëren, Afspelen en "Positie verplaatsen".
 - **Positie verplaatsen:** De kaart toont bovenaan de melding "Kaart verschuiven: kruisdraad op de nieuwe positie van ..., dan Overnemen." Verschuif de kaart zo dat de kruisdraad in het midden op de nieuwe positie ligt, en tik daarna onderaan op "Overnemen" (of "Annuleren"). Daarna verschijnt een snackbar met **Ongedaan maken**. Verplaatsen kan ook bij live-punten; loopt er geen sessie, dan geldt de nieuwe positie alleen tot het sluiten van de app.
 - **Soortenfilter:** In het kaartmenu staat het soortenfilter: "Alleen alarmsoorten" of afzonderlijke soorten verbergen (Alle/Geen). Het filter geldt tot de app wordt gesloten; routes blijven zichtbaar.
@@ -257,6 +264,8 @@ In het alarm kan de soort direct worden **bevestigd**; "Ongedaan maken" blijft d
 ## 11. Soortgroepen en soortenlijsten
 
 Het soortenfilter werkt per soortgroep: **Vogels, sprinkhanen, amfibieën, zoogdieren** elk **Uit / Alle / Auto / Lijst**; **Overig** alleen **Uit / Alle** (standaard Uit). "Auto" gebruikt het geomodel (locatie en BirdNET-week). Soorten die het geomodel niet kent, en groepen zonder geomodelmasker, nemen de begeleidende lijst van de groep (vogels: CH-lijst, sprinkhanen en amfibieën: CH-lijst hieronder, zoogdieren: alle). "Lijst" kiest een van de meegeleverde of eigen lijsten. Meegeleverd is de lijst "CH sprinkhanen & amfibieën" (gegevens GBIF, CC BY 4.0).
+
+**Auto zonder GPS:** ontbreekt een actuele locatie, dan geldt de laatst opgeslagen positie maximaal 30 dagen; daarna gebruikt "Auto" de vervanglijst van de groep. Bij de start van de opname verschijnt een melding, en in Instellingen > Soorten & alarm (geomodel) staat de basis ("Zonder GPS geldt de laatste positie van [datum] (maximaal 30 dagen), anders de vervanglijst"). De opgeslagen positie wordt alleen bijgewerkt bij een berekening met GPS-fix. Optioneel negeert de **jaarlijst** het seizoen (schakelaar in het geomodel-onderdeel).
 
 In de lijsteditor kun je soorten kiezen op orde, familie en geslacht; "Wetenschappelijke soortnamen tonen" schakelt de naamvorm om.
 
@@ -308,6 +317,8 @@ Getest zijn **BirdNET 2.4** (6'522 soorten, 48 kHz, ongeveer de helft van de rek
 **Licenties:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 en Nighthawk alleen niet-commercieel (CC BY-NC resp. BY-NC-SA). De licentie wordt bij het importeren getoond.
 
 **Let op:** Perch werkt met 32 kHz; sabelsprinkhanen die in het ultrasone bereik roepen, zijn daarmee niet hoorbaar.
+
+**Statistiek van het tweede model (expertmodus):** in Instellingen > Model & detectie opent de knop "Statistiek tweede model" een dialoog. PIROL leest daarvoor alle sessies (alleen de originelen, alleen-lezen; rescan-varianten en handmatige items tellen niet mee) en toont een kruistabel: verificatie (bevestigd, afgewezen, onzeker, open, gecorrigeerd/vervangen) tegen het resultaat van het tweede model (Gecontroleerd, Niet controleerbaar, Spreekt tegen, Geen resultaat), totaal en per tweede model. Daarbij komen voortgangsbalken naar het doel (200 bevestigde en 50 afgewezen detecties met resultaat van het tweede model) en het aandeel tegenstrijdigheden bij bevestigde en bij afgewezen detecties. Zo zie je of het tweede model als verificatiehulp bruikbaar is. Sluiten van de dialoog breekt het inlezen af.
 
 **Perch als tweede model:** heeft ca. 650 MB extra opslagruimte nodig. De app waarschuwt bij het inschakelen als het toestel minder dan 6 GB RAM heeft. Het tweede model werkt met het ruwe audiosignaal van de opname, zodat de 5-s-vensters de echte omgeving bevatten.
 
@@ -365,7 +376,7 @@ Instellingen > Model & detectie > Energieprofiel:
 
 ## 16. Talen
 
-Instellingen > Taal: taal van de app (systeemtaal of keuze): Duits, Engels, Frans, Italiaans, Catalaans, Portugees, Nederlands, Zwitserduits. **Zwitserduits en Portugees zijn concepten**; ontbrekende teksten verschijnen in het Duits. De taal van de **soortnamen** volgt de app-taal, maar kan apart worden ingesteld (23 talen).
+Instellingen > Taal: taal van de app (systeemtaal of keuze): Duits, Engels, Frans, Italiaans, Catalaans, Portugees, Nederlands, Zwitserduits. **Zwitserduits en Portugees zijn concepten**; ontbrekende teksten verschijnen in het Duits. De taal van de **soortnamen** volgt de app-taal, maar kan apart worden ingesteld (23 talen). Soortnamen verschijnen overal in de gekozen taal, ook op de kaart, in Raven en bij oudere detecties (ze worden bij het tonen opnieuw bepaald; opgeslagen bestanden blijven ongewijzigd); hernoemde soorten vind je ook onder hun oude naam. Ontbreekt een naam in de gekozen taal, dan neemt PIROL bij Duits de Duitse naam uit de meegeleverde soortenlijsten, bij andere talen eerst de Engelse naam.
 
 ---
 
@@ -383,9 +394,11 @@ De instellingen zijn in inklapbare onderdelen gegroepeerd; de stand wordt onthou
 | Kaart & GPS | GPS-modus, route opnemen, GPS-interval, nauwkeurigheid en afvlakking; expert (Geavanceerd): "Gemeente online bepalen (Google)" |
 | Export & upload | Raven-exportvelden (incl. memo), privacy (menselijke stemmen verbergen, mens-drempel), upload (doel map/NAS, wachtwoord, verbindingstest, alleen wifi) |
 | Vergelijkbare soorten & referenties | gelijkenisonderzoek, aantal regels, vergelijkingsopnames (hoofdstuk 9) |
-| Info | versie, bronnen, Wat is nieuw, diagnose (benchmark) |
+| Info | versie, bronnen, Wat is nieuw, diagnose (benchmark), "Steun PIROL" |
 
 De schakelaar **Expertinstellingen** (onder "Installatie starten") verbergt in de eenvoudige modus alles wat zeldzaam is; in de expertmodus is alles zichtbaar. Er gaat daarbij geen instelling verloren. Zeldzame opties staan in het inklapbare subblok "Geavanceerd" van het betreffende onderdeel (bijv. hoogdoorlaatfilter, detectieclusters, fenologie, max. opnamelengte).
+
+**Steun PIROL:** in Instellingen > Info opent de knop "Steun PIROL" de donatiepagina in de browser. De donatie is vrijblijvend; PIROL blijft gratis en volledig.
 
 **Resampler:** Polyfase (aanbevolen) filtert storingsgeluiden boven 16 kHz weg, die anders als spookssignalen kunnen verschijnen. "Lineair" is de oude methode. De omschakeling toont een melding en werkt zonder de opname opnieuw te starten.
 
@@ -406,17 +419,47 @@ De schakelaar **Expertinstellingen** (onder "Installatie starten") verbergt in d
 
 De volledige lijst staat in `CHANGELOG.md` in het project.
 
+### Versie 0.1.3
+- Sessiememo's: verwijderen met Ongedaan maken, positie bij indrukken opgeslagen en als markering op de kaart, delen en opslaan als (hoofdstuk 2, 6, 8)
+- Import: datum- en tijdkiezer, schakelaar "Bestandstijd = einde van de opname", scan voor alle geïmporteerde sessies, eerste scan wordt origineel met Raven in de map (hoofdstuk 6)
+- Datumwijziging van een geïmporteerde sessie hernoemt de sessiemap en verplaatst die naar de juiste dagmap (hoofdstuk 5)
+- "+ Soort" houdt rekening met gaten tussen segmenten (hoofdstuk 6)
+- Spectrum: frequentie-as Lineair (standaard) of Mel, gamma ook in het spectrum, tijdvenster in het oscillogram (hoofdstuk 3)
+- Analyse: zoomen met twee vingers, de upload meldt het resultaat met een melding (hoofdstuk 6)
+- Rescan sneller, tweede model parallel (hoofdstuk 6)
+- Auto zonder GPS: laatste positie tot 30 dagen, melding bij de start, basis in de instellingen, jaarlijst (hoofdstuk 11)
+- Statistiek tweede model in expertmodus (hoofdstuk 13)
+- Soortnamen altijd in de gekozen taal, Duitse namen uit de lijsten als terugval (hoofdstuk 16)
+- Knop "Steun PIROL" (vrijblijvend) in Instellingen > Info (hoofdstuk 17)
+- Hulp: de hulpmodus dekt meer bedieningselementen, ook kaartmarkeringen en dialogen (hoofdstuk 1)
+- Nieuw hoofdstuk 20: installatie en update
+
 ### Versie 0.1.2
 - Gegevens van geïmporteerde sessies (begintijd, locatie, opmerking) achteraf bewerken (hoofdstuk 5)
 - "Opslaan als" als ZIP of map (hoofdstuk 6)
 - Raven: één regel per episode, nieuwe kolommen `Cluster`, `Windows` en `Memo` (hoofdstuk 6, 7)
-- Rescan en import: resultaten doorlopend zichtbaar en verifieerbaar, afbreken behoudt het tussentijdse resultaat (hoofdstuk 6)
+- Rescan en import: resultaten doorlopend zichtbaar en verifieerbaar; bij de rescan behoudt afbreken het tussentijdse resultaat, bij de import verwijdert het de halfgeïmporteerde sessie (hoofdstuk 6)
 - Menselijke stemmen worden in de export verborgen, standaard aan; vraag bij model zonder mensklasse (hoofdstuk 7)
 - Gemeente online via Google alleen nog als optie, standaard uit (hoofdstuk 17)
 - Sessiememo door ingedrukt houden, blok "Memo's" in de analyse, memoregel in Raven (hoofdstuk 2, 6, 7)
 - Rustigere live-soortkaarten: wissel hoogstens elke 5 s, treffers in de top 5 knipperen blauw (hoofdstuk 2)
 - Hulpknop "?": hulpmodus en handleiding offline (hoofdstuk 1)
 - Handleiding gecorrigeerd: soortenfilter in het kaartmenu (hoofdstuk 8), namen van de instellingenonderdelen (hoofdstuk 1, 5, 7, 17)
+
+---
+
+## 20. Installatie en update
+
+**Welke APK?** Elke versie staat als release op GitHub (Nikiphedia/Pirol, onderdeel "Releases") met per processorarchitectuur een APK:
+- `Pirol-<versie>-arm64-v8a-release.apk`: voor bijna alle actuele telefoons en tablets. Twijfel je, neem dit bestand.
+- `Pirol-<versie>-armeabi-v7a-release.apk`: alleen voor oudere 32-bit-toestellen.
+
+**Installatie:**
+1. Download de passende APK uit de GitHub-release op het toestel en open hem. Android vraagt de eerste keer of de gebruikte browser of bestandsbeheerder apps mag installeren; sta dat eenmalig toe.
+2. **Samsung-toestellen:** de functie **"Automatische blokkering"** (Auto Blocker; Instellingen > Beveiliging en privacy) verhindert het installeren van apps buiten de store. Schakel die voor de installatie kort uit, installeer PIROL en schakel hem daarna weer in. Dit geldt **bij elke update** opnieuw.
+3. Tik op Installeren en open de app. Bij de eerste start leidt de installatieassistent je door de basisinstellingen (hoofdstuk 1).
+
+**Update:** installeer de nieuwe APK gewoon over de bestaande installatie (dezelfde architectuur; bij Samsung weer met kort uitgeschakelde automatische blokkering). Sessies, modellen, lijsten en instellingen blijven behouden; er hoeft niets te worden verwijderd. Aanwijzingen over oudere versies staan in hoofdstuk 1 (update van oudere versies). Na de update toont PIROL eenmalig "Wat is nieuw".
 
 ---
 
