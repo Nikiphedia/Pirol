@@ -17,7 +17,7 @@ Di App het fönf Tab: **Live**, **Analyse**, **Referänze**, **Charte** und **Is
 3. **Modell** abelade: Me cha mehreri Modelle uf eimal wähle. Standard isch BirdNET 3.0 FP16 (empfohle, ca. 170 MB). Dr Download louft im Hintergrund witer, cha abbroche und spöter wiiter gah. Alternativ e Modell-Datei vo Hand wähle.
 4. **Speicherort** prüefe (Istellige > Ufnahm). Standard: `Downloads/PIROL/`, per USB sichtbar.
 
-**Installation (APK):** D Release-APK git's pro Prozessor-Architektur. Für aktuelli Gerät (Telefon und Tablet) d Datei `Pirol-<Version>-arm64-v8a-release.apk` installiere, nume für alti 32-Bit-Gerät d Datei `...-armeabi-v7a-release.apk`. D APKs si dadurch dütlich chliiner als früener di gmeinsami APK. D App het es neus Symbol (gäle Vogel), au als eifarbigs Symbol für Themed Icons.
+**Installation (APK):** D Release-APK git's pro Prozessor-Architektur. Für aktuelli Gerät (Telefon und Tablet) d Datei `Pirol-<Version>-arm64-v8a-release.apk` installiere, nume für alti 32-Bit-Gerät d Datei `...-armeabi-v7a-release.apk`. D APKs si dadurch dütlich chliiner als früener di gmeinsami APK. D App het es neus Symbol (gäle Vogel), au als eifarbigs Symbol für Themed Icons. Details zur Installation und zum Update (au Samsung-Gerät) stönd im Kapitel 20.
 
 **Was isch neu:** Nach emene Update zeigt PIROL eimal e Dialog "Was isch neu" mit de wichtigste Änderige vo de Version. Er cha jederzit under de Istellige unter "Info" wider ufgrüeft werde.
 
@@ -71,6 +71,8 @@ D Riihefolg vo de Artcharte ändert sich höchschtens alle 5 s. Neui Arte wärde
 ### Session-Memo
 De Memo-Knopf im Live-Tab (nume während ere Ufnahm sichtbar) funktioniert wie es Walkie-Talkie: **gdrückt halte und rede**, bim Loslo ändet s Memo. Während de Ufnahm isch de Knopf rot und zeigt d Laufziit; druf erschiint "Memo gspicheret (n s)". Memos unter 0.5 s wärde verworfe ("Z churz"), nach 3 Minute ändet es Memo automatisch. S Memo wird mit siiner Lag i de Ufnahm gspicheret (`memos.jsonl`, Dateie unter `memos/`), erschiint i de Analyse im Block "Memos" (Kapitel 6) und als Zile "Memo" im Raven-Export (Kapitel 7). Memos wärde nie als Stimm usgblendet (Kapitel 7). Sprach-Memos zu einzelne Arte blibe dervo trennt.
 
+Bim Drücke merkt sich PIROL de letscht GPS-Fix (nid elter als 2 min) und speichert en mit em Memo; uf de Charte erschiint s Memo de als Mikrofon-Marker (Kapitel 8). Ohni aktuelle Fix het s Memo kei Ort. Lösche, Teile und Speichere unter: Kapitel 6.
+
 ### Mehrfacherkennig und Konfidänz-Schwälle
 Im gliiche 3-s-Fänster wärde alli Arte erkennt, wo d Schwälle erreiche, nid nume di oberscht. De Rägler heisst "Konfidänz-Schwälle (alli Arte)" (Istellige > Modell & Erkennig, Standard 50 %) und gilt für alli Arte gliich. Arte drunger, aber über de Kandidate-Grenze, bliibe als Kandidate bi de Detäktione vom Fänster. Früener het de Rägler e anderi Schwälle gsteuert (TopK, Standard 0.3); drum nach em Update prüefe. Watchlist-Alarm lö erscht ab de Schwälle uus.
 
@@ -87,15 +89,15 @@ Analysefänster chönne sich überlappe: 0 % (Standard, Fänster alli 3 s), 50 %
 Nach de iigschtellte Maximaldauer (Standard 60 min, iistellbar 10-80 min) fangt automatisch e nüi Datei aa (`recording-002.wav` usw.). D Ufnahm louft ohni Unterbruch witer. Ziitaagabe i `detections.jsonl` und Raven gälte ab Session-Start. De WAV-Chopf wird alli 5 s nachgfüehrt: Wird d App hart beände, gönd höchschtens ca. 3 s Audio verlore.
 
 ### Hochpassfilter und Ufbereitig
-De Hochpassfilter (200 Hz) filtered Wind und Trittschall, standardmäßig aa. Er wirkt nume uf d Kopie für d Erkennig, di gspicheret Ufnahm bliibt unverändert. Änderige gälte ab de nöchschte Ufnahm.
+De Hochpassfilter (200 Hz) filtered Wind und Trittschall, standardmässig aa. Er wirkt nume uf d Kopie für d Erkennig, di gspicheret Ufnahm bliibt unverändert. Änderige gälte ab de nöchschte Ufnahm.
 
 ---
 
 ## 3. Aasicht: Sonogramm, Spektrum, Oszillogramm
 
-Im Live- und im Analyse-Tab. D Frequänzachse zeigt 1/2/4/8/12 kHz. Dargstellt wird standardmäßig bis **12 kHz** (Voriistellig für Vögel), iistellbar bis **24 kHz**. D Pegel vom Sonogramm si in dBFS.
+Im Live- und im Analyse-Tab. D Frequänzachse zeigt 1/2/4/8/12 kHz. Dargstellt wird standardmässig bis **12 kHz** (Voriistellig für Vögel), iistellbar bis **24 kHz**. D Pegel vom Sonogramm si in dBFS.
 
-**Aasicht-Modi (Live-Tab):** Im Aasicht-Panel (Langdruck) schaltet me zwüsche **Sonogramm**, **Spektrum** und **Oszillogramm** um. S Spektrum zeigt d Lautstärke je Frequänz mit echter FFT (dBFS, Mittelig, Spitze-Halte mit verblassende Spitze, Cursor). S Oszillogramm zeigt de Ziitverlauf mit Pegelaazeig (Peak/RMS), Bandpass und rot Markierig bi Übersteuerig. Frequänz, Dynamik und Farbmuster gälte für alli drü Aasichte zäme. In de Analyse stönd Spektrum und Oszillogramm au zur Verfüegig.
+**Aasicht-Modi (Live-Tab):** Im Aasicht-Panel (Langdruck) schaltet me zwüsche **Sonogramm**, **Spektrum** und **Oszillogramm** um. S Spektrum zeigt d Lautstärke je Frequänz mit echter FFT (dBFS, Mittelig, Spitze-Halte mit verblassende Spitze, Cursor). Im Spektrum-Panel chasch d Frequänzachse zwüsche **Linear** (Standard, glychi Hz-Abstand) und **Mel** (tiefi Frequänze gstreckt, wie im Sonogramm) umschalte; Raster und Cursor-Aazeig folge dr Wahl. De Rägler **Intensität (Gamma)** wirkt au im Spektrum (Kurvehöchi und dB-Raster) und isch dr gliich Wert wie im Sonogramm. S Oszillogramm zeigt de Ziitverlauf mit Pegelaazeig (Peak/RMS), Bandpass und rot Markierig bi Übersteuerig; sis **Ziitfenster** (5 bis 30 s) stellt me im Oszillogramm-Panel ii. E Gamma-Rägler gheert nid zum Oszillogramm. Solang no kei Date da sind, het jedi Aasicht e eigene Hiiwis ("Spektrum wird glade", "Oszillogramm wird glade"). Frequänz, Dynamik und Farbmuster gälte für alli drü Aasichte zäme. In de Analyse stönd Spektrum und Oszillogramm au zur Verfüegig.
 
 **Darstellig aapasse:** Langdruck uf s Sonogramm (Live oder Analyse) öffnet s Iistellig-Panel under em Sonogramm; di gliiche Rägler stönd under Istellige > Aazeig. S Panel gilt für Live, Analyse und Istellige zäme. Obe im Panel stoht "Fertig" i eigener Zile; Voriistellige und Farbpalette si Chachle, wo bi Platzmangel umbreche.
 
@@ -137,7 +139,7 @@ Im **Live-Tab** gits bim Verifiziere kei Snackbar meh. Nach "Bstätige" zeigt d 
 
 ## 5. Sessione
 
-Jedi Ufnahm erzüügt en Session-Ordner, standardmäßig `Downloads/PIROL/YYYY-MM-DD/{sessionId}/`. De Ordnername treit d Ortszit.
+Jedi Ufnahm erzüügt en Session-Ordner, standardmässig `Downloads/PIROL/YYYY-MM-DD/{sessionId}/`. De Ordnername treit d Ortszit.
 
 ```
 session.json              Metadate (Dauer, Ort, GPS-Statistik, verwendet Modell)
@@ -155,7 +157,7 @@ human_windows.jsonl       Merkliste für s Usblände menschlichi Stimme (nie exp
 - **Ziitstämpel:** immer Ortszit mit Zone-Offset (z.B. `+02:00`).
 - **Auto-Lösche:** Churzi Sessione ohni Detäktion wärde gläscht (Minimaldauer iistellbar, 0 = uus).
 - **Lösche** vo ere Session i de Analyse: mit Bstätigung.
-- **Aagaabe vo importierte Sessione bearbeite:** Bi importierte Sessione gits im Überlaufmenü vo de Chopfzile (Symbol mit drü Pünkt) de Iitrag "Aagaabe bearbeite": Startziit, Ort und Bemerkig lö sich nachträglich ändere. Ei nüi Startziit verschiebt alli Ziite vo de Session (Detäktione, Verifikatione, Variante, Route) um di gliich Differänz; Positione i de Ufnahm bliibe. Raven und GPX wärde nöi gschriebe. De Ort gilt für d Session und alli Detäktione ohni eigene GPS-Fix; uf de Charte verschobeni Pünkt bliibe. Nid megli während emene Rescan.
+- **Aagaabe vo importierte Sessione bearbeite:** Bi importierte Sessione gits im Überlaufmenü vo de Chopfzile (Symbol mit drü Pünkt) de Iitrag "Aagaabe bearbeite": Startziit, Ort und Bemerkig lö sich nachträglich ändere. Ei nüi Startziit verschiebt alli Ziite vo de Session (Detäktione, Verifikatione, Variante, Route) um di gliich Differänz; Positione i de Ufnahm bliibe. Ändert sich s **Datum**, benennt PIROL o de Session-Ordner um (nöii Kennig mit de nöie Ortszit) und verschiebt en i de passende Tagesordner (sofern Tages-Unterordner aa sind). Startziit und Datum wählt me mit de Datums- und Ziitauswahl. Raven und GPX wärde nöi gschriebe. De Ort gilt für d Session und alli Detäktione ohni eigene GPS-Fix; uf de Charte verschobeni Pünkt bliibe. Nid megli während emene Rescan; e Datumsändrig isch o nid megli, solang es Upload vo dere Session igreiht oder aktiv isch.
 
 ### Speicherort wächsle
 Istellige > Ufnahm > Speicherort: "Anderen Ordner wähle" (SAF: interne Speicher, SD-Charte, Cloud-Ordner). Optional mit Tages-Unterordner. Isch de Ordner nid erreichbar, speichert PIROL im Fallback-Ordner vo de App und meldet das. Einzeli Ufnahme lö sich au im Analyse-Tab verschiebe (Kapitel 6).
@@ -174,16 +176,20 @@ Istellige > Ufnahm > Speicherort: "Anderen Ordner wähle" (SAF: interne Speicher
 - **Verifiziere, korrigiere, Art zuefüege:** wie im Live-Tab, au nachträglich.
 - **Vergliich:** Detäktion und Referänz neebeenand, mit synchroner Wiedergab.
 - **Suech:** S Such-Symbol i de Session-Lischte filtered noch Artname (Teilwort, dütsche oder wüsseschaftleche Name). I ere ufgmachte Ufnahm filtered d Suech d Detäktionslischte.
-- **Chopfzile und Wiedergabelischte:** Zrügg, Datum und Chennung, Play mit Positionsaazeig, Suech, Raven und Upload. Mit vorige/nöchschti Detäktion springt me zwüsche de Iiträge.
+- **Chopfzile und Wiedergabelischte:** Zrügg, Datum und Chennung, Play mit Positionsaazeig, Suech, Raven und Upload. Ds Ergäbnis vom Upload zeigt en Snackbar ("Hochgeladen", bi Fehler mit Grund, oder dass PIROL uf en Entscheid wartet, Kapitel 7). Mit vorige/nöchschti Detäktion springt me zwüsche de Iiträge.
 - **Navigation:** Tippe im Sonogramm oder Oszillogramm springt a di Stell; louft kei Wiedergab, merkt sich PIROL d Startposition (cyanfarbene Zeiger) für s nöchscht Play.
-- **Spektrum und Oszillogramm:** wie im Live-Tab; im Oszillogramm zeigt en Zeiger d Abspielposition.
-- **+ Art:** übernimmt d Ziit us de Abspielposition (+/-10 s). De Ort lat sich über "Uf Charte wähle" bestimme.
+- **Spektrum und Oszillogramm:** wie im Live-Tab (incl. Linear/Mel und Gamma, Kapitel 3); im Oszillogramm zeigt en Zeiger d Abspielposition.
+- **Zoom mit zwei Finger:** In de Ibersichtsliischte und im Sonogramm zoomt me mit Pinch (zwei Finger). Dr Uusschnitt isch mindeschtens 3 s (bi churze Sessione di ganzi Session) und höchstens di ganzi Ufnahm; wenn me uf di ganzi Ufnahm uuszoomt, isch de Zoom ufghobe. Tippe und Zieh mit eim Finger funktioniere wie bisher.
+- **+ Art:** übernimmt d Ziit us de Abspielposition (+/-10 s). Bi Sessione us mehrere Dateie mit Lücke zwüsche de Segmänt rächnet PIROL über d Wanduhr vo dem Segment; s Fänster bliibt i somene Segment. De Ort lat sich über "Uf Charte wähle" bestimme.
 - **Ibersicht:** Ne Ibersichtsliischte zeigt d Detäktione über di ganzi Ufnahm; d Raven-Tabälle listet sie als Tabälle.
 - **Raven-Datei nöi erzüge**, z.B. nach nachträglicher Verifikation.
 - **Episode teile:** Jedi Episode hät en eigene Teile-Knopf; teilt wird de Uusschnitt vo dere Episode.
-- **Memos:** Gits Memos, zeigt d Analyse under Sonogramm und Ibersicht de uufklappbare Block "Memos (n)" (höchschtens 200 dp hoch, scrollbar) mit Abspiele. Er listet Session-Memos und Memos zu Arte; bi Art-Memos ohni bekannti Ufnahmziit stoht "ca. ... (Ziit vo de Detäktion)".
-- **Rescan:** De Rescan-Knopf näbe de Lupe (nume wenn e Ufnahm da isch) öffnet d Wahl vo Modell, Lischte bzw. Artgruppe, Konfidänz-Schwälle, Überlappig und Zweitmodell. De Rescan louft im Hintergrund als Vordergrund-Dienscht mit Fortschritt und Abbreche; s Ergebnis erschiint als Chip näbe em Original ("Datum Zit · Modell"). D Ergäbnis erschiine **loufend**: D Variante öffnet sich sofort, d Detäktionslischte wachst alli paar Sekunde und lat sich scho während em Scan verifiziere (Chopfzile "· louft"). Bim Abbreche bliibt s Teilergebnis erhalte ("abgbroche bi x min"); dasälb gilt, wenn d App während em Scan beändet wird. Bereits vorgnoo Verifikatione wärde nie überschriebe. Während eme Rescan isch kei Ufnahm megli und d loufendi Variante nid löschbar. Dr Import vo Audiodateie bruucht dän gliiche Wäg.
+- **Memos:** Gits Memos, zeigt d Analyse under Sonogramm und Ibersicht de uufklappbare Block "Memos (n)" (höchschtens 200 dp hoch, scrollbar) mit Abspiele. Er listet Session-Memos und Memos zu Arte; bi Art-Memos ohni bekannti Ufnahmziit stoht "ca. ... (Ziit vo de Detäktion)". Ds Menü vo jedem Memo biet **Teile** und **Speichere unter** (d WAV-Datei unverändert, Name `YYYYMMDDHHMMSS_Memo_Bemerkig.wav`, ohni Usblände vo Stimme) und bi Session-Memos **Lösche**: Ds Memo verschwindet sofort, en Snackbar biet **Rückgängig** (10 s); erst dernoo wird d Datei endgültig gläscht. In de grad laufende Ufnahm isch Lösche gsperrt ("Lösche (Ufnahm louft)").
+- **Rescan:** De Rescan-Knopf näbe de Lupe (nume wenn e Ufnahm da isch) öffnet d Wahl vo Modell, Lischte bzw. Artgruppe, Konfidänz-Schwälle, Überlappig und Zweitmodell. De Rescan louft im Hintergrund als Vordergrund-Dienscht mit Fortschritt und Abbreche; s Ergebnis erschiint als Chip näbe em Original ("Datum Zit · Modell"). D Ergäbnis erschiine **loufend**: D Variante öffnet sich sofort, d Detäktionslischte wachst alli paar Sekunde und lat sich scho während em Scan verifiziere (Chopfzile "· louft"). Bim Abbreche bliibt s Teilergebnis erhalte ("abgbroche bi x min"); dasälb gilt, wenn d App während em Scan beändet wird. Dr Rescan isch schnäller worde: Er rächnet mit meh Rächekärne, und s Zweitmodell louft parallel zum Hauptmodell; d Ergäbnis si gliich wie vorher. Bereits vorgnoo Verifikatione wärde nie überschriebe. Während eme Rescan isch kei Ufnahm megli und d loufendi Variante nid löschbar. Nach emene Import vo Audiodateie louft de Scan dän gliiche Wäg (sihe "Audio importiere").
 - **Audio importiere:** De Import-Knopf im Chopf vo de Session-Lischte übernimmt e PIROL-Session (ZIP oder Ordner) oder Audiodateie (WAV, FLAC, MP3, M4A, OGG) als nöii Session. D Startziit stoht vorbelegt (z.B. us emene AudioMoth-Kommentar) und isch ändrbar. Bi mehrere Dateie wählt me: je Datei e Session oder alli zu eir Session (Segmänt, nach Ziit sortiert).
+  - **Startziit:** Datum und Ziit wählt me mit de Datums- und Ziitauswahl. Bi Recordern isch d Dateiziit oft s Ende vo de Ufnahm; de Schalter **"Dateiziit = Ände"** (Standard aa) rechnet dänn Start = Dateiziit minus Laufziit, usgschaltet gilt d Dateiziit als Start. Under em Fäld steit, woher d Ziit chunnt.
+  - **Scan nach em Import:** Anschliessend biet PIROL dr Scan a (Rescan-Dialog). Bi mehrere Dateie, wo je als eigeni Session importiert wärde, gilt d Wahl für **alli** nöie Sessione, wo nacheinander gscannt wärde. Dr erscht vollständig Scan vo ere importierte Session ohni Detäktione wird zum **Original**: `detections.jsonl`, `verifications.jsonl` und d Raven-Datei lige de direkt im Session-Ordner, ohni manuelle Schritt. Spöteri Scans blibe Varianten.
+  - **Abbruch:** Bricht me de Import ab (oder schiitet er), wird d grad halb importierti Session gläscht; scho fertigi Sessione vo me Mehrfach-Import blibe erhalte. Das isch andersch als bim Rescan, wo s Teilergebnis bhaltet. Bricht me de Scan-Dialog ab, werde d wartende Scans verworfe.
 - **Speichere unter:** Im Überlaufmenü vo de Chopfzile. Me wählt **ZIP** oder **Ordner** und druf s Ziel (au SD-Charte, USB oder Cloud-Ordner). De Inhalt entspricht em Upload-ZIP; bim Ordner entsteht en Unterordner mit em Exportname (Kapitel 7). E Ziel i de PIROL-Ablag oder i de Session sälber wird abgläh. Für di laufendi Ufnahm isch de Iitrag usgegraut. Menschlichi Stimme wärde je nach Iistellig usgblendet (Kapitel 7).
 - **Chopfzile:** Datum · Gmäind · Bemerkig i ere Zile; ei Tipp uf d Bemerkig öffnet de Dialog. De Kompakt/Gross-Umschalter entspricht dem vo de Artcharte.
 
@@ -225,6 +231,7 @@ Georeferenzierti Detäktione uf ere Charte. S **Chartemenü** öffnet sich per W
 - **Offline:** Für swisstopo-Charte lat sich de sichtbari Uusschnitt abelade ("Uusschnitt abelade", mit Aagab vo de Chachle-Aazahl und Grössi). E Abbruch bhaltet bereits gladeni Chachle; en erneuti Start lad nume s Fählende. "Offline-Charte lösche" entfernt alli gspicherete Chachle.
 - **Aazeig:** alli Sessione, "Nume Live" oder "Letschti 3". Abgläinti Beobachtige si usgbländet. Überlappendi Marker wärde je nach Zoom gruppiert. D Charte startet uf em eigene Standort.
 - **Pünkt aatippe:** En Tipp uf en Pünkt öffnet es Menü mit Verifiziere (Bstätige, Unsicher, Ablehne), "Bearbeite", "Position verschiebe" und Abspiele (Play bzw. "Wiedergab stoppe"). E Langdruck öffnet dasälb Menü und erlaubt zuesätzlich, Beobachtige als Simultanbeobachtig z verbinde. Abgspielt wird de Uusschnitt vo de Detäktion us de Session-Ufnahm; fehlt sie, erschiint en Meldig.
+- **Memo-Marker:** Session-Memos mit Position (Kapitel 2) erschiine als Mikrofon-Marker. En Tipp öffnet en Dialog mit Ziit und Abspiele. Si sind bi "Alli Sessione" und "Letschti 3" sichtbar, nid bi "Nume Live".
 - **Mehreri Pünkt übere enang (Cluster):** En Tipp uf es Cluster zeigt d Lischte vo de Detäktione. Pro Iitrag gits Verifiziere, Abspiele und "Position verschiebe".
 - **Position verschiebe:** D Charte zeigt obe de Hiiwis "Charte verschiebe: Fadechrüz uf di nöii Position vo ..., dänn Ibernäh." D Charte so verschiebe, dass s Fadechrüz i de Mitti uf de nöie Position lit, dänn unde "Ibernäh" (oder "Abbreche"). Druf erschiint e Snackbar mit **Rückgängig**. S Verschiebe geht au für Live-Pünkt; louft kei Session, gilt di nöi Position nume bis zum Zue vo de App.
 - **Artfilter:** Im Chartemenü stoht de Artfilter: "Nume Alarmarte" oder einzelni Arte usblände (Alli/Kei). De Filter gilt bis zum Zue vo de App; Route bliibe sichtbar.
@@ -259,6 +266,8 @@ Im Alarm cha d Art direkt **bstätigt** wärde; "Rückgängig" bliibt dernoo ver
 ## 11. Artgruppe und Artelischte
 
 De Artfilter wirkt pro Artgruppe: **Vögel, Heuschrecke, Amphibie, Säugetier** je **Aus / Alli / Auto / Lischte**; **Anderi** nume **Aus / Alli** (Standard Aus). "Auto" bruucht s Geomodell (Standort und BirdNET-Woche). Arte, wo s Geomodell nid kennt, sowie Gruppe ohni Geomodell-Maske, nehme d Begleitlischte vo de Gruppe (Vögel: CH-Lischte, Heuschrecke und Amphibie: CH-Lischte unde, Säugetier: alli). "Lischte" wählt eini vo de mitgliferete oder eigene Lischte. Mitgliferet isch d Lischte "CH Heuschrecke & Amphibie" (Date GBIF, CC BY 4.0).
+
+**Auto ohni GPS:** Fählt en aktuelle Standort, gilt di zletscht gspicheret Position höchstens 30 Tag; danach nimmt "Auto" d Begleitlischte vo de Gruppe. E Hiiwis bim Start vo de Ufnahm weist druf hii, und unter Istellige > Arte & Alarm (Geomodell) steit d Grundlag ("Ohni GPS gilt di letscht Position vom ..." bzw. "Kei aktuelli Position: Es gilt d Begleitlischte vo de Gruppe"). D gspicheret Position wird nume bi emene Berechnig mit GPS-Fix aktualisiert. Optional ignoriert d **Jahresliischte** d Jahreszit (Schalter im Geomodell-Abschnitt).
 
 Im Lischte-Editor lö sich Arte nach Ordnig, Familie und Gattig uswähle; "Artname wüsseschaftlich azeige" schaltet d Namesform um.
 
@@ -310,6 +319,8 @@ Gprüeft si **BirdNET 2.4** (6'522 Arte, 48 kHz, ungfähr halbi Rächezit vo 3.0
 **Lizänze:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 und Nighthawk nume nid-kommerziell (CC BY-NC bzw. BY-NC-SA). D Lizänz wird bim Import aazeigt.
 
 **Hiiwis:** Perch arbeitet mit 32 kHz; Laubheuschrecke im Ultraschall si dermit nid hörbar.
+
+**Zweitmodell-Statistik (Experte-Modus):** Under Istellige > Modell & Erkennig öffnet de Knopf "Zweitmodell-Statistik" es Dialog. PIROL liest dafür alli Sessione (nume d Originale, nume lesend; Rescan-Varianten und mänuelli Iiträg zähle nid) und zeigt e Chrüztabälle: Verifikation (bstätigt, abgläh, unsicher, offe, korrigiert/ersetzt) gäge s Ergäbnis vom Zweitmodell (Gprüeft, Nid prüefbar, Widersprüchlich, Kei Ergäbnis), gsamt und pro Zweitmodell. Dezue chömed Fortschrittsbalke zum Ziel (200 bstätigti und 50 abgläinti Detäktione mit Zweitmodell-Ergäbnis) und dr Aateil vo de Widersprüch bi bstätigte und bi abgläinte Detäktione. Das hilft Iischätze, ob s Zweitmodell als Prüefhilf taugt. Zuemache vom Dialog bricht s Iilese ab.
 
 **Perch als Zweitmodell:** bruucht ca. 650 MB zuesätzlichen Speicher. D App warnt bim Iischalte, wenn s Gerät weniger als 6 GB RAM het. S Zweitmodell arbeitet mit em Rohaudio vo de Ufnahm, damit d 5-s-Fänster echti Umgäbig enthalte.
 
@@ -367,13 +378,13 @@ Istellige > Modell & Erkennig > Energieprofil:
 
 ## 16. Sprache
 
-Istellige > Sprach: Sprach vo de App (Systemsprach oder Uswahl): Dütsch, Änglisch, Französisch, Italienisch, Katalanisch, Portugiesisch, Niederländisch, Bärndütsch. **Bärndütsch und Portugiesisch si Entwürf**, fählendi Texte erschiine uf Dütsch. D **Artename**-Sprach folgt de App-Sprach, cha aber separat gsetzt werde (23 Sprache).
+Istellige > Sprach: Sprach vo de App (Systemsprach oder Uswahl): Dütsch, Änglisch, Französisch, Italienisch, Katalanisch, Portugiesisch, Niederländisch, Bärndütsch. **Bärndütsch und Portugiesisch si Entwürf**, fählendi Texte erschiine uf Dütsch. D **Artename**-Sprach folgt de App-Sprach, cha aber separat gsetzt werde (23 Sprache). Artename erschiine durchgängig i de gwählte Sprach, o uf de Charte, im Raven und bi ältere Detäktione (si wärde bim Aazeige neu ufglöst, gspicheret Dateie blibe unverändert); umbenannti Arte findet PIROL o unger irem alte Name. Fählt en Name i de gwählte Sprach, nimmt PIROL bi Dütsch de dütsche Name us de mitgliferete Artelischte, bi andere Sprache zersch de änglisch Name.
 
 ---
 
 ## 17. Istellige im Überblick
 
-D Istellige si i ufklappbari Sektione gglideret; de Zuestand wird gmerkt. Standardmäßig offe isch nume "Sprach".
+D Istellige si i ufklappbari Sektione gglideret; de Zuestand wird gmerkt. Standardmässig offe isch nume "Sprach".
 
 | Sektion | Inhalt |
 |---------|--------|
@@ -385,9 +396,11 @@ D Istellige si i ufklappbari Sektione gglideret; de Zuestand wird gmerkt. Standa
 | Karte & GPS | GPS-Modus, Route ufzeichne, GPS-Intervall, Genauigkeit und Glättig; Experte (Erwiitert): "Gmäind online ermittle (Google)" |
 | Export & Upload | Raven-Export-Felder (inkl. Memo), Datenschutz (menschlichi Stimme usblände, Mensch-Schwälle), Upload (Ziel Ordner/NAS, Passwort, Verbindigstest, nume WLAN) |
 | Ähnlichi Arte & Referänze | Ähnlichkeitssuech, Zilezahl, Vergliichsufnahme (Kapitel 9) |
-| Info | Version, Quelle, Was isch neu, Diagnose (Benchmark) |
+| Info | Version, Quelle, Was isch neu, Diagnose (Benchmark), "PIROL unterstütze" |
 
 De Schalter **Experteistellige** (under "Iirichtig starte") blendet im Ii-fach-Modus alles Sälte us; im Experte-Modus isch alles sichtbar. Kei Istellig geit debii verlore. Sälteni Optione stönd im ufklappbare Unterblock "Erwiitert" vo de jeweilige Sektion (z.B. Hochpassfilter, Detäktions-Cluster, Phänologie, Max. Ufnahmelänge).
+
+**PIROL unterstütze:** Under Istellige > Info öffnet dr Knopf "PIROL unterstütze" d Spändeseite im Browser. D Spände isch fräiwillig; PIROL blibt gratis und vollständig.
 
 **Resampler:** Polyphase (empfohle) filtered Störgräusch über 16 kHz, wo sust als Gschpängschter erschiine chönne. "Linear" isch d alt Method. D Umschaltig zeigt en Hiiwis und wirkt ohni Neischtart vo de Ufnahm.
 
@@ -408,17 +421,47 @@ De Schalter **Experteistellige** (under "Iirichtig starte") blendet im Ii-fach-M
 
 D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
+### Version 0.1.3
+- Session-Memos: lösche mit Rückgängig, Standort bim Drücke gspicheret und als Marker uf de Charte, teile und speichere unter (Kapitel 2, 6, 8)
+- Import: Datums- und Ziitauswahl, Schalter "Dateiziit = Ände", Scan für alli importierte Sessione, dr erscht Scan wird Original mit Raven im Ordner (Kapitel 6)
+- Datumsändrig vo ere importierte Session benennt de Ordner um und verschiebt en i de richtige Tagesordner (Kapitel 5)
+- "+ Art" berücksichtigt Lücke zwüsche Segmänt (Kapitel 6)
+- Spektrum: Linear (Standard) oder Mel, Gamma o im Spektrum, Ziitfenster im Oszillogramm (Kapitel 3)
+- Analyse: Zoom mit zwei Finger, Upload meldet sis Ergäbnis mit Snackbar (Kapitel 6)
+- Rescan schneller, Zweitmodell parallel (Kapitel 6)
+- Auto-Filter ohni GPS: letschti Position bis 30 Tag, Hiiwis bim Start, Grundlag i de Istellige, Jahresliischte (Kapitel 11)
+- Zweitmodell-Statistik im Experte-Modus (Kapitel 13)
+- Artename durchgängig i de gwählte Sprach, dütschi Name us de Artelischte (Kapitel 16)
+- Knopf "PIROL unterstütze" (fräiwillig) under Istellige > Info (Kapitel 17)
+- Hilfemodus deckt meh Bedienelemänt ab, o Kartemarker und Dialog (Kapitel 1)
+- Neus Kapitel 20: Installation und Update
+
 ### Version 0.1.2
 - Aagaabe vo importierte Sessione (Startziit, Ort, Bemerkig) nachträglich bearbeite (Kapitel 5)
 - "Speichere unter" als ZIP oder Ordner (Kapitel 6)
 - Raven: eini Zile pro Episode, nöii Spalte `Cluster`, `Windows` und `Memo` (Kapitel 7)
-- Rescan und Import: Ergäbnis loufend sichtbar und verifizierbar, Abbruch bhaltet s Teilergebnis (Kapitel 6)
+- Rescan und Import: Ergäbnis loufend sichtbar und verifizierbar, bim Rescan bhaltet dr Abbruch s Teilergebnis, bim Import lösched er d halb importierti Session (Kapitel 6)
 - Menschlichi Stimme wärde im Export usgblände, Standard aa; Rückfrag bi Modell ohni Mensch-Klass (Kapitel 7)
 - Gmäind online über Google nume no als Option, Standard us (Kapitel 17)
 - Session-Memo per gdrückt halte, Block "Memos" i de Analyse, Memo-Zile im Raven (Kapitel 2, 6, 7)
 - Live-Artcharte ruehiger: Wächsel höchschtens alli 5 s, Träffer i de Top 5 blinke blau (Kapitel 2)
 - Hilfe-Knopf "?": Hilfemodus und Aleitig offline (Kapitel 1)
 - Aleitig korrigiert: Artfilter im Chartemenü (Kapitel 8), Istellige-Sektionsnamen (Kapitel 1, 5, 7, 17)
+
+---
+
+## 20. Installation und Update
+
+**Weli APK?** Jedi Version gits als Release uf GitHub (Nikiphedia/Pirol, Bereich "Releases") mit je einer APK pro Prozessor-Architektur:
+- `Pirol-<Version>-arm64-v8a-release.apk`: für fast alli aktuelle Telefone und Tablets. Im Zwiifel di Datei nää.
+- `Pirol-<Version>-armeabi-v7a-release.apk`: nume für elteri 32-Bit-Gerät.
+
+**Installation:**
+1. Di passendi APK us em GitHub-Release uf s Gerät lade und öffne. Android fragt bim erschte Mal, ob dr brucht Browser oder Dateimanager Apps installiere dörf; das eimal erlaube.
+2. **Samsung-Gerät:** D Funktion **"Automatische Sperre"** (Auto Blocker; Istellige > Sicherheit und Datenschutz) verhindert d Installation vo Apps usserhalb vom Store. Si für d Installation churz uusschalte, PIROL installiere und nachher wider aaschalte. Das gilt **bi jedem Update** wider.
+3. Installiere antippe und d App öffne. Bim erschte Start füehrt dr Iirichtigs-Assistänt dür di Grundistellige (Kapitel 1).
+
+**Update:** Di neu APK eifach über di bestehendi Installation installiere (gliichi Architektur; bi Samsung wider mit churz uusgschaltetere Automatischer Sperre). Sessione, Modelle, Lischte und Istellige bliibe erhalte; nüt muess deinstalliert werde. Hiiwis zu ältere Versione stönd im Kapitel 1 (Update vo ältere Versione). Nach em Update zeigt PIROL eimal "Was isch neu".
 
 ---
 
