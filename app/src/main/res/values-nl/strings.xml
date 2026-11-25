@@ -622,15 +622,15 @@
     <string name="settings_whats_new_button">Wat is nieuw</string>
     <string name="settings_info_version">Versie %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven: één regel per episode, nieuwe kolom Memo</item>
-        <item>Opnieuw analyseren en import: resultaten direct zichtbaar en controleerbaar; annuleren behoudt het deelresultaat</item>
-        <item>Gegevens van geïmporteerde sessies achteraf bewerken; opslaan als ZIP of map</item>
-        <item>Menselijke stemmen worden in de export verborgen (standaard aan)</item>
-        <item>Sessiememo door ingedrukt te houden; blok Memo\'s in de analyse</item>
-        <item>Rustigere live-soortkaarten: wisseling hooguit elke 5 s, treffers in de top 5 knipperen blauw</item>
-        <item>Hulpknop "?": hulpmodus en handleiding offline</item>
-        <item>Gemeente via Google alleen nog als optie, standaard uit</item>
-        <item>App volledig vertaald: Frans, Italiaans, Catalaans, Portugees, Nederlands, Berndeutsch (concept)</item>
+        <item>Sessiememo\'s: verwijderen met ongedaan maken, locatie op de kaart, delen en opslaan als</item>
+        <item>Import: datum- en tijdkeuze, alle geïmporteerde sessies worden gescand; een datumwijziging verplaatst de sessiemap</item>
+        <item>Analyse: zoomen met twee vingers in overzicht en sonogram; uploaden meldt het resultaat in een melding</item>
+        <item>Spectrum: lineair of Mel, gamma ook in het spectrum, tijdvenster in het oscillogram</item>
+        <item>Sneller opnieuw analyseren: meer rekenkernen, het tweede model draait parallel</item>
+        <item>Soortnamen overal in de gekozen taal</item>
+        <item>Automatisch filter zonder GPS: laatste positie tot 30 dagen geldig</item>
+        <item>Statistiek van het tweede model in de expertmodus</item>
+        <item>"PIROL ondersteunen" (vrijwillig) in Instellingen > Info; de hulpmodus dekt meer bedieningselementen</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">De doelmap staat in de PIROL-opslag. Kies een map buiten die opslag; er is niets verplaatst.</string>
     <string name="analysis_batch_ziel_gleich_quelle">De doelmap is de gekozen opname zelf of de map ervan. Er is niets verplaatst.</string>

@@ -1,5 +1,35 @@
 # Changelog PIROL
 
+## v0.1.3 — 2026-11-25
+
+Update ueber v0.1.2 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu".
+
+### Hauptunterschied zu v0.1.2
+**Rescan schneller:** mehr Rechenkerne, Zweitmodell laeuft parallel. Session-Memos lassen sich loeschen (mit Rueckgaengig), teilen und speichern unter; der Ort wird beim Druecken gespeichert und als Marker auf der Karte gezeigt.
+
+### Import und Sessions
+- Import: Datums- und Zeitauswahl, Schalter "Dateizeit = Ende"; Scan fuer alle importierten Sessions, der erste Scan wird Original (Detektionen und Raven im Ordner)
+- Datumsaenderung einer importierten Session benennt den Ordner um und verschiebt ihn in den richtigen Tagesordner
+
+### Analyse und Anzeige
+- "+ Art" beruecksichtigt Luecken zwischen Segmenten
+- Analyse: Zoom mit zwei Fingern in Uebersichtsleiste und Sonogramm; Upload meldet sein Ergebnis per Snackbar
+- Spektrum: Linear (Standard) oder Mel, Gamma auch im Spektrum, Zeitfenster-Regler im Oszillogramm
+
+### Arten, Filter und Modelle
+- Artnamen durchgehend in der gewaehlten Sprache, deutsche Namen aus den Artenlisten
+- Auto-Filter ohne GPS: letzte Position bis 30 Tage, Hinweis beim Start, Grundlage in den Settings, optionale Jahresliste
+- Zweitmodell-Statistik im Expertenmodus
+
+### Hilfe, Info und Anleitung
+- Hilfemodus deckt mehr Bedienelemente ab (Kartenmarker, Dialoge, Regler)
+- Knopf "PIROL unterstuetzen" (freiwillig) in Settings > Info
+- Anleitung: neues Kapitel 20 (Installation und Update)
+
+### Uebersetzungen und Aufraeumen
+- Uebersetzungen ergaenzt: Franzoesisch, Italienisch, Katalanisch, Portugiesisch, Niederlaendisch, Berndeutsch (Entwurf); Anleitung in allen App-Sprachen
+- Lint-Bereinigung und Aufraeumen im Code
+
 ## v0.1.2 — 2026-11-24
 
 Update ueber v0.1.1 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu".

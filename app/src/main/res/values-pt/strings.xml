@@ -621,15 +621,15 @@
     <string name="settings_whats_new_button">Novidades</string>
     <string name="settings_info_version">Versão %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven: uma linha por episódio, nova coluna Memo</item>
-        <item>Nova análise e importação: resultados visíveis e verificáveis em curso; cancelar mantém o resultado parcial</item>
-        <item>Editar depois os dados das sessões importadas; guardar como ZIP ou pasta</item>
-        <item>As vozes humanas são ocultadas na exportação (ativado por predefinição)</item>
-        <item>Memo de sessão com toque prolongado; bloco Memos na análise</item>
-        <item>Cartões de espécie em direto mais calmos: mudança no máximo a cada 5 s, os resultados do top 5 piscam a azul</item>
-        <item>Botão de ajuda «?»: modo de ajuda e manual offline</item>
-        <item>Município via Google apenas como opção, desativado por predefinição</item>
-        <item>Aplicação totalmente traduzida: francês, italiano, catalão, português, neerlandês, alemão suíço de Berna (rascunho)</item>
+        <item>Memos de sessão: eliminar com desfazer, localização no mapa, partilhar e guardar como</item>
+        <item>Importação: escolha de data e hora; todas as sessões importadas são analisadas; alterar a data move a pasta da sessão</item>
+        <item>Análise: zoom com dois dedos na visão geral e no sonograma; o envio mostra o resultado numa mensagem</item>
+        <item>Espetro: linear ou Mel, gama também no espetro, janela temporal no oscilograma</item>
+        <item>Nova análise mais rápida: mais núcleos de cálculo, o modelo secundário corre em paralelo</item>
+        <item>Nomes das espécies sempre no idioma escolhido</item>
+        <item>Filtro automático sem GPS: última posição válida até 30 dias</item>
+        <item>Estatísticas do modelo secundário no modo especialista</item>
+        <item>«Apoiar o PIROL» (voluntário) em Definições > Info; o modo de ajuda cobre mais elementos</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">A pasta de destino está dentro do arquivo PIROL. Escolha uma pasta fora dele; nada foi movido.</string>
     <string name="analysis_batch_ziel_gleich_quelle">A pasta de destino é a própria gravação selecionada ou a sua pasta. Nada foi movido.</string>

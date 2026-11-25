@@ -528,15 +528,15 @@
     <string name="settings_whats_new_button">Was ist neu</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven: eine Zeile pro Episode, neue Spalte Memo</item>
-        <item>Rescan und Import: Ergebnisse laufend sichtbar und verifizierbar; Abbruch behält das Teilergebnis</item>
-        <item>Angaben importierter Sessions nachträglich bearbeiten; Speichern unter als ZIP oder Ordner</item>
-        <item>Menschliche Stimmen werden im Export ausgeblendet (Standard an)</item>
-        <item>Session-Memo per Gedrückt-halten; Block Memos in der Analyse</item>
-        <item>Ruhigere Live-Artkarten: Wechsel höchstens alle 5 s, Treffer in den Top 5 blinken blau</item>
-        <item>Hilfe-Knopf "?": Hilfemodus und Anleitung offline</item>
-        <item>Gemeinde über Google nur noch als Option, Standard aus</item>
-        <item>App vollständig übersetzt: Französisch, Italienisch, Katalanisch, Portugiesisch, Niederländisch, Berndeutsch (Entwurf)</item>
+        <item>Session-Memos: löschen mit Rückgängig, Standort auf der Karte, teilen und speichern unter</item>
+        <item>Import: Datums- und Zeitauswahl, alle importierten Sessions werden gescannt; eine Datumsänderung verschiebt den Session-Ordner</item>
+        <item>Analyse: Zoom mit zwei Fingern in Übersicht und Sonogramm; Upload meldet sein Ergebnis per Snackbar</item>
+        <item>Spektrum: Linear oder Mel, Gamma auch im Spektrum, Zeitfenster im Oszillogramm</item>
+        <item>Rescan schneller: mehr Rechenkerne, Zweitmodell läuft parallel</item>
+        <item>Artnamen durchgehend in der gewählten Sprache</item>
+        <item>Auto-Filter ohne GPS: letzte Position bis 30 Tage gültig</item>
+        <item>Zweitmodell-Statistik im Expertenmodus</item>
+        <item>Knopf "PIROL unterstützen" (freiwillig) in Settings > Info; Hilfemodus deckt mehr Bedienelemente ab</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Zielordner liegt in der PIROL-Ablage. Bitte einen Ordner ausserhalb wählen, es wurde nichts verschoben.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Zielordner ist die gewählte Aufnahme selbst oder ihr Ordner. Es wurde nichts verschoben.</string>

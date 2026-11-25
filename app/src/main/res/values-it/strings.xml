@@ -621,15 +621,15 @@
     <string name="settings_whats_new_button">Novità</string>
     <string name="settings_info_version">Versione %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven: una riga per episodio, nuova colonna Memo</item>
-        <item>Riesame e importazione: risultati visibili e verificabili in corso d\'opera; l\'annullamento conserva il risultato parziale</item>
-        <item>Modificare in seguito i dati delle sessioni importate; salva con nome come ZIP o cartella</item>
-        <item>Le voci umane vengono nascoste nell\'esportazione (attivo per impostazione predefinita)</item>
-        <item>Memo di sessione tenendo premuto; blocco Memo nell\'analisi</item>
-        <item>Schede specie live più calme: cambio al massimo ogni 5 s, i risultati nella top 5 lampeggiano in blu</item>
-        <item>Pulsante guida «?»: modalità guida e manuale offline</item>
-        <item>Comune tramite Google solo come opzione, disattivato per impostazione predefinita</item>
-        <item>App completamente tradotta: francese, italiano, catalano, portoghese, olandese, svizzero tedesco bernese (bozza)</item>
+        <item>Memo di sessione: eliminazione con annulla, posizione sulla mappa, condivisione e salva con nome</item>
+        <item>Importazione: selezione di data e ora, tutte le sessioni importate vengono analizzate; cambiando la data si sposta la cartella della sessione</item>
+        <item>Analisi: zoom a due dita nella panoramica e nel sonogramma; il caricamento mostra il risultato in un messaggio</item>
+        <item>Spettro: lineare o Mel, gamma anche nello spettro, finestra temporale nell\'oscillogramma</item>
+        <item>Riesame più veloce: più core di calcolo, il modello secondario gira in parallelo</item>
+        <item>Nomi delle specie sempre nella lingua scelta</item>
+        <item>Filtro automatico senza GPS: ultima posizione valida fino a 30 giorni</item>
+        <item>Statistiche del modello secondario in modalità esperto</item>
+        <item>«Sostieni PIROL» (facoltativo) in Impostazioni > Info; la modalità guida copre più elementi</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">La cartella di destinazione si trova nell\'archivio PIROL. Scegli una cartella esterna; nulla è stato spostato.</string>
     <string name="analysis_batch_ziel_gleich_quelle">La cartella di destinazione è la registrazione selezionata stessa o la sua cartella. Nulla è stato spostato.</string>

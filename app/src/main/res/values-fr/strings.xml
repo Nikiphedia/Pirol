@@ -621,15 +621,15 @@
     <string name="settings_whats_new_button">Nouveautés</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven : une ligne par épisode, nouvelle colonne Mémo</item>
-        <item>Réanalyse et import : résultats visibles et vérifiables en continu ; l\'annulation conserve le résultat partiel</item>
-        <item>Modifier après coup les données des sessions importées ; enregistrer sous en ZIP ou dossier</item>
-        <item>Les voix humaines sont masquées dans l\'export (activé par défaut)</item>
-        <item>Mémo de session par appui prolongé ; bloc Mémos dans l\'analyse</item>
-        <item>Fiches espèces live plus calmes : changement au plus toutes les 5 s, les résultats du top 5 clignotent en bleu</item>
-        <item>Bouton d\'aide « ? » : mode d\'aide et mode d\'emploi hors ligne</item>
-        <item>Commune via Google uniquement en option, désactivé par défaut</item>
-        <item>Application entièrement traduite : français, italien, catalan, portugais, néerlandais, suisse allemand bernois (ébauche)</item>
+        <item>Mémos de session : suppression avec annulation, lieu sur la carte, partage et enregistrement sous</item>
+        <item>Import : choix de la date et de l\'heure, toutes les sessions importées sont analysées ; un changement de date déplace le dossier de session</item>
+        <item>Analyse : zoom à deux doigts dans l\'aperçu et le sonogramme ; l\'envoi affiche son résultat dans un message</item>
+        <item>Spectre : linéaire ou Mel, gamma aussi dans le spectre, fenêtre temporelle dans l\'oscillogramme</item>
+        <item>Réanalyse plus rapide : plus de cœurs de calcul, le modèle secondaire tourne en parallèle</item>
+        <item>Noms d\'espèces partout dans la langue choisie</item>
+        <item>Filtre automatique sans GPS : dernière position valable jusqu\'à 30 jours</item>
+        <item>Statistiques du modèle secondaire en mode expert</item>
+        <item>« Soutenir PIROL » (facultatif) dans Réglages > Infos ; le mode d\'aide couvre davantage d\'éléments</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Le dossier cible se trouve dans le dossier PIROL. Choisis un dossier extérieur ; rien n\'a été déplacé.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Le dossier cible est l\'enregistrement sélectionné lui-même ou son dossier. Rien n\'a été déplacé.</string>

@@ -2,7 +2,7 @@
 
 Akustische Echtzeit-Artenerkennung für Android, gedacht für die Feldarbeit.
 
-*Gilt ab Version v0.1.2 (Stand 2026-11-24). Was sich zwischen den Versionen geändert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.1.3 (Stand 2026-11-25). Was sich zwischen den Versionen geändert hat, steht in `CHANGELOG.md`.*
 
 Die App hat fünf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**. Der Knopf **?** (Hilfe) ist kein Tab: Ein Tipp schaltet den Hilfemodus ein, ein Doppeltipp öffnet diese Anleitung (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
@@ -463,4 +463,4 @@ Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.2 — ETA Systems — Stand 2026-11-24*
+*PIROL v0.1.3 — ETA Systems — Stand 2026-11-25*
