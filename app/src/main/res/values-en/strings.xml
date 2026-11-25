@@ -974,4 +974,10 @@
     <string name="analysis_memo_loeschen_gesperrt">Delete (recording in progress)</string>
     <string name="analysis_angaben_upload_laeuft">Upload of this session in progress. Change the start time afterwards.</string>
     <string name="analysis_rescan_alle_importierten">Applies to all %1$d imported sessions (one after another).</string>
+    <string name="import_zeit_weiter">Next</string>
+    <string name="import_zeit_ok">OK</string>
+    <string name="import_zeit_ende_an">File time = end of recording (start = file time minus duration)</string>
+    <string name="import_zeit_ende_aus">File time = start of recording</string>
+    <string name="import_zeit_quelle_ende">Time from: file date, taken as end</string>
+    <string name="import_zeit_quelle_start">Time from: file date, taken as start</string>
 </resources>

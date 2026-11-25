@@ -29,7 +29,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +51,7 @@ import ch.etasystems.pirol.data.importer.TimeGuess
 import ch.etasystems.pirol.data.importer.TimeSource
 import ch.etasystems.pirol.ui.components.MapPointPicker
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * T255: Import-Knopf der Session-Liste (48 dp) mit Menue: PIROL-Session als ZIP, als Ordner, Fremdaudio.
@@ -158,15 +158,24 @@ fun AudioImportDialog(
         return
     }
     val usable = remember(probes) { probes.filter { it.readable } }
-    val texts = remember(probes) {
-        mutableStateListOf(*usable.map { p -> p.time?.let { ImportTimeParser.formatInput(it.time, zone) } ?: "" }.toTypedArray())
+    // T274: Dateizeit (MODIFIED) ist meist das Ende der Aufnahme; Default Ende, umschaltbar auf Start
+    val modifiedIsEnd = remember(probes) { mutableStateListOf(*usable.map { true }.toTypedArray()) }
+    val times = remember(probes) {
+        mutableStateListOf<ZonedDateTime?>(*usable.map { p -> p.time?.time }.toTypedArray())
+    }
+    /** Vorbelegung der Datei i je nach Umschalter (nur MODIFIED: "Start" = Dateizeit statt Dateizeit minus Laufzeit) */
+    fun baseTime(i: Int): TimeGuess? {
+        val g = usable[i].time ?: return null
+        return if (g.source == TimeSource.MODIFIED && !modifiedIsEnd[i]) {
+            TimeGuess(g.time.plusNanos(((usable[i].durationSec ?: 0.0) * 1e9).toLong()), g.source)
+        } else g
     }
     var combine by remember(probes) { mutableStateOf(false) }
     var lat by remember(probes) { mutableStateOf<Double?>(null) }
     var lon by remember(probes) { mutableStateOf<Double?>(null) }
     var showMap by remember { mutableStateOf(false) }
 
-    val parsed = texts.map { ImportTimeParser.parseInput(it, zone) }
+    val parsed = times.toList()
     val canStart = usable.isNotEmpty() && parsed.all { it != null }
 
     if (showMap) {
@@ -194,23 +203,36 @@ fun AudioImportDialog(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            OutlinedTextField(
-                                value = texts[i],
-                                onValueChange = { texts[i] = it },
-                                singleLine = true,
-                                isError = parsed[i] == null,
-                                label = { Text(stringResource(R.string.import_startzeit)) },
-                                supportingText = {
-                                    val original = p.time?.let { ImportTimeParser.formatInput(it.time, zone) }
-                                    Text(when {
-                                        parsed[i] == null && texts[i].isBlank() -> stringResource(R.string.import_zeit_fehlt)
-                                        parsed[i] == null -> stringResource(R.string.import_zeit_ungueltig)
-                                        p.time != null && texts[i] == original -> stringResource(R.string.import_quelle, sourceLabel(p.time.source))
-                                        else -> stringResource(R.string.import_quelle, sourceLabel(TimeSource.MANUAL))
-                                    })
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                            val base = baseTime(i)
+                            DateTimePickerField(
+                                value = times[i],
+                                zone = zone,
+                                onValueChange = { times[i] = it },
+                                isError = times[i] == null,
+                                supportingText = when {
+                                    times[i] == null -> stringResource(R.string.import_zeit_fehlt)
+                                    base != null && times[i] == base.time ->
+                                        if (base.source == TimeSource.MODIFIED)
+                                            stringResource(if (modifiedIsEnd[i]) R.string.import_zeit_quelle_ende else R.string.import_zeit_quelle_start)
+                                        else stringResource(R.string.import_quelle, sourceLabel(base.source))
+                                    else -> stringResource(R.string.import_quelle, sourceLabel(TimeSource.MANUAL))
+                                }
                             )
+                            if (p.time?.source == TimeSource.MODIFIED) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 48.dp)) {
+                                    Text(
+                                        stringResource(if (modifiedIsEnd[i]) R.string.import_zeit_ende_an else R.string.import_zeit_ende_aus),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Switch(checked = modifiedIsEnd[i], onCheckedChange = {
+                                        // Nur nachfuehren, solange der Wert noch der Vorbelegung entspricht
+                                        val untouched = times[i] == baseTime(i)?.time
+                                        modifiedIsEnd[i] = it
+                                        if (untouched) times[i] = baseTime(i)?.time
+                                    })
+                                }
+                            }
                         }
                     }
                     val skipped = probes.filter { !it.readable }
@@ -260,7 +282,7 @@ fun AudioImportDialog(
                 onClick = {
                     val files = usable.mapIndexed { i, p ->
                         val t = parsed[i]!!
-                        val keep = p.time?.takeIf { ImportTimeParser.formatInput(it.time, zone) == texts[i] }
+                        val keep = baseTime(i)?.takeIf { it.time == t }
                         p to (keep ?: TimeGuess(t, TimeSource.MANUAL))
                     }
                     onStart(AudioImportRequest(files, combine && usable.size > 1, lat, lon))
