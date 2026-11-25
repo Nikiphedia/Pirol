@@ -1007,4 +1007,8 @@
     <string name="secstats_ziel_abgelehnt">Rejected with second model result: %1$d of %2$d</string>
     <string name="secstats_widerspruch">Disagreement: confirmed %1$s, rejected %2$s</string>
     <string name="secstats_widerspruch_pruefbar">Checkable only: confirmed %1$s, rejected %2$s</string>
+    <string name="settings_donate_button">Support PIROL</string>
+    <string name="settings_donate_hint">Voluntary: PIROL stays free and complete, with or without a donation.</string>
+    <string name="settings_donate_failed">No browser found.</string>
+    <string name="help_settings_donate">Opens the donation page in the browser. Donating is voluntary; PIROL stays free and complete.</string>
 </resources>

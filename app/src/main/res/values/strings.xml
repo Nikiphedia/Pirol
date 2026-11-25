@@ -1008,4 +1008,8 @@
     <string name="secstats_ziel_abgelehnt">Abgelehnt mit Zweitmodell-Ergebnis: %1$d von %2$d</string>
     <string name="secstats_widerspruch">Widerspruch: bei bestätigten %1$s, bei abgelehnten %2$s</string>
     <string name="secstats_widerspruch_pruefbar">Nur prüfbare: bestätigt %1$s, abgelehnt %2$s</string>
+    <string name="settings_donate_button">PIROL unterstützen</string>
+    <string name="settings_donate_hint">Freiwillig: PIROL bleibt kostenlos und vollständig, auch ohne Spende.</string>
+    <string name="settings_donate_failed">Kein Browser gefunden.</string>
+    <string name="help_settings_donate">Öffnet die Spendenseite im Browser. Die Spende ist freiwillig; PIROL bleibt kostenlos und vollständig.</string>
 </resources>
