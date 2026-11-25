@@ -55,7 +55,9 @@ data class AudioProbe(
     val latitude: Double? = null,
     val longitude: Double? = null,
     /** false = nicht lesbar/kein Audio (wird nicht importiert) */
-    val readable: Boolean = true
+    val readable: Boolean = true,
+    /** T292: Zeitdehnung (GUANO TE), 1 = keine; [sampleRate] und [durationSec] sind dann Header-Werte bzw. wahre Dauer */
+    val timeExpansion: Int = 1
 )
 
 /** T255: Auftrag fuer den Fremdaudio-Import (Zeiten nach Pruefung/Eingabe im Dialog). */
@@ -277,7 +279,7 @@ class SessionImporter(
     ): String {
         val ctx = currentCoroutineContext()
         val start = group.first().second.time.withZoneSameInstant(zone)
-        val maxFrames = { rate: Int -> rate.toLong() * 60L * appPreferences.maxRecordingMinutes.coerceIn(10, 80) }
+        val maxFrames = { rate: Int -> ImportPlanner.maxSegmentFrames(rate, appPreferences.maxRecordingMinutes.coerceIn(10, 80)) }
         val staging = sessionManager.createImportStaging()
         var segmenter: ImportSegmenter? = null
         try {
@@ -290,8 +292,11 @@ class SessionImporter(
                 var resampler: StreamResampler? = null
                 var fileSec = 0.0
                 var decodedRate = probe.sampleRate
-                decode(probe, checkCancel = { ctx.ensureActive() }) { mono, rate ->
-                    decodedRate = rate
+                val te = probe.timeExpansion
+                decode(probe, checkCancel = { ctx.ensureActive() }) { mono, headerRate ->
+                    decodedRate = headerRate
+                    // T292: wahre Rate (Zeitdehnung); danach rechnet alles mit ihr
+                    val rate = ImportPlanner.effectiveRate(headerRate, te)
                     val seg = segmenter ?: run {
                         targetRate = ImportPlanner.targetRate(rate)
                         ImportSegmenter(targetRate, maxFrames(targetRate)) { name ->
@@ -322,7 +327,8 @@ class SessionImporter(
                     channels = probe.channels,
                     durationSec = fileSec.toFloat(),
                     startedAt = guess.time.withZoneSameInstant(zone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                    timeSource = guess.source.name.lowercase()
+                    timeSource = guess.source.name.lowercase(),
+                    timeExpansion = te.takeIf { it > 1 }
                 )
             }
             val seg = segmenter ?: throw ImportFailure(Failure.NO_AUDIO, group.first().first.name)
@@ -342,7 +348,8 @@ class SessionImporter(
                 latitude = located?.latitude ?: request.latitude,
                 longitude = located?.longitude ?: request.longitude,
                 confidenceThreshold = appPreferences.confidenceThreshold,
-                sources = sources
+                sources = sources,
+                timeExpansion = sources.firstOrNull()?.timeExpansion
             )
             // Reihenfolge wie live: Audio, leere Detektionsliste, session.json zuletzt
             staging.openOutput("detections.jsonl").use { }
@@ -480,6 +487,7 @@ class SessionImporter(
         val candidates = mutableListOf<TimeGuess>()
         var lat: Double? = null
         var lon: Double? = null
+        var te = 1
         var duration: Double? = null
         var rate = 0
         var channels = 0
@@ -497,7 +505,10 @@ class SessionImporter(
                 val gi = ImportTimeParser.parseGuano(g, z)
                 gi.time?.let { candidates += TimeGuess(it, TimeSource.GUANO) }
                 if (gi.latitude != null && gi.longitude != null) { lat = gi.latitude; lon = gi.longitude }
+                te = gi.timeExpansion
             }
+            // T292: Zeitdehnung: wahre Dauer = Frames / (Rate x TE)
+            if (te > 1) duration = duration?.div(te)
             wav.comment?.let { c -> ImportTimeParser.fromAudioMothComment(c, z)?.let { candidates += TimeGuess(it, TimeSource.AUDIOMOTH) } }
             ImportTimeParser.fromBext(wav.bextDate, wav.bextTime, z)?.let { candidates += TimeGuess(it, TimeSource.BEXT) }
             ImportTimeParser.fromInfoDate(wav.creationDate, z)?.let { candidates += TimeGuess(it, TimeSource.INFO) }
@@ -537,7 +548,7 @@ class SessionImporter(
         return AudioProbe(
             uri = uri.toString(), name = name, format = format, sizeBytes = size, durationSec = duration,
             sampleRate = rate, channels = channels, time = ImportTimeParser.best(candidates),
-            latitude = lat, longitude = lon, readable = readable
+            latitude = lat, longitude = lon, readable = readable, timeExpansion = te
         )
     }
 
