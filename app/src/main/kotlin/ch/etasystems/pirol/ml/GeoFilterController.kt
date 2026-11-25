@@ -68,6 +68,7 @@ class GeoFilterController(
         val week = GeoLogic.birdnetWeek(date)
 
         val saved = if (prefs.geoLastAtMs > 0) prefs.geoLastLat to prefs.geoLastLon else null
+        val savedAt = prefs.geoLastAtMs  // T278: vor dem Ueberschreiben merken
         val (source, pos) = GeoLogic.choosePosition(
             fresh?.let { it.latitude to it.longitude }, saved, prefs.geoLastAtMs, nowMs
         )
@@ -99,7 +100,8 @@ class GeoFilterController(
                 source = if (source == GeoLogic.PositionSource.GPS) "gps" else "saved",
                 latitude = round2(lat), longitude = round2(lon), week = if (yearly) null else week,
                 threshold = threshold, yearly = yearly,
-                model = GeoModelFiles.VERSION, fallbacks = fallbacks, groups = groups
+                model = GeoModelFiles.VERSION, fallbacks = fallbacks, groups = groups,
+                positionAtMs = if (source == GeoLogic.PositionSource.SAVED) savedAt else null
             ).also { info = it }
         } catch (e: Exception) {
             Log.w(TAG, "Geomodel nicht berechenbar: ${e.message}", e)

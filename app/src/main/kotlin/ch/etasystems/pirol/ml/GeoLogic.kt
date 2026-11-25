@@ -91,6 +91,13 @@ object GeoLogic {
     /** Quelle der verwendeten Position */
     enum class PositionSource { GPS, SAVED, NONE }
 
+    /** T278: Grundlage des Auto-Filters (Anzeige) */
+    enum class Basis { CURRENT, SAVED, FALLBACK }
+
+    /** T278: Grundlage ohne Fix: gespeicherte Position (hoechstens 30 Tage alt) oder Ersatzliste. */
+    fun basisWithoutFix(hasSaved: Boolean, savedAtMs: Long, nowMs: Long): Basis =
+        if (hasSaved && savedAtMs > 0 && nowMs - savedAtMs in 0..SAVED_MAX_AGE_MS) Basis.SAVED else Basis.FALLBACK
+
     /** Position waehlen: frischer Fix, sonst gespeicherte (hoechstens 30 Tage), sonst keine. */
     fun choosePosition(
         fresh: Pair<Double, Double>?,

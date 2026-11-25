@@ -982,4 +982,7 @@
     <string name="import_zeit_ende_aus">File time = start of recording</string>
     <string name="import_zeit_quelle_ende">Time from: file date, taken as end</string>
     <string name="import_zeit_quelle_start">Time from: file date, taken as start</string>
+    <string name="live_geo_letzte_position">Location unknown - filter uses the last position from %1$s</string>
+    <string name="settings_geo_basis_letzte">Without GPS the last position from %1$s applies (30 days at most), otherwise the fallback list.</string>
+    <string name="settings_geo_basis_ersatz">No current position: the group\'s fallback list applies.</string>
 </resources>

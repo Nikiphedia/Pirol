@@ -983,4 +983,7 @@
     <string name="import_zeit_ende_aus">Dateizeit = Start der Aufnahme</string>
     <string name="import_zeit_quelle_ende">Zeit aus: Dateidatum, als Ende gewertet</string>
     <string name="import_zeit_quelle_start">Zeit aus: Dateidatum, als Start gewertet</string>
+    <string name="live_geo_letzte_position">Standort unbekannt – Filter nutzt die letzte Position vom %1$s</string>
+    <string name="settings_geo_basis_letzte">Ohne GPS gilt die letzte Position vom %1$s (höchstens 30 Tage), sonst die Ersatzliste.</string>
+    <string name="settings_geo_basis_ersatz">Keine aktuelle Position: Es gilt die Ersatzliste der Gruppe.</string>
 </resources>

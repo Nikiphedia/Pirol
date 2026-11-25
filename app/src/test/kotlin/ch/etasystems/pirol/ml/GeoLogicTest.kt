@@ -77,4 +77,17 @@ class GeoLogicTest {
         assertEquals(GeoLogic.PositionSource.NONE, GeoLogic.choosePosition(null, null, 0L, 10 * day).first)
         assertNull(GeoLogic.choosePosition(null, null, 0L, 0L).second)
     }
+
+    @Test fun `T278 Grundlage ohne Fix 29, 30, 31 Tage, ohne Position`() {
+        val day = 24L * 3600 * 1000
+        val now = 100 * day
+        assertEquals(GeoLogic.Basis.SAVED, GeoLogic.basisWithoutFix(true, now - 29 * day, now))
+        assertEquals(GeoLogic.Basis.SAVED, GeoLogic.basisWithoutFix(true, now - 30 * day, now))
+        assertEquals(GeoLogic.Basis.FALLBACK, GeoLogic.basisWithoutFix(true, now - 31 * day, now))
+        assertEquals(GeoLogic.Basis.FALLBACK, GeoLogic.basisWithoutFix(false, 0L, now))
+        assertEquals(GeoLogic.PositionSource.SAVED,
+            GeoLogic.choosePosition(null, 1.0 to 2.0, now - 30 * day, now).first)
+        assertEquals(GeoLogic.PositionSource.NONE,
+            GeoLogic.choosePosition(null, 1.0 to 2.0, now - 31 * day - 1, now).first)
+    }
 }
