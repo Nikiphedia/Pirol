@@ -24,11 +24,12 @@ class BatGroupTest {
         private val listText = File("src/main/assets/regions/region_sets.json").readText(Charsets.UTF_8)
 
         @BeforeClass @JvmStatic fun setup() {
+            ch.etasystems.pirol.data.FeatureFlags.bats = true  // T297
             SpeciesKey.setAliases(emptyMap())
             TaxonGroups.setIndex(TaxonGroups.parseRegionSets(listText))
         }
 
-        @AfterClass @JvmStatic fun reset() = TaxonGroups.setIndex(emptyMap())
+        @AfterClass @JvmStatic fun reset() { TaxonGroups.setIndex(emptyMap()); ch.etasystems.pirol.data.FeatureFlags.bats = false }
     }
 
     @Test fun `Gattungen ordnen Fledermaeuse der Gruppe zu`() {

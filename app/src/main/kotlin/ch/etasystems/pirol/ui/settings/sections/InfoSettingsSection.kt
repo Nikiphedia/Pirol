@@ -8,6 +8,8 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -54,6 +56,7 @@ internal fun InfoSettingsSection(
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
+    var versionTaps by remember { mutableStateOf(0) }
 
     // Diagnose: Inference-Benchmark (T96)
     var benchmarkRunning by remember { mutableStateOf(false) }
@@ -73,7 +76,18 @@ internal fun InfoSettingsSection(
         Text(
             text = stringResource(R.string.settings_info_version, ch.etasystems.pirol.ui.components.currentVersionName(context)),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // T297: 7x Tippen schaltet die versteckten Fledermaus-Funktionen um (keine Anzeige, kein Hilfetext)
+            modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                versionTaps++
+                if (versionTaps >= 7) {
+                    versionTaps = 0
+                    appPreferences.experimentalBats = !appPreferences.experimentalBats
+                    Toast.makeText(context, AppStrings.get(
+                        if (appPreferences.experimentalBats) R.string.experimental_bats_on else R.string.experimental_bats_off
+                    ), Toast.LENGTH_SHORT).show()
+                }
+            }
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(

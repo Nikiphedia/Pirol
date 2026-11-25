@@ -9,6 +9,10 @@ import java.time.ZonedDateTime
 
 /** T292: Ultraschall-Import (Rate behalten, Zeitdehnung, Segmentdeckel). */
 class UltrasoundImportTest {
+    // T297: Fledermaus-Funktionen an
+    @org.junit.Before fun flagOn() { ch.etasystems.pirol.data.FeatureFlags.bats = true }
+    @org.junit.After fun flagOff() { ch.etasystems.pirol.data.FeatureFlags.bats = false }
+
 
     private val zone = ZoneId.of("Europe/Zurich")
 

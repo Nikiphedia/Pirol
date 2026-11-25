@@ -8,6 +8,10 @@ import java.time.ZonedDateTime
 
 /** T255: Zeit und Ort aus Dateinamen und Metadaten. */
 class ImportTimeParserTest {
+    // T297: Fledermaus-Funktionen an
+    @org.junit.Before fun flagOn() { ch.etasystems.pirol.data.FeatureFlags.bats = true }
+    @org.junit.After fun flagOff() { ch.etasystems.pirol.data.FeatureFlags.bats = false }
+
 
     private val zone = ZoneId.of("Europe/Zurich")
     private fun local(y: Int, mo: Int, d: Int, h: Int, mi: Int, s: Int) = ZonedDateTime.of(y, mo, d, h, mi, s, 0, zone)

@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.data.importer
 
+import ch.etasystems.pirol.data.FeatureFlags
 import ch.etasystems.pirol.data.repository.ImportedSource
 import ch.etasystems.pirol.data.repository.RecordingSegment
 import ch.etasystems.pirol.data.repository.SessionMetadata
@@ -18,6 +19,9 @@ object ImportPlanner {
      * erhalten bleibt. Vogelmodelle rechnen weiterhin pro Fenster auf ihre Rate herunter (Polyphasen-FIR).
      */
     val KEEP_RATE_RANGE = 8_000..500_000
+
+    /** T297: ohne Fledermaus-Schalter wie bis v0.1.2: nur bis 96 kHz uebernehmen */
+    private val KEEP_RATE_RANGE_DEFAULT = 8_000..96_000
 
     /** Ersatzrate (Rate ausserhalb des Bereichs, z.B. > 500 kHz) */
     const val FALLBACK_RATE = 48_000
@@ -50,7 +54,8 @@ object ImportPlanner {
      * (kein verlustbehafteter Zwischenschritt, Dateien nicht groesser als noetig), sonst [FALLBACK_RATE].
      * Spaetere Dateien mit anderer Rate werden auf diese Rate resampelt (eine Rate je Session).
      */
-    fun targetRate(firstRate: Int): Int = if (firstRate in KEEP_RATE_RANGE) firstRate else FALLBACK_RATE
+    fun targetRate(firstRate: Int): Int =
+        if (firstRate in (if (FeatureFlags.bats) KEEP_RATE_RANGE else KEEP_RATE_RANGE_DEFAULT)) firstRate else FALLBACK_RATE
 
     /** Session-ID wie live (T155), aber mit der Aufnahmezeit statt "jetzt": sortiert sich chronologisch ein. */
     fun sessionId(start: ZonedDateTime, uuid6: String): String =

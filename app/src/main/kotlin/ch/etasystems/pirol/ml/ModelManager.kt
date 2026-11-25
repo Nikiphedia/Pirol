@@ -8,6 +8,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.data.AppPreferences
+import ch.etasystems.pirol.data.FeatureFlags
 import ch.etasystems.pirol.ui.AppStrings
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -182,6 +183,7 @@ class ModelManager(
                     profile = profile
                 )
             }
+            ?.filter { FeatureFlags.bats || !it.profile.isUltrasonic }  // T297: Ultraschall-Modelle versteckt
             ?.sortedByDescending { it.isActive }
             ?: emptyList()
     }
@@ -802,6 +804,10 @@ class ModelManager(
                 ?: return@withContext importError(ModelProfileJson.ErrorCode.MISSING_FILE, ModelProfileJson.FILE_SUFFIX)
             val parsed = ModelProfileJson.parse(jsonText)
             val profile = parsed.profile
+            // T297: Ultraschall-Pakete ohne Schalter neutral ablehnen
+            if (profile.isUltrasonic && !FeatureFlags.bats) {
+                return@withContext ImportResult.Failed(AppStrings.get(R.string.model_unsupported))
+            }
             ModelProfile.CATALOG.firstOrNull { it.id == profile.id || it.fileName == profile.fileName }?.let {
                 return@withContext importError(ModelProfileJson.ErrorCode.ID_CONFLICT, it.id)
             }

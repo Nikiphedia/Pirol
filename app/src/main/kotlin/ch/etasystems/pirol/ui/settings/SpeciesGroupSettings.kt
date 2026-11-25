@@ -27,6 +27,7 @@ import ch.etasystems.pirol.ml.GroupSource
 import ch.etasystems.pirol.ml.RegionInfo
 import ch.etasystems.pirol.ml.SpeciesGroupSelection
 import ch.etasystems.pirol.ml.TaxonGroup
+import ch.etasystems.pirol.data.FeatureFlags
 import ch.etasystems.pirol.ui.AppStrings
 import ch.etasystems.pirol.ui.help.helpTopic
 
@@ -80,8 +81,10 @@ fun ColumnScope.SpeciesGroupSettings(
     Text(stringResource(R.string.settings_species_groups), style = MaterialTheme.typography.bodyMedium)
     Text(stringResource(R.string.settings_species_groups_hint), style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // T297: Fledermausgruppe nur mit Schalter (Liste ch_bats: getAvailableRegions)
+    val bats = FeatureFlags.bats
     val lists = regions.filter { it.id != GroupSource.ALL }
-    TaxonGroup.entries.forEach { g ->
+    TaxonGroup.entries.filter { bats || it != TaxonGroup.BATS }.forEach { g ->
         key(g) {
             val src = selection.sourceOf(g)
             fun set(v: String) = onChange(selection.with(g, v))

@@ -2,6 +2,7 @@ package ch.etasystems.pirol.ui.onboarding
 
 import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.data.GPS_MODE_ON_DETECTION
+import ch.etasystems.pirol.data.FeatureFlags
 import ch.etasystems.pirol.ml.GroupSource
 import ch.etasystems.pirol.ml.TaxonGroup
 
@@ -113,7 +114,7 @@ object SetupProfile {
         // T295: Fledermaeuse nur setzen, wenn ein Profil sie will (sonst bleibt der Standard "Alle")
         val groups = (TaxonGroup.entries - TaxonGroup.BIRDS - TaxonGroup.BATS).associateWith { g ->
             first { it.groups[g] } ?: GroupSource.OFF
-        } + listOfNotNull(first { it.groups[TaxonGroup.BATS] }?.let { TaxonGroup.BATS to it })
+        } + listOfNotNull(first { it.groups[TaxonGroup.BATS] }?.takeIf { FeatureFlags.bats }?.let { TaxonGroup.BATS to it })
         return SetupSettings(
             birdsSource = choices.list.regionId,
             groupSources = groups,
