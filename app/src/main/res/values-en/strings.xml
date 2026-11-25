@@ -985,4 +985,26 @@
     <string name="live_geo_letzte_position">Location unknown - filter uses the last position from %1$s</string>
     <string name="settings_geo_basis_letzte">Without GPS the last position from %1$s applies (30 days at most), otherwise the fallback list.</string>
     <string name="settings_geo_basis_ersatz">No current position: the group\'s fallback list applies.</string>
+    <string name="secstats_knopf">Second model statistics</string>
+    <string name="secstats_titel">Second model statistics</string>
+    <string name="secstats_laeuft">Reading sessions: %1$d of %2$d</string>
+    <string name="secstats_abbrechen">Cancel</string>
+    <string name="secstats_schliessen">Close</string>
+    <string name="secstats_csv">Share as CSV</string>
+    <string name="secstats_hinweis">All sessions (without rescan variants, without manual entries). Rows: verification, columns: second model result.</string>
+    <string name="secstats_gesamt">All second models</string>
+    <string name="secstats_col_checked">Checked</string>
+    <string name="secstats_col_nc">Not checkable</string>
+    <string name="secstats_col_dis">Disagrees</string>
+    <string name="secstats_col_none">No result</string>
+    <string name="secstats_col_sum">Total</string>
+    <string name="secstats_row_confirmed">Confirmed</string>
+    <string name="secstats_row_rejected">Rejected</string>
+    <string name="secstats_row_uncertain">Uncertain</string>
+    <string name="secstats_row_open">Open</string>
+    <string name="secstats_row_other">Corrected/replaced</string>
+    <string name="secstats_ziel_bestaetigt">Confirmed with second model result: %1$d of %2$d</string>
+    <string name="secstats_ziel_abgelehnt">Rejected with second model result: %1$d of %2$d</string>
+    <string name="secstats_widerspruch">Disagreement: confirmed %1$s, rejected %2$s</string>
+    <string name="secstats_widerspruch_pruefbar">Checkable only: confirmed %1$s, rejected %2$s</string>
 </resources>
