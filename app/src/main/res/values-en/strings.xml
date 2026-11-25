@@ -972,4 +972,6 @@
     <string name="map_memo_marker">Session memo</string>
     <string name="help_analysis_memo_menue">Memo actions: share a single memo, save it under its own name or (session memo) delete it. Deleting can be undone.</string>
     <string name="analysis_memo_loeschen_gesperrt">Delete (recording in progress)</string>
+    <string name="analysis_angaben_upload_laeuft">Upload of this session in progress. Change the start time afterwards.</string>
+    <string name="analysis_rescan_alle_importierten">Applies to all %1$d imported sessions (one after another).</string>
 </resources>

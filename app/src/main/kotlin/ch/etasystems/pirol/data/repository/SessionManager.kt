@@ -892,7 +892,7 @@ class SessionManager(
     suspend fun recoverOrphanSessions(): Int = withContext(Dispatchers.IO) {
         var recovered = 0
         val sessions = listSessions()
-        val editsResumed = mutableListOf<Pair<File, String>>()  // T257
+        val editsResumed = mutableListOf<Triple<File, String, String?>>()  // T257; T273: + alte ID
         for (sessionDir in sessions) {
             try {
                 fileMutex.withLock {
@@ -906,7 +906,12 @@ class SessionManager(
                     }
                     // T257: abgebrochene "Angaben bearbeiten" zu Ende fuehren (ohne doppelte Verschiebung)
                     if (access.exists(SessionInfoEdit.JOURNAL_FILE)) {
-                        SessionInfoEdit.resumePending(access, SESSION_JSON)?.let { editsResumed += sessionDir to it.metadata.sessionId }
+                        // T273: evtl. mit Ordner-Umbenennung (Auftrag wandert mit dem Ordner)
+                        val folder = folderFor(sessionDir)
+                        SessionInfoEdit.resumePending(access, SESSION_JSON, folder) { logRename(sessionDir, it) }?.let {
+                            editsResumed += Triple(folder?.key ?: sessionDir, it.metadata.sessionId, it.rename?.oldName)
+                        }
+                        folder?.let { relocated(sessionDir, it) }
                         Log.i(TAG, "recoverOrphan: Bearbeitung der Angaben abgeschlossen: ${sessionDir.name}")
                     }
                 }
@@ -915,7 +920,8 @@ class SessionManager(
             }
         }
         // T257: Exporte der fertig bearbeiteten Sessions nachziehen (Upload-Namen verwerfen; Name evtl. geaendert)
-        editsResumed.forEach { (dir, id) -> afterInfoEdit(dir, id, appPreferences, forgetNames = true) }
+        editsResumed.forEach { (dir, id, oldId) -> afterInfoEdit(dir, id, appPreferences, forgetNames = true, oldSessionId = oldId) }
+        if (editsResumed.any { it.third != null }) locator.removeEmptyDayDirs()
         sessions.forEach { sessionDir ->
             val jsonFile = File(sessionDir, SESSION_JSON)
             if (!jsonFile.exists()) return@forEach
@@ -997,7 +1003,10 @@ class SessionManager(
 
     /** T257: Ergebnis von [updateImportedSessionInfo] */
     sealed class InfoEditResult {
-        data class Ok(val metadata: SessionMetadata) : InfoEditResult()
+        /** T273: [sessionDir] = Schluessel nach Umbenennen/Verschieben (sonst der bisherige) */
+        data class Ok(val metadata: SessionMetadata, val sessionDir: File? = null) : InfoEditResult()
+        /** T273: Upload dieser Session laeuft/wartet; Datum (Ordnername) erst danach aenderbar */
+        data object Busy : InfoEditResult()
         /** Session ist die laufende Aufnahme */
         data object Active : InfoEditResult()
         /** keine importierte Session (importedFrom == null) oder session.json/Startzeit nicht lesbar */
@@ -1021,40 +1030,102 @@ class SessionManager(
         appPreferences: AppPreferences? = null
     ): InfoEditResult = withContext(Dispatchers.IO) {
         if (isActiveDir(sessionDir)) return@withContext InfoEditResult.Active
-        val access = accessFor(sessionDir)
+        var dir = sessionDir
+        var access = accessFor(dir)
         var exportNameChanged = false
+        var oldSessionId: String? = null
         val meta: InfoEditResult = try {
             fileMutex.withLock {
-                if (isActiveDir(sessionDir)) return@withLock InfoEditResult.Active
-                SessionInfoEdit.resumePending(access, SESSION_JSON)
+                if (isActiveDir(dir)) return@withLock InfoEditResult.Active
+                if (access.exists(SessionInfoEdit.JOURNAL_FILE)) {
+                    // T273: liegengebliebener Auftrag kann den Ordner umbenennen -> am neuen Ort weiterarbeiten
+                    val pending = folderFor(dir)
+                    SessionInfoEdit.resumePending(access, SESSION_JSON, pending) { logRename(dir, it) }
+                    if (pending != null && pending.key.path != dir.path) {
+                        relocated(dir, pending)
+                        dir = pending.key
+                        access = pending.files()
+                    }
+                }
                 if (access.exists(DetectionUpdateLog.FILE)) DetectionUpdateLog.consolidate(access)
                 val old = access.readText(SESSION_JSON)
                     ?.let { runCatching { SessionJson.lenient.decodeFromString<SessionMetadata>(it) }.getOrNull() }
                     ?: return@withLock InfoEditResult.NotEditable
                 if (old.importedFrom == null) return@withLock InfoEditResult.NotEditable
                 if (active?.metadata?.sessionId == old.sessionId) return@withLock InfoEditResult.Active
-                val plan = SessionInfoEdit.plan(old, newStart, newLatitude, newLongitude, note, ZoneId.systemDefault())
+                val zone = ZoneId.systemDefault()
+                val basePlan = SessionInfoEdit.plan(old, newStart, newLatitude, newLongitude, note, zone)
                     ?: return@withLock InfoEditResult.NotEditable
+                // T273: neue Startzeit -> neue Session-ID (uuid6 bleibt) und Tagesordner; Ziel muss frei sein
+                val folder = folderFor(dir)
+                val target = folder?.let { f ->
+                    SessionRename.target(f.name, f.day, newStart, zone, this@SessionManager.appPreferences.storageDailySubfolder)
+                }?.takeIf { t -> t.newName == t.oldName || locator.findBySessionId(t.newName) == null }
+                if (target != null && uploadPending(target.oldName)) return@withLock InfoEditResult.Busy
+                val plan = SessionInfoEdit.withRename(basePlan, target)
                 val prepared = SessionInfoEdit.prepare(access, plan, SESSION_JSON)
-                val n = SessionInfoEdit.execute(access, prepared, SESSION_JSON)
-                exportNameChanged = ExportNames.sessionName(old.startedAt, old.note, old.sessionId) !=
+                val n = SessionInfoEdit.execute(access, prepared, SESSION_JSON, folder) { logRename(dir, it) }
+                if (folder != null && target != null) {
+                    relocated(dir, folder)
+                    dir = folder.key
+                    oldSessionId = target.oldName
+                }
+                exportNameChanged = target != null || ExportNames.sessionName(old.startedAt, old.note, old.sessionId) !=
                     ExportNames.sessionName(prepared.metadata.startedAt, prepared.metadata.note, old.sessionId)
-                Log.i(TAG, "Angaben bearbeitet: ${old.sessionId} delta=${plan.deltaMs} ms, Ort=${plan.relocate}, $n Dateien")
-                InfoEditResult.Ok(prepared.metadata)
+                Log.i(TAG, "Angaben bearbeitet: ${old.sessionId} -> ${dir.name} delta=${plan.deltaMs} ms, Ort=${plan.relocate}, $n Dateien")
+                InfoEditResult.Ok(prepared.metadata, dir)
             }
         } catch (e: Exception) {
             Log.e(TAG, "updateImportedSessionInfo fehlgeschlagen: ${sessionDir.name}", e)
             return@withContext InfoEditResult.Failed(e)
         }
-        if (meta is InfoEditResult.Ok) afterInfoEdit(sessionDir, meta.metadata.sessionId, appPreferences, exportNameChanged)
+        if (meta is InfoEditResult.Ok) {
+            afterInfoEdit(dir, meta.metadata.sessionId, appPreferences, exportNameChanged, oldSessionId)
+            if (oldSessionId != null) locator.removeEmptyDayDirs()
+        }
         meta
+    }
+
+    /** T273: umbenenn-/verschiebbarer Ordner einer Session (File oder SAF); null = nicht ermittelbar */
+    private fun folderFor(sessionDir: File): SessionFolder? {
+        docFor(sessionDir)?.let { doc ->
+            val base = locator.resolveBaseDocFile() ?: return null
+            return DocSessionFolder(context, base, doc, DocSessionFolder.dayOfKey(sessionDir))
+        }
+        return FileSessionFolder.of(sessionDir)
+    }
+
+    /** T273: neuen Schluessel nach Umbenennen/Verschieben bekannt machen, alten vergessen */
+    private fun relocated(old: File, folder: SessionFolder) {
+        if (folder.key.path == old.path) return
+        locator.forget(old)
+        (folder as? DocSessionFolder)?.let { locator.remember(it.key, it.doc) }
+    }
+
+    private fun logRename(dir: File, o: SessionRename.Outcome) {
+        if (o.moveError != null) Log.w(TAG, "T273: Session ${dir.name} umbenannt, Verschieben in den Tagesordner nicht moeglich", o.moveError)
+        else Log.i(TAG, "T273: Session-Ordner ${dir.name} umbenannt=${o.renamed} verschoben=${o.moved}")
+    }
+
+    /** T273: Upload dieser Session eingereiht, laufend oder wartend (Worker arbeitet mit dem Ordnerpfad) */
+    private fun uploadPending(sessionName: String): Boolean {
+        val s = ch.etasystems.pirol.data.sync.UploadStatusHolder.status.value
+        return (s is ch.etasystems.pirol.data.sync.UploadStatus.InProgress && s.sessionId == sessionName) ||
+            (s is ch.etasystems.pirol.data.sync.UploadStatus.AwaitingDecision && s.sessionId == sessionName)
     }
 
     /**
      * T257: Exporte nach einer Bearbeitung neu schreiben (Fehler nur protokolliert). Aendert sich der Exportname
      * (Startzeit/Bemerkung), reservierte Upload-Namen der Session verwerfen (naechster Upload mit neuem Namen).
      */
-    private suspend fun afterInfoEdit(sessionDir: File, sessionId: String, appPreferences: AppPreferences?, forgetNames: Boolean) {
+    private suspend fun afterInfoEdit(
+        sessionDir: File,
+        sessionId: String,
+        appPreferences: AppPreferences?,
+        forgetNames: Boolean,
+        /** T273: ID vor dem Umbenennen (deren reservierte Upload-Namen ebenfalls verwerfen) */
+        oldSessionId: String? = null
+    ) {
         val access = accessFor(sessionDir)
         val names = runCatching { access.listNames() }.getOrDefault(emptyList())
         val variants: List<String?> = listOf<String?>(null) + RescanFiles.idsIn(names)
@@ -1068,6 +1139,9 @@ class SessionManager(
             catch (e: Exception) { Log.e(TAG, "GPX-Export nach Bearbeitung fehlgeschlagen", e) }
         }
         if (forgetNames) ch.etasystems.pirol.data.sync.SessionUploadWorker.forgetExportNames(context, sessionId)
+        if (oldSessionId != null && oldSessionId != sessionId) {
+            ch.etasystems.pirol.data.sync.SessionUploadWorker.forgetExportNames(context, oldSessionId)
+        }
     }
 
     /** Alle Detektionen einer Session (T251: inkl. Updates der Zusatzdatei). */

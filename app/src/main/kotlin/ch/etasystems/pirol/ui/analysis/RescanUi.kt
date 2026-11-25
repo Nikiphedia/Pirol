@@ -163,9 +163,12 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
     var threshold by remember { mutableFloatStateOf(defaults.confidenceThreshold.coerceIn(0.05f, 0.95f)) }
     var overlap by remember { mutableIntStateOf(defaults.overlapPercent) }
     var secondary by remember { mutableStateOf(defaults.secondaryModelFileName) }
+    // T273 (B8): nach Import mehrerer Dateien gilt der Dialog fuer alle neuen Sessions
+    val batchSize = remember { viewModel.rescanBatchSize() }
+    val cancel = { viewModel.clearImportBatch(); onDismiss() }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = cancel,
         title = { Text(stringResource(R.string.analysis_rescan)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -174,6 +177,13 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (batchSize > 1) {
+                    Text(
+                        stringResource(R.string.analysis_rescan_alle_importierten, batchSize),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.analysis_rescan_modell), style = MaterialTheme.typography.titleSmall)
                 if (models.isEmpty()) {
@@ -236,7 +246,7 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
             ) { Text(stringResource(R.string.analysis_rescan_starten)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = cancel) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

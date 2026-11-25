@@ -96,6 +96,12 @@ internal class SessionLocator(
         byId.remove(sessionDir.name)
     }
 
+    /** T273: umbenannte/verschobene SAF-Session sofort unter dem neuen Schluessel bekannt machen */
+    fun remember(key: File, doc: DocumentFile) {
+        safSessions[key.path] = doc
+        byId[key.name] = key
+    }
+
     /** Leitet einen SAF-Session-Ordner auf einen Dateipfad ab (primaerer Speicher), nur fuer den Auto-Export. */
     fun resolveSessionDirFromDoc(sessionDoc: DocumentFile): File? {
         val safUri = appPreferences.storageBaseUri ?: return null

@@ -973,4 +973,6 @@
     <string name="map_memo_marker">Session-Memo</string>
     <string name="help_analysis_memo_menue">Memo-Aktionen: ein einzelnes Memo teilen, unter einem eigenen Namen speichern oder (Session-Memo) löschen. Löschen lässt sich rückgängig machen.</string>
     <string name="analysis_memo_loeschen_gesperrt">Löschen (Aufnahme läuft)</string>
+    <string name="analysis_angaben_upload_laeuft">Upload dieser Session läuft. Startzeit erst danach ändern.</string>
+    <string name="analysis_rescan_alle_importierten">Gilt für alle %1$d importierten Sessions (nacheinander).</string>
 </resources>
