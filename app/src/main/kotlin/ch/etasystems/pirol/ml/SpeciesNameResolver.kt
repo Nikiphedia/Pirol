@@ -49,19 +49,52 @@ class SpeciesNameResolver(private val context: Context) {
             modelNames: Map<String, String>?,
             listName: String?,
             language: String
-        ): String =
-            names?.get(language)
-                ?: modelNames?.get(language)
-                ?: names?.get("en")
-                ?: modelNames?.get("en")
-                ?: listName
-                ?: scientificName.replace('_', ' ')
+        ): String = pickCommon(scientificName, listOf(names, modelNames), listName, language)
+
+        /**
+         * T287: Wie oben, aber mit beliebig vielen Namensquellen in Vorrangreihenfolge
+         * (master exakt, Modell exakt, master ueber Alias, Modell ueber Alias). Erst wird die
+         * gewaehlte Sprache in ALLEN Quellen gesucht, dann Englisch - sonst gewinnt das Englisch
+         * eines Eintrags ohne Landesnamen (z.B. Thinornis_dubius) gegen den Landesnamen des Alias.
+         */
+        internal fun pickCommon(
+            scientificName: String,
+            sources: List<Map<String, String>?>,
+            listName: String?,
+            language: String
+        ): String {
+            for (s in sources) s?.get(language)?.let { return it }
+            for (s in sources) s?.get("en")?.let { return it }
+            return listName ?: scientificName.replace('_', ' ')
+        }
+
+        /**
+         * T287: Index kanonischer Schluessel (SpeciesKey, Alias aufgeloest) -> Original-Schluessel.
+         * Vollstaendig, da die Anfrage unter jedem Alias kommen kann (Modell alt, master neu oder umgekehrt).
+         */
+        internal fun buildAliasIndex(keys: Collection<String>, keyOf: (String) -> String): Map<String, List<String>> {
+            val groups = HashMap<String, MutableList<String>>(keys.size * 2)
+            for (k in keys) groups.getOrPut(keyOf(k)) { ArrayList(1) }.add(k)
+            return groups
+        }
+
+        /**
+         * T287: Name fuer bereits gespeicherte Detektionen (Anzeige, Export). [resolved] ist der aktuell
+         * aufgeloeste Name; liefert der Resolver nur den wissenschaftlichen Namen, bleibt der gespeicherte.
+         */
+        internal fun preferResolved(resolved: String, scientificName: String, stored: String): String =
+            if (stored.isNotBlank() && resolved == scientificName.trim().replace('_', ' ')) stored else resolved
     }
 
     // Lookup: scientificName (Unterstrich) → Map<langCode, commonName>
     // T95: wird im Hintergrund aufgebaut und dann als Ganzes zugewiesen (Leser sehen leer oder komplett)
     @Volatile private var namesMap: Map<String, Map<String, String>> = emptyMap()
     @Volatile private var loaded = false
+    // T287: kanonischer Schluessel -> master-Schluessel (alte/neue Namen derselben Art)
+    @Volatile private var aliasIndex: Map<String, List<String>> = emptyMap()
+
+    /** T287: true, sobald species_master geladen ist (gespeicherte Namen erst dann neu aufloesen) */
+    val isLoaded: Boolean get() = loaded && namesMap.isNotEmpty()
     private val loadMutex = Mutex()
 
     /** Aktuelle Sprache (Default: Deutsch) */
@@ -112,15 +145,22 @@ class SpeciesNameResolver(private val context: Context) {
                 }
                 map[sciName] = langMap
             }
-            namesMap = map
+            SpeciesKey.load(context)  // T287: Alias-Tabelle vor dem Alias-Index
+            setMasterNames(map)
             TaxonGroups.addMasterGroups(groups)  // T232: Artgruppen fuer Arten ohne Label-CSV-Eintrag
-            loaded = true
             Log.i(TAG, "T95_STATS load_ms=${SystemClock.elapsedRealtime() - startMs} species=${map.size} lang=$language")
         } catch (e: Exception) {
             Log.e(TAG, "species_master.json laden fehlgeschlagen", e)
             // T95: nicht bei jedem Aufruf erneut versuchen (10-MB-Parse) — Fallback sind wissenschaftliche Namen
             loaded = true
         }
+    }
+
+    /** T287: master-Namen setzen (Laden, Tests): Alias-Index zuerst, dann die Namen, dann "geladen" */
+    internal fun setMasterNames(map: Map<String, Map<String, String>>) {
+        aliasIndex = buildAliasIndex(map.keys) { SpeciesKey.of(it) }
+        namesMap = map
+        loaded = true
     }
 
     /**
@@ -137,10 +177,26 @@ class SpeciesNameResolver(private val context: Context) {
      * Artnamen-Sprache, unabhaengig vom Schalter. Fallback: Englisch → wiss. Name.
      */
     fun commonName(scientificName: String): String {
-        val key = scientificName.replace(' ', '_')
-        return pickCommon(
-            scientificName, namesMap[key], modelNamesMap[key], listNamesMap[key], language
-        )
+        val key = scientificName.trim().replace(' ', '_')
+        // T287: Modell- und master-Namen koennen verschiedene Taxonomien haben (Preview Thinornis_dubius,
+        // master-Landesname unter Charadrius_dubius). Ueber den SpeciesKey alle Namen derselben Art pruefen.
+        val canon = SpeciesKey.of(key)
+        val master = namesMap
+        val aliasMaster = aliasIndex[canon].orEmpty().filter { it != key }.map { master[it] }
+        val model = modelNamesMap
+        val aliasModel = modelAliasIndex[canon].orEmpty().filter { it != key }.map { model[it] }
+        val sources = listOf(master[key], model[key]) + aliasMaster + aliasModel
+        return pickCommon(scientificName, sources, listNamesMap[key], language)
+    }
+
+    /**
+     * T287: Name einer GESPEICHERTEN Detektion fuer Anzeige und Export: aus dem wissenschaftlichen Namen
+     * neu aufgeloest (alte Sessions mit englischem Rueckfall erscheinen korrekt). detections.jsonl bleibt
+     * unveraendert. Vor dem Laden von species_master gilt der gespeicherte Name.
+     */
+    fun storedName(scientificName: String, stored: String): String {
+        if (!isLoaded || scientificName.isBlank()) return stored
+        return preferResolved(commonName(scientificName), scientificName, stored)
     }
 
     /** T220: Untertitel zur Anzeige, immer der jeweils andere Name (Standard: wiss. Name; umgeschaltet: Landesname). */
@@ -149,6 +205,7 @@ class SpeciesNameResolver(private val context: Context) {
 
     // T103a: Namen aus der Label-Datei des aktiven Modells (Unterstrich-Schluessel → Sprache → Name)
     @Volatile private var modelNamesMap: Map<String, Map<String, String>> = emptyMap()
+    @Volatile private var modelAliasIndex: Map<String, List<String>> = emptyMap()  // T287
 
     /** T103a: Namen des aktiven Modells setzen (leer = kein Rueckfall) */
     fun setModelNames(names: Map<String, Map<String, String>>) {
@@ -159,6 +216,7 @@ class SpeciesNameResolver(private val context: Context) {
             val missing = if (known == null) langs else langs.filterKeys { it !in known }
             if (missing.isEmpty()) null else key to missing
         }.toMap()
+        modelAliasIndex = buildAliasIndex(modelNamesMap.keys) { SpeciesKey.of(it) }  // T287
         Log.i(TAG, "T103_STATS model_names=${modelNamesMap.size} species")
     }
 

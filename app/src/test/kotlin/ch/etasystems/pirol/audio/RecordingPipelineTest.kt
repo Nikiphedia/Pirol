@@ -84,7 +84,8 @@ class RecordingPipelineTest {
     private class FakeHooks(
         private val overlap: Int = 0,
         private val cluster: Boolean = false,
-        private val secondary: SecondaryModel? = null  // T224
+        private val secondary: SecondaryModel? = null,  // T224
+        private val namesReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null  // T287
     ) : PipelineHooks {
         override fun openSecondaryModel(): SecondaryModel? = secondary
         val watchlistChecked: MutableList<String> = Collections.synchronizedList(mutableListOf())
@@ -95,8 +96,13 @@ class RecordingPipelineTest {
         override fun currentLocation() = LocationData(47.0, 8.0, null, 5f, 0L)
         override fun startLocation() {}
         override fun stopLocation(): GpsStats? = null
-        override suspend fun awaitSpeciesNames() {}
-        override fun resolveName(scientificName: String) = if (scientificName == "Turdus_merula") "Amsel" else scientificName
+        override suspend fun awaitSpeciesNames() { namesReady?.await() }
+        // T287: vor Ladeende wuerde der Resolver den englischen Modellnamen liefern
+        override fun resolveName(scientificName: String) = when {
+            namesReady != null && !namesReady.isCompleted -> "Eurasian Blackbird"
+            scientificName == "Turdus_merula" -> "Amsel"
+            else -> scientificName
+        }
         override fun clusterEnabled() = cluster
         override fun clusterRadiusM() = 0
         override fun clusterTimeWindowMin() = if (cluster) 5 else 0
@@ -275,6 +281,27 @@ class RecordingPipelineTest {
         p.onRecordingStopped()!!.join()
         assertTrue("Liste nach Stopp leer", list.getDetections().isEmpty())
         assertEquals("end", session.events.last())
+    }
+
+    /** T287: Fenster vor Ladeende von species_master warten; persistiert wird nur der Landesname */
+    @Test
+    fun detectionsBeforeNamesLoaded_persistOnlyLocalName() = runBlocking {
+        val session = FakeSession()
+        val ready = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val hooks = FakeHooks(namesReady = ready)
+        val list = DetectionListState()
+        val p = pipeline(session, hooks, list, hit = true)
+        val flow = MutableSharedFlow<AudioChunk>(extraBufferCapacity = 256)
+        p.onRecordingStarted(flow, sr, PrerollCapture(pattern(0, sr * 4), sr, 0L))
+        feed(flow, 4)
+        waitUntil("Session steht") { session.active }
+        delay(300)
+        assertTrue("vor Ladeende keine Detektion", session.detections.isEmpty() && list.getDetections().isEmpty())
+        ready.complete(Unit)
+        waitUntil("Detektion persistiert") { session.detections.isNotEmpty() }
+        assertTrue(session.detections.toList().all { it.commonName == "Amsel" })
+        p.onRecordingStopped()!!.join()
+        assertTrue(session.detections.toList().none { it.commonName == "Eurasian Blackbird" })
     }
 
     /** T137: Persistenz hinkt hinterher (Rueckstau) - chunkStartSec stammt aus dem Pipeline-Zaehler. */
