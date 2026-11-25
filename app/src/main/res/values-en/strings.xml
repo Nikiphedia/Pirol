@@ -1113,4 +1113,5 @@
     <string name="experimental_bats_models_reset">Ultrasound model reset (default model / no secondary model).</string>
     <string name="analysis_rescan_session_i_von_n">Session %1$d of %2$d</string>
     <string name="analysis_rescan_uebernommen">Scan adopted as original: %1$d detections</string>
+    <string name="analysis_variante_geloescht_verworfen">The variant was deleted; the action was not saved.</string>
 </resources>

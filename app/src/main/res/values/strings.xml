@@ -1114,4 +1114,5 @@
     <string name="experimental_bats_models_reset">Ultraschall-Modell zurückgesetzt (Standardmodell bzw. kein Zweitmodell).</string>
     <string name="analysis_rescan_session_i_von_n">Session %1$d von %2$d</string>
     <string name="analysis_rescan_uebernommen">Scan als Original übernommen: %1$d Detektionen</string>
+    <string name="analysis_variante_geloescht_verworfen">Die Variante wurde gelöscht, die Aktion wurde nicht gespeichert.</string>
 </resources>

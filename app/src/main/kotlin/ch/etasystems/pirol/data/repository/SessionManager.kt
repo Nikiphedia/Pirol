@@ -573,11 +573,17 @@ class SessionManager(
         return t
     }
 
-    /** Fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session (T221: oder Variante) anhaengen. */
-    suspend fun appendVerificationLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
+    /**
+     * Fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session (T221: oder Variante) anhaengen.
+     * T308: true = geschrieben, false = verworfen (Variante existiert nicht mehr).
+     */
+    suspend fun appendVerificationLine(sessionDir: File, line: String, variant: String? = null): Boolean = withContext(Dispatchers.IO) {
         fileMutex.withLock {
             val t = writeTargetLocked(sessionDir, variant)
-            if (t is VariantWriteTarget.Target.Write) accessFor(sessionDir).append(RescanFiles.verifications(t.variant), line)
+            if (t is VariantWriteTarget.Target.Write) {
+                accessFor(sessionDir).append(RescanFiles.verifications(t.variant), line)
+                true
+            } else false
         }
     }
 
