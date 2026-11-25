@@ -59,7 +59,7 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         peakHold = prefs.spectrumPeakHold,
         traceSec = prefs.spectrumTraceSec.takeIf { t -> SPECTRUM_TRACE_OPTIONS.any { it == t } } ?: 0f,
         scale = ch.etasystems.pirol.ui.components.SpectrumScale.entries.firstOrNull { it.name == prefs.spectrumScale }
-            ?: ch.etasystems.pirol.ui.components.SpectrumScale.MEL
+            ?: ch.etasystems.pirol.ui.components.SpectrumScale.LINEAR
     )
 
     // T200: Live-Oszillogramm, eigene Schluessel `pirol_waveform_*` (Amplitudenmodus, Achse)

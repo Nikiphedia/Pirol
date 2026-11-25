@@ -300,7 +300,7 @@ class AppPreferences(context: Context) {
 
     /** T275: Frequenzachse des Spektrums, Enum-Name von SpectrumScale (Default MEL). */
     var spectrumScale: String
-        get() = prefs.getString("pirol_spectrum_scale", "MEL") ?: "MEL"
+        get() = prefs.getString("pirol_spectrum_scale", "LINEAR") ?: "LINEAR"
         set(value) = prefs.edit().putString("pirol_spectrum_scale", value).apply()
 
     var spectrumPeakHold: Boolean

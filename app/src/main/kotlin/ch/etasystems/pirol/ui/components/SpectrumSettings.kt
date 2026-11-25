@@ -18,7 +18,7 @@ data class SpectrumSettings(
     val averaging: SpectrumAveraging = SpectrumAveraging.SHORT,
     val peakHold: Boolean = false,
     val traceSec: Float = 0f,
-    val scale: SpectrumScale = SpectrumScale.MEL
+    val scale: SpectrumScale = SpectrumScale.LINEAR
 )
 
 /**
