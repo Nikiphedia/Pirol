@@ -15,7 +15,7 @@ L'app té cinc pestanyes: **Live**, **Anàlisi**, **Referències**, **Mapa** i *
 3. **Descarregar el model**: es poden seleccionar diversos models alhora. El model per defecte és BirdNET 3.0 FP16 (recomanat, uns 170 MB). La descàrrega continua en segon pla, es pot cancel·lar i reprendre més tard. Com a alternativa, es pot triar manualment un fitxer de model.
 4. **Comprovar la carpeta d'emmagatzematge** (Configuració > Gravació). Per defecte: `Downloads/PIROL/`, visible per USB.
 
-**Instal·lació (APK):** L'APK de publicació hi ha per arquitectura de processador. Per als dispositius actuals (telèfons i tauletes) instal·leu el fitxer `Pirol-<Versió>-arm64-v8a-release.apk`; només per als dispositius antics de 32 bits, el fitxer `...-armeabi-v7a-release.apk`. Així, les APK són molt més petites que l'antiga APK comuna. L'app té una icona nova (ocell groc), també com a icona monocroma per a les icones temàtiques.
+**Instal·lació (APK):** L'APK de publicació hi ha per arquitectura de processador. Per als dispositius actuals (telèfons i tauletes) instal·leu el fitxer `Pirol-<Versió>-arm64-v8a-release.apk`; només per als dispositius antics de 32 bits, el fitxer `...-armeabi-v7a-release.apk`. Així, les APK són molt més petites que l'antiga APK comuna. L'app té una icona nova (ocell groc), també com a icona monocroma per a les icones temàtiques. Detalls sobre la instal·lació i l'actualització (també dispositius Samsung) són al capítol 20.
 
 **Novetats:** Després d'una actualització, PIROL mostra una vegada un diàleg "Novetats" amb els canvis més importants de la versió. Es pot tornar a obrir en qualsevol moment a Configuració, sota "Info".
 
@@ -69,6 +69,8 @@ L'ordre de les targetes d'espècies canvia com a màxim cada 5 s. Les espècies 
 ### Memo de sessió
 El botó de memo a la pestanya Live (només visible durant una gravació) funciona com un walkie-talkie: **premeu-lo i mantingueu-lo mentre parleu**; en deixar-lo anar, el memo acaba. Durant la gravació el botó és vermell i mostra la durada; després apareix "Memo desat (n s)". Els memos de menys de 0.5 s es descarten ("Massa curt"); després de 3 minuts el memo acaba automàticament. El memo es desa amb la seva posició dins de la gravació (`memos.jsonl`, fitxers a `memos/`), apareix a l'anàlisi al bloc "Memos" (capítol 6) i com a línia "Memo" a l'exportació Raven (capítol 7). Els memos no s'amaguen mai com a veu (capítol 7). Els memos de veu sobre espècies individuals resten separats.
 
+Quan es prem, PIROL anota l'últim fix GPS (no més antic de 2 min) i el desa amb el memo; al mapa el memo apareix llavors com a marcador de micròfon (capítol 8). Sense un fix actual, el memo no té ubicació. Esborrar, compartir i desar com a: capítol 6.
+
 ### Detecció múltiple i llindar de confiança
 Dins de la mateixa finestra de 3 s es detecten totes les espècies que arriben al llindar, no només la primera. El regulador s'anomena "Llindar de confiança (totes les espècies)" (Configuració > Model i detecció, per defecte 50 %) i és el mateix per a totes les espècies. Les espècies per sota però per sobre del límit de candidates resten com a candidates a les deteccions de la finestra. Abans, el regulador controlava un altre llindar (TopK, per defecte 0.3); per això, després de l'actualització, cal revisar-lo. Les alarmes de la llista de seguiment només es disparen a partir del llindar.
 
@@ -93,7 +95,7 @@ El filtre passa-alts (200 Hz) elimina el vent i el soroll de passes, activat per
 
 A la pestanya Live i a la pestanya Anàlisi. L'eix de freqüències mostra 1/2/4/8/12 kHz. Per defecte es mostra fins a **12 kHz** (preajust per als ocells), ajustable fins a **24 kHz**. Els nivells del sonograma es mostren en dBFS.
 
-**Modes de visualització (pestanya Live):** al panell de visualització (premuda llarga) canvieu entre **Sonograma**, **Espectre** i **Oscil·lograma**. L'espectre mostra el volum per freqüència amb FFT real (dBFS, mitjana, retenció de pics amb punts que s'esvaeixen, cursor). L'oscil·lograma mostra l'evolució temporal amb indicador de nivell (pic/RMS), passa-banda i marca vermella en cas de saturació. La freqüència, la dinàmica i la paleta de colors són comunes per a les tres vistes. A l'anàlisi també hi ha disponibles l'espectre i l'oscil·lograma.
+**Modes de visualització (pestanya Live):** al panell de visualització (premuda llarga) canvieu entre **Sonograma**, **Espectre** i **Oscil·lograma**. L'espectre mostra el volum per freqüència amb FFT real (dBFS, mitjana, retenció de pics amb punts que s'esvaeixen, cursor). Al panell de l'espectre, l'eix de freqüències es pot canviar entre **Lineal** (per defecte, distàncies iguals en Hz) i **Mel** (freqüències baixes estirades, com al sonograma); la graella i l'indicador del cursor segueixen la tria. El regulador **Intensitat (gamma)** actua també a l'espectre (alçada de la corba i graella en dB) i és el mateix valor que al sonograma. L'oscil·lograma mostra l'evolució temporal amb indicador de nivell (pic/RMS), passa-banda i marca vermella en cas de saturació; la seva **finestra temporal** (de 5 a 30 s) s'ajusta al panell de l'oscil·lograma. Un regulador de gamma no pertany a l'oscil·lograma. Mentre encara no hi hagi dades, cada vista mostra el seu propi avís ("Carregant espectre", "Carregant oscil·lograma"). La freqüència, la dinàmica i la paleta de colors són comunes per a les tres vistes. A l'anàlisi també hi ha disponibles l'espectre i l'oscil·lograma.
 
 **Adaptar la visualització:** la premuda llarga sobre el sonograma (Live o Anàlisi) obre el panell de configuració sota el sonograma; els mateixos reguladors són a Configuració > Visualització. El panell és comú per a Live, Anàlisi i Configuració. A dalt del panell hi ha "Fet" en una línia pròpia; els preajustos i les paletes de colors són rajoles que es divideixen en línies si no hi ha espai.
 
@@ -153,7 +155,7 @@ human_windows.jsonl       Llista per amagar veus humanes (mai exportada)
 - **Marques de temps:** sempre hora local amb desfasament de zona (p. ex. `+02:00`).
 - **Esborrat automàtic:** les sessions curtes sense detecció s'esborren (durada mínima ajustable, 0 = desactivat).
 - **Esborrar** una sessió a l'anàlisi: amb confirmació.
-- **Editar dades de sessions importades:** a les sessions importades, al menú de desbordament de la capçalera (icona de tres punts) hi ha l'entrada "Editar dades": hora d'inici, lloc i observació es poden canviar després. Una hora d'inici nova desplaça totes les hores de la sessió (deteccions, verificacions, variants, ruta) en la mateixa diferència; les posicions dins de la gravació no canvien. Raven i GPX es tornen a escriure. El lloc s'aplica a la sessió i a totes les deteccions sense posició GPS pròpia; els punts desplaçats al mapa no canvien. No és possible durant una re-anàlisi.
+- **Editar dades de sessions importades:** a les sessions importades, al menú de desbordament de la capçalera (icona de tres punts) hi ha l'entrada "Editar dades": hora d'inici, lloc i observació es poden canviar després. Una hora d'inici nova desplaça totes les hores de la sessió (deteccions, verificacions, variants, ruta) en la mateixa diferència; les posicions dins de la gravació no canvien. Si canvia la **data**, PIROL reanomena també la carpeta de la sessió (nou identificador amb la nova hora local) i la mou a la carpeta del dia corresponent (si les subcarpetes diàries estan activades). La data i l'hora d'inici es trien amb el selector de data i hora. Raven i GPX es tornen a escriure. El lloc s'aplica a la sessió i a totes les deteccions sense posició GPS pròpia; els punts desplaçats al mapa no canvien. No és possible durant una re-anàlisi; un canvi de data tampoc no és possible mentre hi hagi un upload d'aquesta sessió en cua o en curs.
 
 ### Canviar la ubicació d'emmagatzematge
 Configuració > Gravació > Carpeta d'emmagatzematge: "Triar una altra carpeta" (SAF: memòria interna, targeta SD, carpeta al núvol). Opcionalment amb subcarpetes diàries. Si la carpeta no és accessible, PIROL desa a la carpeta de reserva de l'app i ho notifica. Les gravacions individuals també es poden moure des de la pestanya Anàlisi (capítol 6).
@@ -172,16 +174,20 @@ Configuració > Gravació > Carpeta d'emmagatzematge: "Triar una altra carpeta" 
 - **Verificar, corregir, afegir espècie:** igual que a la pestanya Live, també a posteriori.
 - **Comparació:** detecció i referència una al costat de l'altra, amb reproducció sincronitzada.
 - **Cerca:** la icona de lupa a la llista de sessions filtra pel nom de l'espècie (part del nom, nom alemany o científic). En una gravació oberta, la cerca filtra la llista de deteccions.
-- **Capçalera i barra de reproducció:** enrere, data i identificador, reproducció amb indicació de posició, cerca, Raven i càrrega. Amb "detecció anterior/següent" es salta entre les entrades.
+- **Capçalera i barra de reproducció:** enrere, data i identificador, reproducció amb indicació de posició, cerca, Raven i càrrega. El resultat de la càrrega apareix en una barra emergent ("Carregat", en cas d'error amb el motiu, o que PIROL espera una decisió, capítol 7). Amb "detecció anterior/següent" es salta entre les entrades.
 - **Navegació:** un toc sobre el sonograma o l'oscil·lograma salta a aquell punt; si no hi ha reproducció en curs, PIROL recorda la posició inicial (indicador cian) per a la següent reproducció.
-- **Espectre i oscil·lograma:** igual que a la pestanya Live; a l'oscil·lograma un indicador mostra la posició de reproducció.
-- **+ Espècie:** pren l'hora de la posició de reproducció (+/-10 s). La ubicació es pot determinar amb "Triar al mapa".
+- **Espectre i oscil·lograma:** igual que a la pestanya Live (inclosos Lineal/Mel i gamma, capítol 3); a l'oscil·lograma un indicador mostra la posició de reproducció.
+- **Zoom amb dos dits:** a la barra de visió general i al sonograma es fa zoom amb pinça (dos dits). El retall té com a mínim 3 s (en sessions més curtes, tota la sessió) i com a màxim tota la gravació; en allunyar fins a la gravació sencera, el zoom s'anul·la. Tocar i arrossegar amb un dit funcionen com abans.
+- **+ Espècie:** pren l'hora de la posició de reproducció (+/-10 s). En sessions formades per diversos fitxers amb buits entre els segments, PIROL calcula a través del rellotge de paret del segment corresponent; la finestra es queda dins del segment. La ubicació es pot determinar amb "Triar al mapa".
 - **Visió general:** una barra de resum mostra les deteccions de tota la gravació; la taula Raven les llista en forma de taula.
 - **Tornar a generar el fitxer Raven**, p. ex. després d'una verificació posterior.
 - **Compartir episodis:** cada episodi té el seu propi botó de compartir; es comparteix el fragment d'aquell episodi.
-- **Memos:** si hi ha memos, l'anàlisi mostra sota el sonograma i la visió general el bloc plegable "Memos (n)" (com a màxim 200 dp d'alçada, amb desplaçament) amb reproducció. Llista els memos de sessió i els memos sobre espècies; en els memos d'espècies sense hora coneguda apareix "aprox. ... (hora de la detecció)".
-- **Re-anàlisi:** el botó de re-anàlisi al costat de la lupa (només si hi ha una gravació) obre la selecció de model, llista o grups d'espècies, llindar de confiança, solapament i segon model. La re-anàlisi s'executa en segon pla com a servei en primer pla, amb progrés i opció de cancel·lar; el resultat apareix com una etiqueta al costat de l'original ("Data hora · Model"). Els resultats apareixen **progressivament**: la variant s'obre de seguida, la llista de deteccions creix cada pocs segons i es pot verificar durant l'escaneig (capçalera "· en curs"). En cancel·lar, el resultat parcial es conserva ("cancel·lat al minut x"); el mateix passa si l'app es tanca durant l'escaneig. Les verificacions ja fetes mai se sobreescriuen. Durant una re-anàlisi no és possible cap gravació i la variant en curs no es pot esborrar. La importació d'arxius d'àudio segueix el mateix camí.
+- **Memos:** si hi ha memos, l'anàlisi mostra sota el sonograma i la visió general el bloc plegable "Memos (n)" (com a màxim 200 dp d'alçada, amb desplaçament) amb reproducció. Llista els memos de sessió i els memos sobre espècies; en els memos d'espècies sense hora coneguda apareix "aprox. ... (hora de la detecció)". El menú de cada memo ofereix **Compartir** i **Desar com a** (el fitxer WAV sense canvis, nom `AAAAMMDDHHMMSS_Memo_Observació.wav`, sense amagar veus) i, per als memos de sessió, **Esborrar**: el memo desapareix de seguida, una barra emergent ofereix **Desfer** (10 s); només després el fitxer s'esborra definitivament. A la gravació en curs, esborrar està bloquejat ("Esborrar (gravació en curs)").
+- **Re-anàlisi:** el botó de re-anàlisi al costat de la lupa (només si hi ha una gravació) obre la selecció de model, llista o grups d'espècies, llindar de confiança, solapament i segon model. La re-anàlisi s'executa en segon pla com a servei en primer pla, amb progrés i opció de cancel·lar; el resultat apareix com una etiqueta al costat de l'original ("Data hora · Model"). Els resultats apareixen **progressivament**: la variant s'obre de seguida, la llista de deteccions creix cada pocs segons i es pot verificar durant l'escaneig (capçalera "· en curs"). En cancel·lar, el resultat parcial es conserva ("cancel·lat al minut x"); el mateix passa si l'app es tanca durant l'escaneig. Les verificacions ja fetes mai se sobreescriuen. La re-anàlisi ha esdevingut més ràpida: fa servir més nuclis del processador i el segon model s'executa en paral·lel al model principal; els resultats són els mateixos que abans. Durant una re-anàlisi no és possible cap gravació i la variant en curs no es pot esborrar. Després de la importació d'arxius d'àudio, l'escaneig segueix el mateix camí (vegeu "Importar àudio").
 - **Importar àudio:** el botó d'importació a la capçalera de la llista de sessions incorpora una sessió de PIROL (ZIP o carpeta) o arxius d'àudio (WAV, FLAC, MP3, M4A, OGG) com a sessió nova. L'hora d'inici ve preomplerta (p. ex. d'un comentari d'AudioMoth) i es pot canviar. Amb diversos arxius es tria: una sessió per arxiu o totes en una sola sessió (segments, ordenats per hora).
+  - **Hora d'inici:** data i hora es trien amb el selector de data i hora. Els enregistradors sovint guarden com a hora del fitxer el final de la gravació; amb l'interruptor **"Hora del fitxer = final"** (per defecte activat) PIROL calcula inici = hora del fitxer menys la durada; desactivat, l'hora del fitxer es considera l'inici. Sota el camp s'indica d'on prové l'hora.
+  - **Escaneig després de la importació:** després, PIROL ofereix l'escaneig (diàleg de re-anàlisi). Si s'han importat diversos fitxers, cadascun com a sessió pròpia, la tria s'aplica a **totes** les sessions noves, que s'escaneen una darrere l'altra. El primer escaneig complet d'una sessió importada sense deteccions esdevé l'**original**: `detections.jsonl`, `verifications.jsonl` i el fitxer Raven queden llavors directament a la carpeta de la sessió, sense cap pas manual. Els escaneigs posteriors segueixen sent variants.
+  - **Cancel·lació:** si es cancel·la la importació (o falla), s'esborra la sessió que s'estava important a mitges; les sessions ja acabades d'una importació múltiple es conserven. Això és diferent de la re-anàlisi, que conserva el seu resultat parcial. Si es cancel·la el diàleg d'escaneig, es descarten els escaneigs en espera.
 
 **Capçalera:** data · municipi · observació en una línia; un toc a l'observació obre el diàleg. El commutador Compacte/Gran correspon al de la targeta d'espècies.
 
@@ -223,6 +229,7 @@ Deteccions georeferenciades en un mapa. El **menú del mapa** s'obre amb un llis
 - **Fora de línia:** per als mapes de swisstopo es pot descarregar la part visible ("Descarregar fragment", amb indicació del nombre de rajoles i la mida). Una cancel·lació conserva les rajoles ja carregades; en tornar a començar, només es carreguen les que falten. "Esborrar mapes fora de línia" elimina totes les rajoles desades.
 - **Visualització:** totes les sessions, "Només Live" o "Últimes 3". Les observacions rebutjades estan amagades. Els marcadors que se solapen s'agrupen segons el zoom. El mapa comença a la pròpia posició.
 - **Tocar un punt:** un toc sobre un punt obre un menú amb Verificar (Confirmar, Incert, Rebutjar), "Editar", "Moure posició" i Reproduir (Reproduir o "Aturar reproducció"). Una premuda llarga obre el mateix menú i permet, a més, vincular observacions com a observació simultània. Es reprodueix el fragment de la detecció de la gravació de la sessió; si no hi és, apareix un avís.
+- **Marcadors de memo:** els memos de sessió amb posició (capítol 2) apareixen com a marcadors de micròfon. Un toc obre un diàleg amb l'hora i Reproduir. Són visibles amb "Totes les sessions" i "Últimes 3", no amb "Només Live".
 - **Diversos punts superposats (clúster):** un toc sobre un clúster mostra la llista de deteccions. A cada entrada hi ha Verificar, Reproduir i "Moure posició".
 - **Moure posició:** el mapa mostra a dalt l'avís "Desplaceu el mapa: creueta a la nova posició de ..., després Acceptar." Desplaceu el mapa de manera que la creueta del centre quedi sobre la nova posició, i després premeu "Acceptar" (o "Cancel·lar") a baix. Després apareix una barra emergent amb **Desfer**. El desplaçament també funciona per a punts en directe; si no hi ha cap sessió en marxa, la nova posició només és vàlida fins que es tanqui l'app.
 - **Filtre d'espècies:** al menú del mapa hi ha el filtre: "Només espècies d'alarma" o amagar espècies individuals (Totes/Cap). El filtre és vàlid fins que es tanqui l'app; les rutes continuen visibles.
@@ -257,6 +264,8 @@ Dins de l'alarma, l'espècie es pot **confirmar** directament; "Desfer" continua
 ## 11. Grups d'espècies i llistes d'espècies
 
 El filtre d'espècies actua per grup: **Ocells, Llagostes, Amfibis, Mamífers**, cadascun **Desactivat / Tots / Automàtic / Llista**; **Altres** només **Desactivat / Tots** (per defecte Desactivat). "Automàtic" utilitza el geomodel (ubicació i setmana de BirdNET). Les espècies que el geomodel no coneix, així com els grups sense màscara del geomodel, utilitzen la llista acompanyant del grup (Ocells: llista de Suïssa; Llagostes i Amfibis: la llista de Suïssa de sota; Mamífers: totes). "Llista" tria una de les llistes incloses o una pròpia. S'inclou la llista "Llagostes i amfibis de Suïssa" (dades de GBIF, CC BY 4.0).
+
+**Automàtic sense GPS:** si no hi ha cap posició actual, s'aplica l'última posició desada durant 30 dies com a màxim; després, "Automàtic" usa la llista de suport del grup. Un avís al començament de la gravació ho indica, i Configuració > Espècies i alarma (geomodel) mostra la base ("Sense GPS s'aplica l'última posició del ..." o "Sense posició actual: s'aplica la llista de suport del grup"). La posició desada només s'actualitza en un càlcul amb fix GPS. Opcionalment, la **llista anual** ignora l'època de l'any (interruptor a la secció del geomodel).
 
 A l'editor de llistes es poden triar espècies per ordre, família i gènere; "Mostrar noms científics" commuta la forma del nom.
 
@@ -308,6 +317,8 @@ Estan verificats **BirdNET 2.4** (6'522 espècies, 48 kHz, aproximadament la mei
 **Llicències:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 i Nighthawk només no comercial (CC BY-NC o BY-NC-SA respectivament). La llicència es mostra en importar.
 
 **Nota:** Perch treballa a 32 kHz; per això les llagostes de fulla als ultrasons no són audibles.
+
+**Estadística del segon model (mode expert):** a Configuració > Model i detecció, el botó "Estadística del segon model" obre un diàleg. PIROL llegeix per a això totes les sessions (només els originals, només de lectura; les variants de re-anàlisi i les entrades manuals no compten) i mostra una taula creuada: verificació (confirmada, rebutjada, incerta, oberta, corregida/substituïda) contra el resultat del segon model (Verificat, No verificable, Discrepa, Sense resultat), en total i per segon model. Hi ha a més barres de progrés cap a l'objectiu (200 deteccions confirmades i 50 rebutjades amb resultat del segon model) i la proporció de discrepàncies en les deteccions confirmades i en les rebutjades. Ajuda a jutjar si el segon model és útil com a ajut de verificació. En tancar el diàleg es cancel·la la lectura.
 
 **Perch com a segon model:** necessita uns 650 MB d'espai addicional. L'app avisa en activar-lo si el dispositiu té menys de 6 GB de RAM. El segon model treballa amb l'àudio brut de la gravació, perquè les finestres de 5 s incloguin l'entorn real.
 
@@ -365,7 +376,7 @@ Configuració > Model i detecció > Perfil d'energia:
 
 ## 16. Idiomes
 
-Configuració > Idioma: idioma de l'app (idioma del sistema o selecció): alemany, anglès, francès, italià, català, portuguès, neerlandès, alemany suís. **L'alemany suís i el portuguès són esborranys**; els textos que falten apareixen en alemany. L'idioma dels **noms d'espècies** segueix l'idioma de l'app, però es pot configurar per separat (23 idiomes).
+Configuració > Idioma: idioma de l'app (idioma del sistema o selecció): alemany, anglès, francès, italià, català, portuguès, neerlandès, alemany suís. **L'alemany suís i el portuguès són esborranys**; els textos que falten apareixen en alemany. L'idioma dels **noms d'espècies** segueix l'idioma de l'app, però es pot configurar per separat (23 idiomes). Els noms d'espècies apareixen de manera coherent en l'idioma triat, també al mapa, a Raven i per a deteccions antigues (es resolen de nou en mostrar-los; els fitxers desats no canvien); les espècies reanomenades es troben també amb el seu nom antic. Si falta un nom en l'idioma triat, PIROL pren per a l'alemany el nom alemany de les llistes d'espècies incloses i per a altres idiomes primer el nom anglès.
 
 ---
 
@@ -383,11 +394,13 @@ Les opcions estan agrupades en seccions plegables; l'estat es recorda. Per defec
 | Mapa i GPS | mode GPS, gravar ruta, interval GPS, precisió i suavitzat; expert (Avançat): "Determinar municipi en línia (Google)" |
 | Exportació i càrrega | camps d'exportació Raven (incl. memo), privadesa (amagar veus humanes, llindar humà), càrrega (destinació carpeta/NAS, contrasenya, prova de connexió, només WLAN) |
 | Espècies semblants i referències | cerca de semblances, nombre de línies, gravacions de comparació (capítol 9) |
-| Info | versió, fonts, novetats, diagnòstic (prova de rendiment) |
+| Info | versió, fonts, novetats, diagnòstic (prova de rendiment), "Donar suport a PIROL" |
 
 L'interruptor **Mode expert** (sota "Iniciar la configuració") amaga en el mode senzill tot el que és poc freqüent; en mode expert és tot visible. No es perd cap configuració. Les opcions poc freqüents es troben al subbloc plegable "Avançat" de cada secció (p. ex. filtre passa-alts, agrupació de deteccions, fenologia, durada màxima de gravació).
 
 **Remostrejador:** Polifàsic (recomanat) filtra el soroll per sobre de 16 kHz, que altrament podria aparèixer com a senyals fantasma. "Lineal" és el mètode antic. El canvi mostra un avís i té efecte sense reiniciar la gravació.
+
+**Donar suport a PIROL:** a Configuració > Info, el botó "Donar suport a PIROL" obre la pàgina de donatius al navegador. La donació és voluntària; PIROL continua sent gratuït i complet.
 
 **Diagnòstic:** la prova de rendiment mesura el temps de càlcul del model actiu amb 1/2/4 fils (1-3 minuts, no durant una gravació). Amb "Triar fitxer ONNX i mesurar" també es pot provar qualsevol model abans de importar-lo.
 
@@ -406,17 +419,47 @@ L'interruptor **Mode expert** (sota "Iniciar la configuració") amaga en el mode
 
 La llista completa és a `CHANGELOG.md` del projecte.
 
+### Versió 0.1.3
+- Memos de sessió: esborrar amb desfer, ubicació desada en prémer i mostrada com a marcador al mapa, compartir i desar com a (capítols 2, 6, 8)
+- Importació: selector de data i hora, interruptor "Hora del fitxer = final", escaneig per a totes les sessions importades; el primer escaneig esdevé l'original amb Raven a la carpeta (capítol 6)
+- Canviar la data d'una sessió importada reanomena la carpeta i la mou a la carpeta del dia correcte (capítol 5)
+- "+ Espècie" té en compte els buits entre segments (capítol 6)
+- Espectre: Lineal (per defecte) o Mel, gamma també a l'espectre, finestra temporal a l'oscil·lograma (capítol 3)
+- Anàlisi: zoom amb dos dits; la càrrega comunica el resultat en una barra emergent (capítol 6)
+- Re-anàlisi més ràpida, segon model en paral·lel (capítol 6)
+- Filtre automàtic sense GPS: última posició fins a 30 dies, avís a l'inici, base a la configuració, llista anual (capítol 11)
+- Estadística del segon model en mode expert (capítol 13)
+- Noms d'espècies coherents en l'idioma triat, noms alemanys de les llistes d'espècies (capítol 16)
+- Botó "Donar suport a PIROL" (voluntari) a Configuració > Info (capítol 17)
+- El mode d'ajuda cobreix més controls, també marcadors del mapa i diàlegs (capítol 1)
+- Nou capítol 20: Instal·lació i actualització
+
 ### Versió 0.1.2
 - Editar a posteriori les dades de sessions importades (hora d'inici, lloc, observació) (capítol 5)
 - "Desar com a" com a ZIP o carpeta (capítol 6)
 - Raven: una línia per episodi, noves columnes `Cluster`, `Windows` i `Memo` (capítol 7)
-- Re-anàlisi i importació: resultats visibles i verificables progressivament, la cancel·lació conserva el resultat parcial (capítol 6)
+- Re-anàlisi i importació: resultats visibles i verificables progressivament, en la re-anàlisi la cancel·lació conserva el resultat parcial; en la importació esborra la sessió importada a mitges (capítol 6)
 - Les veus humanes s'amaguen a l'exportació, per defecte activat; consulta en cas de model sense classe humana (capítol 7)
 - Municipi en línia a través de Google només com a opció, per defecte desactivat (capítol 17)
 - Memo de sessió amb premuda sostinguda, bloc "Memos" a l'anàlisi, línia de memo a Raven (capítols 2, 6, 7)
 - Targetes d'espècies en directe més tranquil·les: canvi com a màxim cada 5 s, les coincidències dins de les 5 primeres parpelleen en blau (capítol 2)
 - Botó d'ajuda "?": mode d'ajuda i manual fora de línia (capítol 1)
 - Manual corregit: filtre d'espècies al menú del mapa (capítol 8), noms de seccions de Configuració (capítols 1, 5, 7, 17)
+
+---
+
+## 20. Instal·lació i actualització
+
+**Quina APK?** Cada versió està disponible com a release a GitHub (Nikiphedia/Pirol, secció "Releases") amb una APK per arquitectura de processador:
+- `Pirol-<Versió>-arm64-v8a-release.apk`: per a gairebé tots els telèfons i tauletes actuals. En cas de dubte, aquest fitxer.
+- `Pirol-<Versió>-armeabi-v7a-release.apk`: només per a dispositius antics de 32 bits.
+
+**Instal·lació:**
+1. Descarregueu l'APK adequada del release de GitHub al dispositiu i obriu-la. Android pregunta la primera vegada si el navegador o el gestor de fitxers utilitzat pot instal·lar aplicacions; permeteu-ho una vegada.
+2. **Dispositius Samsung:** la funció **"Bloqueig automàtic"** (Auto Blocker; Configuració > Seguretat i privadesa) impedeix instal·lar aplicacions fora de la botiga. Desactiveu-la breument per a la instal·lació, instal·leu PIROL i torneu-la a activar després. Això es repeteix **a cada actualització**.
+3. Toqueu Instal·lar i obriu l'app. En el primer inici, l'assistent de configuració us guia per les opcions bàsiques (capítol 1).
+
+**Actualització:** instal·leu la nova APK sobre la instal·lació existent (mateixa arquitectura; en Samsung, de nou amb el Bloqueig automàtic desactivat breument). Sessions, models, llistes i configuració es conserven; no cal desinstal·lar res. Notes sobre versions anteriors són al capítol 1 (Actualització de versions anteriors). Després de l'actualització, PIROL mostra una vegada "Novetats".
 
 ---
 

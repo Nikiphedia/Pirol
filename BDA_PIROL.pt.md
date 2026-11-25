@@ -15,7 +15,7 @@ A app tem cinco separadores: **Live**, **Análise**, **Referências**, **Mapa** 
 3. **Transferir o modelo**: podem selecionar-se vários modelos de uma só vez. O modelo padrão é o BirdNET 3.0 FP16 (recomendado, cerca de 170 MB). A transferência continua em segundo plano, pode ser cancelada e retomada mais tarde. Em alternativa, pode escolher-se manualmente um ficheiro de modelo.
 4. **Verificar a pasta de armazenamento** (Definições > Gravação). Predefinição: `Downloads/PIROL/`, visível por USB.
 
-**Instalação (APK):** existe um APK de versão para cada arquitetura de processador. Para os dispositivos atuais (telemóveis e tablets), instale o ficheiro `Pirol-<Versão>-arm64-v8a-release.apk`; apenas para dispositivos antigos de 32 bits, o ficheiro `...-armeabi-v7a-release.apk`. Os APK ficam assim bastante mais pequenos do que o antigo APK comum. A app tem um novo ícone (pássaro amarelo), também como ícone monocromático para ícones temáticos.
+**Instalação (APK):** existe um APK de versão para cada arquitetura de processador. Para os dispositivos atuais (telemóveis e tablets), instale o ficheiro `Pirol-<Versão>-arm64-v8a-release.apk`; apenas para dispositivos antigos de 32 bits, o ficheiro `...-armeabi-v7a-release.apk`. Os APK ficam assim bastante mais pequenos do que o antigo APK comum. A app tem um novo ícone (pássaro amarelo), também como ícone monocromático para ícones temáticos. Detalhes sobre a instalação e a atualização (também dispositivos Samsung) estão no capítulo 20.
 
 **Novidades:** após uma atualização, o PIROL mostra uma vez um diálogo "Novidades" com as alterações mais importantes da versão. Pode ser reaberto a qualquer momento em Definições, na secção "Info".
 
@@ -69,6 +69,8 @@ A ordem dos cartões de espécies altera-se no máximo a cada 5 s. As espécies 
 ### Memorando de sessão
 O botão de memorando no separador Live (visível apenas durante uma gravação) funciona como um walkie-talkie: **mantenha-o premido e fale**; ao soltar, o memorando termina. Durante a gravação o botão fica vermelho e mostra a duração; depois aparece "Memorando guardado (n s)". Memorandos com menos de 0.5 s são descartados ("Muito curto"); após 3 minutos o memorando termina automaticamente. O memorando é guardado com a sua posição na gravação (`memos.jsonl`, ficheiros em `memos/`), aparece na análise no bloco "Memorandos" (capítulo 6) e como linha "Memo" na exportação Raven (capítulo 7). Os memorandos nunca são ocultados como voz (capítulo 7). Os memorandos de voz sobre espécies individuais permanecem separados.
 
+Ao premir, o PIROL regista o último fix GPS (não mais antigo do que 2 min) e guarda-o com o memorando; no mapa, o memorando aparece então como marcador de microfone (capítulo 8). Sem um fix atual, o memorando não tem local. Apagar, partilhar e guardar como: capítulo 6.
+
 ### Deteção múltipla e limiar de confiança
 Na mesma janela de 3 s são detetadas todas as espécies que atingem o limiar, não apenas a primeira. O regulador chama-se "Limiar de confiança (todas as espécies)" (Definições > Modelo e deteção, predefinição 50 %) e é igual para todas as espécies. As espécies abaixo, mas acima do limite de candidatas, mantêm-se como candidatas nas deteções da janela. Antes, o regulador controlava outro limiar (TopK, predefinição 0.3); por isso, após a atualização, verifique-o. Os alarmes da lista de vigilância só disparam a partir do limiar.
 
@@ -93,7 +95,7 @@ O filtro passa-alto (200 Hz) elimina vento e ruído de passos, ativo por predefi
 
 No separador Live e no separador Análise. O eixo de frequências mostra 1/2/4/8/12 kHz. Por predefinição é mostrado até **12 kHz** (predefinição para aves), ajustável até **24 kHz**. Os níveis do sonograma são apresentados em dBFS.
 
-**Modos de visualização (separador Live):** no painel de visualização (premer longamente) alterna-se entre **Sonograma**, **Espectro** e **Oscilograma**. O espectro mostra o volume por frequência com FFT real (dBFS, média, retenção de picos com pontos que se desvanecem, cursor). O oscilograma mostra a evolução temporal com indicação de nível (pico/RMS), passa-banda e marca vermelha em caso de sobrecarga. Frequência, dinâmica e paleta de cores são comuns às três vistas. Na análise, o espectro e o oscilograma também estão disponíveis.
+**Modos de visualização (separador Live):** no painel de visualização (premer longamente) alterna-se entre **Sonograma**, **Espectro** e **Oscilograma**. O espectro mostra o volume por frequência com FFT real (dBFS, média, retenção de picos com pontos que se desvanecem, cursor). No painel do espectro, o eixo de frequências pode ser alternado entre **Linear** (predefinição, distâncias iguais em Hz) e **Mel** (frequências baixas esticadas, como no sonograma); a grelha e a leitura do cursor seguem a escolha. O regulador **Intensidade (gama)** atua também no espectro (altura da curva e grelha em dB) e é o mesmo valor que no sonograma. O oscilograma mostra a evolução temporal com indicação de nível (pico/RMS), passa-banda e marca vermelha em caso de sobrecarga; a sua **janela temporal** (5 a 30 s) ajusta-se no painel do oscilograma. Um regulador de gama não pertence ao oscilograma. Enquanto ainda não houver dados, cada vista mostra o seu próprio aviso ("Espectro a carregar", "Oscilograma a carregar"). Frequência, dinâmica e paleta de cores são comuns às três vistas. Na análise, o espectro e o oscilograma também estão disponíveis.
 
 **Ajustar a visualização:** premer longamente o sonograma (Live ou Análise) abre o painel de definições por baixo do sonograma; os mesmos reguladores estão em Definições > Visualização. O painel é comum a Live, Análise e Definições. No topo do painel está "Concluído" numa linha própria; as predefinições e paletas de cores são mosaicos que quebram linha quando falta espaço.
 
@@ -153,7 +155,7 @@ human_windows.jsonl       lista para ocultar vozes humanas (nunca exportada)
 - **Carimbos de tempo:** sempre hora local com desvio de fuso (p. ex. `+02:00`).
 - **Apagar automaticamente:** sessões curtas sem deteção são apagadas (duração mínima ajustável, 0 = desligado).
 - **Apagar** uma sessão na análise: com confirmação.
-- **Editar dados de sessões importadas:** nas sessões importadas, o menu de sobreposição do cabeçalho (ícone de três pontos) tem a entrada "Editar dados": hora de início, local e observação podem ser alterados posteriormente. Uma nova hora de início desloca todas as horas da sessão (deteções, verificações, variantes, rota) na mesma diferença; as posições na gravação mantêm-se. O Raven e o GPX são reescritos. O local aplica-se à sessão e a todas as deteções sem posição GPS própria; pontos deslocados no mapa mantêm-se. Não é possível durante uma re-análise.
+- **Editar dados de sessões importadas:** nas sessões importadas, o menu de sobreposição do cabeçalho (ícone de três pontos) tem a entrada "Editar dados": hora de início, local e observação podem ser alterados posteriormente. Uma nova hora de início desloca todas as horas da sessão (deteções, verificações, variantes, rota) na mesma diferença; as posições na gravação mantêm-se. Se a **data** mudar, o PIROL também renomeia a pasta da sessão (novo identificador com a nova hora local) e move-a para a pasta do dia correspondente (se as subpastas diárias estiverem ativas). A data e a hora de início escolhem-se com o seletor de data e hora. O Raven e o GPX são reescritos. O local aplica-se à sessão e a todas as deteções sem posição GPS própria; pontos deslocados no mapa mantêm-se. Não é possível durante uma re-análise; uma mudança de data também não é possível enquanto houver um carregamento desta sessão em fila ou em curso.
 
 ### Mudar o local de armazenamento
 Definições > Gravação > Pasta de armazenamento: "Escolher outra pasta" (SAF: memória interna, cartão SD, pasta na nuvem). Opcionalmente com subpastas diárias. Se a pasta não estiver acessível, o PIROL guarda na pasta de recurso da app e informa. Gravações individuais também podem ser movidas no separador Análise (capítulo 6).
@@ -172,16 +174,20 @@ Definições > Gravação > Pasta de armazenamento: "Escolher outra pasta" (SAF:
 - **Verificar, corrigir, adicionar espécie:** como no separador Live, também a posteriori.
 - **Comparação:** deteção e referência lado a lado, com reprodução sincronizada.
 - **Pesquisa:** o ícone de lupa na lista de sessões filtra pelo nome da espécie (parte do nome, nome alemão ou científico). Numa gravação aberta, a pesquisa filtra a lista de deteções.
-- **Cabeçalho e barra de reprodução:** voltar, data e identificação, reproduzir com indicação de posição, pesquisa, Raven e carregamento. Com "deteção anterior/seguinte" salta-se entre as entradas.
+- **Cabeçalho e barra de reprodução:** voltar, data e identificação, reproduzir com indicação de posição, pesquisa, Raven e carregamento. O resultado do carregamento aparece numa barra de aviso ("Carregado", em caso de erro com o motivo, ou que o PIROL aguarda uma decisão, capítulo 7). Com "deteção anterior/seguinte" salta-se entre as entradas.
 - **Navegação:** um toque no sonograma ou no oscilograma salta para esse ponto; se não houver reprodução em curso, o PIROL guarda a posição inicial (indicador ciano) para a próxima reprodução.
-- **Espectro e oscilograma:** como no separador Live; no oscilograma um indicador mostra a posição de reprodução.
-- **+ Espécie:** assume a hora da posição de reprodução (+/-10 s). A localização pode ser determinada com "Escolher no mapa".
+- **Espectro e oscilograma:** como no separador Live (incl. Linear/Mel e gama, capítulo 3); no oscilograma um indicador mostra a posição de reprodução.
+- **Zoom com dois dedos:** na barra de visão geral e no sonograma faz-se zoom com pinça (dois dedos). O excerto tem pelo menos 3 s (em sessões mais curtas, a sessão inteira) e no máximo a gravação inteira; ao afastar até à gravação inteira, o zoom é anulado. Tocar e arrastar com um dedo funcionam como antes.
+- **+ Espécie:** assume a hora da posição de reprodução (+/-10 s). Em sessões formadas por vários ficheiros com intervalos entre os segmentos, o PIROL calcula através do relógio de parede do respetivo segmento; a janela fica dentro do segmento. A localização pode ser determinada com "Escolher no mapa".
 - **Visão geral:** uma barra de resumo mostra as deteções de toda a gravação; a tabela Raven lista-as em forma de tabela.
 - **Gerar de novo o ficheiro Raven**, p. ex. após uma verificação posterior.
 - **Partilhar episódios:** cada episódio tem o seu próprio botão de partilha; partilha-se o excerto desse episódio.
-- **Memorandos:** se existirem memorandos, a análise mostra por baixo do sonograma e da visão geral o bloco expansível "Memorandos (n)" (no máximo 200 dp de altura, com deslocação) com reprodução. Lista memorandos de sessão e memorandos sobre espécies; nos memorandos de espécies sem hora conhecida aparece "cerca de ... (hora da deteção)".
-- **Re-análise:** o botão de re-análise ao lado da lupa (só se houver uma gravação) abre a escolha de modelo, lista ou grupos de espécies, limiar de confiança, sobreposição e segundo modelo. A re-análise decorre em segundo plano como serviço em primeiro plano, com progresso e opção de cancelar; o resultado aparece como etiqueta ao lado do original ("Data hora · Modelo"). Os resultados aparecem **progressivamente**: a variante abre-se de imediato, a lista de deteções cresce a cada poucos segundos e pode ser verificada durante a análise (cabeçalho "· a decorrer"). Ao cancelar, o resultado parcial mantém-se ("cancelado aos x min"); o mesmo acontece se a app for encerrada durante a análise. Verificações já feitas nunca são sobrescritas. Durante uma re-análise não é possível gravar e a variante em curso não pode ser apagada. A importação de ficheiros de áudio segue o mesmo caminho.
+- **Memorandos:** se existirem memorandos, a análise mostra por baixo do sonograma e da visão geral o bloco expansível "Memorandos (n)" (no máximo 200 dp de altura, com deslocação) com reprodução. Lista memorandos de sessão e memorandos sobre espécies; nos memorandos de espécies sem hora conhecida aparece "cerca de ... (hora da deteção)". O menu de cada memorando oferece **Partilhar** e **Guardar como** (o ficheiro WAV sem alterações, nome `AAAAMMDDHHMMSS_Memo_Observação.wav`, sem ocultar vozes) e, nos memorandos de sessão, **Apagar**: o memorando desaparece de imediato, uma barra de aviso oferece **Anular** (10 s); só depois o ficheiro é apagado definitivamente. Na gravação em curso, apagar está bloqueado ("Apagar (gravação em curso)").
+- **Re-análise:** o botão de re-análise ao lado da lupa (só se houver uma gravação) abre a escolha de modelo, lista ou grupos de espécies, limiar de confiança, sobreposição e segundo modelo. A re-análise decorre em segundo plano como serviço em primeiro plano, com progresso e opção de cancelar; o resultado aparece como etiqueta ao lado do original ("Data hora · Modelo"). Os resultados aparecem **progressivamente**: a variante abre-se de imediato, a lista de deteções cresce a cada poucos segundos e pode ser verificada durante a análise (cabeçalho "· a decorrer"). Ao cancelar, o resultado parcial mantém-se ("cancelado aos x min"); o mesmo acontece se a app for encerrada durante a análise. Verificações já feitas nunca são sobrescritas. A re-análise ficou mais rápida: usa mais núcleos do processador e o segundo modelo corre em paralelo ao modelo principal; os resultados são os mesmos de antes. Durante uma re-análise não é possível gravar e a variante em curso não pode ser apagada. Após a importação de ficheiros de áudio, a análise segue o mesmo caminho (ver "Importar áudio").
 - **Importar áudio:** o botão de importação no cabeçalho da lista de sessões acolhe uma sessão PIROL (ZIP ou pasta) ou ficheiros de áudio (WAV, FLAC, MP3, M4A, OGG) como nova sessão. A hora de início vem pré-preenchida (p. ex. de um comentário do AudioMoth) e pode ser alterada. Com vários ficheiros, escolhe-se: uma sessão por ficheiro ou todos numa só sessão (segmentos, ordenados por hora).
+  - **Hora de início:** data e hora escolhem-se com o seletor de data e hora. Os gravadores costumam indicar como hora do ficheiro o fim da gravação; o interruptor **"Hora do ficheiro = fim"** (predefinição ativa) calcula então início = hora do ficheiro menos a duração; desligado, a hora do ficheiro conta como início. Por baixo do campo indica-se de onde vem a hora.
+  - **Análise após a importação:** depois, o PIROL oferece a análise (diálogo de re-análise). Se vários ficheiros forem importados como sessão própria, a escolha aplica-se a **todas** as sessões novas, que são analisadas uma a seguir à outra. A primeira análise completa de uma sessão importada sem deteções torna-se o **original**: `detections.jsonl`, `verifications.jsonl` e o ficheiro Raven ficam então diretamente na pasta da sessão, sem passo manual. As análises seguintes continuam a ser variantes.
+  - **Cancelamento:** se cancelar a importação (ou ela falhar), a sessão meio importada é apagada; as sessões já concluídas de uma importação múltipla são mantidas. Isto difere da re-análise, que mantém o seu resultado parcial. Se cancelar o diálogo de análise, as análises em espera são descartadas.
 
 **Cabeçalho:** data · município · observação numa linha; um toque na observação abre o diálogo. O comutador Compacto/Grande corresponde ao do cartão de espécie.
 
@@ -223,6 +229,7 @@ Deteções georreferenciadas num mapa. O **menu do mapa** abre-se com um deslize
 - **Offline:** para os mapas swisstopo pode transferir-se o recorte visível ("Transferir recorte", com indicação do número de mosaicos e do tamanho). Um cancelamento mantém os mosaicos já carregados; um novo início carrega apenas os que faltam. "Apagar mapas offline" remove todos os mosaicos guardados.
 - **Visualização:** todas as sessões, "Só Live" ou "Últimas 3". Observações rejeitadas estão ocultas. Marcadores sobrepostos são agrupados conforme o zoom. O mapa começa na própria localização.
 - **Tocar num ponto:** um toque num ponto abre um menu com Verificar (Confirmar, Incerto, Rejeitar), "Editar", "Mover posição" e Reproduzir (Reproduzir ou "Parar reprodução"). Premir longamente abre o mesmo menu e permite, além disso, associar observações como observação simultânea. Reproduz-se o excerto da deteção a partir da gravação da sessão; se não existir, aparece uma mensagem.
+- **Marcadores de memorando:** os memorandos de sessão com posição (capítulo 2) aparecem como marcadores de microfone. Um toque abre um diálogo com a hora e Reproduzir. São visíveis em "Todas as sessões" e "Últimas 3", não em "Só Live".
 - **Vários pontos sobrepostos (cluster):** um toque num cluster mostra a lista de deteções. Em cada entrada existem Verificar, Reproduzir e "Mover posição".
 - **Mover posição:** o mapa mostra no topo a indicação "Mover o mapa: cruz sobre a nova posição de ..., depois Aceitar." Desloque o mapa de forma que a cruz no centro fique sobre a nova posição e depois prima "Aceitar" (ou "Cancelar") em baixo. Segue-se uma barra de aviso com **Anular**. O movimento também funciona para pontos em direto; se não houver sessão em curso, a nova posição só vale até fechar a app.
 - **Filtro de espécies:** no menu do mapa está o filtro: "Só espécies de alarme" ou ocultar espécies individuais (Todas/Nenhuma). O filtro vale até a app ser fechada; as rotas continuam visíveis.
@@ -257,6 +264,8 @@ No alarme, a espécie pode ser **confirmada** diretamente; "Anular" continua dis
 ## 11. Grupos de espécies e listas de espécies
 
 O filtro de espécies atua por grupo: **Aves, Gafanhotos, Anfíbios, Mamíferos**, cada um **Desligado / Todos / Automático / Lista**; **Outros** apenas **Desligado / Todos** (predefinição Desligado). "Automático" usa o geomodelo (localização e semana do BirdNET). Espécies que o geomodelo não conhece, bem como grupos sem máscara do geomodelo, usam a lista de apoio do grupo (Aves: lista da Suíça; Gafanhotos e Anfíbios: lista da Suíça abaixo; Mamíferos: todos). "Lista" escolhe uma das listas incluídas ou uma própria. Inclui-se a lista "Gafanhotos e anfíbios da Suíça" (dados GBIF, CC BY 4.0).
+
+**Automático sem GPS:** se não houver localização atual, aplica-se a última posição guardada durante 30 dias no máximo; depois, "Automático" usa a lista de apoio do grupo. Um aviso no início da gravação assinala isso, e Definições > Espécies e alarme (geomodelo) mostra a base ("Sem GPS aplica-se a última posição de ..." ou "Sem posição atual: aplica-se a lista de apoio do grupo"). A posição guardada só é atualizada num cálculo com fix GPS. Opcionalmente, a **lista anual** ignora a época do ano (interruptor na secção do geomodelo).
 
 No editor de listas podem escolher-se espécies por ordem, família e género; "Mostrar nomes científicos" alterna a forma do nome.
 
@@ -308,6 +317,8 @@ Verificados estão o **BirdNET 2.4** (6'522 espécies, 48 kHz, cerca de metade d
 **Licenças:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 e Nighthawk apenas não comercial (CC BY-NC ou BY-NC-SA respetivamente). A licença é mostrada na importação.
 
 **Nota:** o Perch trabalha a 32 kHz; por isso, gafanhotos de canto no ultrassom não são audíveis.
+
+**Estatística do segundo modelo (modo especialista):** em Definições > Modelo e deteção, o botão "Estatística do segundo modelo" abre um diálogo. Para isso, o PIROL lê todas as sessões (apenas os originais, só de leitura; as variantes de re-análise e as entradas manuais não contam) e mostra uma tabela cruzada: verificação (confirmada, rejeitada, incerta, aberta, corrigida/substituída) contra o resultado do segundo modelo (Verificado, Não verificável, Discorda, Sem resultado), no total e por segundo modelo. Há ainda barras de progresso até ao objetivo (200 deteções confirmadas e 50 rejeitadas com resultado do segundo modelo) e a percentagem de discordâncias nas deteções confirmadas e nas rejeitadas. Ajuda a avaliar se o segundo modelo é útil como auxiliar de verificação. Ao fechar o diálogo, a leitura é cancelada.
 
 **Perch como segundo modelo:** precisa de cerca de 650 MB de armazenamento adicional. A app avisa ao ativar, se o dispositivo tiver menos de 6 GB de RAM. O segundo modelo trabalha com o áudio bruto da gravação, para que as janelas de 5 s incluam o ambiente real.
 
@@ -365,7 +376,7 @@ Definições > Modelo e deteção > Perfil de energia:
 
 ## 16. Idiomas
 
-Definições > Idioma: idioma da app (idioma do sistema ou seleção): alemão, inglês, francês, italiano, catalão, português, neerlandês, alemão suíço. **Alemão suíço e português são rascunhos**; os textos em falta aparecem em alemão. O idioma dos **nomes das espécies** segue o idioma da app, mas pode ser definido em separado (23 idiomas).
+Definições > Idioma: idioma da app (idioma do sistema ou seleção): alemão, inglês, francês, italiano, catalão, português, neerlandês, alemão suíço. **Alemão suíço e português são rascunhos**; os textos em falta aparecem em alemão. O idioma dos **nomes das espécies** segue o idioma da app, mas pode ser definido em separado (23 idiomas). Os nomes das espécies aparecem de forma coerente no idioma escolhido, também no mapa, no Raven e em deteções antigas (são resolvidos de novo ao mostrar-se; os ficheiros guardados não mudam); espécies renomeadas são também encontradas pelo nome antigo. Se faltar um nome no idioma escolhido, o PIROL usa para o alemão o nome alemão das listas de espécies incluídas e, para os outros idiomas, primeiro o nome inglês.
 
 ---
 
@@ -383,11 +394,13 @@ As definições estão organizadas em secções recolhíveis; o estado fica guar
 | Mapa e GPS | modo GPS, gravar rota, intervalo GPS, precisão e suavização; especialista (Avançado): "Determinar município online (Google)" |
 | Exportação e carregamento | campos de exportação Raven (incl. memorando), privacidade (ocultar vozes humanas, limiar humano), carregamento (destino pasta/NAS, palavra-passe, teste de ligação, só Wi-Fi) |
 | Espécies semelhantes e referências | pesquisa de semelhanças, número de linhas, gravações de comparação (capítulo 9) |
-| Info | versão, fontes, novidades, diagnóstico (teste de desempenho) |
+| Info | versão, fontes, novidades, diagnóstico (teste de desempenho), "Apoiar o PIROL" |
 
 O interruptor **Modo especialista** (sob "Iniciar configuração") oculta no modo simples tudo o que é raro; no modo especialista tudo está visível. Nenhuma definição se perde. As opções raras estão no subbloco recolhível "Avançado" de cada secção (p. ex. filtro passa-alto, agrupamento de deteções, fenologia, duração máxima de gravação).
 
 **Reamostragem:** Polifásico (recomendado) filtra ruídos acima de 16 kHz, que de outro modo podem aparecer como sinais fantasma. "Linear" é o método antigo. A mudança mostra uma indicação e tem efeito sem reiniciar a gravação.
+
+**Apoiar o PIROL:** em Definições > Info, o botão "Apoiar o PIROL" abre a página de donativos no navegador. O donativo é voluntário; o PIROL continua gratuito e completo.
 
 **Diagnóstico:** o teste de desempenho mede o tempo de cálculo do modelo ativo com 1/2/4 threads (1-3 minutos, não durante uma gravação). Com "Escolher ficheiro ONNX e medir" pode testar-se também qualquer modelo antes de o importar.
 
@@ -406,17 +419,47 @@ O interruptor **Modo especialista** (sob "Iniciar configuração") oculta no mod
 
 A lista completa está em `CHANGELOG.md` no projeto.
 
+### Versão 0.1.3
+- Memorandos de sessão: apagar com anular, local guardado ao premir e mostrado como marcador no mapa, partilhar e guardar como (capítulos 2, 6, 8)
+- Importação: seletor de data e hora, interruptor "Hora do ficheiro = fim", análise de todas as sessões importadas; a primeira análise torna-se o original com Raven na pasta (capítulo 6)
+- Alterar a data de uma sessão importada renomeia a pasta e move-a para a pasta do dia certo (capítulo 5)
+- "+ Espécie" tem em conta os intervalos entre segmentos (capítulo 6)
+- Espectro: Linear (predefinição) ou Mel, gama também no espectro, janela temporal no oscilograma (capítulo 3)
+- Análise: zoom com dois dedos; o carregamento comunica o resultado numa barra de aviso (capítulo 6)
+- Re-análise mais rápida, segundo modelo em paralelo (capítulo 6)
+- Filtro automático sem GPS: última posição até 30 dias, aviso no início, base nas definições, lista anual (capítulo 11)
+- Estatística do segundo modelo no modo especialista (capítulo 13)
+- Nomes das espécies coerentes no idioma escolhido, nomes alemães das listas de espécies (capítulo 16)
+- Botão "Apoiar o PIROL" (voluntário) em Definições > Info (capítulo 17)
+- O modo de ajuda cobre mais controlos, também marcadores do mapa e diálogos (capítulo 1)
+- Novo capítulo 20: Instalação e atualização
+
 ### Versão 0.1.2
 - Editar posteriormente os dados de sessões importadas (hora de início, local, observação) (capítulo 5)
 - "Guardar como" como ZIP ou pasta (capítulo 6)
 - Raven: uma linha por episódio, novas colunas `Cluster`, `Windows` e `Memo` (capítulo 7)
-- Re-análise e importação: resultados visíveis e verificáveis progressivamente, o cancelamento mantém o resultado parcial (capítulo 6)
+- Re-análise e importação: resultados visíveis e verificáveis progressivamente, na re-análise o cancelamento mantém o resultado parcial; na importação apaga a sessão importada a meio (capítulo 6)
 - Vozes humanas são ocultadas na exportação, predefinição ativa; aviso em caso de modelo sem classe humana (capítulo 7)
 - Município online através do Google apenas como opção, predefinição desligada (capítulo 17)
 - Memorando de sessão com premir e manter, bloco "Memorandos" na análise, linha de memorando no Raven (capítulos 2, 6, 7)
 - Cartões de espécies em direto mais calmos: mudança no máximo a cada 5 s, correspondências nos 5 primeiros piscam a azul (capítulo 2)
 - Botão de ajuda "?": modo de ajuda e manual offline (capítulo 1)
 - Manual corrigido: filtro de espécies no menu do mapa (capítulo 8), nomes das secções de Definições (capítulos 1, 5, 7, 17)
+
+---
+
+## 20. Instalação e atualização
+
+**Qual APK?** Cada versão está disponível como release no GitHub (Nikiphedia/Pirol, secção "Releases") com um APK por arquitetura de processador:
+- `Pirol-<Versão>-arm64-v8a-release.apk`: para quase todos os telemóveis e tablets atuais. Em caso de dúvida, esta é a escolha.
+- `Pirol-<Versão>-armeabi-v7a-release.apk`: apenas para dispositivos antigos de 32 bits.
+
+**Instalação:**
+1. Transfira o APK correspondente da release do GitHub para o dispositivo e abra-o. Na primeira vez, o Android pergunta se o navegador ou o gestor de ficheiros usado pode instalar aplicações; permita uma vez.
+2. **Dispositivos Samsung:** a função **"Bloqueio automático"** (Auto Blocker; Definições > Segurança e privacidade) impede a instalação de aplicações fora da loja. Desligue-a brevemente para a instalação, instale o PIROL e volte a ligá-la depois. Isto aplica-se **em cada atualização** novamente.
+3. Toque em Instalar e abra a app. No primeiro arranque, o assistente de configuração guia pelas definições básicas (capítulo 1).
+
+**Atualização:** instale o novo APK por cima da instalação existente (mesma arquitetura; na Samsung, novamente com o Bloqueio automático brevemente desligado). Sessões, modelos, listas e definições são mantidos; não é preciso desinstalar nada. Notas sobre versões antigas estão no capítulo 1 (Atualização a partir de versões anteriores). Após a atualização, o PIROL mostra uma vez "Novidades".
 
 ---
 
