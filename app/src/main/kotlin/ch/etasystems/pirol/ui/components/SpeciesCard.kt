@@ -300,7 +300,9 @@ fun SpeciesCard(
                     onToggleLock = onToggleLock,
                     onToggleCandidates = { candidatesExpanded = !candidatesExpanded },
                     hasCustomData = hasCustomData,
-                    selectAlternativeEnabled = onSelectAlternative != null
+                    selectAlternativeEnabled = onSelectAlternative != null,
+                    nameResolver = nameResolver,
+                    sciMode = sciMode
                 )
             } else {
             // Zeile 1: Artname + Zaehler-Badge + Prozentwert
@@ -823,7 +825,9 @@ private fun CompactRow(
     onToggleLock: (() -> Unit)?,
     onToggleCandidates: () -> Unit,
     hasCustomData: Boolean,
-    selectAlternativeEnabled: Boolean
+    selectAlternativeEnabled: Boolean,
+    nameResolver: ch.etasystems.pirol.ml.SpeciesNameResolver,
+    sciMode: Boolean
 ) {
     val status = detection.verificationStatus
     val neutralContent = MaterialTheme.colorScheme.onSurfaceVariant
@@ -856,7 +860,7 @@ private fun CompactRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (status == VerificationStatus.CORRECTED && detection.correctedSpecies != null)
-                        detection.correctedSpecies!! else ch.etasystems.pirol.ml.StoredSpeciesNames.of(detection.scientificName, detection.commonName),  // T287
+                        detection.correctedSpecies!! else if (sciMode) nameResolver.displayName(detection.scientificName) else ch.etasystems.pirol.ml.StoredSpeciesNames.of(detection.scientificName, detection.commonName),  // T287/T288
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = statusColor ?: MaterialTheme.colorScheme.onSurface,
@@ -889,6 +893,13 @@ private fun CompactRow(
             }
             // Kleine Zusatzzeile: Konfidenz, bei breiter Karte auch die Zeit
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // T288: Untertitel wie Vollkarte (bei Schalter "wissenschaftlich" der Landesname)
+                if (sciMode) {
+                    Text(nameResolver.subtitle(detection.scientificName), style = MaterialTheme.typography.labelSmall,
+                        color = neutralContent, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false))
+                }
                 Text("$confidencePercent%", style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold, color = confidenceColor)
                 // T247: Zweitmodell-Wert kurz ("82 · 64 %"), wenn geprueft

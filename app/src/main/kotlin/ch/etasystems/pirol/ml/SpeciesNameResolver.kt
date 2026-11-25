@@ -9,18 +9,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.json.JSONObject
 
 /**
  * Uebersetzt wissenschaftliche Artnamen in CommonNames der gewaehlten Sprache.
  * Nutzt species_master.json (11'560 Arten, 23 Sprachen) aus AMSEL.
  *
- * Fallback-Kette: gewaehlte Sprache → Englisch → scientificName (ohne Unterstrich).
+ * Fallback-Kette: gewaehlte Sprache (master, Modell, Listenname bei Deutsch) → Englisch → Listenname → scientificName (ohne Unterstrich).
  */
 class SpeciesNameResolver(private val context: Context) {
 
     companion object {
         private const val TAG = "SpeciesNames"
+        /** T288: Sprache der Listennamen (species_info.common_name, name_de der Listen) */
+        internal const val LIST_LANGUAGE = "de"
         private const val SPECIES_PATH = "species/species_master.json"
 
         /** Verfuegbare Sprachen (Subset der 23, die wichtigsten) */
@@ -64,6 +71,8 @@ class SpeciesNameResolver(private val context: Context) {
             language: String
         ): String {
             for (s in sources) s?.get(language)?.let { return it }
+            // T288: Listennamen (species_info.common_name) sind deutsch; in der Sprache Deutsch gehen sie vor Englisch
+            if (language == LIST_LANGUAGE && listName != null) return listName
             for (s in sources) s?.get("en")?.let { return it }
             return listName ?: scientificName.replace('_', ' ')
         }
@@ -146,6 +155,9 @@ class SpeciesNameResolver(private val context: Context) {
                 map[sciName] = langMap
             }
             SpeciesKey.load(context)  // T287: Alias-Tabelle vor dem Alias-Index
+            runCatching {  // T288: eingebaute Listennamen (nur Rueckfall)
+                setBuiltinListNames(parseListNames(context.assets.open("regions/region_sets.json").bufferedReader().use { it.readText() }))
+            }
             setMasterNames(map)
             TaxonGroups.addMasterGroups(groups)  // T232: Artgruppen fuer Arten ohne Label-CSV-Eintrag
             Log.i(TAG, "T95_STATS load_ms=${SystemClock.elapsedRealtime() - startMs} species=${map.size} lang=$language")
@@ -186,7 +198,7 @@ class SpeciesNameResolver(private val context: Context) {
         val model = modelNamesMap
         val aliasModel = modelAliasIndex[canon].orEmpty().filter { it != key }.map { model[it] }
         val sources = listOf(master[key], model[key]) + aliasMaster + aliasModel
-        return pickCommon(scientificName, sources, listNamesMap[key], language)
+        return pickCommon(scientificName, sources, listNameFor(key, canon), language)
     }
 
     /**
@@ -222,6 +234,34 @@ class SpeciesNameResolver(private val context: Context) {
 
     // T190: Anzeigenamen aus Artenlisten (species_info.common_name), nur Rueckfall ohne master-/Modell-Name
     @Volatile private var listNamesMap: Map<String, String> = emptyMap()
+
+    // T288: Namen aus den eingebauten Listen (region_sets.json species_info), Schluessel = Artname mit Unterstrich
+    @Volatile private var builtinListNames: Map<String, String> = emptyMap()
+    @Volatile private var builtinListAlias: Map<String, String> = emptyMap()  // kanonischer Schluessel -> Name
+
+    /** T288: eingebaute Listennamen setzen (Laden, Tests) */
+    internal fun setBuiltinListNames(names: Map<String, String>) {
+        builtinListAlias = names.entries.associate { (k, v) -> SpeciesKey.of(k) to v }
+        builtinListNames = names
+    }
+
+    /** T288: Listenname einer Art: eigene Listen, eingebaute Listen, jeweils exakt, dann ueber Alias */
+    private fun listNameFor(key: String, canon: String): String? =
+        listNamesMap[key] ?: builtinListNames[key] ?: builtinListAlias[canon]
+
+    /** T288: species_info.common_name aus region_sets.json (Text) lesen */
+    internal fun parseListNames(text: String): Map<String, String> {
+        val out = HashMap<String, String>()
+        val sets = Json.parseToJsonElement(text).jsonObject["sets"]?.jsonArray ?: return out
+        for (set in sets) {
+            val info = set.jsonObject["species_info"] as? JsonObject ?: continue
+            for ((k, v) in info) {
+                val n = (v as? JsonObject)?.get("common_name")?.jsonPrimitive?.content.orEmpty()
+                if (n.isNotBlank()) out.putIfAbsent(k.replace(' ', '_'), n)
+            }
+        }
+        return out
+    }
 
     /** T190: Namen aus eigenen Listen setzen (Schluessel = Artname mit Unterstrich) */
     fun setListNames(names: Map<String, String>) {
