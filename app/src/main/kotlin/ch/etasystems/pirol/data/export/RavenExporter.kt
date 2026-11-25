@@ -180,8 +180,9 @@ object RavenExporter {
                     // T264: Session-Memo: sprachneutral "Memo", ohne Score, Status und Cluster
                     if (on(FIELD_SPECIES))     { row += MEMO_SPECIES; row += MEMO_SPECIES }
                     if (on(FIELD_CONFIDENCE))  row += ""
-                    if (on(FIELD_LAT))         row += ""
-                    if (on(FIELD_LON))         row += ""
+                    // T300: Position des Memos (GPS-Fix beim Druecken, T272), leer ohne Fix
+                    if (on(FIELD_LAT))         row += memo?.lat?.let { String.format(Locale.US, "%.6f", it) } ?: ""
+                    if (on(FIELD_LON))         row += memo?.lon?.let { String.format(Locale.US, "%.6f", it) } ?: ""
                     if (on(FIELD_SIMULTAN))    row += ""
                     if (on(FIELD_MOEGLICH))    row += ""
                     if (on(FIELD_GLEICH))      row += ""

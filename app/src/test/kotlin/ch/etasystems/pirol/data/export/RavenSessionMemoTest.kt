@@ -38,6 +38,18 @@ class RavenSessionMemoTest {
     }
 
     @Test
+    fun memo_row_position() {
+        // T300: Memo-Zeile traegt die Position des Memos (T272), ohne Fix leer
+        val withFix = memo("memos/m1.wav", 20f, 25f).copy(lat = 47.40085, lon = 8.0588507, accuracyM = 20f)
+        val rows = export(listOf(det("a", 10f)), listOf(withFix, memo("memos/m2.wav", 30f, 31f)))
+        val h = rows[0]
+        assertEquals("47.400850", rows[2][h.indexOf("Lat")])
+        assertEquals("8.058851", rows[2][h.indexOf("Lon")])
+        assertEquals("", rows[3][h.indexOf("Lat")])
+        assertEquals("", rows[3][h.indexOf("Lon")])
+    }
+
+    @Test
     fun memo_row_fields() {
         val rows = export(listOf(det("a", 10f)), listOf(memo("memos/session_20261124-100020.wav", 20f, 25f)))
         assertEquals(3, rows.size)
