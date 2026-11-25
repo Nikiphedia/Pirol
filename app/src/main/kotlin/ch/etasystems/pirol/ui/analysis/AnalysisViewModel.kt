@@ -2011,7 +2011,12 @@ class AnalysisViewModel(
     private fun observeRescan() {
         viewModelScope.launch {
             rescanEngine.active.collect { a ->
-                _uiState.update { it.copy(rescanProgress = a?.progress, rescanSessionDir = a?.sessionDir) }
+                _uiState.update {
+                    it.copy(
+                        rescanProgress = a?.progress, rescanSessionDir = a?.sessionDir,
+                        rescanBatchIndex = a?.batchIndex ?: 0, rescanBatchSize = a?.batchSize ?: 1
+                    )
+                }
                 onRescanFlush(a)
             }
         }
@@ -2034,7 +2039,11 @@ class AnalysisViewModel(
                             }
                         }
                         if (o.promoted) loadSessions()
-                        reportError(AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications))
+                        // T309: Uebernahme ins Original eigens melden, normale Variante wie bisher
+                        reportError(
+                            if (o.promoted) AppStrings.get(R.string.analysis_rescan_uebernommen, info.detectionCount)
+                            else AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications)
+                        )
                     }
                     is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Cancelled -> {
                         refreshAfterRescan(o.sessionDir, o.variantId)  // T260: Teilergebnis bleibt sichtbar

@@ -82,6 +82,13 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
                     stringResource(R.string.analysis_rescan_laeuft, (progress * 100).toInt()),
                     style = MaterialTheme.typography.labelMedium
                 )
+                // T309: Import-Warteschlange "Session i von n" (nur bei n > 1)
+                RescanBatchLabel.position(state.rescanBatchIndex, state.rescanBatchSize)?.let { pos ->
+                    Text(
+                        stringResource(R.string.analysis_rescan_session_i_von_n, pos, state.rescanBatchSize),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                 // T260: Ergebnisse erscheinen laufend in der Variante
                 Text(
@@ -273,4 +280,10 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
             TextButton(onClick = cancel, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "6")) { Text(stringResource(R.string.common_cancel)) }
         }
     )
+}
+
+/** T309: Anzeigelogik "Session i von n" der Import-Warteschlange */
+object RescanBatchLabel {
+    /** 1-basierte Stelle, null bei einer einzelnen Session (nichts zusaetzlich anzeigen) */
+    fun position(index: Int, size: Int): Int? = if (size > 1) (index + 1).coerceIn(1, size) else null
 }

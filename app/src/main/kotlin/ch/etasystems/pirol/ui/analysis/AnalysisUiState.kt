@@ -119,6 +119,9 @@ data class AnalysisUiState(
     /** T221: Fortschritt 0..1 des laufenden Rescans (null = keiner) und dessen Session */
     val rescanProgress: Float? = null,
     val rescanSessionDir: File? = null,
+    /** T309: Stelle in der Import-Warteschlange (0-basiert) und Laenge */
+    val rescanBatchIndex: Int = 0,
+    val rescanBatchSize: Int = 1,
     // T255: Fremdaudio-Import: Dialog offen, Vorpruefung (null = laeuft), Rescan-Dialog nach dem Import anbieten
     val audioImportOpen: Boolean = false,
     val audioImportProbes: List<ch.etasystems.pirol.data.importer.AudioProbe>? = null,
