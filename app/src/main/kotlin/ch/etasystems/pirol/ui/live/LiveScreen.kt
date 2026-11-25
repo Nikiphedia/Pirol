@@ -1056,7 +1056,8 @@ private fun ScanStatusRow(
             text = "${modelLabel} · $configLabel · ${(uiState.inferenceConfig.confidenceThreshold * 100).roundToInt()}% · $regionLabel$sessionTimeLabel",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.helpTopic(R.string.help_live_status_line, "2").padding(horizontal = 4.dp, vertical = 4.dp)
+            // T310: weight, sonst schiebt die Laufzeit waehrend der Aufnahme die Knoepfe aus dem Bild
+            modifier = Modifier.weight(1f).helpTopic(R.string.help_live_status_line, "2").padding(horizontal = 4.dp, vertical = 4.dp)
         )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
