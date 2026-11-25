@@ -1111,4 +1111,6 @@
     <string name="settings_info_developer">Developer: ETA Systems GmbH, 5004 Aarau, Switzerland</string>
     <string name="analysis_angaben_ordner_nicht_umbenannt">Details saved. The folder could not be renamed; the session keeps its previous ID.</string>
     <string name="experimental_bats_models_reset">Ultrasound model reset (default model / no secondary model).</string>
+    <string name="analysis_rescan_session_i_von_n">Session %1$d of %2$d</string>
+    <string name="analysis_rescan_uebernommen">Scan adopted as original: %1$d detections</string>
 </resources>

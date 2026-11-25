@@ -1112,4 +1112,6 @@
     <string name="settings_info_developer">Entwickler: ETA Systems GmbH, 5004 Aarau, Schweiz</string>
     <string name="analysis_angaben_ordner_nicht_umbenannt">Angaben gespeichert. Der Ordner konnte nicht umbenannt werden, die Session behält ihre bisherige Kennung.</string>
     <string name="experimental_bats_models_reset">Ultraschall-Modell zurückgesetzt (Standardmodell bzw. kein Zweitmodell).</string>
+    <string name="analysis_rescan_session_i_von_n">Session %1$d von %2$d</string>
+    <string name="analysis_rescan_uebernommen">Scan als Original übernommen: %1$d Detektionen</string>
 </resources>
