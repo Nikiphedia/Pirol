@@ -77,8 +77,11 @@ class SessionZipTest {
         File(dir, "session.json.new.ok").writeText("")
         File(dir, "memos").mkdirs()
         File(dir, "memos/m1.wav").writeText("w")
+        // T303: nur Memos mit Bezug (hier memos.jsonl) gehen in den Export
+        File(dir, "memos.jsonl").writeText("{\"file\":\"memos/m1.wav\",\"startedAt\":\"2026-04-20T14:30:00+02:00\",\"endedAt\":\"2026-04-20T14:30:05+02:00\",\"durationSec\":5.0}\n")
+        File(dir, "memos/verwaist.wav").writeText("w")
         createZip(dir, zip, null)
-        assertEquals(setOf("session.json", "detections.jsonl", "memos/m1.wav"), entries().keys)
+        assertEquals(setOf("session.json", "detections.jsonl", "memos.jsonl", "memos/m1.wav"), entries().keys)
         val rule = ch.etasystems.pirol.data.repository.SessionExportRules
         assertTrue(rule.isExcluded(DetectionUpdateLog.FILE))
         assertTrue(rule.isExcluded("session.edit.pending.json"))
@@ -86,6 +89,6 @@ class SessionZipTest {
         assertTrue(rule.isExcluded("x.new.ok"))
         assertFalse(rule.isExcluded("detections.jsonl"))
         assertFalse(rule.isExcluded("recording-002.wav"))
-        assertEquals(setOf("session.json", "detections.jsonl", "memos/m1.wav"), rule.entriesOf(dir).map { it.path }.toSet())
+        assertEquals(setOf("session.json", "detections.jsonl", "memos.jsonl", "memos/m1.wav"), rule.entriesOf(dir).map { it.path }.toSet())
     }
 }

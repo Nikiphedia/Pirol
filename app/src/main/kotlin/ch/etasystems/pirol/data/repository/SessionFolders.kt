@@ -69,8 +69,12 @@ internal class DocSessionFolder(
     override fun exists(name: String, day: String?): Boolean = parent(day, create = false)?.findFile(name) != null
 
     override fun rename(newName: String) {
-        if (!doc.renameTo(newName) || doc.name != newName) {
-            throw IllegalStateException("SAF: Umbenennen fehlgeschlagen -> $newName")
+        val oldName = name
+        if (!doc.renameTo(newName)) throw IllegalStateException("SAF: Umbenennen fehlgeschlagen -> $newName")
+        if (doc.name != newName) {
+            // T303: Provider hat den Namen abgeaendert -> zurueck auf den alten Namen (sonst gilt der tatsaechliche)
+            runCatching { doc.renameTo(oldName) }
+            throw IllegalStateException("SAF: Name vom Provider abgeaendert (${doc.name}) -> $newName")
         }
     }
 

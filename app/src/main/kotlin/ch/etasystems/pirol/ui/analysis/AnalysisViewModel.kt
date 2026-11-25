@@ -528,11 +528,12 @@ class AnalysisViewModel(
      * T301: Zeigerposition fuer das Sonogramm. Bei Memo-Wiedergabe = Memo-Beginn (Session-Achse) + Position in
      * der Memo-Datei; ohne bekannte Lage kein Zeiger. Sonst unveraendert die Player-Position.
      */
-    private fun playheadForCurrent(posSec: Float?): Float? {
-        val mp = memoPlayhead ?: return posSec
-        if (playback.playingKey.value != mp.first) return posSec
-        return PlaybackNav.memoPlayheadSec(posSec, mp.second)
-    }
+    private fun playheadForCurrent(posSec: Float?): Float? =
+        // T303: auch Art-Memos von der Artkarte (gleicher Schluessel memo:<id>); ohne Session-Lage kein Zeiger
+        PlaybackNav.playheadSec(posSec, playback.playingKey.value, memoPlayhead) {
+            val s = _uiState.value
+            MemoList.build(s.sessionMemos, s.detections, s.artMemoSpans)
+        }
 
     // --- T272: Session-Memo loeschen, teilen, speichern ---
 
@@ -563,9 +564,15 @@ class AnalysisViewModel(
                 )
             )
         }
+        // T303: Export in der Undo-Frist laesst das Memo schon weg
+        ch.etasystems.pirol.data.repository.PendingMemoDeletes.add(session.sessionDir.name, item.file)
         pendingMemoDeletes[item.file] = viewModelScope.launch {
-            delay(MEMO_DELETE_GRACE_MS)
-            val ok = sessionManager.deleteSessionMemo(session.sessionDir, item.file)
+            val ok = try {
+                delay(MEMO_DELETE_GRACE_MS)
+                sessionManager.deleteSessionMemo(session.sessionDir, item.file)
+            } finally {  // auch bei Undo/Abbruch (ViewModel weg): Vormerkung nie liegen lassen
+                ch.etasystems.pirol.data.repository.PendingMemoDeletes.remove(session.sessionDir.name, item.file)
+            }
             pendingMemoDeletes.remove(item.file)
             if (!ok) {
                 if (_uiState.value.selectedSession?.sessionDir == session.sessionDir) {
@@ -579,6 +586,7 @@ class AnalysisViewModel(
     private fun undoDeleteSessionMemo(sessionDir: File, memo: ch.etasystems.pirol.data.repository.SessionMemo) {
         val job = pendingMemoDeletes.remove(memo.file) ?: return  // schon endgueltig geloescht: nichts mehr zu tun
         job.cancel()
+        ch.etasystems.pirol.data.repository.PendingMemoDeletes.remove(sessionDir.name, memo.file)  // T303
         if (_uiState.value.selectedSession?.sessionDir == sessionDir) {
             _uiState.update { it.copy(sessionMemos = (it.sessionMemos + memo).sortedBy { m -> m.startedAt }) }
         }
@@ -1515,8 +1523,10 @@ class AnalysisViewModel(
                     reportError(AppStrings.get(R.string.analysis_angaben_fehler)); return@launch
                 }
             }
+            // T303: Zeitdaten gespeichert, Ordnername (Session-ID) aber unveraendert
+            if ((result as SessionManager.InfoEditResult.Ok).renameFailed) reportError(AppStrings.get(R.string.analysis_angaben_ordner_nicht_umbenannt))
             // T273: Ordner umbenannt/verschoben -> Liste neu laden und die Session am neuen Ort oeffnen
-            val newDir = (result as SessionManager.InfoEditResult.Ok).sessionDir
+            val newDir = result.sessionDir
             if (newDir != null && newDir.path != dir.path) {
                 loadSessionsNow()
                 val summary = _uiState.value.sessions.firstOrNull { it.sessionDir.path == newDir.path }

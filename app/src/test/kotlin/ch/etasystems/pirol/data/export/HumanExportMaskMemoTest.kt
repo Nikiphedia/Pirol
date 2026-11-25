@@ -81,6 +81,12 @@ class HumanExportMaskMemoTest {
             File(dir, "memos").mkdirs()
             File(dir, "memos/det_1.wav").writeBytes(wav(1, 3))
             File(dir, "recording.wav").writeBytes(wav(1, 4))
+            // T303: Art-Memo mit Bezug (voiceMemoFile der Detektion)
+            File(dir, "detections.jsonl").writeText(ch.etasystems.pirol.data.repository.SessionJson.compact.encodeToString(
+                ch.etasystems.pirol.ml.DetectionResult.serializer(),
+                ch.etasystems.pirol.ml.DetectionResult(id = "1", scientificName = "Turdus merula", commonName = "Amsel",
+                    confidence = 0.9f, timestampMs = 1L, chunkStartSec = 0f, chunkEndSec = 3f, sampleRate = 48000,
+                    voiceMemoFile = "memos/det_1.wav")) + "\n")
             val paths = SessionExportRules.entriesOf(dir).map { it.path }
             assertTrue("memos/det_1.wav" in paths)
         } finally {

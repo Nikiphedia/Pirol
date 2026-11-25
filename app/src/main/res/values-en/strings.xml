@@ -1109,4 +1109,5 @@
     <string name="help_analysis_memo_row">Memo: tap to jump to its position in the recording.</string>
     <string name="help_analysis_memo_play">Play the memo; a second tap stops it.</string>
     <string name="settings_info_developer">Developer: ETA Systems GmbH, 5004 Aarau, Switzerland</string>
+    <string name="analysis_angaben_ordner_nicht_umbenannt">Details saved. The folder could not be renamed; the session keeps its previous ID.</string>
 </resources>

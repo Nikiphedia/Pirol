@@ -33,7 +33,7 @@ class SessionSaveAs(private val context: Context) {
             }
         }
         walk(doc, "")
-        return out
+        return SessionExportRules.keepReferencedMemos(out, sessionDir.name)  // T303: nur Memos mit Bezug
     }
 
     /** ZIP erst in den Cache, dann in [target] streamen; Cache-Datei wird immer geloescht. */
