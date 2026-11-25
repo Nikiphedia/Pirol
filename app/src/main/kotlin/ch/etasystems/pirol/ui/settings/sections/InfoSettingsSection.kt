@@ -3,6 +3,8 @@ package ch.etasystems.pirol.ui.settings.sections
 import ch.etasystems.pirol.ui.settings.ListEditorLauncher
 import ch.etasystems.pirol.ui.settings.SettingsSection
 import ch.etasystems.pirol.ui.settings.SettingsAdvancedBlock
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,6 +37,10 @@ import kotlinx.coroutines.launch
 import ch.etasystems.pirol.R
 import androidx.compose.ui.res.stringResource
 import ch.etasystems.pirol.ui.AppStrings
+import ch.etasystems.pirol.ui.help.helpTopic
+
+/** T277: Spendenseite (freiwillig, oeffnet nur den Browser). */
+private const val DONATE_URL = "https://www.paypal.com/ncp/payment/ZFYW7YQSVE9XW"
 
 /** T241: Sektion Info. */
 @Composable
@@ -89,6 +95,23 @@ internal fun InfoSettingsSection(
         OutlinedButton(onClick = { onShowWhatsNew() }) {
             Text(stringResource(R.string.settings_whats_new_button))
         }
+        // T277: Spendenknopf, kein SDK, kein Tracking
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            modifier = Modifier.heightIn(min = 48.dp).helpTopic(R.string.help_settings_donate, "17"),
+            onClick = {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DONATE_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (e: Exception) {
+                    Toast.makeText(context, AppStrings.get(R.string.settings_donate_failed), Toast.LENGTH_LONG).show()
+                }
+            }
+        ) { Text(stringResource(R.string.settings_donate_button)) }
+        Text(
+            text = stringResource(R.string.settings_donate_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         // T190: Listen-Editor im Browser oeffnen
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(

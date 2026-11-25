@@ -599,7 +599,7 @@ private fun RecordingCard(
                 }
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.helpTopic(R.string.help_reference_delete, "9").size(36.dp)
+                    modifier = Modifier.helpTopic(R.string.help_reference_delete, "9").size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
