@@ -458,6 +458,14 @@ internal fun ModelSettingsSection(
             }
         }
 
+        // T279: Zweitmodell-Statistik (Expertenmodus)
+        if (expert) {
+            var showSecStats by remember { mutableStateOf(false) }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(onClick = { showSecStats = true }) { Text(stringResource(R.string.secstats_knopf)) }
+            if (showSecStats) SecondaryStatsDialog(onDismiss = { showSecStats = false })
+        }
+
         // Fehlermeldung
         if (modelError != null) {
             Spacer(modifier = Modifier.height(4.dp))

@@ -975,4 +975,26 @@
     <string name="analysis_memo_loeschen_gesperrt">Löschen (Aufnahme läuft)</string>
     <string name="analysis_angaben_upload_laeuft">Upload dieser Session läuft. Startzeit erst danach ändern.</string>
     <string name="analysis_rescan_alle_importierten">Gilt für alle %1$d importierten Sessions (nacheinander).</string>
+    <string name="secstats_knopf">Zweitmodell-Statistik</string>
+    <string name="secstats_titel">Zweitmodell-Statistik</string>
+    <string name="secstats_laeuft">Sessions werden gelesen: %1$d von %2$d</string>
+    <string name="secstats_abbrechen">Abbrechen</string>
+    <string name="secstats_schliessen">Schliessen</string>
+    <string name="secstats_csv">Als CSV teilen</string>
+    <string name="secstats_hinweis">Alle Sessions (ohne Rescan-Varianten, ohne manuelle Einträge). Zeilen: Verifikation, Spalten: Ergebnis des Zweitmodells.</string>
+    <string name="secstats_gesamt">Alle Zweitmodelle</string>
+    <string name="secstats_col_checked">Geprüft</string>
+    <string name="secstats_col_nc">Nicht prüfbar</string>
+    <string name="secstats_col_dis">Widerspricht</string>
+    <string name="secstats_col_none">Kein Ergebnis</string>
+    <string name="secstats_col_sum">Summe</string>
+    <string name="secstats_row_confirmed">Bestätigt</string>
+    <string name="secstats_row_rejected">Abgelehnt</string>
+    <string name="secstats_row_uncertain">Unsicher</string>
+    <string name="secstats_row_open">Offen</string>
+    <string name="secstats_row_other">Korrigiert/ersetzt</string>
+    <string name="secstats_ziel_bestaetigt">Bestätigt mit Zweitmodell-Ergebnis: %1$d von %2$d</string>
+    <string name="secstats_ziel_abgelehnt">Abgelehnt mit Zweitmodell-Ergebnis: %1$d von %2$d</string>
+    <string name="secstats_widerspruch">Widerspruch: bei bestätigten %1$s, bei abgelehnten %2$s</string>
+    <string name="secstats_widerspruch_pruefbar">Nur prüfbare: bestätigt %1$s, abgelehnt %2$s</string>
 </resources>
