@@ -421,7 +421,7 @@ Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
 ### Version 0.1.3
 - Session-Memos: löschen mit Rückgängig, Ort beim Drücken gespeichert und als Marker auf der Karte, Teilen und Speichern unter (Kapitel 2, 6, 8)
-- Import: Datums- und Zeitauswahl, Schalter "Dateizeit = Ende", Scan für alle importierten Sessions, erster Scan wird Original mit Raven im Ordner (Kapitel 6)
+- Import: Datums- und Zeitauswahl, Schalter "Dateizeit = Ende", Scan für alle importierten Sessions, ein Scan wird Original, wenn das Original leer ist, mit Raven im Ordner (Kapitel 6)
 - Datumsänderung einer importierten Session benennt den Ordner um und verschiebt ihn in den richtigen Tagesordner (Kapitel 5)
 - "+ Art" berücksichtigt Lücken zwischen Segmenten (Kapitel 6)
 - Spektrum: Linear (Standard) oder Mel, Gamma auch im Spektrum, Zeitfenster im Oszillogramm (Kapitel 3)
