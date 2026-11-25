@@ -156,7 +156,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
         ExportSettingsSection(appPreferences, expert, uploadManager)
         Spacer(modifier = Modifier.height(12.dp))
-        InfoSettingsSection(appPreferences, expert, modelManager, onShowWhatsNew = { showWhatsNew = true })
+        InfoSettingsSection(appPreferences, expert, modelManager, classifier, onShowWhatsNew = { showWhatsNew = true })
         Spacer(modifier = Modifier.height(12.dp))
     }
     androidx.compose.material3.SnackbarHost(

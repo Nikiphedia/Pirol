@@ -20,20 +20,22 @@ class SessionSaveAs(private val context: Context) {
     fun entriesOf(sessionDir: File, doc: DocumentFile?): List<ExportEntry> {
         if (doc == null) return SessionExportRules.entriesOf(sessionDir)
         val out = mutableListOf<ExportEntry>()
+        val readOnly = mutableListOf<ExportEntry>()  // T305: Zusatzdatei nur zum Lesen der Memo-Referenzen
         fun walk(d: DocumentFile, prefix: String) {
             for (c in d.listFiles()) {
                 val n = c.name ?: continue
                 if (c.isDirectory) walk(c, "$prefix$n/")
-                else if (!SessionExportRules.isExcluded(n)) {
+                else if (!SessionExportRules.isExcluded(n) || SessionExportRules.isUpdatesFile(n)) {
                     val uri = c.uri
-                    out += ExportEntry(prefix + n) {
+                    val e = ExportEntry(prefix + n) {
                         context.contentResolver.openInputStream(uri) ?: throw IOException("Quelle nicht lesbar: $n")
                     }
+                    if (SessionExportRules.isExcluded(n)) readOnly += e else out += e
                 }
             }
         }
         walk(doc, "")
-        return SessionExportRules.keepReferencedMemos(out, sessionDir.name)  // T303: nur Memos mit Bezug
+        return SessionExportRules.keepReferencedMemos(out, sessionDir.name, readOnly)  // T303: nur Memos mit Bezug
     }
 
     /** ZIP erst in den Cache, dann in [target] streamen; Cache-Datei wird immer geloescht. */

@@ -34,6 +34,16 @@ object ModelRoles {
     fun secondaryAfterDelete(deleted: String, secondary: String?): String? =
         if (secondary == deleted) null else secondary
 
+    /**
+     * T305 (N2): Rueckfall-Primaermodell bei ausgeschaltetem Fledermaus-Schalter: das Standardmodell [preferred],
+     * falls installiert (und kein Ultraschall), sonst das erste installierte Nicht-Ultraschall-Modell
+     * (nach Dateiname sortiert, damit unabhaengig von der listFiles-Reihenfolge); sonst [preferred] (nichts installiert).
+     */
+    fun fallbackPrimary(installed: List<String>, preferred: String, isUltrasonic: (String) -> Boolean): String {
+        val usable = installed.filterNot(isUltrasonic)
+        return if (preferred in usable) preferred else usable.sorted().firstOrNull() ?: preferred
+    }
+
     /** T304: Ergebnis von [afterBatsOff] */
     data class Roles(val primary: String, val secondary: String?)
 

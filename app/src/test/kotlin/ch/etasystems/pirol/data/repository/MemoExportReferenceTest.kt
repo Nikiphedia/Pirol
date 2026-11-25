@@ -91,4 +91,16 @@ class MemoExportReferenceTest {
         assertEquals("", SessionMemos.linesOfFile(text, "memos/fehlt.wav"))
         assertEquals("", SessionMemos.linesOfFile(null, "memos/session_a.wav"))
     }
+
+    // T305 (N1): Art-Memo nur in der Zusatzdatei (laufende Session); die Zusatzdatei selbst wird nicht exportiert
+    @Test fun art_memo_referenced_only_in_updates_file_is_exported() {
+        wav("det_a.wav")
+        wav("det_x.wav")  // verwaist
+        File(dir, "detections.jsonl").writeText(det("a", null) + "\n")
+        File(dir, "detections.updates.jsonl").writeText(det("a", "memos/det_a.wav") + "\n")
+        val p = paths()
+        assertTrue("memos/det_a.wav" in p)
+        assertTrue("memos/det_x.wav" !in p)
+        assertTrue("detections.updates.jsonl" !in p)
+    }
 }
