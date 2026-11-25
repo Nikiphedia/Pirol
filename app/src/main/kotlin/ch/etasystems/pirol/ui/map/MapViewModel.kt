@@ -132,6 +132,9 @@ class MapViewModel(
         val simultaneousLinks: List<SimultaneousLink> = emptyList(),
         /** T191: Routen der geladenen Sessions (ohne Live-Session) */
         val tracks: List<SessionTrack> = emptyList(),
+        /** T272: Session-Memos mit Position (Mikrofon-Marker) und das angetippte Memo */
+        val memoMarkers: List<MemoMapMarker> = emptyList(),
+        val selectedMemo: MemoMapMarker? = null,
         /** T191: Route der laufenden Aufnahme, live fortgeschrieben */
         val liveTrack: SessionTrack? = null,
         /** T204: ausgeblendete Arten (Schluessel); neue Arten sind standardmaessig sichtbar */
@@ -207,7 +210,7 @@ class MapViewModel(
     fun setFilter(mode: FilterMode) {
         _uiState.update { it.copy(filterMode = mode) }
         if (mode == FilterMode.LIVE_ONLY) {
-            _uiState.update { it.copy(markers = emptyList(), tracks = emptyList(), isLoading = false) }
+            _uiState.update { it.copy(markers = emptyList(), tracks = emptyList(), memoMarkers = emptyList(), selectedMemo = null, isLoading = false) }
         } else {
             loadHistoricalDetections(mode)
         }
@@ -219,6 +222,7 @@ class MapViewModel(
             _uiState.update { it.copy(isLoading = true) }
             val allMarkers = mutableListOf<MapMarker>()
             val tracks = mutableListOf<SessionTrack>()
+            val memoMarkers = mutableListOf<MemoMapMarker>()  // T272
             val sessions = sessionManager.listSessions()
             val filtered = if (mode == FilterMode.RECENT_3) sessions.take(3) else sessions
 
@@ -228,6 +232,7 @@ class MapViewModel(
                 // T191: Route (fehlt bei Sessions ohne track.jsonl → leer, kein Fehler)
                 val track = sessionManager.loadTrack(dir)
                 if (track.size >= 2) tracks.add(SessionTrack(meta.sessionId, track))
+                memoMarkers += MemoMapMarkers.of(meta.sessionId, sessionManager.loadSessionMemos(dir))  // T272
                 for (det in detections) {
                     if (det.latitude != null && det.longitude != null && isVisibleOnMap(det.verificationStatus)) {
                         allMarkers.add(
@@ -255,6 +260,7 @@ class MapViewModel(
                 it.copy(
                     markers = allMarkers,
                     tracks = tracks,
+                    memoMarkers = memoMarkers,
                     centerLat = center?.latitude ?: 47.38,
                     centerLon = center?.longitude ?: 8.54,
                     isLoading = false
@@ -265,6 +271,35 @@ class MapViewModel(
 
     fun selectCluster(cluster: MarkerCluster) {
         _uiState.update { it.copy(selectedCluster = cluster) }
+    }
+
+    /** T272: Session-Memo-Marker angetippt */
+    fun selectMemo(memo: MemoMapMarker) {
+        _uiState.update { it.copy(selectedMemo = memo) }
+    }
+
+    fun dismissMemo() {
+        _uiState.update { it.copy(selectedMemo = null) }
+    }
+
+    /** T272: Session-Memo der Karte abspielen bzw. stoppen (Umschalter, gleicher Schluessel wie die Analyse). */
+    fun toggleMemoPlayback(memo: MemoMapMarker) {
+        val key = ch.etasystems.pirol.audio.PlaybackKeys.memo(memo.key)
+        if (playback.isPlaying(key)) {
+            playback.stop()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val dir = findSessionDir(memo.sessionId)
+            val source = dir?.let { sessionManager.memoSource(it, memo.file) }
+            withContext(Dispatchers.Main) {
+                when (source) {
+                    is java.io.File -> playback.play(key) { audioPlayer.play(source) }
+                    is android.net.Uri -> playback.play(key) { audioPlayer.play(source) }
+                    else -> snackbarChannel.trySend(MapSnackbar(AppStrings.get(R.string.analysis_memo_nicht_gefunden)))
+                }
+            }
+        }
     }
 
     fun dismissCluster() {

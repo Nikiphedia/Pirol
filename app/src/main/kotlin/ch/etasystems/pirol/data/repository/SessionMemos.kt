@@ -16,6 +16,9 @@ import java.time.format.DateTimeFormatter
  * @param startSec    Beginn auf der Session-Achse (s); null = unbekannt (keine Aufnahme lief)
  * @param endSec      Ende auf der Session-Achse (s); null = unbekannt
  * @param durationSec Laenge der Memo-Aufnahme (s)
+ * @param lat         T272: Position beim Druecken (WGS84); null = kein Fix
+ * @param lon         T272: Laengengrad beim Druecken
+ * @param accuracyM   T272: Genauigkeit des Fixes (m); null = unbekannt
  */
 @Serializable
 data class SessionMemo(
@@ -24,8 +27,14 @@ data class SessionMemo(
     val endedAt: String,
     val startSec: Float? = null,
     val endSec: Float? = null,
-    val durationSec: Float
+    val durationSec: Float,
+    val lat: Double? = null,
+    val lon: Double? = null,
+    val accuracyM: Float? = null
 ) {
+    /** T272: true = Position vorhanden (Karte) */
+    val hasPosition: Boolean get() = lat != null && lon != null
+
     /** Wanduhr des Beginns (Epoch ms); null bei unlesbarem Zeitstempel */
     val startEpochMs: Long? get() = SessionMemos.parseEpochMs(startedAt)
 
@@ -76,7 +85,16 @@ object SessionMemos {
      * Baut den Eintrag einer fertigen Aufnahme.
      * @param startSec Session-Sekunde des Beginns; null = unbekannt (dann auch kein Ende)
      */
-    fun create(fileName: String, startMs: Long, endMs: Long, startSec: Float?, zone: ZoneId): SessionMemo {
+    fun create(
+        fileName: String,
+        startMs: Long,
+        endMs: Long,
+        startSec: Float?,
+        zone: ZoneId,
+        lat: Double? = null,
+        lon: Double? = null,
+        accuracyM: Float? = null
+    ): SessionMemo {
         val dur = (endMs - startMs).coerceAtLeast(0L) / 1000f
         return SessionMemo(
             file = "$DIR/$fileName",
@@ -84,12 +102,30 @@ object SessionMemos {
             endedAt = isoLocal(endMs, zone),
             startSec = startSec,
             endSec = startSec?.let { it + dur },
-            durationSec = dur
+            durationSec = dur,
+            // Position nur als Paar (halbe Koordinate waere unbrauchbar)
+            lat = if (lat != null && lon != null) lat else null,
+            lon = if (lat != null && lon != null) lon else null,
+            accuracyM = if (lat != null && lon != null) accuracyM else null
         )
     }
 
     /** Eine JSONL-Zeile (mit Zeilenumbruch) */
     fun encode(memo: SessionMemo): String = SessionJson.compact.encodeToString(SessionMemo.serializer(), memo) + "\n"
+
+    /**
+     * T272: Text von memos.jsonl ohne den Eintrag [file]. Loeschen schreibt die Datei atomar neu
+     * (statt Loesch-Marker): Export, Raven, MemoExclusion und ZIP lesen so ohne Sonderfall dieselbe Wahrheit.
+     * Unlesbare Zeilen bleiben unveraendert stehen.
+     */
+    fun withoutFile(text: String?, file: String): String {
+        if (text.isNullOrBlank()) return ""
+        val kept = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.filter { line ->
+            val m = runCatching { SessionJson.lenient.decodeFromString(SessionMemo.serializer(), line) }.getOrNull()
+            m == null || m.file != file
+        }.toList()
+        return if (kept.isEmpty()) "" else kept.joinToString("\n", postfix = "\n")
+    }
 
     /** Alle lesbaren Eintraege aus memos.jsonl; kaputte Zeilen werden uebersprungen */
     fun parse(text: String?): List<SessionMemo> {

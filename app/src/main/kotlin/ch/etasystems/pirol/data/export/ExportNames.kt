@@ -50,6 +50,13 @@ object ExportNames {
         sanitizePart(note, MAX_NOTE_LENGTH)
     )
 
+    /** T272: Name eines einzelnen Memos ohne Endung: `YYYYMMDDHHMMSS_Memo_Bemerkung` (Bemerkung entfaellt, wenn leer). */
+    fun memoName(
+        timestampMs: Long,
+        note: String?,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String = join(timePart(timestampMs, timeZone), "Memo", sanitizePart(note, MAX_NOTE_LENGTH))
+
     /**
      * Name ohne Endung: `YYYYMMDDHHMMSS_Bemerkung`. [startedAt] ist ISO 8601 mit Offset (lokale Zeit
      * der Aufnahme); ohne lesbare Zeit Rueckfall auf [fallbackId].

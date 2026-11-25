@@ -961,4 +961,15 @@
     <string name="spectrum_scale_linear">Linear</string>
     <string name="live_oszillogramm_wird_geladen">Loading waveform…</string>
     <string name="live_spektrum_wird_geladen">Loading spectrum…</string>
+    <string name="analysis_memo_menue">Memo actions</string>
+    <string name="analysis_memo_teilen">Share</string>
+    <string name="analysis_memo_speichern_unter">Save as …</string>
+    <string name="analysis_memo_geloescht">Session memo deleted</string>
+    <string name="analysis_memo_loeschen_fehler">Memo could not be deleted</string>
+    <string name="analysis_memo_export_fehler">Memo could not be shared or saved</string>
+    <string name="analysis_memo_gespeichert">Memo saved</string>
+    <string name="map_memo_titel">Session memo, %1$s</string>
+    <string name="map_memo_marker">Session memo</string>
+    <string name="help_analysis_memo_menue">Memo actions: share a single memo, save it under its own name or (session memo) delete it. Deleting can be undone.</string>
+    <string name="analysis_memo_loeschen_gesperrt">Delete (recording in progress)</string>
 </resources>

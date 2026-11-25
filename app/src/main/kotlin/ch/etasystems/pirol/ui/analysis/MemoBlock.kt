@@ -1,6 +1,7 @@
 package ch.etasystems.pirol.ui.analysis
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,8 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
 import ch.etasystems.pirol.audio.PlaybackKeys
+import ch.etasystems.pirol.ui.help.helpTopic
 
 /**
  * T264: Block "Memos" zuoberst in der Analyse (aufklappbar): Session- und Art-Memos chronologisch.
@@ -49,6 +55,10 @@ fun MemoBlock(
     displayName: (String) -> String,
     onPlay: (MemoItem) -> Unit,
     onOpen: (MemoItem) -> Unit,
+    onShare: (MemoItem) -> Unit,
+    onSaveAs: (MemoItem) -> Unit,
+    onDelete: (MemoItem) -> Unit,
+    deleteLocked: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (items.isEmpty()) return
@@ -81,7 +91,7 @@ fun MemoBlock(
                     .heightIn(max = 200.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                for (item in items) MemoRow(item, playingKey, displayName, onPlay, onOpen)
+                for (item in items) MemoRow(item, playingKey, displayName, onPlay, onOpen, onShare, onSaveAs, onDelete, deleteLocked)
             }
         }
     }
@@ -93,8 +103,13 @@ private fun MemoRow(
     playingKey: String?,
     displayName: (String) -> String,
     onPlay: (MemoItem) -> Unit,
-    onOpen: (MemoItem) -> Unit
+    onOpen: (MemoItem) -> Unit,
+    onShare: (MemoItem) -> Unit,
+    onSaveAs: (MemoItem) -> Unit,
+    onDelete: (MemoItem) -> Unit,
+    deleteLocked: Boolean
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     val isPlaying = playingKey == PlaybackKeys.memo(item.key)
     val time = MemoList.timeLabel(item)
     val timeText = if (item.approximate && time.isNotEmpty()) stringResource(R.string.analysis_memo_ungefaehr, time) else time
@@ -122,6 +137,37 @@ private fun MemoRow(
                 imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                 contentDescription = stringResource(R.string.analysis_memo_abspielen)
             )
+        }
+        // T272: Teilen, Speichern unter, Loeschen (nur Session-Memos; Art-Memos loescht die Artkarte)
+        Box {
+            IconButton(
+                onClick = { menuOpen = true },
+                modifier = Modifier.helpTopic(R.string.help_analysis_memo_menue, "6").size(48.dp)
+            ) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.analysis_memo_menue))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.analysis_memo_teilen)) },
+                    onClick = { menuOpen = false; onShare(item) },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.analysis_memo_speichern_unter)) },
+                    onClick = { menuOpen = false; onSaveAs(item) },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                )
+                if (item.isSessionMemo) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(stringResource(if (deleteLocked) R.string.analysis_memo_loeschen_gesperrt else R.string.common_delete))
+                        },
+                        enabled = !deleteLocked,
+                        onClick = { menuOpen = false; onDelete(item) },
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                    )
+                }
+            }
         }
     }
 }
