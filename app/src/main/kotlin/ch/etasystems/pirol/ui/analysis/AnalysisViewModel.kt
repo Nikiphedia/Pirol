@@ -356,7 +356,14 @@ class AnalysisViewModel(
     /** Session oeffnen (Detail-Ansicht) */
     fun openSession(summary: SessionSummary) {
         viewModelScope.launch(Dispatchers.IO) {
+            // T306: leeres Original + fertiger Scan -> neuester fertiger Scan wird Original (vor dem Laden)
+            val promotedOnOpen = runCatching { rescanEngine.promoteEmptyOriginal(summary.sessionDir) }.getOrDefault(false)
             val detections = sessionManager.loadDetectionsWithVerifications(summary.sessionDir)
+            val shown = if (!promotedOnOpen) summary else summary.copy(
+                metadata = sessionManager.loadMetadata(summary.sessionDir) ?: summary.metadata,
+                detectionCount = detections.size
+            )
+            if (promotedOnOpen) loadSessions()
             // T130: Veraltete WAV-Header-Groessen (Prozess-Kill) nachfuehren, bevor Dauer/Sonogramm/Playback die Datei lesen
             sessionManager.repairRecordingHeaders(summary.sessionDir)
             // T131: SAF-Session → kein File-Pfad; Aufnahme nur ueber content://-Segmente (rec)
@@ -375,7 +382,7 @@ class AnalysisViewModel(
             val durationSec = rec?.durationSec?.takeIf { it > 0f } ?: recFile?.let { readWavDurationSec(it) } ?: 0f
             _uiState.update {
                 it.copy(
-                    selectedSession = summary,
+                    selectedSession = shown,
                     variants = variants,
                     activeVariant = null,
                     // T186: bestes Fenster auch fuer Sessions vor T186 aus den Merge-Events ableiten

@@ -90,17 +90,18 @@ class RescanPromotionTest {
 
     // ── Regel ────────────────────────────────────────────────────────
 
-    @Test fun first_scan_of_imported_session_is_promoted() {
-        assertTrue(RescanPromotion.shouldPromote(meta(), id, "", null, listOf(info())))
-        assertTrue(RescanPromotion.shouldPromote(meta(), id, null, "  \n", listOf(info(), info(RescanStatus.ABORTED, "20261125-090000"))))
+    @Test fun complete_scan_with_empty_original_is_promoted() {
+        assertTrue(RescanPromotion.shouldPromote(info(), "", null))
+        assertTrue(RescanPromotion.shouldPromote(info(), null, "  \n"))
     }
 
-    @Test fun later_scans_and_live_sessions_stay_variants() {
-        assertFalse(RescanPromotion.shouldPromote(meta(imported = false), id, "", null, listOf(info())))
-        assertFalse(RescanPromotion.shouldPromote(meta(), id, detText, null, listOf(info())))
-        assertFalse(RescanPromotion.shouldPromote(meta(), id, "", verText, listOf(info())))
-        assertFalse(RescanPromotion.shouldPromote(meta(), id, "", null, listOf(info(), info(vid = "20261124-090000"))))
-        assertFalse(RescanPromotion.shouldPromote(null, id, "", null, listOf(info())))
+    @Test fun original_not_empty_or_scan_incomplete_stays_variant() {
+        assertFalse(RescanPromotion.shouldPromote(info(), detText, null))
+        assertFalse(RescanPromotion.shouldPromote(info(), "", verText))
+        assertFalse(RescanPromotion.shouldPromote(info(RescanStatus.ABORTED), "", null))
+        assertFalse(RescanPromotion.shouldPromote(info(RescanStatus.RUNNING), "", null))
+        assertFalse(RescanPromotion.shouldPromote(info().copy(scannedSec = 50f, totalSec = 120f), "", null))
+        assertTrue(RescanPromotion.shouldPromote(info().copy(scannedSec = 120f, totalSec = 120f), "", null))
     }
 
     // ── Ausfuehrung und Wiederherstellung ────────────────────────────

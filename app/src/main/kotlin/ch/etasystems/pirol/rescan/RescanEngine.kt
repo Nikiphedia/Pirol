@@ -131,6 +131,7 @@ class RescanEngine(
         synchronized(this) {
             if (job?.isActive == true || _active.value != null) return
             val queue = (listOf(sessionDir) + then).distinctBy { it.path }
+            queued = queue.map { it.path }.toSet()  // T306
             _active.value = Active(sessionDir, 0f, batchSize = queue.size)
             job = scope.launch {
                 try {
@@ -160,6 +161,7 @@ class RescanEngine(
                     }
                 } finally {
                     _active.value = null
+                    queued = emptySet()
                 }
             }
         }
@@ -276,30 +278,52 @@ class RescanEngine(
             RescanVerification.countTransferred(f.readText(RescanFiles.verifications(id)))
         }
         val done = RescanStatus.finished(info, status, scannedSec, current.size, transferred)
-        // T273: erster vollstaendiger Scan einer importierten Session ohne Original-Detektionen -> Original
+        // T273/T306: vollstaendiger Scan bei leerem Original -> Original
         val promoted = sessionManager.withSessionFiles(sessionDir) { f ->
             RescanStore.writeMeta(f, done)
             (status == RescanStatus.DONE && promoteIfFirst(f, done))
                 .also { if (it) PromotedVariants.add(sessionDir, id) }  // T303: unter derselben Sperre
         }
-        if (promoted) Log.i(TAG, "T273: Scan $id als Original uebernommen (importierte Session)")
+        if (promoted) Log.i(TAG, "T306: Scan $id als Original uebernommen (Original war leer)")
         runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = if (promoted) null else id) }
             .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
         return done
     }
 
-    /** T273: Variante ins Original uebernehmen, wenn sie der erste Scan einer importierten Session ist (unter fileMutex). */
-    private fun promoteIfFirst(files: ch.etasystems.pirol.data.repository.SessionFiles, info: RescanInfo): Boolean {
-        val meta = files.readText("session.json")?.let {
-            runCatching { SessionJson.lenient.decodeFromString<ch.etasystems.pirol.data.repository.SessionMetadata>(it) }.getOrNull()
-        }
-        val first = RescanPromotion.shouldPromote(
-            meta, info.id,
-            files.readText(RescanFiles.DETECTIONS), files.readText(RescanFiles.VERIFICATIONS),
-            RescanStore.list(files)
-        )
-        return first && RescanPromotion.promote(files, info)
+    /** T273/T306: Variante ins Original uebernehmen, wenn das Original leer ist (unter fileMutex). */
+    private fun promoteIfFirst(files: ch.etasystems.pirol.data.repository.SessionFiles, info: RescanInfo): Boolean =
+        RescanPromotion.promoteIfEmpty(files, info)
+
+    /**
+     * T306: Beim Oeffnen einer Session mit leerem Original die neueste vollstaendig fertige Variante uebernehmen
+     * (Sessions, deren Scans vor T306 nur Varianten wurden). Nicht in der gerade aufnehmenden Session, nicht
+     * waehrend ein Rescan dieser Session laeuft oder eingereiht ist. Liegengebliebene Uebernahmen und RUNNING-
+     * Varianten werden zuerst ueber [variants] abgeschlossen. Gleicher absturzsicherer Weg wie [finish].
+     * @return true = Original jetzt belegt (Aufrufer laedt neu)
+     */
+    suspend fun promoteEmptyOriginal(sessionDir: File): Boolean {
+        if (sessionManager.isActiveSession(sessionDir) || rescanBlocks(sessionDir)) return false
+        variants(sessionDir)
+        if (rescanBlocks(sessionDir)) return false
+        val promoted = runCatching {
+            sessionManager.withSessionFiles(sessionDir) { f ->
+                RescanPromotion.promoteNewestIfEmpty(f, runningVariant(sessionDir))
+                    ?.also { PromotedVariants.add(sessionDir, it.id) }  // T303: unter derselben Sperre
+            }
+        }.onFailure { Log.w(TAG, "T306 Uebernahme beim Oeffnen fehlgeschlagen", it) }.getOrNull() ?: return false
+        Log.i(TAG, "T306: Scan ${promoted.id} beim Oeffnen als Original uebernommen (Original war leer)")
+        runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences) }
+            .onFailure { Log.w(TAG, "Raven-Export nach Uebernahme fehlgeschlagen", it) }
+        return true
     }
+
+    /** T306: Rescan dieser Session laeuft oder ist in der Warteschlange */
+    private fun rescanBlocks(sessionDir: File): Boolean =
+        runningVariant(sessionDir) != null || _active.value?.sessionDir?.path == sessionDir.path ||
+            sessionDir.path in queued
+
+    /** T306: Session-Pfade der laufenden Rescan-Warteschlange (leer = keine) */
+    @Volatile private var queued: Set<String> = emptySet()
 
     /**
      * Rescan ausfuehren und als neue Variante speichern (Original bleibt unveraendert; T273: Ausnahme erster
