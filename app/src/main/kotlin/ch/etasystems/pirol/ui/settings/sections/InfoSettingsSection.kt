@@ -52,6 +52,7 @@ internal fun InfoSettingsSection(
     appPreferences: AppPreferences,
     expert: Boolean,
     modelManager: ModelManager,
+    classifier: ch.etasystems.pirol.ml.AudioClassifier,
     onShowWhatsNew: () -> Unit
 ) {
     val context = LocalContext.current
@@ -89,6 +90,7 @@ internal fun InfoSettingsSection(
                     ), Toast.LENGTH_SHORT).show()
                     // T304: Ultraschall-Modell als Primaer-/Sekundaermodell zuruecksetzen
                     if (!appPreferences.experimentalBats && modelManager.resetUltrasonicModels()) {
+                        classifier.resetSession()  // T305: geladene Ultraschall-Session freigeben
                         Toast.makeText(context, AppStrings.get(R.string.experimental_bats_models_reset), Toast.LENGTH_LONG).show()
                     }
                 }

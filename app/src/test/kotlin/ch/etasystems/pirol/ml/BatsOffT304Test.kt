@@ -52,4 +52,16 @@ class BatsOffT304Test {
         assertFalse(UploadQueueProbe.isPending(listOf(State.SUCCEEDED, State.FAILED, State.CANCELLED)))
         assertFalse(UploadQueueProbe.isPending(emptyList()))
     }
+
+    // T305 (N2): Rueckfall = Standardmodell, sonst erstes Nicht-Ultraschall-Modell
+    @Test fun `Rueckfall Standardmodell wenn installiert`() {
+        val r = ModelRoles.fallbackPrimary(listOf("bat.onnx", "other.onnx", "std.onnx"), "std.onnx") { it == "bat.onnx" }
+        assertEquals("std.onnx", r)
+    }
+
+    @Test fun `Rueckfall erstes Nicht-Ultraschall-Modell ohne Standardmodell`() {
+        val r = ModelRoles.fallbackPrimary(listOf("bat.onnx", "z.onnx", "b.onnx"), "std.onnx") { it == "bat.onnx" }
+        assertEquals("b.onnx", r)
+        assertEquals("std.onnx", ModelRoles.fallbackPrimary(listOf("bat.onnx"), "std.onnx") { true })
+    }
 }

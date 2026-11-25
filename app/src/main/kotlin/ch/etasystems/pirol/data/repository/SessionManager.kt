@@ -343,7 +343,7 @@ class SessionManager(
         }
         if (sessionDirForExport != null) {
             try {
-                val out = writeRavenTable(sessionDirForExport, appPreferences, variant = null,
+                val out = writeRavenTable(sessionDirForExport, appPreferences, requestedVariant = null,
                     requireRecording = false, knownMeta = updatedMetadata)
                 Log.i(TAG, "Auto-Raven-Export: ${out?.name}")
             } catch (e: Exception) {
@@ -1320,11 +1320,16 @@ class SessionManager(
     private suspend fun writeRavenTable(
         sessionDir: File,
         appPreferences: AppPreferences?,
-        variant: String?,
+        requestedVariant: String?,
         requireRecording: Boolean,
         /** Auto-Export: gerade geschriebene Metadaten (sonst aus session.json) */
         knownMeta: SessionMetadata? = null
     ): File? = withContext(Dispatchers.IO) {
+        // T305 (N3): Schreibziel wie bei Verifikationen (T303): uebernommene Variante -> Original, geloeschte -> nichts schreiben
+        val variant: String? = when (val t = fileMutex.withLock { writeTargetLocked(sessionDir, requestedVariant) }) {
+            is VariantWriteTarget.Target.Write -> t.variant
+            VariantWriteTarget.Target.Drop -> return@withContext null
+        }
         val access = accessFor(sessionDir)
         if (requireRecording && access.segmentSources().isEmpty()) return@withContext null
         val isDoc = access is DocSessionFiles

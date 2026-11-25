@@ -30,14 +30,20 @@ object SessionExportRules {
             fileName == ch.etasystems.pirol.audio.export.HumanWindows.FILE
 
     /** Alle exportierbaren Dateien eines Session-Ordners im Dateisystem (rekursiv). */
-    fun entriesOf(sessionDir: File): List<ExportEntry> =
-        keepReferencedMemos(
-            sessionDir.walkTopDown()
-                .filter { it.isFile && !isExcluded(it.name) }
-                .map { f -> ExportEntry(f.relativeTo(sessionDir).path.replace('\\', '/')) { FileInputStream(f) } }
-                .toList(),
-            sessionDir.name
+    fun entriesOf(sessionDir: File): List<ExportEntry> {
+        fun entry(f: File) = ExportEntry(f.relativeTo(sessionDir).path.replace(BACKSLASH, '/')) { FileInputStream(f) }
+        val files = sessionDir.walkTopDown().filter { it.isFile }.toList()
+        return keepReferencedMemos(
+            files.filter { !isExcluded(it.name) }.map(::entry),
+            sessionDir.name,
+            files.filter { isUpdatesFile(it.name) }.map(::entry)  // T305: Zusatzdatei nur lesen
         )
+    }
+
+    private const val BACKSLASH = '\\'
+
+    /** T305: Zusatzdatei der Detektions-Updates des Originals; wird nie exportiert, nur zum Lesen der Memo-Referenzen. */
+    fun isUpdatesFile(fileName: String): Boolean = fileName == DetectionUpdateLog.FILE
 
     private fun isMemoEntry(path: String): Boolean = path.startsWith(SessionMemos.DIR + "/")
 
@@ -47,9 +53,14 @@ object SessionExportRules {
      * (Original und Varianten, Art-Memo). Gelesen wird ueber die Eintraege selbst (File und SAF gleich).
      * [sessionName] = Ordnername (Schluessel fuer [PendingMemoDeletes]).
      */
-    fun keepReferencedMemos(entries: List<ExportEntry>, sessionName: String): List<ExportEntry> {
+    fun keepReferencedMemos(
+        entries: List<ExportEntry>,
+        sessionName: String,
+        /** T305 (N1): nicht exportierte Zusatzdatei (detections.updates.jsonl), nur zum Lesen der Referenzen */
+        readOnly: List<ExportEntry> = emptyList()
+    ): List<ExportEntry> {
         if (entries.none { isMemoEntry(it.path) }) return entries
-        val byPath = entries.associateBy { it.path }
+        val byPath = (readOnly + entries).associateBy { it.path }
         fun text(path: String): String? = byPath[path]?.let { e -> e.open().use { it.readBytes().toString(Charsets.UTF_8) } }
         val detectionTexts = entries.map { it.path }
             .filter { '/' !in it && RescanFiles.updatesFor(it) != null }

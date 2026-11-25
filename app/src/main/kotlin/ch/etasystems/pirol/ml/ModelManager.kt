@@ -134,8 +134,10 @@ class ModelManager(
         }
 
         // 2. Irgendein installiertes Modell als Fallback
+        // T305: bei ausgeschaltetem Fledermaus-Schalter keine Ultraschall-Modelle; Reihenfolge stabil (nach Name)
         val anyModel = modelsDir.listFiles()
-            ?.firstOrNull { isUsableModelFile(it) }
+            ?.sortedBy { it.name }
+            ?.firstOrNull { isUsableModelFile(it) && (FeatureFlags.bats || !ModelProfile.resolve(it.name, it.length()).isUltrasonic) }
         if (anyModel != null) {
             appPreferences.activeModelFileName = anyModel.name
             return anyModel
@@ -200,7 +202,9 @@ class ModelManager(
         }
         val primary = appPreferences.activeModelFileName
         val secondary = appPreferences.secondaryModelFileName
-        val default = "birdnet_v3.onnx"
+        // T305: Standardmodell aus dem Katalog, sonst erstes installiertes Nicht-Ultraschall-Modell
+        val installed = dir.listFiles()?.filter { isUsableModelFile(it) }?.map { it.name } ?: emptyList()
+        val default = ModelRoles.fallbackPrimary(installed, ModelProfile.V3_FINAL_FP16.fileName, ::ultrasonic)
         val roles = ModelRoles.afterBatsOff(primary, secondary, default, ::ultrasonic)
         if (roles.primary == primary && roles.secondary == secondary) return false
         appPreferences.activeModelFileName = roles.primary
