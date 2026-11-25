@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PIROL</string>
     <string name="analysis_session_loeschen">Eliminar a sessão?</string>
     <string name="analysis_session_mit_detektionen_wirklich_loe">Eliminar mesmo a sessão \'%1$s\' com %2$s deteções?</string>
     <string name="common_delete">Eliminar</string>

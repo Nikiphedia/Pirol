@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -56,7 +57,7 @@ internal fun InfoSettingsSection(
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
-    var versionTaps by remember { mutableStateOf(0) }
+    var versionTaps by remember { mutableIntStateOf(0) }
 
     // Diagnose: Inference-Benchmark (T96)
     var benchmarkRunning by remember { mutableStateOf(false) }

@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,7 +53,7 @@ fun ColumnScope.GeoFilterSettings(
     var installed by remember { mutableStateOf(GeoModelFiles.isInstalled(context)) }
     var progress by remember { mutableStateOf<Float?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var threshold by remember { mutableStateOf(appPreferences.geoThreshold) }
+    var threshold by remember { mutableFloatStateOf(appPreferences.geoThreshold) }
     var yearly by remember { mutableStateOf(appPreferences.geoYearly) }
     var birdsFallback by remember { mutableStateOf(appPreferences.groupFallbackBirds) }
 
