@@ -1092,4 +1092,5 @@
     <string name="help_analysis_memo_block">Bloco de memos: ao tocar, expande ou recolhe a lista dos memos desta sessão.</string>
     <string name="help_analysis_memo_row">Memo: ao tocar, salta para o ponto correspondente na gravação.</string>
     <string name="help_analysis_memo_play">Reproduz o memo; um segundo toque para.</string>
+    <string name="settings_info_developer">Desenvolvedor: ETA Systems GmbH, 5004 Aarau, Suíça</string>
 </resources>

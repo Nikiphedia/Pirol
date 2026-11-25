@@ -1092,4 +1092,5 @@
     <string name="help_analysis_memo_block">Bloc de mémos : un appui déplie ou replie la liste des mémos de cette session.</string>
     <string name="help_analysis_memo_row">Mémo : un appui saute à sa position dans l\'enregistrement.</string>
     <string name="help_analysis_memo_play">Lire le mémo ; un second appui arrête la lecture.</string>
+    <string name="settings_info_developer">Développeur : ETA Systems GmbH, 5004 Aarau, Suisse</string>
 </resources>

@@ -1092,4 +1092,5 @@
     <string name="help_analysis_memo_block">Bloc de memos: en tocar-lo es despleguen o es plegen els memos d\'aquesta sessió.</string>
     <string name="help_analysis_memo_row">Memo: en tocar-lo salta al punt corresponent de la gravació.</string>
     <string name="help_analysis_memo_play">Reprodueix el memo; un segon toc l\'atura.</string>
+    <string name="settings_info_developer">Desenvolupador: ETA Systems GmbH, 5004 Aarau, Suïssa</string>
 </resources>

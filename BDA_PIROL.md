@@ -463,4 +463,4 @@ Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems — Stand 2026-11-25*
+*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — Stand 2026-11-25*

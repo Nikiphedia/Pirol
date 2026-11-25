@@ -1093,4 +1093,5 @@
     <string name="help_analysis_memo_block">Memo-Block: Antippe klappt d Lischte vo de Memos vo dere Session uf oder zue.</string>
     <string name="help_analysis_memo_row">Memo: Antippe springt zu dr Schtell i dr Ufnahm.</string>
     <string name="help_analysis_memo_play">Memo abspiele; en zweite Tipp stoppt.</string>
+    <string name="settings_info_developer">Entwickler: ETA Systems GmbH, 5004 Aarau, Schwiiz</string>
 </resources>

@@ -90,6 +90,11 @@ internal fun InfoSettingsSection(
                 }
             }
         )
+        Text(
+            text = stringResource(R.string.settings_info_developer),  // T302
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.settings_info_sources),

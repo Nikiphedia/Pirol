@@ -1109,4 +1109,5 @@
     <string name="help_analysis_memo_block">Memo-Block: Antippen klappt die Liste der Memos dieser Session auf oder zu.</string>
     <string name="help_analysis_memo_row">Memo: Antippen springt zur Stelle in der Aufnahme.</string>
     <string name="help_analysis_memo_play">Memo abspielen; ein zweiter Tipp stoppt.</string>
+    <string name="settings_info_developer">Entwickler: ETA Systems GmbH, 5004 Aarau, Schweiz</string>
 </resources>

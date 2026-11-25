@@ -91,6 +91,8 @@ Code-Beiträge nach Absprache, siehe [CONTRIBUTING.md](CONTRIBUTING.md). Sicherh
 
 ## Lizenz
 
+Entwickelt von ETA Systems GmbH, 5004 Aarau, Schweiz.
+
 PIROL steht unter der [GNU General Public License v3.0](LICENSE). Die Erkennungsmodelle sind nicht Teil der App und
 haben eigene Lizenzen (siehe oben).
 
