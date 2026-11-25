@@ -49,15 +49,16 @@ fun SessionInfoEditDialog(
     val originalText = remember(metadata.startedAt) {
         parseInstantCompat(metadata.startedAt)?.let { ImportTimeParser.formatInput(it.atZone(zone), zone) } ?: ""
     }
-    var startText by remember(metadata.sessionId) { mutableStateOf(originalText) }
+    // T274: Auswahl per Datum-/Zeit-Picker; null = unveraendert (exakter alter Start, keine Rundung)
+    var picked by remember(metadata.sessionId) { mutableStateOf<ZonedDateTime?>(null) }
     var lat by remember(metadata.sessionId) { mutableStateOf(metadata.latitude) }
     var lon by remember(metadata.sessionId) { mutableStateOf(metadata.longitude) }
     var note by remember(metadata.sessionId) { mutableStateOf(metadata.note.orEmpty()) }
     var showMap by remember { mutableStateOf(false) }
 
     // Unveraenderter Text = exakt der alte Start (keine Rundung auf Sekunden, delta 0)
-    val parsed = if (startText.trim() == originalText) parseInstantCompat(metadata.startedAt)?.atZone(zone)
-        else ImportTimeParser.parseInput(startText, zone)
+    val original = parseInstantCompat(metadata.startedAt)?.atZone(zone)
+    val parsed = picked ?: original
     val delta = parsed?.let { SessionInfoEdit.deltaMs(metadata.startedAt, it) }
     val locationChanged = lat != metadata.latitude || lon != metadata.longitude
 
@@ -76,20 +77,16 @@ fun SessionInfoEditDialog(
         title = { Text(stringResource(R.string.analysis_angaben_titel)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(
-                    value = startText,
-                    onValueChange = { startText = it },
-                    singleLine = true,
+                DateTimePickerField(
+                    value = parsed,
+                    zone = zone,
+                    onValueChange = { picked = if (originalText.isNotEmpty() && ImportTimeParser.formatInput(it, zone) == originalText) null else it },
                     isError = parsed == null,
-                    label = { Text(stringResource(R.string.import_startzeit)) },
-                    supportingText = {
-                        Text(when {
-                            parsed == null -> stringResource(R.string.import_zeit_ungueltig)
-                            delta == null || delta == 0L -> stringResource(R.string.analysis_angaben_zeit_unveraendert)
-                            else -> stringResource(R.string.analysis_angaben_differenz, SessionInfoEdit.formatDelta(delta))
-                        })
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                    supportingText = when {
+                        parsed == null -> stringResource(R.string.import_zeit_ungueltig)
+                        delta == null || delta == 0L -> stringResource(R.string.analysis_angaben_zeit_unveraendert)
+                        else -> stringResource(R.string.analysis_angaben_differenz, SessionInfoEdit.formatDelta(delta))
+                    }
                 )
                 if (delta != null && delta != 0L) {
                     Text(

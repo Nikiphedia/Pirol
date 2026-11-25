@@ -977,4 +977,10 @@
     <string name="analysis_rescan_alle_importierten">Gilt für alle %1$d importierten Sessions (nacheinander).</string>
     <string name="analysis_upload_hochgeladen">Hochgeladen</string>
     <string name="analysis_upload_fehlgeschlagen">Upload fehlgeschlagen: %1$s</string>
+    <string name="import_zeit_weiter">Weiter</string>
+    <string name="import_zeit_ok">OK</string>
+    <string name="import_zeit_ende_an">Dateizeit = Ende der Aufnahme (Start = Dateizeit minus Laufzeit)</string>
+    <string name="import_zeit_ende_aus">Dateizeit = Start der Aufnahme</string>
+    <string name="import_zeit_quelle_ende">Zeit aus: Dateidatum, als Ende gewertet</string>
+    <string name="import_zeit_quelle_start">Zeit aus: Dateidatum, als Start gewertet</string>
 </resources>

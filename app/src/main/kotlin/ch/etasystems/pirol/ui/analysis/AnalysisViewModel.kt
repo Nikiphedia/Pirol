@@ -1603,7 +1603,8 @@ class AnalysisViewModel(
                 try { java.time.Instant.parse(it).toEpochMilli() } catch (_: Exception) { null }
             }
         }
-        return ManualEntryTime.compute(positionSec, state.recordingDurationSec, startMs, nowMs)
+        return ManualEntryTime.compute(positionSec, state.recordingDurationSec, startMs, nowMs,
+            state.selectedSession?.metadata?.recordingSegments)  // T274: Segmentluecken
     }
 
     /** Artsuche fuer AddManualDetectionDialog (T72). */
