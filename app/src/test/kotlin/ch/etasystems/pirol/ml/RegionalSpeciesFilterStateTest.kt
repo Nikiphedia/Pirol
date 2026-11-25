@@ -55,9 +55,12 @@ class RegionalSpeciesFilterStateTest {
         val stop = AtomicBoolean(false)
         val errors = Collections.synchronizedList(mutableListOf<String>())
         val reads = AtomicInteger(0)
+        // Schreiben erst, wenn jeder Leser mindestens einen Lesevorgang gemacht hat
+        val started = CountDownLatch(3)
         val readers = (1..3).map {
             thread {
-                while (!stop.get()) {
+                var first = true
+                while (!stop.get() || first) {
                     val s = f.snapshot()
                     val merula = s.isPlausible("Turdus merula", false, null)
                     val major = s.isPlausible("Parus_major", false, null)
@@ -68,14 +71,19 @@ class RegionalSpeciesFilterStateTest {
                     }
                     if (!ok) errors.add("species=${s.species} merula=$merula major=$major")
                     reads.incrementAndGet()
+                    if (first) {
+                        first = false
+                        started.countDown()
+                    }
                 }
             }
         }
+        assertTrue("Leser nicht gestartet", started.await(10, java.util.concurrent.TimeUnit.SECONDS))
         repeat(3000) { i -> f.loadGroups(birds(if (i % 2 == 0) "set_b" else "set_a")) }
         stop.set(true)
         readers.forEach { it.join() }
         assertTrue("gemischte Zustaende: ${errors.take(3)}", errors.isEmpty())
-        assertTrue(reads.get() > 0)
+        assertTrue(reads.get() >= 3)
     }
 
     @Test

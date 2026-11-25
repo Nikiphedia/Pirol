@@ -60,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -356,7 +357,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     var downloadTask by remember { mutableStateOf<CacheManager.CacheManagerTask?>(null) }
     var downloadDone by remember { mutableIntStateOf(0) }
     var downloadTotal by remember { mutableIntStateOf(0) }
-    var cacheBytes by remember { mutableStateOf(0L) }
+    var cacheBytes by remember { mutableLongStateOf(0L) }
     LaunchedEffect(panelOpen, downloadTask, offlineDialog) {
         cacheBytes = withContext(Dispatchers.IO) { runCatching { tileCacheBytes() }.getOrDefault(0L) }
     }

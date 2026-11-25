@@ -1538,7 +1538,7 @@ private fun formatSecondsAsMinSec(s: Float): String {
     val total = s.toInt()
     val mm = total / 60
     val ss = total % 60
-    return String.format("%02d:%02d", mm, ss)
+    return String.format(java.util.Locale.getDefault(), "%02d:%02d", mm, ss)
 }
 
 /**

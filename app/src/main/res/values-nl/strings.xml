@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PIROL</string>
     <string name="analysis_session_loeschen">Sessie verwijderen?</string>
     <string name="analysis_session_mit_detektionen_wirklich_loe">Sessie \'%1$s\' met %2$s detecties echt verwijderen?</string>
     <string name="common_delete">Verwijderen</string>

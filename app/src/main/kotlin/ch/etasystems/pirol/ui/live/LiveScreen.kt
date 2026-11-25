@@ -56,6 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -1032,7 +1033,7 @@ private fun ScanStatusRow(
         else ch.etasystems.pirol.ui.settings.SpeciesGroupLabels.short(speciesGroups)
 
     // T52: Session-Laufzeit als mm:ss, 1-Hz-Ticker
-    var elapsedSecs by remember { mutableStateOf(0L) }
+    var elapsedSecs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(uiState.isRecording, uiState.recordingStartElapsedRealtime) {
         if (!uiState.isRecording) { elapsedSecs = 0L; return@LaunchedEffect }
         while (true) {
@@ -1456,7 +1457,7 @@ private fun LocationBar(
     onRequestLocationPermission: () -> Unit = {}
 ) {
     // T52: Fix-Alter live berechnen (1-Hz-Ticker)
-    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             nowMs = System.currentTimeMillis()
@@ -1478,6 +1479,7 @@ private fun LocationBar(
         ) {
             Text(
                 text = String.format(
+                    java.util.Locale.getDefault(),
                     "\uD83D\uDCCD %.4f\u00B0 N, %.4f\u00B0 E \u00B1%.0fm",
                     uiState.currentLatitude, uiState.currentLongitude,
                     uiState.locationAccuracyM ?: 0f

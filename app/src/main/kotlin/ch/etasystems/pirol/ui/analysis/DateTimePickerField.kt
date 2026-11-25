@@ -18,6 +18,8 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,8 +64,8 @@ fun DateTimePickerField(
     supportingText: String,
     modifier: Modifier = Modifier
 ) {
-    var step by remember { mutableStateOf(0) }  // 0 zu, 1 Datum, 2 Zeit
-    var pickedDate by remember { mutableStateOf(0L) }
+    var step by remember { mutableIntStateOf(0) }  // 0 zu, 1 Datum, 2 Zeit
+    var pickedDate by remember { mutableLongStateOf(0L) }
     val shown = value?.let { ImportTimeParser.formatInput(it, zone) } ?: ""
 
     Box(modifier = modifier.fillMaxWidth()) {

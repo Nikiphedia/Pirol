@@ -552,6 +552,7 @@ private fun RecordingCard(
             if (entry.latitude != null && entry.longitude != null) {
                 Text(
                     text = String.format(
+                        Locale.getDefault(),
                         "%.4f\u00B0N, %.4f\u00B0E",
                         entry.latitude, entry.longitude
                     ),
