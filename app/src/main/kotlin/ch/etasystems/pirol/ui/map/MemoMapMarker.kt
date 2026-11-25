@@ -36,6 +36,20 @@ object MemoMapMarkers {
         val lon = m.lon ?: return@mapNotNull null
         MemoMapMarker(sessionId, m.file, lat, lon, m.startEpochMs, m.accuracyM)
     }
+
+    /** T299: neue Marker anhaengen; Duplikate (gleiche Session und Datei) werden uebersprungen. */
+    fun append(existing: List<MemoMapMarker>, added: List<MemoMapMarker>): List<MemoMapMarker> {
+        val seen = existing.mapTo(HashSet()) { it.sessionId to it.file }
+        return existing + added.filter { seen.add(it.sessionId to it.file) }
+    }
+
+    /** T299: Marker einer Session-Memo-Datei entfernen. */
+    fun remove(existing: List<MemoMapMarker>, sessionId: String, file: String): List<MemoMapMarker> =
+        existing.filterNot { it.sessionId == sessionId && it.file == file }
+
+    /** T299: Filter "Nur Live" zeigt nur Memos der laufenden Session (liveSessionId null = keine). */
+    fun forFilter(mode: FilterMode, liveSessionId: String?, markers: List<MemoMapMarker>): List<MemoMapMarker> =
+        if (mode == FilterMode.LIVE_ONLY) markers.filter { it.sessionId == liveSessionId } else markers
 }
 
 /** Mikrofon-Symbol (dunkler Kreis, weisses Mikrofon); einmal gezeichnet und gecacht (Main-Thread). */

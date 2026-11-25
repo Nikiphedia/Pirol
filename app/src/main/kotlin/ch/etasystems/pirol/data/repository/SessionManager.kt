@@ -232,6 +232,10 @@ class SessionManager(
     /** T249 (M3): Anzahl Detektions-Updates, die beim Session-Ende trotz Wiederholung verloren gingen. */
     val unsavedUpdatesAtEnd: SharedFlow<Int> = _unsavedUpdatesAtEnd.asSharedFlow()
 
+    private val _sessionMemoEvents = MutableSharedFlow<SessionMemoEvent>(replay = 0, extraBufferCapacity = 16)
+    /** T299: neues bzw. geloeschtes Session-Memo (Karte haengt Marker live an/entfernt sie). */
+    val sessionMemoEvents: SharedFlow<SessionMemoEvent> = _sessionMemoEvents.asSharedFlow()
+
     /** Ob beim letzten Start der Speicherort nicht erreichbar war (Fallback). */
     var lastStartUsedFallback: Boolean = false
         private set
@@ -704,6 +708,7 @@ class SessionManager(
             if (a != null && a.matches(sessionKey)) a.appendLocked(SessionMemos.FILE, line)
             else accessFor(sessionKey).append(SessionMemos.FILE, line)
         }
+        _sessionMemoEvents.tryEmit(SessionMemoEvent.Added(sessionKey.name, memo))  // T299
     }
 
     /** T264: Session-Memos einer Session (leer = keine/unlesbar). */
@@ -737,6 +742,7 @@ class SessionManager(
             } else {
                 File(sessionDir, memoFile).takeIf { it.isFile }?.delete()
             }
+            _sessionMemoEvents.tryEmit(SessionMemoEvent.Removed(sessionDir.name, memoFile))  // T299
             true
         } catch (e: Exception) {
             Log.e(TAG, "T272: Session-Memo nicht geloescht", e)
