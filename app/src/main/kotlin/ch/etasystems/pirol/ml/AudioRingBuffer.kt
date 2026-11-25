@@ -20,6 +20,24 @@ class AudioRingBuffer(
         require(capacity > 0) { "capacity muss > 0 sein" }
     }
 
+    companion object {
+        /** T294: Obergrenze in Samples (= 30 s bei 96 kHz, 5.8 MB); bis 96 kHz also unveraendert Rate x Sekunden */
+        const val MAX_SAMPLES = 2_880_000
+
+        /** T294: so viele Sekunden bleiben auch bei hoher Rate mindestens im Puffer (Perch 5 s + Kontext) */
+        const val MIN_SECONDS = 10
+
+        /**
+         * T294: Kapazitaet fuer [seconds] bei [sampleRate], gedeckelt auf [MAX_SAMPLES], aber nie unter
+         * [MIN_SECONDS]. 384 kHz: 3.84 Mio. Samples (7.7 MB) statt 11.5 Mio. (23 MB).
+         */
+        fun capacityFor(sampleRate: Int, seconds: Int): Int {
+            val wanted = sampleRate.toLong() * seconds
+            val floor = sampleRate.toLong() * minOf(seconds, MIN_SECONDS)
+            return maxOf(minOf(wanted, MAX_SAMPLES.toLong()), floor).coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
+        }
+    }
+
     private val buf = ShortArray(capacity)
     private val _endIndex = MutableStateFlow(originIndex)
 

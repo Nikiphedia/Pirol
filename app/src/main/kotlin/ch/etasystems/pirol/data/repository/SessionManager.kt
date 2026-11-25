@@ -1259,7 +1259,8 @@ class SessionManager(
         val merges = veriText?.let { SessionTextParser.mergeTimestamps(it) } ?: emptyMap()
         // T264: Session-Memos als eigene Zeilen (Species "Memo")
         val memos = SessionMemos.parse(try { readSessionText(sessionDir, SessionMemos.FILE) } catch (_: Exception) { null })
-        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note, merges, memos)
+        RavenExporter.export(outputFile, detections, startedAt, meta?.recordingSegments, enabledFields, linkMap, meta?.note, merges, memos,
+            RavenExporter.freqBandFor(meta?.sampleRate))  // T294: Ultraschall-Band, bis 96 kHz unveraendert
         if (isDoc) {
             fileMutex.withLock { access.writeReplacing(ravenName, outputFile.readText()) }
             outputFile.delete()

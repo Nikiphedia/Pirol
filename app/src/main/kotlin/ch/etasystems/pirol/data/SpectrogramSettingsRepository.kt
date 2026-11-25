@@ -104,7 +104,9 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
                 ch.etasystems.pirol.ui.components.LiveDisplayMode.valueOf(prefs.liveDisplayMode)
             } catch (_: IllegalArgumentException) {
                 ch.etasystems.pirol.ui.components.LiveDisplayMode.SONOGRAM
-            }
+            },
+            ultraFreqMinHz = prefs.spectrogramUltraFreqMinHz,  // T294
+            ultraFreqMaxHz = prefs.spectrogramUltraFreqMaxHz
         )
     }
 
@@ -122,5 +124,7 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         prefs.spectrogramAutoHighPct = s.autoHighPct
         prefs.spectrogramAutoMinSpanDb = s.autoMinSpanDb
         prefs.liveDisplayMode = s.displayMode.name
+        prefs.spectrogramUltraFreqMinHz = s.ultraFreqMinHz  // T294
+        prefs.spectrogramUltraFreqMaxHz = s.ultraFreqMaxHz
     }
 }

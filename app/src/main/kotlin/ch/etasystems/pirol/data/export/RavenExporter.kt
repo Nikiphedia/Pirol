@@ -95,6 +95,7 @@ object RavenExporter {
      * @param sessionNote      T109: Session-Bemerkung; wenn nicht leer, als letzte Spalte "Session-Bemerkung" (gleicher Wert je Zeile)
      * @param merges           T259: absorbierte Fenster je Anker-Id (CLUSTER_MERGED); leer = eine Zeile je Detektion
      * @param sessionMemos     T264: Session-Memos; je eines mit Lage eine Zeile Species "Memo", chronologisch einsortiert
+     * @param freqBandHz       T294: Low/High Freq je Zeile; null = Vogel-Standard 150..12000 Hz (siehe [freqBandFor])
      * @return Anzahl geschriebener Zeilen
      */
     fun export(
@@ -106,8 +107,11 @@ object RavenExporter {
         linkMap: Map<String, SimultaneousLinkSummary> = emptyMap(),
         sessionNote: String? = null,
         merges: Map<String, List<DetectionOccurrences.MergeInfo>> = emptyMap(),
-        sessionMemos: List<SessionMemo> = emptyList()
+        sessionMemos: List<SessionMemo> = emptyList(),
+        freqBandHz: Pair<Int, Int>? = null
     ): Int {
+        val lowFreq = (freqBandHz?.first ?: LOW_FREQ_HZ).toString()
+        val highFreq = (freqBandHz?.second ?: HIGH_FREQ_HZ).toString()
         val sessionStart = OffsetDateTime.parse(sessionStartedAt)
         fun on(key: String) = enabledFields == null || key in enabledFields
         val noteCell = escapeTsv(sessionNote.orEmpty())
@@ -169,8 +173,8 @@ object RavenExporter {
                 if (on(FIELD_BEGIN_FILE))      row += sanitize(beginFile)
                 if (on(FIELD_BEGIN_TIME))      row += String.format(Locale.US, "%.3f", localStart)
                 if (on(FIELD_END_TIME))        row += String.format(Locale.US, "%.3f", localEnd)
-                if (on(FIELD_LOW_FREQ))        row += LOW_FREQ_HZ.toString()
-                if (on(FIELD_HIGH_FREQ))       row += HIGH_FREQ_HZ.toString()
+                if (on(FIELD_LOW_FREQ))        row += lowFreq
+                if (on(FIELD_HIGH_FREQ))       row += highFreq
                 if (on(FIELD_BEGIN_DATE_TIME)) row += beginDateTime
                 if (d == null || ep == null) {
                     // T264: Session-Memo: sprachneutral "Memo", ohne Score, Status und Cluster
@@ -216,6 +220,17 @@ object RavenExporter {
             }
             index
         }
+    }
+
+    /**
+     * T294: Frequenzband der Raven-Zeilen fuer eine Session-Rate. Bis 96 kHz null (unveraendert 150..12000 Hz),
+     * bei Ultraschall-Sessions der Ultraschall-Anzeigebereich 10 kHz bis min(150 kHz, Nyquist).
+     */
+    fun freqBandFor(sampleRate: Int?): Pair<Int, Int>? {
+        if (sampleRate == null || !ch.etasystems.pirol.audio.dsp.SpectrogramConfig.isUltrasoundRate(sampleRate)) return null
+        val lo = ch.etasystems.pirol.audio.dsp.SpectrogramConfig.ULTRASOUND_DISPLAY_MIN_HZ.toInt()
+        val hi = minOf(ch.etasystems.pirol.audio.dsp.SpectrogramConfig.ULTRASOUND_DISPLAY_MAX_HZ.toInt(), sampleRate / 2)
+        return lo to hi
     }
 
     /** T264: Species und Common Name einer Session-Memo-Zeile (sprachneutral) */

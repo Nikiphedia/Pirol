@@ -78,7 +78,12 @@ val appModule = module {
 
     // Audio-Player — Singleton, WAV-Playback fuer Referenzen
     // T62: Context fuer SAF-URI-Support (ContentResolver / setDataSource(context, uri))
-    single { AudioPlayer(androidContext()) }
+    single {
+        AudioPlayer(androidContext()).also { p ->
+            val prefs = get<AppPreferences>()
+            p.timeExpansion = { prefs.playbackTimeExpansion }  // T294: Zeitdehnung ueber 96 kHz
+        }
+    }
 
     // T173: zentrale Wiedergabe (ein Player, Start/Stopp-Schluessel) fuer Live, Analyse, Referenz, Karte, Memo
     single { ch.etasystems.pirol.audio.PlaybackController(get<AudioPlayer>()) }

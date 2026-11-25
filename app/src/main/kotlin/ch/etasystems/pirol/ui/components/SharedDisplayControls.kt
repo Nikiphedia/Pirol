@@ -28,7 +28,8 @@ const val SHARED_MIN_SPAN_HZ = 500f
  * Bereich der aktiven [SpectrogramConfig] (wie das Sonogramm ihn zeigt) und auf Nyquist.
  */
 fun sharedFreqRange(settings: SpectrogramDisplaySettings, config: SpectrogramConfig, sampleRate: Int): Pair<Float, Float> {
-    val disp = config.forDisplay(settings.freqMinHz, settings.freqMaxHz)
+    val shown = settings.forConfig(config)  // T294: Ultraschall-Bereich bei linearer Config
+    val disp = config.forDisplay(shown.freqMinHz, shown.freqMaxHz)
     val nyquist = sampleRate / 2f
     val hi = disp.fMax.coerceAtMost(nyquist)
     val lo = disp.fMin.coerceIn(0f, (hi - 1f).coerceAtLeast(0f))
@@ -62,10 +63,11 @@ fun SharedDisplayControls(
 ) {
     val cfgMax = if (config.fMax <= 0f) 24000f else config.fMax
     val cfgMin = config.fMin
+    val shown = settings.forConfig(config)  // T294: Ultraschall-Session -> eigener Bereich
 
     // Frequenzbereich in kHz, begrenzt auf den Bereich der aktiven SpectrogramConfig
-    val fLo = settings.freqMinHz.coerceIn(cfgMin, cfgMax - SHARED_MIN_SPAN_HZ)
-    val fHi = settings.freqMaxHz.coerceIn(fLo + SHARED_MIN_SPAN_HZ, cfgMax)
+    val fLo = shown.freqMinHz.coerceIn(cfgMin, cfgMax - SHARED_MIN_SPAN_HZ)
+    val fHi = shown.freqMaxHz.coerceIn(fLo + SHARED_MIN_SPAN_HZ, cfgMax)
     Text(
         stringResource(
             R.string.ui_frequenz_bis_khz,
@@ -78,7 +80,7 @@ fun SharedDisplayControls(
         onValueChange = { r ->
             val lo = r.start
             val hi = if (r.endInclusive - lo < SHARED_MIN_SPAN_HZ) lo + SHARED_MIN_SPAN_HZ else r.endInclusive
-            repository.update { it.copy(freqMinHz = lo, freqMaxHz = hi) }
+            repository.update { it.withFreqRange(config, lo, hi) }
         },
         valueRange = cfgMin..cfgMax
     )

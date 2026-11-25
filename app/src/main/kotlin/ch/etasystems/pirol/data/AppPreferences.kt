@@ -277,6 +277,23 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("pirol_spectrogram_freq_max_hz_t144", 24000f)
         set(value) = prefs.edit().putFloat("pirol_spectrogram_freq_max_hz_t144", value).apply()
 
+    /** T294: Anzeigebereich bei Ultraschall-Sessions (> 96 kHz), getrennt vom Vogel-Bereich. */
+    var spectrogramUltraFreqMinHz: Float
+        get() = prefs.getFloat("pirol_spectrogram_ultra_freq_min_hz", ch.etasystems.pirol.audio.dsp.SpectrogramConfig.ULTRASOUND_DISPLAY_MIN_HZ)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_ultra_freq_min_hz", value).apply()
+
+    var spectrogramUltraFreqMaxHz: Float
+        get() = prefs.getFloat("pirol_spectrogram_ultra_freq_max_hz", ch.etasystems.pirol.audio.dsp.SpectrogramConfig.ULTRASOUND_DISPLAY_MAX_HZ)
+        set(value) = prefs.edit().putFloat("pirol_spectrogram_ultra_freq_max_hz", value).apply()
+
+    /**
+     * T294: Wiedergabe von Sessions ueber 96 kHz: Zeitdehnungsfaktor (Abspielrate = Rate / Faktor, Default 10).
+     * 1 = "normal" (auf 48 kHz heruntergerechnet, Ultraschall unhoerbar).
+     */
+    var playbackTimeExpansion: Int
+        get() = prefs.getInt("pirol_playback_time_expansion", ch.etasystems.pirol.audio.HighRatePlayback.DEFAULT_EXPANSION)
+        set(value) = prefs.edit().putInt("pirol_playback_time_expansion", value).apply()
+
     /** T193: Live-Darstellung (Enum-Name von LiveDisplayMode). */
     var liveDisplayMode: String
         get() = prefs.getString("pirol_live_display_mode", "SONOGRAM") ?: "SONOGRAM"

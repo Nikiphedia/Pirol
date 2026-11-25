@@ -29,6 +29,7 @@ import kotlin.math.max
  * @param fMin Untere Grenzfrequenz in Hz
  * @param fMax Obere Grenzfrequenz in Hz (-1 = Nyquist)
  * @param floorDb Untergrenze (gegen log(0)) in dBFS
+ * @param linearFreq T294: Baender linear in Hz (Ultraschall), sonst Mel
  */
 class MelSpectrogram(
     sampleRate: Int,
@@ -37,7 +38,8 @@ class MelSpectrogram(
     numMelBins: Int = 128,
     fMin: Float = 0f,
     fMax: Float = -1f,
-    private val floorDb: Float = MEL_FLOOR_DBFS
+    private val floorDb: Float = MEL_FLOOR_DBFS,
+    linearFreq: Boolean = false
 ) {
     private val actualFftSize = fftSize
     private val actualHopSize = hopSize
@@ -55,7 +57,8 @@ class MelSpectrogram(
         fftSize = actualFftSize,
         numMelBins = actualNumMelBins,
         fMin = actualFMin,
-        fMax = actualFMax
+        fMax = actualFMax,
+        linear = linearFreq
     )
 
     // Overlap-Buffer: dynamisch wachsend, wird nach Verarbeitung kompaktiert
@@ -80,7 +83,8 @@ class MelSpectrogram(
         hopSize = config.hopSize,
         numMelBins = config.numMelBins,
         fMin = config.fMin,
-        fMax = config.fMax
+        fMax = config.fMax,
+        linearFreq = config.linearFreq
     )
 
     /**
@@ -118,11 +122,36 @@ class MelSpectrogram(
         return frames
     }
 
+    /** T294: fortlaufender Frame-Index fuer [process] mit Auswahl */
+    private var frameIndex = 0L
+
+    /**
+     * T294: wie [process], rechnet aber nur Frames, deren fortlaufender Index [keep] erfuellt (Stride der
+     * Session-Uebersicht). Uebersprungene Frames kosten keine FFT; die behaltenen sind identisch zu [process].
+     */
+    fun process(samples: ShortArray, keep: (Long) -> Boolean): List<FloatArray> {
+        appendSamples(samples)
+        val frames = ArrayList<FloatArray>()
+        var readOffset = 0
+        while (overlapSize - readOffset >= actualFftSize) {
+            if (keep(frameIndex)) frames.add(processOneFrame(readOffset))
+            frameIndex++
+            readOffset += actualHopSize
+        }
+        if (readOffset > 0) {
+            val remaining = (overlapSize - readOffset).coerceAtLeast(0)
+            if (remaining > 0) System.arraycopy(overlapBuffer, readOffset, overlapBuffer, 0, remaining)
+            overlapSize = remaining
+        }
+        return frames
+    }
+
     /**
      * Internen Overlap-Buffer leeren (bei Aufnahme-Neustart).
      */
     fun reset() {
         overlapSize = 0
+        frameIndex = 0L
     }
 
     /**

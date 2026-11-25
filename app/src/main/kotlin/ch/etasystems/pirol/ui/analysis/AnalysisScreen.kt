@@ -777,6 +777,8 @@ private fun SessionDetailContent(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // T294: Zeitdehnung / normal, nur bei Sessions ueber 96 kHz
+                HighRatePlaybackToggle(state.selectedSession?.metadata?.sampleRate ?: 0) { viewModel.stopPlayback() }
             }
         }
         if (detailSearchOpen) {
@@ -882,7 +884,9 @@ private fun SessionDetailContent(
             val zoomRangeDb = rememberStaticRange(state.zoomSpectrogramState, settings)
             // T200: Achse und Bin-Zuschnitt aus derselben Config wie die Mel-Berechnung (bis Nyquist)
             val mainState = if (zoom != null) state.zoomSpectrogramState else state.spectrogramState
-            val mainConfig = SpectrogramConfig.BIRDS.resolved(mainState.sampleRate)
+            // T294: Ultraschall-Session (> 96 kHz) linear mit eigenem Frequenzbereich, sonst unveraendert
+            val mainConfig = SpectrogramConfig.forSessionRate(mainState.sampleRate).resolved(mainState.sampleRate)
+            val dispSettings = settings.forConfig(mainConfig)
             // T205: Anzeigemodus und Einstellungen gemeinsam mit Live
             val mode = settings.displayMode
             val spectrumSettings by specRepo.spectrum.collectAsState()
@@ -940,13 +944,13 @@ private fun SessionDetailContent(
                         gamma = settings.gamma,
                         ceilingDb = settings.ceilingDb,
                         fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
-                        freqMinHz = settings.freqMinHz,
-                        freqMaxHz = settings.freqMaxHz,
+                        freqMinHz = dispSettings.freqMinHz,
+                        freqMaxHz = dispSettings.freqMaxHz,
                         modifier = Modifier.fillMaxSize()
                     )
                     // T144: Frequenzachse links (1/2/4/8/12 kHz)
                     FrequencyAxis(
-                        config = mainConfig.forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                        config = mainConfig.forDisplay(dispSettings.freqMinHz, dispSettings.freqMaxHz),
                         lightBackground = settings.palette.isLight,
                         modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
                     )
@@ -958,7 +962,7 @@ private fun SessionDetailContent(
                         excerptStartSec = zoom?.startSec ?: 0f,
                         posSec = state.playbackPositionSec,
                         playheadSec = state.playbackPositionSec ?: state.pendingStartSec,
-                        settings = settings,
+                        settings = dispSettings,
                         spectrumSettings = spectrumSettings,
                         waveformSettings = waveformSettings,
                         sonoAutoRange = zoomRangeDb,
@@ -1031,7 +1035,7 @@ private fun SessionDetailContent(
             )
             if (showPanel) {
                 Spacer(modifier = Modifier.height(4.dp))
-                val panelConfig = SpectrogramConfig.BIRDS.resolved(mainState.sampleRate)
+                val panelConfig = mainConfig  // T294: gleiche Config wie die Anzeige (Ultraschall-Bereich im Regler)
                 when (mode) {
                     LiveDisplayMode.SPECTRUM -> SpectrumSettingsPanel(
                         repository = specRepo,
@@ -1354,6 +1358,9 @@ private fun CompareView(
         val cmpRepo: SpectrogramSettingsRepository = org.koin.compose.koinInject()
         val settings by cmpRepo.settings.collectAsState()
         val detectionOverride = rememberStaticRange(state.detectionSpectrogramState, settings)
+        // T294: Ultraschall-Session -> lineare Config und eigener Frequenzbereich
+        val detCfg = SpectrogramConfig.forSessionRate(state.detectionSpectrogramState.sampleRate).resolved(state.detectionSpectrogramState.sampleRate)
+        val detDisp = settings.forConfig(detCfg)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1362,7 +1369,7 @@ private fun CompareView(
         ) {
         SpectrogramCanvas(
             spectrogramState = state.detectionSpectrogramState,
-            config = SpectrogramConfig.BIRDS.resolved(state.detectionSpectrogramState.sampleRate),
+            config = detCfg,
             palette = settings.palette,
             autoContrast = false,
             manualMinDb = settings.minDb,
@@ -1370,14 +1377,14 @@ private fun CompareView(
             manualRangeOverride = detectionOverride,
             gamma = settings.gamma,
             ceilingDb = settings.ceilingDb,
-            freqMinHz = settings.freqMinHz,
-            freqMaxHz = settings.freqMaxHz,
+            freqMinHz = detDisp.freqMinHz,
+            freqMaxHz = detDisp.freqMaxHz,
             fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
             modifier = Modifier.fillMaxSize()
         )
         FrequencyAxis(
-            config = SpectrogramConfig.BIRDS.resolved(state.detectionSpectrogramState.sampleRate)
-                .forDisplay(settings.freqMinHz, settings.freqMaxHz),
+            config = detCfg
+                .forDisplay(detDisp.freqMinHz, detDisp.freqMaxHz),
             lightBackground = settings.palette.isLight,
             modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
         )
@@ -1427,6 +1434,8 @@ private fun CompareView(
         if (state.selectedReference != null) {
             // Sonogramm Referenz (T56: Einmal-Perzentil wenn Toggle AN; T56b: Gamma)
             val referenceOverride = rememberStaticRange(state.referenceSpectrogramState, settings)
+            val refCfg = SpectrogramConfig.forSessionRate(state.referenceSpectrogramState.sampleRate).resolved(state.referenceSpectrogramState.sampleRate)  // T294
+            val refDisp = settings.forConfig(refCfg)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1435,7 +1444,7 @@ private fun CompareView(
             ) {
             SpectrogramCanvas(
                 spectrogramState = state.referenceSpectrogramState,
-                config = SpectrogramConfig.BIRDS.resolved(state.referenceSpectrogramState.sampleRate),
+                config = refCfg,
                 palette = settings.palette,
                 autoContrast = false,
                 manualMinDb = settings.minDb,
@@ -1443,14 +1452,14 @@ private fun CompareView(
                 manualRangeOverride = referenceOverride,
                 gamma = settings.gamma,
                 ceilingDb = settings.ceilingDb,
-                freqMinHz = settings.freqMinHz,
-                freqMaxHz = settings.freqMaxHz,
+                freqMinHz = refDisp.freqMinHz,
+                freqMaxHz = refDisp.freqMaxHz,
                 fitAllFrames = true,  // T61: ganze Uebersicht/Ausschnitt auf Canvas-Breite skalieren
                 modifier = Modifier.fillMaxSize()
             )
             FrequencyAxis(
-                config = SpectrogramConfig.BIRDS.resolved(state.referenceSpectrogramState.sampleRate)
-                    .forDisplay(settings.freqMinHz, settings.freqMaxHz),
+                config = refCfg
+                    .forDisplay(refDisp.freqMinHz, refDisp.freqMaxHz),
                 lightBackground = settings.palette.isLight,
                 modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
             )

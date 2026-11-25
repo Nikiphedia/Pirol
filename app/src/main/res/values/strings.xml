@@ -1023,4 +1023,10 @@
     <string name="group_letter_bats">F</string>
     <string name="rescan_model_ultrasonic_hidden">Ultraschall-Modelle werden nicht angeboten: Die Aufnahme hat nur %1$d kHz.</string>
     <string name="help_group_bats">Fledermäuse haben eine eigene Artgruppe: Aus, Alle oder eine Liste wie «CH Fledermäuse». «Auto» gibt es nicht, das Geomodell kennt keine Fledermäuse.</string>
+    <!-- T294: hohe Abtastraten -->
+    <string name="playback_time_expansion">Zeitdehnung %1$d×</string>
+    <string name="playback_normal_downsampled">Normal (heruntergerechnet)</string>
+    <string name="help_analysis_time_expansion">Nur bei Aufnahmen über 96 kHz. Zeitdehnung spielt langsamer und tiefer ab, damit Ultraschall hörbar wird (10× = 40 kHz klingt wie 4 kHz). Normal rechnet auf 48 kHz herunter, Ultraschall ist dann nicht hörbar.</string>
+    <string name="import_zeitdehnung_info">Zeitgedehnt %1$d× erkannt · wahre Rate %2$s kHz</string>
+    <string name="import_ultraschall_info">Ultraschall-Aufnahme · %1$s kHz</string>
 </resources>

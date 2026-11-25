@@ -1022,4 +1022,10 @@
     <string name="group_letter_bats">B</string>
     <string name="rescan_model_ultrasonic_hidden">Ultrasonic models are not offered: the recording is only %1$d kHz.</string>
     <string name="help_group_bats">Bats have their own species group: Off, All or a list such as "CH bats". There is no "Auto" because the geomodel does not know bats.</string>
+    <!-- T294: high sample rates -->
+    <string name="playback_time_expansion">Time expansion %1$d×</string>
+    <string name="playback_normal_downsampled">Normal (downsampled)</string>
+    <string name="help_analysis_time_expansion">Only for recordings above 96 kHz. Time expansion plays slower and lower so ultrasound becomes audible (10× = 40 kHz sounds like 4 kHz). Normal downsamples to 48 kHz; ultrasound is then inaudible.</string>
+    <string name="import_zeitdehnung_info">Time-expanded %1$d× detected · true rate %2$s kHz</string>
+    <string name="import_ultraschall_info">Ultrasound recording · %1$s kHz</string>
 </resources>

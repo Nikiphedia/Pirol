@@ -56,8 +56,79 @@ class SpeechBandMasker(
         private const val NOISE_TABLE_SIZE = 1 shl 17
         private const val LEVEL_READ_FRAMES = 1 shl 16
 
+        /**
+         * T294: bis zu dieser Filterlaenge direkt (48/96 kHz: ca. 705/1407 Taps, bitgenau wie bisher). Darueber
+         * (Ultraschall, 384 kHz: ca. 5600 Taps) FFT-Faltung (Overlap-Save), sonst waere der Aufwand je Sample 64x.
+         */
+        const val DIRECT_MAX_TAPS = 2001
+
+        /** T294: Teilbloecke je Abschnitt (begrenzt die Float-Kopien bei langen Ausschnitten hoher Rate) */
+        const val SUB_BLOCK_FRAMES = 1 shl 16
+
         private val tables = ConcurrentHashMap<String, FloatArray>()
         private val filters = ConcurrentHashMap<String, FloatArray>()
+        private val spectra = ConcurrentHashMap<String, Pair<FloatArray, FloatArray>>()
+
+        /**
+         * T294: Laenge der Rauschtabelle. Bis 96 kHz unveraendert 2^17; darueber mit der Rate wachsend (bis 2^19),
+         * damit die Periode nicht zu kurz wird (2^17 waeren bei 384 kHz nur 0.34 s).
+         */
+        fun noiseTableSize(sampleRate: Int): Int {
+            if (sampleRate <= 96_000) return NOISE_TABLE_SIZE
+            var n = NOISE_TABLE_SIZE
+            while (n < (1 shl 19) && n.toLong() * 48_000 < NOISE_TABLE_SIZE.toLong() * sampleRate) n = n shl 1
+            return n
+        }
+
+        /** T294: FFT-Laenge der Overlap-Save-Faltung fuer [taps] (Zweierpotenz, >= 4x Filterlaenge) */
+        fun fftSizeFor(taps: Int): Int {
+            var n = 8192
+            while (n < 4 * taps) n = n shl 1
+            return n
+        }
+
+        /** T294: Spektrum (re, im) des mit Nullen auf [n] verlaengerten Filters [h], je Filter einmal */
+        private fun spectrumOf(key: String, h: FloatArray, n: Int): Pair<FloatArray, FloatArray> =
+            spectra.getOrPut("$key|$n") {
+                val re = FloatArray(n)
+                val im = FloatArray(n)
+                System.arraycopy(h, 0, re, 0, h.size)
+                FFT.fft(re, im)
+                re to im
+            }
+
+        /**
+         * T294: Bandsignal band[i] = sum_k h[k] * ctx[i + k] fuer i in [0, count) per Overlap-Save
+         * (h symmetrisch, daher gleich der Faltung). [ctx] hat count + h.size - 1 Werte.
+         */
+        internal fun fftBand(ctx: FloatArray, count: Int, h: FloatArray, hRe: FloatArray, hIm: FloatArray): FloatArray {
+            val n = hRe.size
+            val taps = h.size
+            val step = n - (taps - 1)
+            val out = FloatArray(count)
+            val re = FloatArray(n)
+            val im = FloatArray(n)
+            val scale = 1f / n
+            var j = 0
+            while (j < count) {
+                for (k in 0 until n) {
+                    val idx = j + k
+                    re[k] = if (idx < ctx.size) ctx[idx] else 0f
+                    im[k] = 0f
+                }
+                FFT.fft(re, im)
+                for (k in 0 until n) {
+                    val a = re[k]; val b = im[k]; val c = hRe[k]; val d = hIm[k]
+                    re[k] = a * c - b * d
+                    im[k] = -(a * d + b * c)  // konjugiert fuer die inverse FFT
+                }
+                FFT.fft(re, im)
+                val m = min(step, count - j)
+                for (t in 0 until m) out[j + t] = re[taps - 1 + t] * scale
+                j += step
+            }
+            return out
+        }
 
         /** Obere Grenze unter Nyquist (Fremdaudio mit tiefer Abtastrate) */
         internal fun clampHigh(sampleRate: Int, highHz: Float): Float =
@@ -107,7 +178,7 @@ class SpeechBandMasker(
          */
         fun noiseTable(sampleRate: Int, lowHz: Float, highHz: Float): FloatArray =
             tables.getOrPut("$sampleRate|$lowHz|$highHz") {
-                val n = NOISE_TABLE_SIZE
+                val n = noiseTableSize(sampleRate)  // T294: bis 96 kHz 2^17 wie bisher
                 val re = FloatArray(n)
                 val im = FloatArray(n)
                 val rnd = java.util.Random(261L)
@@ -141,6 +212,10 @@ class SpeechBandMasker(
     private val low = min(lowHz, high / 2)
     private val h = designBandpass(sampleRate, low, high)
     private val half = h.size / 2
+    // T294: lange Filter (Ultraschall-Raten) per FFT-Faltung
+    private val useFft = h.size > DIRECT_MAX_TAPS
+    private val hSpec: Pair<FloatArray, FloatArray>? =
+        if (useFft) spectrumOf("$sampleRate|$low|$high", h, fftSizeFor(h.size)) else null
     private val noise = noiseTable(sampleRate, low, high)
     private val fade = max(1, (FADE_SEC * sampleRate).toInt())
     private val levels = DoubleArray(this.sections.size) { Double.NaN }
@@ -161,23 +236,41 @@ class SpeechBandMasker(
         for ((idx, s) in sections.withIndex()) {
             if (s.endFrame <= from) continue
             if (s.startFrame >= end) break
-            val a = max(s.startFrame, from)
-            val b = min(s.endFrame, end)
             val g = levelFor(idx).toFloat()
-            val ctx = toFloat(reader(a - half, b + half))
-            val count = (b - a).toInt()
             val secLen = s.length
             val f = min(fade.toLong(), secLen / 2).coerceAtLeast(1L).toFloat()
+            // T294: in Teilbloecken (Ergebnis je Sample unveraendert, nur weniger Speicher bei hoher Rate)
+            var a = max(s.startFrame, from)
+            val bEnd = min(s.endFrame, end)
+            while (a < bEnd) {
+                val b = min(bEnd, a + SUB_BLOCK_FRAMES)
+                processRange(s, a, b, from, block, g, f)
+                a = b
+            }
+        }
+    }
+
+    /** Ein Teilbereich [a, b) eines Abschnitts [s] (direkt oder per FFT-Faltung). */
+    private fun processRange(s: FrameSpan, a: Long, b: Long, from: Long, block: ShortArray, g: Float, f: Float) {
+        run {
+            val ctx = toFloat(reader(a - half, b + half))
+            val count = (b - a).toInt()
             val center = h[half]
+            val band = if (useFft) fftBand(ctx, count, h, hSpec!!.first, hSpec.second) else null  // T294
             for (i in 0 until count) {
                 val n = a + i
                 // Symmetrischer FIR: band = h[M] x[n] + sum h[k] (x[n-M+k] + x[n+M-k])
-                var acc = center * ctx[i + half]
-                var k = 0
-                val top = i + 2 * half
-                while (k < half) {
-                    acc += h[k] * (ctx[i + k] + ctx[top - k])
-                    k++
+                var acc: Float
+                if (band != null) {
+                    acc = band[i]
+                } else {
+                    acc = center * ctx[i + half]
+                    var k = 0
+                    val top = i + 2 * half
+                    while (k < half) {
+                        acc += h[k] * (ctx[i + k] + ctx[top - k])
+                        k++
+                    }
                 }
                 val d = min(n - s.startFrame, s.endFrame - 1 - n).toFloat()
                 val t = d / f
