@@ -719,6 +719,8 @@ class SessionManager(
      */
     suspend fun deleteSessionMemo(sessionDir: File, memoFile: String): Boolean = withContext(Dispatchers.IO) {
         if (!memoFile.startsWith(SessionMemos.DIR + "/") || memoFile.contains("..")) return@withContext false
+        // Die gerade aufgenommene Session wird nie umgeschrieben: ein Neuschreiben koennte ein parallel angehaengtes Memo verlieren
+        if (isActiveSession(sessionDir)) return@withContext false
         try {
             fileMutex.withLock {
                 val a = active

@@ -966,4 +966,5 @@
     <string name="map_memo_titel">Session memo, %1$s</string>
     <string name="map_memo_marker">Session memo</string>
     <string name="help_analysis_memo_menue">Memo actions: share a single memo, save it under its own name or (session memo) delete it. Deleting can be undone.</string>
+    <string name="analysis_memo_loeschen_gesperrt">Delete (recording in progress)</string>
 </resources>

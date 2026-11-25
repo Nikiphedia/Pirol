@@ -967,4 +967,5 @@
     <string name="map_memo_titel">Session-Memo, %1$s</string>
     <string name="map_memo_marker">Session-Memo</string>
     <string name="help_analysis_memo_menue">Memo-Aktionen: ein einzelnes Memo teilen, unter einem eigenen Namen speichern oder (Session-Memo) löschen. Löschen lässt sich rückgängig machen.</string>
+    <string name="analysis_memo_loeschen_gesperrt">Löschen (Aufnahme läuft)</string>
 </resources>

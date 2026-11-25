@@ -58,6 +58,7 @@ fun MemoBlock(
     onShare: (MemoItem) -> Unit,
     onSaveAs: (MemoItem) -> Unit,
     onDelete: (MemoItem) -> Unit,
+    deleteLocked: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (items.isEmpty()) return
@@ -90,7 +91,7 @@ fun MemoBlock(
                     .heightIn(max = 200.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                for (item in items) MemoRow(item, playingKey, displayName, onPlay, onOpen, onShare, onSaveAs, onDelete)
+                for (item in items) MemoRow(item, playingKey, displayName, onPlay, onOpen, onShare, onSaveAs, onDelete, deleteLocked)
             }
         }
     }
@@ -105,7 +106,8 @@ private fun MemoRow(
     onOpen: (MemoItem) -> Unit,
     onShare: (MemoItem) -> Unit,
     onSaveAs: (MemoItem) -> Unit,
-    onDelete: (MemoItem) -> Unit
+    onDelete: (MemoItem) -> Unit,
+    deleteLocked: Boolean
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val isPlaying = playingKey == PlaybackKeys.memo(item.key)
@@ -157,7 +159,10 @@ private fun MemoRow(
                 )
                 if (item.isSessionMemo) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.common_delete)) },
+                        text = {
+                            Text(stringResource(if (deleteLocked) R.string.analysis_memo_loeschen_gesperrt else R.string.common_delete))
+                        },
+                        enabled = !deleteLocked,
                         onClick = { menuOpen = false; onDelete(item) },
                         modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     )

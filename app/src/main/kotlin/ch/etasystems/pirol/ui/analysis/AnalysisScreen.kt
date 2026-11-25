@@ -1066,6 +1066,7 @@ private fun SessionDetailContent(
                 onShare = { viewModel.shareMemo(it) },
                 onSaveAs = { memoToSave = it; saveMemoLauncher.launch(viewModel.memoExportName(it) + ".wav") },
                 onDelete = { viewModel.deleteSessionMemo(it) },
+                deleteLocked = viewModel.isMemoDeleteLocked(),
                 playingKey = state.playingKey,
                 displayName = { detailResolver.displayName(it) },
                 onPlay = { viewModel.playMemo(it) },

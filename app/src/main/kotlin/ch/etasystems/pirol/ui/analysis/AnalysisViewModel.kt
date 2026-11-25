@@ -534,6 +534,7 @@ class AnalysisViewModel(
     fun deleteSessionMemo(item: MemoItem) {
         if (!item.isSessionMemo) return
         val session = _uiState.value.selectedSession ?: return
+        if (sessionManager.isActiveSession(session.sessionDir)) return  // Sperre: laufende Aufnahme
         val removed = _uiState.value.sessionMemos.firstOrNull { it.file == item.file } ?: return
         if (pendingMemoDeletes.containsKey(item.file)) return
         if (playback.isPlaying(PlaybackKeys.memo(item.key))) playback.stop()
@@ -567,6 +568,10 @@ class AnalysisViewModel(
             _uiState.update { it.copy(sessionMemos = (it.sessionMemos + memo).sortedBy { m -> m.startedAt }) }
         }
     }
+
+    /** T272: true = Loeschen gesperrt, weil die Session gerade aufgenommen wird. */
+    fun isMemoDeleteLocked(): Boolean =
+        _uiState.value.selectedSession?.sessionDir?.let { sessionManager.isActiveSession(it) } == true
 
     /** T272: Name des Memo-Exports `yyyyMMddHHmmss_Memo_Bemerkung` (ohne Endung); Zeit unbekannt = jetzt. */
     fun memoExportName(item: MemoItem): String =
