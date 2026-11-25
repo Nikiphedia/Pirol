@@ -15,7 +15,7 @@ Die App hat fünf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **S
 3. **Modell** herunterladen: Es lassen sich mehrere Modelle auf einmal auswählen. Standard ist BirdNET 3.0 FP16 (empfohlen, ca. 170 MB). Der Download läuft im Hintergrund weiter, kann abgebrochen und später fortgesetzt werden. Alternativ eine Modell-Datei manuell auswählen.
 4. **Speicherort** prüfen (Settings > Aufnahme). Standard: `Downloads/PIROL/`, per USB sichtbar.
 
-**Installation (APK):** Die Release-APK gibt es pro Prozessor-Architektur. Für aktuelle Geräte (Telefone und Tablets) die Datei `Pirol-<Version>-arm64-v8a-release.apk` installieren, nur für alte 32-Bit-Geräte die Datei `...-armeabi-v7a-release.apk`. Die APKs sind dadurch deutlich kleiner als früher die gemeinsame APK. Die App hat ein neues Symbol (gelber Vogel), auch als einfarbiges Symbol für Themed Icons.
+**Installation (APK):** Die Release-APK gibt es pro Prozessor-Architektur. Für aktuelle Geräte (Telefone und Tablets) die Datei `Pirol-<Version>-arm64-v8a-release.apk` installieren, nur für alte 32-Bit-Geräte die Datei `...-armeabi-v7a-release.apk`. Die APKs sind dadurch deutlich kleiner als früher die gemeinsame APK. Die App hat ein neues Symbol (gelber Vogel), auch als einfarbiges Symbol für Themed Icons. Einzelheiten zur Installation und zum Update (auch Samsung-Geräte) stehen in Kapitel 20.
 
 **Was ist neu:** Nach einem Update zeigt PIROL einmalig einen Dialog "Was ist neu" mit den wichtigsten Änderungen der Version. Er kann jederzeit in den Einstellungen unter "Info" erneut aufgerufen werden.
 
@@ -69,6 +69,8 @@ Die Reihenfolge der Artkarten ändert sich höchstens alle 5 s. Neue Arten werde
 ### Session-Memo
 Der Memo-Knopf im Live-Tab (nur während einer Aufnahme sichtbar) funktioniert wie ein Walkie-Talkie: **gedrückt halten und sprechen**, beim Loslassen endet das Memo. Während der Aufnahme ist der Knopf rot und zeigt die Laufzeit; danach erscheint "Memo gespeichert (n s)". Memos unter 0.5 s werden verworfen ("Zu kurz"), nach 3 Minuten endet ein Memo automatisch. Das Memo wird mit seiner Lage in der Aufnahme gespeichert (`memos.jsonl`, Dateien unter `memos/`), erscheint in der Analyse im Block "Memos" (Kapitel 6) und als Zeile "Memo" im Raven-Export (Kapitel 7). Memos werden nie als Stimme ausgeblendet (Kapitel 7). Sprach-Memos zu einzelnen Arten bleiben davon getrennt.
 
+Beim Drücken merkt sich PIROL den letzten GPS-Fix (nicht älter als 2 min) und speichert ihn mit dem Memo; auf der Karte erscheint das Memo dann als Mikrofon-Marker (Kapitel 8). Ohne aktuellen Fix hat das Memo keinen Ort. Löschen, Teilen und Speichern unter: Kapitel 6.
+
 ### Mehrfacherkennung und Konfidenz-Schwelle
 Im selben 3-s-Fenster werden alle Arten erkannt, die die Schwelle erreichen, nicht nur die oberste. Der Regler heisst "Konfidenz-Schwelle (alle Arten)" (Settings > Modell & Erkennung, Standard 50 %) und gilt für alle Arten gleich. Arten darunter, aber über der Kandidaten-Grenze, bleiben als Kandidaten bei den Detektionen des Fensters. Früher steuerte der Regler eine andere Schwelle (TopK, Standard 0.3); deshalb nach dem Update prüfen. Watchlist-Alarme lösen erst ab der Schwelle aus.
 
@@ -93,7 +95,7 @@ Der Hochpassfilter (200 Hz) filtert Wind und Trittschall, standardmässig an. Er
 
 Im Live- und im Analyse-Tab. Die Frequenzachse zeigt 1/2/4/8/12 kHz. Dargestellt wird standardmässig bis **12 kHz** (Voreinstellung für Vögel), einstellbar bis **24 kHz**. Die Pegel des Sonogramms sind in dBFS.
 
-**Anzeige-Modi (Live-Tab):** Im Anzeige-Panel (Langdruck) schaltet man zwischen **Sonogramm**, **Spektrum** und **Oszillogramm** um. Das Spektrum zeigt die Lautstärke je Frequenz mit echter FFT (dBFS, Mittelung, Peak-Halten mit verblassenden Spitzen, Cursor). Das Oszillogramm zeigt den Zeitverlauf mit Pegelanzeige (Peak/RMS), Bandpass und roter Markierung bei Übersteuerung. Frequenz, Dynamik und Farbmuster gelten für alle drei Ansichten gemeinsam. In der Analyse stehen Spektrum und Oszillogramm ebenfalls zur Verfügung.
+**Anzeige-Modi (Live-Tab):** Im Anzeige-Panel (Langdruck) schaltet man zwischen **Sonogramm**, **Spektrum** und **Oszillogramm** um. Das Spektrum zeigt die Lautstärke je Frequenz mit echter FFT (dBFS, Mittelung, Peak-Halten mit verblassenden Spitzen, Cursor). Die Frequenzachse lässt sich im Spektrum-Panel zwischen **Linear** (Standard, gleiche Hz-Abstände) und **Mel** (tiefe Frequenzen gedehnt, wie im Sonogramm) umschalten; Raster und Cursor-Anzeige folgen der Wahl. Der Regler **Intensität (Gamma)** wirkt auch im Spektrum (Kurvenhöhe und dB-Gitter) und ist derselbe Wert wie im Sonogramm. Das Oszillogramm zeigt den Zeitverlauf mit Pegelanzeige (Peak/RMS), Bandpass und roter Markierung bei Übersteuerung; sein **Zeitfenster** (5 bis 30 s) stellt man im Oszillogramm-Panel ein. Ein Gamma-Regler gehört nicht zum Oszillogramm. Solange noch keine Daten da sind, steht je Ansicht ein eigener Hinweis ("Spektrum wird geladen", "Oszillogramm wird geladen"). Frequenz, Dynamik und Farbmuster gelten für alle drei Ansichten gemeinsam. In der Analyse stehen Spektrum und Oszillogramm ebenfalls zur Verfügung.
 
 **Darstellung anpassen:** Langdruck auf das Sonogramm (Live oder Analyse) öffnet das Einstellungs-Panel unterhalb des Sonogramms; dieselben Regler stehen in Settings > Anzeige. Das Panel gilt für Live, Analyse und Settings gemeinsam. Oben im Panel steht "Fertig" in einer eigenen Zeile; Voreinstellungen und Farbpaletten sind Kacheln, die bei Platzmangel umbrechen.
 
@@ -153,7 +155,7 @@ human_windows.jsonl       Merkliste für das Ausblenden menschlicher Stimmen (ni
 - **Zeitstempel:** immer Ortszeit mit Zonen-Offset (z.B. `+02:00`).
 - **Auto-Löschen:** Kurze Sessions ohne Detektion werden gelöscht (Mindestdauer einstellbar, 0 = aus).
 - **Löschen** einer Session in der Analyse: mit Bestätigung.
-- **Angaben importierter Sessions bearbeiten:** Bei importierten Sessions gibt es im Überlaufmenü der Kopfzeile (Symbol mit drei Punkten) den Eintrag "Angaben bearbeiten": Startzeit, Ort und Bemerkung lassen sich nachträglich ändern. Eine neue Startzeit verschiebt alle Zeiten der Session (Detektionen, Verifikationen, Varianten, Route) um dieselbe Differenz; Positionen in der Aufnahme bleiben. Raven und GPX werden neu geschrieben. Der Ort gilt für die Session und alle Detektionen ohne eigenen GPS-Fix; auf der Karte verschobene Punkte bleiben. Nicht möglich während eines Rescans.
+- **Angaben importierter Sessions bearbeiten:** Bei importierten Sessions gibt es im Überlaufmenü der Kopfzeile (Symbol mit drei Punkten) den Eintrag "Angaben bearbeiten": Startzeit, Ort und Bemerkung lassen sich nachträglich ändern. Eine neue Startzeit verschiebt alle Zeiten der Session (Detektionen, Verifikationen, Varianten, Route) um dieselbe Differenz; Positionen in der Aufnahme bleiben. Ändert sich das **Datum**, benennt PIROL auch den Session-Ordner um (neue Kennung mit der neuen Ortszeit) und verschiebt ihn in den passenden Tagesordner (sofern Tages-Unterordner an sind). Startzeit und Datum wählt man mit Datums- und Zeitauswahl. Raven und GPX werden neu geschrieben. Der Ort gilt für die Session und alle Detektionen ohne eigenen GPS-Fix; auf der Karte verschobene Punkte bleiben. Nicht möglich während eines Rescans; eine Datumsänderung ist auch nicht möglich, solange ein Upload dieser Session eingereiht oder aktiv ist.
 
 ### Speicherort wechseln
 Settings > Aufnahme > Speicherort: "Anderen Ordner wählen" (SAF: interner Speicher, SD-Karte, Cloud-Ordner). Optional mit Tages-Unterordnern. Ist der Ordner nicht erreichbar, speichert PIROL im Fallback-Ordner der App und meldet das. Einzelne Aufnahmen lassen sich auch im Analyse-Tab verschieben (Kapitel 6).
@@ -172,16 +174,20 @@ Settings > Aufnahme > Speicherort: "Anderen Ordner wählen" (SAF: interner Speic
 - **Verifizieren, korrigieren, Art hinzufügen:** wie im Live-Tab, auch nachträglich.
 - **Vergleich:** Detektion und Referenz nebeneinander, mit synchroner Wiedergabe.
 - **Suche:** Das Such-Symbol in der Session-Liste filtert nach Artname (Teilwort, deutscher oder wissenschaftlicher Name). In einer geöffneten Aufnahme filtert die Suche die Detektionsliste.
-- **Kopfzeile und Wiedergabeleiste:** Zurück, Datum und Kennung, Play mit Positionsanzeige, Suche, Raven und Upload. Mit vorige/nächste Detektion springt man zwischen den Einträgen.
+- **Kopfzeile und Wiedergabeleiste:** Zurück, Datum und Kennung, Play mit Positionsanzeige, Suche, Raven und Upload. Der Upload meldet sein Ergebnis per Snackbar ("Hochgeladen", bei Fehler mit Grund, oder dass PIROL auf einen Entscheid wartet, Kapitel 7). Mit vorige/nächste Detektion springt man zwischen den Einträgen.
 - **Navigation:** Tippen im Sonogramm oder Oszillogramm springt an die Stelle; läuft keine Wiedergabe, merkt sich PIROL die Startposition (cyanfarbener Zeiger) für das nächste Play.
-- **Spektrum und Oszillogramm:** wie im Live-Tab; im Oszillogramm zeigt ein Zeiger die Abspielposition.
-- **+ Art:** übernimmt die Zeit aus der Abspielposition (+/-10 s). Der Ort lässt sich über "Auf Karte wählen" bestimmen.
+- **Spektrum und Oszillogramm:** wie im Live-Tab (inkl. Linear/Mel und Gamma, Kapitel 3); im Oszillogramm zeigt ein Zeiger die Abspielposition.
+- **Zoom mit zwei Fingern:** In Übersichtsleiste und Sonogramm zoomt man per Pinch (zwei Finger). Der Ausschnitt ist mindestens 3 s (bei kürzeren Sessions die ganze Session) und höchstens die ganze Aufnahme; beim Herauszoomen auf die ganze Aufnahme ist der Zoom aufgehoben. Tippen und Ziehen mit einem Finger funktionieren wie bisher.
+- **+ Art:** übernimmt die Zeit aus der Abspielposition (+/-10 s). Bei Sessions aus mehreren Dateien mit Lücken zwischen den Segmenten rechnet PIROL über die Wanduhr des jeweiligen Segments; das Fenster bleibt innerhalb des Segments. Der Ort lässt sich über "Auf Karte wählen" bestimmen.
 - **Übersicht:** Eine Übersichtsleiste zeigt die Detektionen über die ganze Aufnahme; die Raven-Tabelle listet sie als Tabelle.
 - **Raven-Datei neu erzeugen**, z.B. nach nachträglicher Verifikation.
 - **Episoden teilen:** Jede Episode hat einen eigenen Teilen-Knopf; geteilt wird der Ausschnitt dieser Episode.
-- **Memos:** Gibt es Memos, zeigt die Analyse unter Sonogramm und Übersicht den aufklappbaren Block "Memos (n)" (höchstens 200 dp hoch, scrollbar) mit Abspielen. Er listet Session-Memos und Memos zu Arten; bei Art-Memos ohne bekannte Aufnahmezeit steht "ca. ... (Zeit der Detektion)".
-- **Rescan:** Der Rescan-Knopf neben der Lupe (nur wenn eine Aufnahme vorhanden ist) öffnet die Wahl von Modell, Liste bzw. Artgruppen, Konfidenz-Schwelle, Overlap und Zweitmodell. Der Rescan läuft im Hintergrund als Vordergrund-Dienst mit Fortschritt und Abbrechen; das Ergebnis erscheint als Chip neben dem Original ("Datum Zeit · Modell"). Die Ergebnisse erscheinen **laufend**: Die Variante öffnet sich sofort, die Detektionsliste wächst alle paar Sekunden und lässt sich schon während des Scans verifizieren (Kopfzeile "· läuft"). Beim Abbrechen bleibt das Teilergebnis erhalten ("abgebrochen bei x min"); dasselbe gilt, wenn die App während des Scans beendet wird. Bereits vorgenommene Verifikationen werden nie überschrieben. Während eines Rescans ist keine Aufnahme möglich und die laufende Variante nicht löschbar. Der Import von Audiodateien nutzt denselben Weg.
+- **Memos:** Gibt es Memos, zeigt die Analyse unter Sonogramm und Übersicht den aufklappbaren Block "Memos (n)" (höchstens 200 dp hoch, scrollbar) mit Abspielen. Er listet Session-Memos und Memos zu Arten; bei Art-Memos ohne bekannte Aufnahmezeit steht "ca. ... (Zeit der Detektion)". Das Menü je Memo bietet **Teilen** und **Speichern unter** (die WAV-Datei unverändert, Name `YYYYMMDDHHMMSS_Memo_Bemerkung.wav`, ohne Ausblenden von Stimmen) und bei Session-Memos **Löschen**: Das Memo verschwindet sofort, eine Snackbar bietet **Rückgängig** (10 s); erst danach wird die Datei endgültig gelöscht. In der gerade laufenden Aufnahme ist Löschen gesperrt ("Löschen (Aufnahme läuft)").
+- **Rescan:** Der Rescan-Knopf neben der Lupe (nur wenn eine Aufnahme vorhanden ist) öffnet die Wahl von Modell, Liste bzw. Artgruppen, Konfidenz-Schwelle, Overlap und Zweitmodell. Der Rescan läuft im Hintergrund als Vordergrund-Dienst mit Fortschritt und Abbrechen; das Ergebnis erscheint als Chip neben dem Original ("Datum Zeit · Modell"). Die Ergebnisse erscheinen **laufend**: Die Variante öffnet sich sofort, die Detektionsliste wächst alle paar Sekunden und lässt sich schon während des Scans verifizieren (Kopfzeile "· läuft"). Beim Abbrechen bleibt das Teilergebnis erhalten ("abgebrochen bei x min"); dasselbe gilt, wenn die App während des Scans beendet wird. Der Rescan ist schneller geworden: Er rechnet mit mehr Rechenkernen, und das Zweitmodell läuft parallel zum Hauptmodell; die Ergebnisse sind dieselben wie vorher. Bereits vorgenommene Verifikationen werden nie überschrieben. Während eines Rescans ist keine Aufnahme möglich und die laufende Variante nicht löschbar. Nach dem Import von Audiodateien nutzt der Scan denselben Weg (siehe "Audio importieren").
 - **Audio importieren:** Der Import-Knopf im Kopf der Session-Liste übernimmt eine PIROL-Session (ZIP oder Ordner) oder Audiodateien (WAV, FLAC, MP3, M4A, OGG) als neue Session. Die Startzeit steht vorbelegt (z.B. aus einem AudioMoth-Kommentar) und ist änderbar. Bei mehreren Dateien wählt man: je Datei eine Session oder alle zu einer Session (Segmente, nach Zeit sortiert).
+  - **Startzeit:** Datum und Uhrzeit wählt man mit Datums- und Zeitauswahl. Die Dateizeit ist bei Recordern oft das Ende der Aufnahme; der Schalter **"Dateizeit = Ende"** (Standard an) rechnet dann Start = Dateizeit minus Laufzeit, ausgeschaltet gilt die Dateizeit als Start. Unter dem Feld steht, woher die Zeit stammt.
+  - **Scan nach dem Import:** Anschliessend bietet PIROL den Scan (Rescan-Dialog) an. Bei mehreren als je eigene Session importierten Dateien gilt die Wahl für **alle** neuen Sessions, die nacheinander gescannt werden. Der erste vollständige Scan einer importierten Session ohne Detektionen wird zum **Original**: `detections.jsonl`, `verifications.jsonl` und die Raven-Datei liegen dann direkt im Session-Ordner, ohne manuellen Schritt. Spätere Scans bleiben Varianten.
+  - **Abbruch:** Bricht man den Import ab (oder scheitert er), wird die gerade halb importierte Session gelöscht; bereits fertige Sessions eines Mehrfachimports bleiben erhalten. Das ist anders als beim Rescan, der sein Teilergebnis behält. Bricht man den Scan-Dialog ab, werden die wartenden Scans verworfen.
 - **Speichern unter:** Im Überlaufmenü der Kopfzeile. Man wählt **ZIP** oder **Ordner** und danach das Ziel (auch SD-Karte, USB oder Cloud-Ordner). Der Inhalt entspricht dem Upload-ZIP; beim Ordner entsteht ein Unterordner mit dem Exportnamen (Kapitel 7). Ein Ziel in der PIROL-Ablage oder in der Session selbst wird abgelehnt. Für die laufende Aufnahme ist der Eintrag ausgegraut. Menschliche Stimmen werden je nach Einstellung ausgeblendet (Kapitel 7).
 - **Kopfzeile:** Datum · Gemeinde · Bemerkung in einer Zeile; ein Tipp auf die Bemerkung öffnet den Dialog. Der Kompakt/Gross-Umschalter entspricht dem der Artkarte.
 
@@ -223,6 +229,7 @@ Georeferenzierte Detektionen auf einer Karte. Das **Kartenmenü** öffnet sich p
 - **Offline:** Für swisstopo-Karten lässt sich der sichtbare Ausschnitt herunterladen ("Ausschnitt herunterladen", mit Angabe der Kachelzahl und Grösse). Ein Abbruch behält bereits geladene Kacheln; ein erneuter Start lädt nur Fehlendes. "Offline-Karten löschen" entfernt alle gespeicherten Kacheln.
 - **Anzeige:** alle Sessions, "Nur Live" oder "Letzte 3". Abgelehnte Beobachtungen sind ausgeblendet. Überlappende Marker werden je nach Zoom gruppiert. Die Karte startet auf dem eigenen Standort.
 - **Punkt antippen:** Ein Tipp auf einen Punkt öffnet ein Menü mit Verifizieren (Bestätigen, Unsicher, Ablehnen), "Bearbeiten", "Position verschieben" und Abspielen (Play bzw. "Wiedergabe stoppen"). Ein Langdruck öffnet dasselbe Menü und erlaubt zusätzlich, Beobachtungen als Simultanbeobachtung zu verknüpfen. Abgespielt wird der Ausschnitt der Detektion aus der Session-Aufnahme; fehlt sie, erscheint eine Meldung.
+- **Memo-Marker:** Session-Memos mit Position (Kapitel 2) erscheinen als Mikrofon-Marker. Ein Tipp öffnet einen Dialog mit Zeit und Abspielen. Sie sind bei "Alle Sessions" und "Letzte 3" sichtbar, nicht bei "Nur Live".
 - **Mehrere Punkte übereinander (Cluster):** Ein Tipp auf einen Cluster zeigt die Liste der Detektionen. Pro Eintrag gibt es Verifizieren, Abspielen und "Position verschieben".
 - **Position verschieben:** Die Karte zeigt oben den Hinweis "Karte verschieben: Fadenkreuz auf die neue Position von ..., dann Übernehmen." Die Karte so schieben, dass das Fadenkreuz in der Mitte auf der neuen Position liegt, dann unten "Übernehmen" (oder "Abbrechen"). Danach erscheint eine Snackbar mit **Rückgängig**. Das Verschieben geht auch für Live-Punkte; läuft keine Session, gilt die neue Position nur bis zum Schliessen der App.
 - **Artfilter:** Im Kartenmenü steht der Artfilter: "Nur Alarmarten" oder einzelne Arten ausblenden (Alle/Keine). Der Filter gilt bis zum Schliessen der App; Routen bleiben sichtbar.
@@ -257,6 +264,8 @@ Im Alarm kann die Art direkt **bestätigt** werden; "Rückgängig" bleibt danach
 ## 11. Artgruppen und Artenlisten
 
 Der Artfilter wirkt je Artgruppe: **Vögel, Heuschrecken, Amphibien, Säugetiere** je **Aus / Alle / Auto / Liste**; **Andere** nur **Aus / Alle** (Standard Aus). "Auto" nutzt das Geomodel (Standort und BirdNET-Woche). Arten, die das Geomodel nicht kennt, sowie Gruppen ohne Geomodel-Maske nehmen die Begleitliste der Gruppe (Vögel: CH-Liste, Heuschrecken und Amphibien: CH-Liste unten, Säugetiere: alle). "Liste" wählt eine der mitgelieferten oder eigenen Listen. Mitgeliefert ist die Liste "CH Heuschrecken & Amphibien" (Daten GBIF, CC BY 4.0).
+
+**Auto ohne GPS:** Fehlt ein aktueller Standort, gilt die zuletzt gespeicherte Position höchstens 30 Tage; danach nimmt "Auto" die Ersatzliste der Gruppe. Beim Start der Aufnahme weist ein Hinweis darauf hin, und in Settings > Arten & Alarm (Geomodel) steht die Grundlage ("Ohne GPS gilt die letzte Position vom ..." bzw. "Keine aktuelle Position: Es gilt die Ersatzliste der Gruppe"). Die gespeicherte Position wird nur bei einer Berechnung mit GPS-Fix aktualisiert. Optional ignoriert die **Jahresliste** die Jahreszeit (Schalter im Geomodel-Abschnitt).
 
 Im Listen-Editor lassen sich Arten nach Ordnung, Familie und Gattung auswählen; "Artnamen wissenschaftlich anzeigen" schaltet die Namensform um.
 
@@ -308,6 +317,8 @@ Geprüft sind **BirdNET 2.4** (6'522 Arten, 48 kHz, etwa halbe Rechenzeit von 3.
 **Lizenzen:** BirdNET 3.0 Apache 2.0, Perch v2 Apache 2.0, BirdNET 2.4 und Nighthawk nur nicht-kommerziell (CC BY-NC bzw. BY-NC-SA). Die Lizenz wird beim Import angezeigt.
 
 **Hinweis:** Perch arbeitet mit 32 kHz; Laubheuschrecken im Ultraschall sind damit nicht hörbar.
+
+**Zweitmodell-Statistik (Experten-Modus):** In Settings > Modell & Erkennung öffnet der Knopf "Zweitmodell-Statistik" einen Dialog. PIROL liest dafür alle Sessions (nur die Originale, nur lesend; Rescan-Varianten und manuelle Einträge zählen nicht) und zeigt eine Kreuztabelle: Verifikation (bestätigt, abgelehnt, unsicher, offen, korrigiert/ersetzt) gegen das Ergebnis des Zweitmodells (Geprüft, Nicht prüfbar, Widerspricht, Kein Ergebnis), gesamt und je Zweitmodell. Dazu kommen Fortschrittsbalken zum Ziel (200 bestätigte und 50 abgelehnte Detektionen mit Zweitmodell-Ergebnis) und der Anteil der Widersprüche bei bestätigten und bei abgelehnten Detektionen. Das hilft einzuschätzen, ob das Zweitmodell als Prüfhilfe taugt. Schliessen des Dialogs bricht das Einlesen ab.
 
 **Perch als Zweitmodell:** braucht ca. 650 MB zusätzlichen Speicher. Die App warnt beim Einschalten, wenn das Gerät weniger als 6 GB RAM hat. Das Zweitmodell arbeitet mit dem Rohaudio der Aufnahme, damit die 5-s-Fenster echte Umgebung enthalten.
 
@@ -365,7 +376,7 @@ Settings > Modell & Erkennung > Energieprofil:
 
 ## 16. Sprachen
 
-Settings > Sprache: Sprache der App (Systemsprache oder Auswahl): Deutsch, Englisch, Französisch, Italienisch, Katalanisch, Portugiesisch, Niederländisch, Bärndeutsch. **Bärndeutsch und Portugiesisch sind Entwürfe**, fehlende Texte erscheinen auf Deutsch. Die **Artennamen**-Sprache folgt der App-Sprache, kann aber separat gesetzt werden (23 Sprachen).
+Settings > Sprache: Sprache der App (Systemsprache oder Auswahl): Deutsch, Englisch, Französisch, Italienisch, Katalanisch, Portugiesisch, Niederländisch, Bärndeutsch. **Bärndeutsch und Portugiesisch sind Entwürfe**, fehlende Texte erscheinen auf Deutsch. Die **Artennamen**-Sprache folgt der App-Sprache, kann aber separat gesetzt werden (23 Sprachen). Artnamen erscheinen durchgehend in der gewählten Sprache, auch in Karte, Raven und bei älteren Detektionen (sie werden beim Anzeigen neu aufgelöst, gespeicherte Dateien bleiben unverändert); umbenannte Arten findet PIROL auch unter ihrem alten Namen. Fehlt ein Name in der gewählten Sprache, nimmt PIROL bei Deutsch den deutschen Namen aus den mitgelieferten Artenlisten, bei anderen Sprachen zuerst den englischen Namen.
 
 ---
 
@@ -383,9 +394,11 @@ Die Settings sind in einklappbare Sektionen gegliedert; der Zustand wird gemerkt
 | Karte & GPS | GPS-Modus, Route aufzeichnen, GPS-Intervall, Genauigkeit und Glättung; Experten (Erweitert): "Gemeinde online ermitteln (Google)" |
 | Export & Upload | Raven-Export-Felder (inkl. Memo), Datenschutz (menschliche Stimmen ausblenden, Mensch-Schwelle), Upload (Ziel Ordner/NAS, Passwort, Verbindungstest, nur WLAN) |
 | Ähnliche Arten & Referenzen | Ähnlichkeitssuche, Zeilenzahl, Vergleichsaufnahmen (Kapitel 9) |
-| Info | Version, Quellen, Was ist neu, Diagnose (Benchmark) |
+| Info | Version, Quellen, Was ist neu, Diagnose (Benchmark), "PIROL unterstützen" |
 
 Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im Einfach-Modus alles Seltene aus; im Expertenmodus ist alles sichtbar. Keine Einstellung geht dabei verloren. Seltene Optionen stehen im einklappbaren Unterblock "Erweitert" der jeweiligen Sektion (z.B. Hochpassfilter, Detektions-Cluster, Phänologie, Max. Aufnahmelänge).
+
+**PIROL unterstützen:** In Settings > Info öffnet der Knopf "PIROL unterstützen" die Spendenseite im Browser. Die Spende ist freiwillig; PIROL bleibt kostenlos und vollständig.
 
 **Resampler:** Polyphase (empfohlen) filtert Störgeräusche über 16 kHz, die sonst als Geistersignale erscheinen können. "Linear" ist die alte Methode. Die Umschaltung zeigt einen Hinweis und wirkt ohne Neustart der Aufnahme.
 
@@ -406,17 +419,47 @@ Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im 
 
 Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
+### Version 0.1.3
+- Session-Memos: löschen mit Rückgängig, Ort beim Drücken gespeichert und als Marker auf der Karte, Teilen und Speichern unter (Kapitel 2, 6, 8)
+- Import: Datums- und Zeitauswahl, Schalter "Dateizeit = Ende", Scan für alle importierten Sessions, erster Scan wird Original mit Raven im Ordner (Kapitel 6)
+- Datumsänderung einer importierten Session benennt den Ordner um und verschiebt ihn in den richtigen Tagesordner (Kapitel 5)
+- "+ Art" berücksichtigt Lücken zwischen Segmenten (Kapitel 6)
+- Spektrum: Linear (Standard) oder Mel, Gamma auch im Spektrum, Zeitfenster im Oszillogramm (Kapitel 3)
+- Analyse: Zoom mit zwei Fingern, Upload meldet sein Ergebnis per Snackbar (Kapitel 6)
+- Rescan schneller, Zweitmodell parallel (Kapitel 6)
+- Auto-Filter ohne GPS: letzte Position bis 30 Tage, Hinweis beim Start, Grundlage in den Settings, Jahresliste (Kapitel 11)
+- Zweitmodell-Statistik im Expertenmodus (Kapitel 13)
+- Artnamen durchgehend in der gewählten Sprache, deutsche Namen aus den Artenlisten (Kapitel 16)
+- Knopf "PIROL unterstützen" (freiwillig) in Settings > Info (Kapitel 17)
+- Hilfemodus deckt mehr Bedienelemente ab, auch Kartenmarker und Dialoge (Kapitel 1)
+- Neues Kapitel 20: Installation und Update
+
 ### Version 0.1.2
 - Angaben importierter Sessions (Startzeit, Ort, Bemerkung) nachträglich bearbeiten (Kapitel 5)
 - "Speichern unter" als ZIP oder Ordner (Kapitel 6)
 - Raven: eine Zeile pro Episode, neue Spalten `Cluster`, `Windows` und `Memo` (Kapitel 7)
-- Rescan und Import: Ergebnisse laufend sichtbar und verifizierbar, Abbruch behält das Teilergebnis (Kapitel 6)
+- Rescan und Import: Ergebnisse laufend sichtbar und verifizierbar; beim Rescan behält der Abbruch das Teilergebnis, beim Import löscht er die halb importierte Session (Kapitel 6)
 - Menschliche Stimmen werden im Export ausgeblendet, Standard an; Rückfrage bei Modell ohne Mensch-Klasse (Kapitel 7)
 - Gemeinde online über Google nur noch als Option, Standard aus (Kapitel 17)
 - Session-Memo per Gedrückt-halten, Block "Memos" in der Analyse, Memo-Zeile in Raven (Kapitel 2, 6, 7)
 - Live-Artkarten ruhiger: Wechsel höchstens alle 5 s, Treffer in den Top 5 blinken blau (Kapitel 2)
 - Hilfe-Knopf "?": Hilfemodus und Anleitung offline (Kapitel 1)
 - Anleitung korrigiert: Artfilter im Kartenmenü (Kapitel 8), Settings-Sektionsnamen (Kapitel 1, 5, 7, 17)
+
+---
+
+## 20. Installation und Update
+
+**Welche APK?** Jede Version gibt es als Release auf GitHub (Nikiphedia/Pirol, Bereich "Releases") mit je einer APK pro Prozessor-Architektur:
+- `Pirol-<Version>-arm64-v8a-release.apk`: für fast alle aktuellen Telefone und Tablets. Im Zweifel diese Datei nehmen.
+- `Pirol-<Version>-armeabi-v7a-release.apk`: nur für ältere 32-Bit-Geräte.
+
+**Installation:**
+1. Die passende APK aus dem GitHub-Release auf das Gerät laden und öffnen. Android fragt beim ersten Mal, ob der verwendete Browser oder Dateimanager Apps installieren darf; das einmal erlauben.
+2. **Samsung-Geräte:** Die Funktion **"Automatische Sperre"** (Auto Blocker; Einstellungen > Sicherheit und Datenschutz) verhindert die Installation von Apps ausserhalb des Stores. Sie für die Installation kurz ausschalten, PIROL installieren und danach wieder einschalten. Das gilt **bei jedem Update** erneut.
+3. Installieren antippen und öffnen. Beim ersten Start führt der Einrichtungsassistent durch die Grundeinstellungen (Kapitel 1).
+
+**Update:** Die neue APK einfach über die bestehende Installation installieren (gleiche Architektur, bei Samsung wieder mit kurz ausgeschalteter Automatischer Sperre). Sessions, Modelle, Listen und Einstellungen bleiben erhalten; nichts muss deinstalliert werden. Hinweise zu älteren Versionen stehen in Kapitel 1 (Update von älteren Versionen). Nach dem Update zeigt PIROL einmalig "Was ist neu".
 
 ---
 
