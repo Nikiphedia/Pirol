@@ -1255,7 +1255,13 @@ private fun SpectrogramBox(
             ) {
                 Text(
                     text = when {
-                        uiState.isRecording -> stringResource(R.string.live_sonogramm_wird_geladen)
+                        uiState.isRecording -> stringResource(
+                            when (settings.displayMode) {  // T275: Leertext je Modus
+                                LiveDisplayMode.WAVEFORM -> R.string.live_oszillogramm_wird_geladen
+                                LiveDisplayMode.SPECTRUM -> R.string.live_spektrum_wird_geladen
+                                else -> R.string.live_sonogramm_wird_geladen
+                            }
+                        )
                         uiState.isServiceBound -> stringResource(R.string.live_bereit_aufnahme_starten)
                         else -> stringResource(R.string.live_sonogramm_aufnahme_starten)
                     },

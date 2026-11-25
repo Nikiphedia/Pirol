@@ -298,6 +298,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("pirol_spectrum_trace_sec", 0f)
         set(value) = prefs.edit().putFloat("pirol_spectrum_trace_sec", value).apply()
 
+    /** T275: Frequenzachse des Spektrums, Enum-Name von SpectrumScale (Default MEL). */
+    var spectrumScale: String
+        get() = prefs.getString("pirol_spectrum_scale", "MEL") ?: "MEL"
+        set(value) = prefs.edit().putString("pirol_spectrum_scale", value).apply()
+
     var spectrumPeakHold: Boolean
         get() = prefs.getBoolean("pirol_spectrum_peak_hold", false)
         set(value) = prefs.edit().putBoolean("pirol_spectrum_peak_hold", value).apply()

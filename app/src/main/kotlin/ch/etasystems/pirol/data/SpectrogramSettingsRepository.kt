@@ -49,6 +49,7 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         prefs.spectrumAveraging = new.averaging.name
         prefs.spectrumPeakHold = new.peakHold
         prefs.spectrumTraceSec = new.traceSec
+        prefs.spectrumScale = new.scale.name
     }
 
     private fun loadSpectrum(): SpectrumSettings = SpectrumSettings(
@@ -56,7 +57,9 @@ class SpectrogramSettingsRepository(private val prefs: AppPreferences) {
         averaging = SpectrumAveraging.entries.firstOrNull { it.name == prefs.spectrumAveraging }
             ?: SpectrumAveraging.SHORT,
         peakHold = prefs.spectrumPeakHold,
-        traceSec = prefs.spectrumTraceSec.takeIf { t -> SPECTRUM_TRACE_OPTIONS.any { it == t } } ?: 0f
+        traceSec = prefs.spectrumTraceSec.takeIf { t -> SPECTRUM_TRACE_OPTIONS.any { it == t } } ?: 0f,
+        scale = ch.etasystems.pirol.ui.components.SpectrumScale.entries.firstOrNull { it.name == prefs.spectrumScale }
+            ?: ch.etasystems.pirol.ui.components.SpectrumScale.MEL
     )
 
     // T200: Live-Oszillogramm, eigene Schluessel `pirol_waveform_*` (Amplitudenmodus, Achse)
