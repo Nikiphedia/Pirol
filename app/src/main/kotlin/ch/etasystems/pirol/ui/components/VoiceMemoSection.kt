@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import android.net.Uri
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -144,6 +145,7 @@ fun VoiceMemoSection(
                     )
                     // Stop-Button
                     IconButton(
+                        modifier = Modifier.helpTopic(R.string.help_voicememo_stop, "4"),
                         onClick = {
                             scope.launch {
                                 recorder.stopRecording().onSuccess {
@@ -174,6 +176,7 @@ fun VoiceMemoSection(
                     // Play/Stopp (T173: statt Pause)
                     val isPlaying = playingKey == memoKey
                     IconButton(
+                        modifier = Modifier.helpTopic(R.string.help_voicememo_play, "4"),
                         onClick = {
                             playback.toggle(memoKey) {
                                 if (targetFile != null) {
@@ -197,6 +200,7 @@ fun VoiceMemoSection(
                     )
                     // Loeschen
                     IconButton(
+                        modifier = Modifier.helpTopic(R.string.help_voicememo_delete, "4"),
                         onClick = {
                             if (playback.isPlaying(memoKey)) playback.stop()
                             // Datei loeschen
@@ -221,6 +225,7 @@ fun VoiceMemoSection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     IconButton(
+                        modifier = Modifier.helpTopic(R.string.help_voicememo_record, "4"),
                         onClick = {
                             scope.launch {
                                 val result = if (targetFile != null) {

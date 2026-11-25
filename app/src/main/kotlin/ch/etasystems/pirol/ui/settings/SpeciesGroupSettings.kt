@@ -91,7 +91,10 @@ fun ColumnScope.SpeciesGroupSettings(
             Spacer(modifier = Modifier.height(8.dp))
             Text(SpeciesGroupLabels.name(g), style = MaterialTheme.typography.titleSmall,
                 modifier = if (g == TaxonGroup.BATS) Modifier.helpTopic(R.string.help_group_bats, "11") else Modifier)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.helpTopic(R.string.help_group_source, "11")
+            ) {
                 FilterChip(selected = src == GroupSource.OFF, onClick = { set(GroupSource.OFF) },
                     label = { Text(stringResource(R.string.common_off)) })
                 FilterChip(selected = src == GroupSource.ALL, onClick = { set(GroupSource.ALL) },

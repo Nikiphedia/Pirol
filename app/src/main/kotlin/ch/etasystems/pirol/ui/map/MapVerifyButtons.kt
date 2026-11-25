@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.map
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -41,12 +42,13 @@ fun MapVerifyButtons(
         @Composable
         fun RowScope.item(
             target: VerificationStatus, icon: androidx.compose.ui.graphics.vector.ImageVector,
-            description: String, activeColor: Color, activeContent: Color
+            description: String, activeColor: Color, activeContent: Color,
+            @androidx.annotation.StringRes helpRes: Int
         ) {
             val active = status == target
             Button(
                 onClick = { onVerify(target) },
-                modifier = Modifier.weight(1f).height(84.dp),
+                modifier = Modifier.weight(1f).helpTopic(helpRes, "4").height(84.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (active) activeColor else neutralContainer,
                     contentColor = if (active) activeContent else neutralContent
@@ -55,11 +57,11 @@ fun MapVerifyButtons(
                 Icon(icon, contentDescription = description, modifier = Modifier.size(42.dp))
             }
         }
-        item(VerificationStatus.CONFIRMED, Icons.Filled.Check, AppStrings.get(R.string.ui_bestaetigen), Color(0xFF4CAF50), Color.White)
-        item(VerificationStatus.UNCERTAIN, Icons.AutoMirrored.Filled.Help, AppStrings.get(R.string.ui_unsicher), Color(0xFFFF9800), Color.White)
+        item(VerificationStatus.CONFIRMED, Icons.Filled.Check, AppStrings.get(R.string.ui_bestaetigen), Color(0xFF4CAF50), Color.White, R.string.help_card_confirm)
+        item(VerificationStatus.UNCERTAIN, Icons.AutoMirrored.Filled.Help, AppStrings.get(R.string.ui_unsicher), Color(0xFFFF9800), Color.White, R.string.help_card_uncertain)
         item(
             VerificationStatus.REJECTED, Icons.Filled.Close, AppStrings.get(R.string.ui_ablehnen),
-            MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError
+            MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError, R.string.help_card_reject
         )
     }
 }

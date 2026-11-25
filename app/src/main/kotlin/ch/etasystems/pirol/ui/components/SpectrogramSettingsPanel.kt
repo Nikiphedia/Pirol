@@ -79,7 +79,7 @@ fun SpectrogramSettingsPanel(
             // (auf schmalen Telefonen wurde "Fertig" neben der Preset-Zeile zerdrueckt)
             if (onClose != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
+                    TextButton(onClick = onClose, modifier = Modifier.helpTopic(R.string.help_display_panel_done, "3")) { Text(stringResource(R.string.ui_fertig)) }
                 }
             }
             if (showDisplayMode) LiveDisplayModeChips(repository, settings)

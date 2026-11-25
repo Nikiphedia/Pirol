@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.analysis
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -77,7 +78,7 @@ fun DateTimePickerField(
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
         )
         // Ueberlagerung faengt den Tipp ab (ein readOnly-Feld reicht Klicks nicht zuverlaessig weiter)
-        Box(modifier = Modifier.matchParentSize().clickable { step = 1 })
+        Box(modifier = Modifier.matchParentSize().helpTopic(R.string.help_datetime_field, "6").clickable { step = 1 })
     }
 
     if (step == 1) {

@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -103,6 +104,7 @@ fun DetectionShareDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .defaultMinSize(minHeight = 48.dp)
+                            .helpTopic(R.string.help_share_format, "6")
                             .clickable(enabled = !busy) { selected = format },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -120,12 +122,13 @@ fun DetectionShareDialog(
         confirmButton = {
             TextButton(
                 enabled = !busy,
-                onClick = { runExport(ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) }
+                onClick = { runExport(ch.etasystems.pirol.data.export.HumanExportMask.Choice.Active) },
+                modifier = Modifier.helpTopic(R.string.help_share_start, "6")
             ) { Text(stringResource(R.string.ui_teilen)) }
         },
         dismissButton = {
             // T261: waehrend des Exports bricht "Abbrechen" ihn ab
-            TextButton(onClick = { if (busy) job?.cancel() else onDismiss() }) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = { if (busy) job?.cancel() else onDismiss() }, modifier = Modifier.helpTopic(R.string.help_share_cancel, "6")) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

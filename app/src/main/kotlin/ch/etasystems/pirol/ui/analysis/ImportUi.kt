@@ -105,7 +105,7 @@ fun ImportProgressRow(active: SessionImporter.Active, onCancel: () -> Unit) {
                 modifier = Modifier.weight(1f)
             )
             active.fraction?.let { Text("${(it * 100).toInt()} %", style = MaterialTheme.typography.bodySmall) }
-            IconButton(onClick = onCancel, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onCancel, modifier = Modifier.helpTopic(R.string.help_import_progress_cancel, "6").size(48.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
             }
         }
@@ -153,7 +153,7 @@ fun AudioImportDialog(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
+            dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_import_dialog_cancel, "6")) { Text(stringResource(R.string.common_cancel)) } }
         )
         return
     }
@@ -239,7 +239,7 @@ fun AudioImportDialog(
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    Switch(checked = modifiedIsEnd[i], onCheckedChange = {
+                                    Switch(modifier = Modifier.helpTopic(R.string.help_import_modified_is_end, "6"), checked = modifiedIsEnd[i], onCheckedChange = {
                                         // Nur nachfuehren, solange der Wert noch der Vorbelegung entspricht
                                         val untouched = times[i] == baseTime(i)?.time
                                         modifiedIsEnd[i] = it
@@ -264,7 +264,7 @@ fun AudioImportDialog(
                             stringResource(if (combine) R.string.import_zusammen else R.string.import_zusammen_aus),
                             modifier = Modifier.weight(1f)
                         )
-                        Switch(checked = combine, onCheckedChange = { combine = it })
+                        Switch(modifier = Modifier.helpTopic(R.string.help_import_combine, "6"), checked = combine, onCheckedChange = { combine = it })
                     }
                 }
                 Text(
@@ -279,11 +279,11 @@ fun AudioImportDialog(
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showMap = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { showMap = true }, modifier = Modifier.helpTopic(R.string.help_import_pick_location, "6").heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.ui_auf_karte_waehlen))
                     }
                     if (lat != null) {
-                        TextButton(onClick = { lat = null; lon = null }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        TextButton(onClick = { lat = null; lon = null }, modifier = Modifier.helpTopic(R.string.help_import_remove_location, "6").heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.import_ort_entfernen))
                         }
                     }
@@ -301,11 +301,11 @@ fun AudioImportDialog(
                     }
                     onStart(AudioImportRequest(files, combine && usable.size > 1, lat, lon))
                 },
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.helpTopic(R.string.help_import_start, "6").heightIn(min = 48.dp)
             ) { Text(stringResource(R.string.import_starten)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_import_dialog_cancel, "6").heightIn(min = 48.dp)) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

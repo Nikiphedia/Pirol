@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.settings.sections
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import ch.etasystems.pirol.ui.settings.SettingsSection
 import ch.etasystems.pirol.ui.settings.SettingsAdvancedBlock
 import androidx.compose.material3.Checkbox
@@ -489,7 +490,7 @@ internal fun ModelSettingsSection(
         if (expert) {
             var showSecStats by remember { mutableStateOf(false) }
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(onClick = { showSecStats = true }) { Text(stringResource(R.string.secstats_knopf)) }
+            OutlinedButton(onClick = { showSecStats = true }, modifier = Modifier.helpTopic(R.string.help_secstats_button, "13")) { Text(stringResource(R.string.secstats_knopf)) }
             if (showSecStats) SecondaryStatsDialog(onDismiss = { showSecStats = false })
         }
 

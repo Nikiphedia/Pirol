@@ -531,13 +531,13 @@ private fun SessionDetailContent(
             confirmButton = {
                 TextButton(
                     onClick = { showSaveAsChoice = false; saveZipLauncher.launch(viewModel.suggestedZipName()) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    modifier = Modifier.helpTopic(R.string.help_saveas_zip, "7").heightIn(min = 48.dp)
                 ) { Text(stringResource(R.string.analysis_saveas_zip)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showSaveAsChoice = false; saveFolderLauncher.launch(null) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    modifier = Modifier.helpTopic(R.string.help_saveas_folder, "7").heightIn(min = 48.dp)
                 ) { Text(stringResource(R.string.analysis_saveas_ordner)) }
             }
         )
@@ -820,7 +820,7 @@ private fun SessionDetailContent(
                             value = noteText,
                             onValueChange = { noteText = it.replace('\n', ' ').take(200) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_session_note_field, "6")
                         )
                         ch.etasystems.pirol.ui.components.MunicipalityInsertButton(
                             position = {
@@ -839,10 +839,10 @@ private fun SessionDetailContent(
                     TextButton(onClick = {
                         viewModel.updateSessionNote(noteText)
                         showNoteDialog = false
-                    }) { Text(stringResource(R.string.common_save)) }
+                    }, modifier = Modifier.helpTopic(R.string.help_session_note_save, "6")) { Text(stringResource(R.string.common_save)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showNoteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
+                    TextButton(onClick = { showNoteDialog = false }, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "6")) { Text(stringResource(R.string.common_cancel)) }
                 }
             )
         }

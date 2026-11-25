@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.settings.sections
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -87,11 +88,11 @@ internal fun SecondaryStatsDialog(onDismiss: () -> Unit, sessionManager: Session
         confirmButton = {
             val r = result
             if (r != null) {
-                TextButton(onClick = { shareCsv(context, r) }) { Text(stringResource(R.string.secstats_csv)) }
+                TextButton(onClick = { shareCsv(context, r) }, modifier = Modifier.helpTopic(R.string.help_secstats_csv, "13")) { Text(stringResource(R.string.secstats_csv)) }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_secstats_close, "13")) {
                 Text(stringResource(if (result == null) R.string.secstats_abbrechen else R.string.secstats_schliessen))
             }
         }

@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.analysis
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -111,11 +112,11 @@ fun SessionInfoEditDialog(
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showMap = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    OutlinedButton(onClick = { showMap = true }, modifier = Modifier.helpTopic(R.string.help_info_edit_location, "6").heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.ui_auf_karte_waehlen))
                     }
                     if (lat != null) {
-                        TextButton(onClick = { lat = null; lon = null }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        TextButton(onClick = { lat = null; lon = null }, modifier = Modifier.helpTopic(R.string.help_info_edit_remove_location, "6").heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.import_ort_entfernen))
                         }
                     }
@@ -126,7 +127,7 @@ fun SessionInfoEditDialog(
                     onValueChange = { note = it.replace('\n', ' ').take(200) },
                     singleLine = true,
                     label = { Text(stringResource(R.string.analysis_bemerkung_zur_session)) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_info_edit_note, "6")
                 )
             }
         },
@@ -134,11 +135,11 @@ fun SessionInfoEditDialog(
             TextButton(
                 enabled = parsed != null && delta != null,
                 onClick = { parsed?.let { onSave(it, lat, lon, note) } },
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.helpTopic(R.string.help_info_edit_save, "6").heightIn(min = 48.dp)
             ) { Text(stringResource(R.string.common_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
+            TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "6").heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.common_cancel))
             }
         }
