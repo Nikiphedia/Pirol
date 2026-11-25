@@ -124,9 +124,11 @@ fun SpectrumView(
     val (fLo, fHi) = sharedFreqRange(displaySettings, config, sr)
     val minDb = displaySettings.minDb
     val maxDb = maxOf(displaySettings.maxDb, minDb + SPECTRUM_MIN_SPAN_DB)
-    val freqTicks = remember(fLo, fHi) { spectrumFreqTicks(fLo, fHi) }
+    val freqTicks = remember(fLo, fHi, settings.scale) { spectrumFreqTicks(fLo, fHi, scale = settings.scale) }
     val currentLongPress by rememberUpdatedState(onLongPress)
     val range by rememberUpdatedState(fLo to fHi)
+    val axisScale by rememberUpdatedState(settings.scale)
+    val gamma = displaySettings.gamma
 
     Box(modifier = modifier) {
         Canvas(
@@ -142,8 +144,8 @@ fun SpectrumView(
                             val (lo, hi) = range
                             val old = cursorHz.floatValue
                             val near = old.isFinite() &&
-                                kotlin.math.abs(spectrumHzToX(old, lo, hi, left, w) - pos.x) < 24.dp.toPx()
-                            cursorHz.floatValue = if (near) Float.NaN else spectrumXToHz(pos.x, lo, hi, left, w)
+                                kotlin.math.abs(spectrumHzToX(old, lo, hi, left, w, axisScale) - pos.x) < 24.dp.toPx()
+                            cursorHz.floatValue = if (near) Float.NaN else spectrumXToHz(pos.x, lo, hi, left, w, axisScale)
                         }
                     )
                 }
@@ -154,8 +156,8 @@ fun SpectrumView(
             val w = size.width - leftPad
             val h = size.height - bottomPad
             if (w <= 0f || h <= 0f) return@Canvas
-            fun yOf(db: Float) = h * (1f - ((db - minDb) / (maxDb - minDb)).coerceIn(0f, 1f))
-            fun xOf(hz: Float) = spectrumHzToX(hz, fLo, fHi, leftPad, w)
+            fun yOf(db: Float) = h * (1f - spectrumGamma((db - minDb) / (maxDb - minDb), gamma))  // T275: Gamma
+            fun xOf(hz: Float) = spectrumHzToX(hz, fLo, fHi, leftPad, w, settings.scale)
 
             // Gitter + Beschriftung
             val grid = textColor.copy(alpha = 0.15f)

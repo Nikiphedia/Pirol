@@ -14,6 +14,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,6 +63,32 @@ fun SpectrumSettingsPanel(
 
             // T199: Frequenz, dB-Bereich (dBFS) und Palette gemeinsam mit Sonogramm/Oszillogramm
             SharedDisplayControls(repository, displaySettings, config)
+
+            // T275: Gamma (wie im Sonogramm) wirkt auch im Spektrum
+            Text(
+                stringResource(
+                    R.string.ui_intensitaet_gamma_kleiner_leise_hell,
+                    "%.2f".format(Locale.US, displaySettings.gamma)
+                ),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Slider(
+                value = displaySettings.gamma,
+                onValueChange = { v -> repository.update { it.copy(gamma = v) } },
+                valueRange = 0.3f..1f
+            )
+
+            // T275: Frequenzachse Mel / linear
+            Text(stringResource(R.string.spectrum_scale), style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SpectrumScale.entries.forEach { sc ->
+                    FilterChip(
+                        selected = settings.scale == sc,
+                        onClick = { repository.updateSpectrum { it.copy(scale = sc) } },
+                        label = { Text(stringResource(sc.labelRes)) }
+                    )
+                }
+            }
 
             // FFT-Groesse mit Frequenz-Aufloesung
             Text(

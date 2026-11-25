@@ -956,4 +956,9 @@
     <string name="help_settings_map_gps">Map and GPS: GPS mode, route recording, interval and accuracy.</string>
     <string name="help_settings_export">Export and upload: Raven fields, upload target (folder or NAS), privacy for human voices.</string>
     <string name="help_settings_info">Info: version, sources, what is new, diagnostics.</string>
+    <string name="spectrum_scale">Frequency axis</string>
+    <string name="spectrum_scale_mel">Mel</string>
+    <string name="spectrum_scale_linear">Linear</string>
+    <string name="live_oszillogramm_wird_geladen">Loading waveform…</string>
+    <string name="live_spektrum_wird_geladen">Loading spectrum…</string>
 </resources>

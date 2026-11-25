@@ -957,4 +957,9 @@
     <string name="help_settings_map_gps">Karte und GPS: GPS-Modus, Route aufzeichnen, Intervall und Genauigkeit.</string>
     <string name="help_settings_export">Export und Upload: Raven-Felder, Upload-Ziel (Ordner oder NAS), Datenschutz für menschliche Stimmen.</string>
     <string name="help_settings_info">Info: Version, Quellen, Was ist neu, Diagnose.</string>
+    <string name="spectrum_scale">Frequenzachse</string>
+    <string name="spectrum_scale_mel">Mel</string>
+    <string name="spectrum_scale_linear">Linear</string>
+    <string name="live_oszillogramm_wird_geladen">Oszillogramm wird geladen…</string>
+    <string name="live_spektrum_wird_geladen">Spektrum wird geladen…</string>
 </resources>
