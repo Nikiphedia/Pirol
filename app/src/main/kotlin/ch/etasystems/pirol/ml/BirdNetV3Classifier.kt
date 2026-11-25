@@ -27,13 +27,17 @@ class BirdNetV3Classifier(
     // T103a: erhaelt die Sprachspalten der 3.0-final-Labels als Rueckfall fuer Artnamen
     private val speciesNameResolver: SpeciesNameResolver? = null,
     /** T221: festes Modell (Dateiname in filesDir/models, Rescan) statt des aktiven; null = aktives Modell */
-    private val fixedModelFile: String? = null
+    private val fixedModelFile: String? = null,
+    /** T289: ORT-Threads (live 2 = Akku, T114; Rescan mehr, da kein Akku-Budget live) */
+    private val inferenceThreads: Int = INFERENCE_THREADS
 ) : AudioClassifier {
 
     companion object {
         private const val TAG = "BirdNetV3"
         private const val ASSETS_MODEL_PATH = "models/birdnet_v3.onnx"
-        private const val INFERENCE_THREADS = 2
+        const val INFERENCE_THREADS = 2
+        /** T289: Threads fuer Rescan-Sessions (Benchmark T149: BirdNET -15 %, Perch -37 % gegenueber 2) */
+        const val RESCAN_THREADS = 4
         // T103a: Abtastrate, Fensterlaenge und Label-Datei kommen aus dem aktiven ModelProfile
 
         /**
@@ -382,7 +386,7 @@ class BirdNetV3Classifier(
             opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
             // T114: feste Thread-Zahl. Benchmark SM-X236B (T96): 1 Thread 589 ms, 2 Threads 284 ms,
             // 4 Threads 242 ms pro 3-s-Fenster — 2 Threads halbieren die Kernlast bei kaum mehr Zeit (Akku im Feld).
-            opts.setIntraOpNumThreads(INFERENCE_THREADS)
+            opts.setIntraOpNumThreads(inferenceThreads)
 
             // 1. Aktives Modell via ModelManager (direkter Pfad — memory-mapped)
             val activeFile = currentModelFile()

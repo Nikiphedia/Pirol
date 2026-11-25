@@ -324,7 +324,7 @@ class RescanEngine(
             val modelFile = modelManager.getModelFile(options.modelFileName) ?: throw ModelUnavailableException()
             val profile = ch.etasystems.pirol.ml.ModelProfile.resolve(modelFile.name, modelFile.length())
             modelManager.ensureLabels(profile)
-            val cls = BirdNetV3Classifier(context, modelManager, null, options.modelFileName)
+            val cls = BirdNetV3Classifier(context, modelManager, null, options.modelFileName, BirdNetV3Classifier.RESCAN_THREADS)  // T289
             classifier = cls
             if (!cls.isModelAvailable()) throw ModelUnavailableException()
             // T187: Live-Session freigeben (RAM), sie laedt beim naechsten Bedarf neu
@@ -368,7 +368,8 @@ class RescanEngine(
                 clusterRadiusM = appPreferences.clusterRadiusM,
                 clusterTimeWindowMin = appPreferences.clusterTimeWindowMin,
                 secondary = secondary,
-                secondaryOverlapPercent = appPreferences.secondaryOverlapPercent
+                secondaryOverlapPercent = appPreferences.secondaryOverlapPercent,
+                threads = BirdNetV3Classifier.RESCAN_THREADS
             )
             val t0 = System.currentTimeMillis()
             // T260: Variante sofort anlegen (RUNNING), damit die Analyse sie waehrend des Scans zeigt
@@ -472,7 +473,7 @@ class RescanEngine(
     ): Pair<BirdNetV3Classifier, SecondaryChecker>? {
         val file = modelManager.getModelFile(fileName) ?: return null
         modelManager.ensureLabels(ch.etasystems.pirol.ml.ModelProfile.resolve(file.name, file.length()))
-        val cls = BirdNetV3Classifier(context, modelManager, null, fileName)
+        val cls = BirdNetV3Classifier(context, modelManager, null, fileName, BirdNetV3Classifier.RESCAN_THREADS)  // T289
         if (!cls.isModelAvailable()) { cls.close(); return null }
         // Regionsfilter fuer die angezeigte Top-Art wie live (Saison nach Aufnahmedatum der Session)
         val monthDay = if (config.respectListSeason) ListSeason.monthDay(epoch0) else null

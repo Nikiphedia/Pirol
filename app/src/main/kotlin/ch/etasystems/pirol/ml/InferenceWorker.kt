@@ -276,6 +276,9 @@ class InferenceWorker(
      * (Resampling, DSP, Klassifikation, Regionsfilter, Zuordnung), aber ohne Puffer, Auto-Fallback
      * und Callback. [recordingOffsetSec] = Fensterstart auf der Session-Achse.
      */
+    /** T289: summierte Zeit fuer Resampling + DSP (ns), nur fuer das Messlog des Rescans */
+    val prepNanos = java.util.concurrent.atomic.AtomicLong(0)
+
     fun analyzeWindowNow(window: AnalysisWindow, startEpochMs: Long, recordingOffsetSec: Float): List<DetectionResult> {
         val hopMs = config.hopMsFor(config.overlapPercent, classifier.windowMs)
         val job = WindowJob(window, config.overlapPercent, hopMs, hopMs.toLong(), startEpochMs, recordingOffsetSec, backlog = true)
@@ -306,7 +309,9 @@ class InferenceWorker(
                 Log.i(TAG, "T133 resampler=$mode in=${window.sampleRate} out=$targetRate taps=$taps")
             }
             // 1b. DSP-Vorverarbeitung auf Inference-Kopie (T34); T224: gemeinsam mit dem Zweitmodell
+            val tPrep = System.nanoTime()
             val resampled = prepareInput(window.pcm, window.sampleRate, targetRate, mode, config.highpassEnabled)
+            prepNanos.addAndGet(System.nanoTime() - tPrep)  // T289: Messlog Rescan
 
             // 2. Klassifizierung (T71/T225: Alternativen-Untergrenze, T61: Embedding aus demselben Durchlauf)
             val output = classifier.classifyWithEmbedding(
