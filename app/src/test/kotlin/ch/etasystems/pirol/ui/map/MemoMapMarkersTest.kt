@@ -25,4 +25,30 @@ class MemoMapMarkersTest {
     fun empty_list_gives_no_markers() {
         assertTrue(MemoMapMarkers.of("s1", emptyList()).isEmpty())
     }
+
+    private fun marker(sid: String, file: String) =
+        MemoMapMarker(sid, file, 47.0, 8.0, 1L, null)
+
+    @Test
+    fun append_adds_and_skips_duplicates() {
+        val a = listOf(marker("s1", "memos/a.wav"))
+        val r = MemoMapMarkers.append(a, listOf(marker("s1", "memos/a.wav"), marker("s1", "memos/b.wav")))
+        assertEquals(listOf("memos/a.wav", "memos/b.wav"), r.map { it.file })
+        // gleiche Datei in anderer Session ist kein Duplikat
+        assertEquals(2, MemoMapMarkers.append(a, listOf(marker("s2", "memos/a.wav"))).size)
+    }
+
+    @Test
+    fun remove_drops_only_matching_marker() {
+        val l = listOf(marker("s1", "memos/a.wav"), marker("s2", "memos/a.wav"))
+        assertEquals(listOf("s2"), MemoMapMarkers.remove(l, "s1", "memos/a.wav").map { it.sessionId })
+    }
+
+    @Test
+    fun live_only_keeps_current_session() {
+        val l = listOf(marker("s1", "memos/a.wav"), marker("s2", "memos/b.wav"))
+        assertEquals(listOf("s2"), MemoMapMarkers.forFilter(FilterMode.LIVE_ONLY, "s2", l).map { it.sessionId })
+        assertTrue(MemoMapMarkers.forFilter(FilterMode.LIVE_ONLY, null, l).isEmpty())
+        assertEquals(2, MemoMapMarkers.forFilter(FilterMode.ALL, "s2", l).size)
+    }
 }

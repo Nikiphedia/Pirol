@@ -189,6 +189,21 @@ class MapViewModel(
                 _uiState.update { it.copy(lockedSpecies = locked) }
             }
         }
+        // T299: Session-Memos live auf die Karte (ohne Neuladen)
+        viewModelScope.launch {
+            sessionManager.sessionMemoEvents.collect { ev ->
+                _uiState.update { st ->
+                    val updated = when (ev) {
+                        is ch.etasystems.pirol.data.repository.SessionMemoEvent.Added ->
+                            MemoMapMarkers.append(st.memoMarkers, MemoMapMarkers.of(ev.sessionId, listOf(ev.memo)))
+                        is ch.etasystems.pirol.data.repository.SessionMemoEvent.Removed ->
+                            MemoMapMarkers.remove(st.memoMarkers, ev.sessionId, ev.file)
+                    }
+                    val live = sessionManager.currentSessionDir?.name
+                    st.copy(memoMarkers = MemoMapMarkers.forFilter(st.filterMode, live, updated))
+                }
+            }
+        }
         loadHistoricalDetections(FilterMode.ALL)
     }
 
@@ -211,6 +226,14 @@ class MapViewModel(
         _uiState.update { it.copy(filterMode = mode) }
         if (mode == FilterMode.LIVE_ONLY) {
             _uiState.update { it.copy(markers = emptyList(), tracks = emptyList(), memoMarkers = emptyList(), selectedMemo = null, isLoading = false) }
+            // T299: Memos der laufenden Session zeigen
+            viewModelScope.launch(Dispatchers.IO) {
+                val dir = sessionManager.currentSessionDir ?: return@launch
+                val memos = MemoMapMarkers.of(dir.name, sessionManager.loadSessionMemos(dir))
+                _uiState.update { st ->
+                    if (st.filterMode == FilterMode.LIVE_ONLY) st.copy(memoMarkers = MemoMapMarkers.append(st.memoMarkers, memos)) else st
+                }
+            }
         } else {
             loadHistoricalDetections(mode)
         }

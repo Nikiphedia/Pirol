@@ -140,3 +140,10 @@ object SessionMemos {
 
     fun parseEpochMs(iso: String): Long? = runCatching { OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
 }
+
+/** T299: Ereignis zu Session-Memos (sessionId = Ordnername der Session). */
+sealed class SessionMemoEvent {
+    abstract val sessionId: String
+    data class Added(override val sessionId: String, val memo: SessionMemo) : SessionMemoEvent()
+    data class Removed(override val sessionId: String, val file: String) : SessionMemoEvent()
+}
