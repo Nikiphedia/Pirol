@@ -128,8 +128,8 @@ class SpeciesGroupsTest {
         val label: (String) -> String = { when (it) { "off" -> "–"; "auto_geo" -> "Auto"; "ch_orthoptera_anura" -> "CH"; else -> it } }
         val s = SpeciesGroupSelection(mapOf(TaxonGroup.BIRDS to "auto_geo", TaxonGroup.ORTHOPTERA to "ch_orthoptera_anura",
             TaxonGroup.AMPHIBIANS to "ch_orthoptera_anura"))
-        assertEquals("V:Auto H:CH A:CH S:– F:all", SpeciesGroupSelection.shortLabel(s, letters, label))
-        assertEquals("V:– H:– A:– S:– F:all O:all",
+        assertEquals("V:Auto H:CH A:CH S:– F:–", SpeciesGroupSelection.shortLabel(s, letters, label))
+        assertEquals("V:– H:– A:– S:– F:– O:all",
             SpeciesGroupSelection.shortLabel(SpeciesGroupSelection(mapOf(TaxonGroup.OTHER to "all")), letters, label))
     }
 

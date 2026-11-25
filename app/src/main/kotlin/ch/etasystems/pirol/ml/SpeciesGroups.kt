@@ -238,11 +238,11 @@ object GroupSource {
 data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
 
     /**
-     * Fehlende Gruppe = Aus; Ausnahme T295: Fledermaeuse (gab es in aelteren Staenden nicht) = Alle.
+     * Fehlende Gruppe = Aus (auch Fledermaeuse, T295: sonst erschienen BirdNET-Fledermauslabels neu).
      * Auto gibt es fuer Fledermaeuse nicht (das Geomodel kennt keine): gespeichertes Auto gilt als Alle.
      */
     fun sourceOf(g: TaxonGroup): String {
-        val v = sources[g] ?: return if (g == TaxonGroup.BATS) GroupSource.ALL else GroupSource.OFF
+        val v = sources[g] ?: return GroupSource.OFF
         return if (g == TaxonGroup.BATS && v == GroupSource.AUTO) GroupSource.ALL else v
     }
 

@@ -45,13 +45,13 @@ class BatGroupTest {
         assertEquals(TaxonGroup.MAMMALS, TaxonGroups.of("Vulpes_vulpes"))
     }
 
-    @Test fun `Pref ohne Fledermaus-Gruppe gilt als Alle`() {
+    @Test fun `Pref ohne Fledermaus-Gruppe gilt als Aus`() {
         val old = SpeciesGroupSelection.decode("birds=auto_geo\nmammals=off")!!
-        assertEquals(GroupSource.ALL, old.sourceOf(TaxonGroup.BATS))
+        assertEquals(GroupSource.OFF, old.sourceOf(TaxonGroup.BATS))
         assertEquals(GroupSource.OFF, old.sourceOf(TaxonGroup.MAMMALS))
         assertEquals(GroupSource.OFF, old.sourceOf(TaxonGroup.AMPHIBIANS))
-        assertEquals(GroupSource.ALL, SpeciesGroupSelection.DEFAULT.sourceOf(TaxonGroup.BATS))
-        assertEquals(GroupSource.ALL, SpeciesGroupSelection.fromMap(mapOf("birds" to "ch_all")).sourceOf(TaxonGroup.BATS))
+        assertEquals(GroupSource.OFF, SpeciesGroupSelection.DEFAULT.sourceOf(TaxonGroup.BATS))
+        assertEquals(GroupSource.OFF, SpeciesGroupSelection.fromMap(mapOf("birds" to "ch_all")).sourceOf(TaxonGroup.BATS))
     }
 
     @Test fun `Fledermaus-Auswahl wird gespeichert, Auto gilt als Alle`() {
