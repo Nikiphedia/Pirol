@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import ch.etasystems.pirol.MainActivity
@@ -38,6 +40,9 @@ class RescanService : Service() {
     companion object {
         private const val CHANNEL_ID = "pirol_rescan"
         private const val NOTIFICATION_ID = 3001
+        private const val TAG = "RescanService"
+        /** T289: Sicherung, falls die Freigabe ausbleibt (entspricht dem dataSync-Limit von ca. 6 h) */
+        private const val WAKE_LOCK_TIMEOUT_MS = 6L * 60 * 60 * 1000
         private const val ACTION_CANCEL = "ch.etasystems.pirol.CANCEL_RESCAN"
 
         /** Aus dem Vordergrund (UI) aufrufen, nachdem [RescanEngine.start] den Rescan gestartet hat. */
@@ -49,6 +54,7 @@ class RescanService : Service() {
     private val engine: RescanEngine by inject()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var watchJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -69,12 +75,14 @@ class RescanService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, n)
         }
+        acquireWakeLock()
         if (intent?.action == ACTION_CANCEL) engine.cancel()
         if (watchJob?.isActive != true) {
             watchJob = scope.launch {
                 var last = -1
                 engine.active.collect { a ->
                     if (a == null) {
+                        releaseWakeLock()
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
                     } else {
@@ -94,10 +102,31 @@ class RescanService : Service() {
     /** Android 15: dataSync-Zeitlimit erreicht -> Rescan abbrechen, Dienst beenden */
     override fun onTimeout(startId: Int, fgsType: Int) {
         engine.cancel()
+        releaseWakeLock()
         stopSelf()
     }
 
+    /** T289: PARTIAL_WAKE_LOCK mit Timeout; mehrfaches Aufrufen haelt nur eine Sperre */
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        runCatching {
+            val pm = getSystemService(PowerManager::class.java)
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "pirol:rescan").apply {
+                setReferenceCounted(false)
+                acquire(WAKE_LOCK_TIMEOUT_MS)
+            }
+        }.onFailure { Log.w(TAG, "T289 WakeLock nicht erhalten", it) }
+    }
+
+    /** Freigabe bei Ende, Abbruch, Fehler und Zerstoerung des Dienstes (idempotent) */
+    private fun releaseWakeLock() {
+        runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
+            .onFailure { Log.w(TAG, "T289 WakeLock-Freigabe fehlgeschlagen", it) }
+        wakeLock = null
+    }
+
     override fun onDestroy() {
+        releaseWakeLock()
         scope.cancel()
         super.onDestroy()
     }

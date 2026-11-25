@@ -15,6 +15,12 @@ import ch.etasystems.pirol.ml.RegionalSpeciesFilter
 import ch.etasystems.pirol.ml.SecondaryCheck
 import ch.etasystems.pirol.ml.SecondaryChecker
 import ch.etasystems.pirol.ml.VerificationEvent
+import android.util.Log
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.Serializable
@@ -68,8 +74,12 @@ class RescanRunner(
     private val clusterTimeWindowMin: Int,
     /** T248: Zweitmodell (nur Anzeige, Felder secondary*); null = keins */
     private val secondary: SecondaryChecker? = null,
-    private val secondaryOverlapPercent: Int = 0
+    private val secondaryOverlapPercent: Int = 0,
+    /** T289: ORT-Threads des Hauptmodells, nur fuer das Messlog */
+    private val threads: Int = 0
 ) {
+    private companion object { const val TAG = "RescanRunner" }
+
     /**
      * T260: Ereignisse waehrend des Scans in der Reihenfolge, in der sie entstehen (wie live: neue Detektion,
      * Update des Ankers, CLUSTER_MERGED). Aufrufe kommen sequenziell aus [run].
@@ -90,7 +100,9 @@ class RescanRunner(
         val detections: List<DetectionResult>,
         /** CLUSTER_MERGED-Events wie live */
         val mergeEvents: List<VerificationEvent>,
-        val windows: Int
+        val windows: Int,
+        /** T289: Zeitanteile (Messlog) */
+        val stats: RescanStats = RescanStats()
     )
 
     private val worker = InferenceWorker(
@@ -133,14 +145,43 @@ class RescanRunner(
         val persisted = LinkedHashMap<String, DetectionResult>()
         val merges = mutableListOf<VerificationEvent>()
         val gate = secondary?.let { SecondaryCheck.OverlapGate(it.windowMs, secondaryOverlapPercent, config.maxHopMs) }
+        val stats = RescanStats()
+        val tStart = System.nanoTime()
+        val prepStart = worker.prepNanos.get()
+
+        // T289: Das Zweitmodell rechnet parallel zum Hauptmodell des naechsten Fensters. Sein Ergebnis wird
+        // in Fensterreihenfolge uebernommen, und zwar vor dem Cluster-Schritt des naechsten Fensters, also
+        // im selben Zustand wie beim bisherigen sequenziellen Ablauf (identische Ergebnisse). Hoechstens
+        // ein Fenster in Arbeit (begrenzte Warteschlange). Bei Abbruch/Fehler wartet coroutineScope auf die
+        // laufende Berechnung (blockierend, nicht abbrechbar; sonst wuerde die ORT-Session unter ihr
+        // geschlossen) und verwirft das Ergebnis: die Variante behaelt dann den Stand ohne dieses Fenster.
+        coroutineScope {
+        var pending: PendingSecondary? = null
+
+        suspend fun settle() {
+            val p = pending ?: return
+            pending = null
+            val t0 = System.nanoTime()
+            val results = p.job.await()
+            stats.secondaryWaitNs += System.nanoTime() - t0
+            if (secondary != null) applySecondary(secondary, results, p.startSec, list, persisted, sink)
+        }
 
         for ((i, start) in starts.withIndex()) {
             currentCoroutineContext().ensureActive()
             if (isAborted()) throw RescanAbortedException()
-            val pcm = recording.readFrames(start, start + windowFrames) ?: continue
+            val tRead = System.nanoTime()
+            val pcm = recording.readFrames(start, start + windowFrames)
+            stats.readNs += System.nanoTime() - tRead
+            if (pcm == null) continue
+            stats.windows++
             val startSec = (start.toDouble() / sr).toFloat()
             val startEpoch = wallClockAt?.invoke(start) ?: (epochAtZeroMs + start * 1000L / sr)
+            val tPrimary = System.nanoTime()
             val raw = worker.analyzeWindowNow(AnalysisWindow(pcm.samples, sr, start), startEpoch, startSec)
+            stats.primaryNs += System.nanoTime() - tPrimary
+            settle()  // Zweitmodell des Vorgaengerfensters, bevor dieses Fenster die Liste veraendert
+            val tWrite = System.nanoTime()
             if (raw.isNotEmpty()) {
                 val pos = positionAt(startEpoch)
                 val located = if (pos == null) raw else raw.map { it.copy(latitude = pos.first, longitude = pos.second) }
@@ -168,45 +209,81 @@ class RescanRunner(
                     }
                 }
                 if (secondary != null && gate != null) {
-                    checkSecondary(secondary, gate, targets, recording, start, pcm.samples, startSec, list, persisted, sink)
+                    val accepted = targets.filter { gate.accept(it.scientificName, startSec) }
+                    if (accepted.isNotEmpty()) {
+                        stats.secondaryWindows++
+                        pending = PendingSecondary(startSec, async(Dispatchers.Default, CoroutineStart.DEFAULT) {
+                            computeSecondary(secondary, accepted, recording, start, pcm.samples, startSec, stats)
+                        })
+                    }
                 }
             }
             onProgress((i + 1).toFloat() / starts.size)
             onWindow(((start + windowFrames).toDouble() / sr).toFloat())
+            stats.writeNs += System.nanoTime() - tWrite
         }
-        return Result(persisted.values.sortedBy { it.chunkStartSec }, merges, starts.size)
+        settle()  // letztes Fenster
+        }
+        stats.prepNs = worker.prepNanos.get() - prepStart
+        val total = System.nanoTime() - tStart
+        Log.i(TAG, stats.format(total, recording.durationSec, threads, secondary != null))
+        return Result(persisted.values.sortedBy { it.chunkStartSec }, merges, starts.size, stats)
     }
 
+    /** T289: Zweitmodell-Auftrag eines Fensters (laeuft parallel, Ergebnis wird in Reihenfolge uebernommen) */
+    private class PendingSecondary(
+        val startSec: Float,
+        val job: Deferred<List<Pair<SecondaryChecker.SecondaryWindow.Target, SecondaryCheck.Outcome>>>
+    )
+
     /**
-     * T248: Zweitmodell fuer ein Fenster mit Detektionen (wie live: [SecondaryCheck.OverlapGate], bestes Fenster
-     * des Clusters via [SecondaryCheck.shouldApply]). Laengere Fenster (Perch 5 s) lesen echtes Umgebungsaudio
-     * aus der Aufnahme, zentriert um das Hauptfenster; sonst wie live [SecondaryCheck.fitWindow].
+     * T248: Zweitmodell fuer ein Fenster mit Detektionen (Gate und Ziele schon gewaehlt, siehe
+     * [SecondaryCheck.OverlapGate]). Laengere Fenster (Perch 5 s) lesen echtes Umgebungsaudio aus der
+     * Aufnahme, zentriert um das Hauptfenster; sonst wie live [SecondaryCheck.fitWindow].
+     * T289: laeuft in eigener Coroutine, fasst weder Liste noch Sink an; Fehler -> leeres Ergebnis.
      */
-    private fun checkSecondary(
+    private fun computeSecondary(
         checker: SecondaryChecker,
-        gate: SecondaryCheck.OverlapGate,
-        targets: List<SecondaryChecker.SecondaryWindow.Target>,
+        accepted: List<SecondaryChecker.SecondaryWindow.Target>,
         recording: SegmentedRecording,
         start: Long,
         samples: ShortArray,
+        startSec: Float,
+        stats: RescanStats
+    ): List<Pair<SecondaryChecker.SecondaryWindow.Target, SecondaryCheck.Outcome>> {
+        val t0 = System.nanoTime()
+        try {
+            val sr = recording.sampleRate
+            val target = SecondaryCheck.windowSamplesAt(checker.windowMs, sr)
+            val context = if (target > samples.size) {
+                val range = SecondaryCheck.contextRange(start, samples.size, target, 0L)
+                // Aufnahmeende: nach links verschieben, damit keine Stille noetig ist
+                val from = minOf(range.from, recording.totalFrames - target).coerceAtLeast(0L)
+                recording.readFrames(from, from + target)?.samples?.takeIf { it.size == target }
+                    ?.let { SecondaryChecker.ContextAudio(it, "CENTERED", 0L) }
+            } else null
+            val window = SecondaryChecker.SecondaryWindow(samples, sr, startSec, config.highpassEnabled, accepted)
+            return checker.process(window, context)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "T289 Zweitmodell fehlgeschlagen, Fenster ungeprueft", e)
+            return emptyList()
+        } finally {
+            synchronized(stats) { stats.secondaryNs += System.nanoTime() - t0 }
+        }
+    }
+
+    /** T289: Ergebnis eines Fensters uebernehmen (bestes Fenster des Clusters via [SecondaryCheck.shouldApply]) */
+    private fun applySecondary(
+        checker: SecondaryChecker,
+        results: List<Pair<SecondaryChecker.SecondaryWindow.Target, SecondaryCheck.Outcome>>,
         startSec: Float,
         list: DetectionListState,
         persisted: MutableMap<String, DetectionResult>,
         sink: Sink?
     ) {
-        val accepted = targets.filter { gate.accept(it.scientificName, startSec) }
-        if (accepted.isEmpty()) return
-        val sr = recording.sampleRate
-        val target = SecondaryCheck.windowSamplesAt(checker.windowMs, sr)
-        val context = if (target > samples.size) {
-            val range = SecondaryCheck.contextRange(start, samples.size, target, 0L)
-            // Aufnahmeende: nach links verschieben, damit keine Stille noetig ist
-            val from = minOf(range.from, recording.totalFrames - target).coerceAtLeast(0L)
-            recording.readFrames(from, from + target)?.samples?.takeIf { it.size == target }
-                ?.let { SecondaryChecker.ContextAudio(it, "CENTERED", 0L) }
-        } else null
-        val window = SecondaryChecker.SecondaryWindow(samples, sr, startSec, config.highpassEnabled, accepted)
-        for ((t, outcome) in checker.process(window, context)) {
+        for ((t, outcome) in results) {
             val update = { cur: DetectionResult ->
                 if (SecondaryCheck.shouldApply(cur, startSec)) SecondaryCheck.apply(cur, checker.modelId, outcome) else null
             }
