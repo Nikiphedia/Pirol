@@ -527,15 +527,9 @@
     <string name="settings_whats_new_button">What\'s new</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Session memos: delete with undo, location on the map, share and save as</item>
-        <item>Import: date and time picker, all imported sessions are scanned; changing the date moves the session folder</item>
-        <item>Analysis: two-finger zoom in the overview and the sonogram; upload reports its result in a snackbar</item>
-        <item>Spectrum: linear or mel, gamma also in the spectrum, time window in the oscillogram</item>
-        <item>Faster rescan: more processor cores, secondary model runs in parallel</item>
-        <item>Species names throughout in the chosen language</item>
-        <item>Auto filter without GPS: last position valid for up to 30 days</item>
-        <item>Secondary model statistics in expert mode</item>
-        <item>"Support PIROL" (voluntary) in Settings > Info; help mode covers more controls</item>
+        <item>The compact/detailed toggle of the species cards in the Live tab stays visible during recording</item>
+        <item>Import: progress shows "Session i of n"; a notice when a scan is adopted as the original</item>
+        <item>Deleting memos is more reliable: deletion is completed fully, even when you leave the analysis</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>

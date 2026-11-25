@@ -1,5 +1,24 @@
 # Changelog PIROL
 
+## v0.1.4 — 2026-11-25
+
+Update ueber v0.1.3 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu".
+
+### Telefon
+- Knopf Artkarte kompakt/ausfuehrlich im Live-Tab auch waehrend der Aufnahme sichtbar (vorher aus dem Bild geschoben)
+
+### Import
+- Import mehrerer Dateien: Fortschritt zeigt "Session i von n"; Meldung, wenn ein Scan als Original uebernommen wurde
+
+### Memos
+- Memo loeschen: wird auch beim Verlassen der Analyse vollstaendig abgeschlossen (Raven-Tabelle aktuell); Rueckgaengig nach Beginn des Loeschens zeigt das Memo nicht mehr an
+
+### Verifikation
+- Verifikation auf eine inzwischen geloeschte Rescan-Variante wird gemeldet statt still verworfen
+
+### Anleitung
+- Regel "Scan wird Original, wenn das Original leer ist" in allen Sprachen (Kapitel 6)
+
 ## v0.1.3 — 2026-11-25
 
 Update ueber v0.1.2 ohne Deinstallation (gleiche Signatur); Sessions und Modelle bleiben erhalten. Nach dem Update zeigt die App einmalig "Was ist neu".

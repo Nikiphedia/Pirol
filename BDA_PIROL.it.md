@@ -2,7 +2,7 @@
 
 Riconoscimento acustico delle specie in tempo reale per Android, pensato per il lavoro sul campo.
 
-*Valido dalla versione v0.1.3 (stato 2026-11-25). Le modifiche tra le versioni sono riportate in `CHANGELOG.md`.*
+*Valido dalla versione v0.1.4 (stato 2026-11-25). Le modifiche tra le versioni sono riportate in `CHANGELOG.md`.*
 
 L'app ha cinque schede: **Live**, **Analisi**, **Riferimenti**, **Mappa** e **Impostazioni**. Il pulsante **?** (Aiuto) non è una scheda: un tocco attiva la modalità aiuto, un doppio tocco apre questo manuale (capitolo 1, sezione "Pulsante Aiuto").
 
@@ -418,6 +418,11 @@ L'interruttore **Impostazioni esperte** (sotto "Avvia configurazione") nasconde 
 
 L'elenco completo si trova in `CHANGELOG.md` nel progetto.
 
+### Versione 0.1.4
+- Il pulsante compatto/dettagliato delle schede specie nella scheda Live resta visibile durante la registrazione
+- Importazione di più file: l'avanzamento mostra «Sessione i di n»; un avviso quando uno scan viene adottato come originale
+- Eliminazione dei memo più affidabile: viene completata del tutto anche uscendo dall'analisi
+
 ### Versione 0.1.3
 - Memo di sessione: eliminazione con Annulla, posizione salvata alla pressione e mostrata come marcatore sulla mappa, condivisione e salva con nome (capitoli 2, 6, 8)
 - Importazione: selettori di data e ora, interruttore "Ora file = fine della registrazione", scan per tutte le sessioni importate, uno scan diventa l'originale se l'originale è vuoto, con Raven nella cartella (capitolo 6)
@@ -462,4 +467,4 @@ L'elenco completo si trova in `CHANGELOG.md` nel progetto.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — stato 2026-11-25*
+*PIROL v0.1.4 — ETA Systems GmbH, 5004 Aarau — stato 2026-11-25*

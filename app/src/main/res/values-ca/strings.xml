@@ -621,15 +621,9 @@
     <string name="settings_whats_new_button">Novetats</string>
     <string name="settings_info_version">Versió %1$s</string>
     <string-array name="whats_new_items">
-        <item>Memos de sessió: esborrar amb desfer, ubicació al mapa, compartir i desar com a</item>
-        <item>Importació: selecció de data i hora; s\'escanegen totes les sessions importades; canviar la data mou la carpeta de la sessió</item>
-        <item>Anàlisi: zoom amb dos dits a la visió general i al sonograma; la pujada mostra el resultat en un missatge</item>
-        <item>Espectre: lineal o Mel, gamma també a l\'espectre, finestra temporal a l\'oscil·lograma</item>
-        <item>Reanàlisi més ràpida: més nuclis de càlcul, el model secundari va en paral·lel</item>
-        <item>Noms d\'espècies sempre en l\'idioma escollit</item>
-        <item>Filtre automàtic sense GPS: última posició vàlida fins a 30 dies</item>
-        <item>Estadístiques del model secundari en mode expert</item>
-        <item>«Dona suport a PIROL» (voluntari) a Configuració > Info; el mode d\'ajuda cobreix més elements</item>
+        <item>El botó compacte/detallat de les fitxes d\'espècies a la pestanya Live continua visible durant l\'enregistrament</item>
+        <item>Importació: el progrés mostra «Sessió i de n»; un avís quan un escaneig passa a ser l\'original</item>
+        <item>Esborrat de memos més fiable: es completa del tot, també en sortir de l\'anàlisi</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">La carpeta de destinació és dins de l\'arxiu de PIROL. Tria una carpeta fora d\'ella; no s\'ha mogut res.</string>
     <string name="analysis_batch_ziel_gleich_quelle">La carpeta de destinació és la mateixa gravació seleccionada o la seva carpeta. No s\'ha mogut res.</string>

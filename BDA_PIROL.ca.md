@@ -2,7 +2,7 @@
 
 Reconeixement acústic d'espècies en temps real per a Android, pensat per al treball de camp.
 
-*Vàlid des de la versió v0.1.3 (estat 2026-11-25). Els canvis entre versions són a `CHANGELOG.md`.*
+*Vàlid des de la versió v0.1.4 (estat 2026-11-25). Els canvis entre versions són a `CHANGELOG.md`.*
 
 L'app té cinc pestanyes: **Live**, **Anàlisi**, **Referències**, **Mapa** i **Configuració**. El botó **?** (Ajuda) no és una pestanya: un toc activa el mode d'ajuda, i un doble toc obre aquest manual (capítol 1, apartat "Botó d'ajuda").
 
@@ -419,6 +419,11 @@ L'interruptor **Mode expert** (sota "Iniciar la configuració") amaga en el mode
 
 La llista completa és a `CHANGELOG.md` del projecte.
 
+### Versió 0.1.4
+- El botó compacte/detallat de les fitxes d'espècies a la pestanya Live continua visible durant l'enregistrament
+- Importació de diversos fitxers: el progrés mostra «Sessió i de n»; un avís quan un escaneig passa a ser l'original
+- Esborrat de memos més fiable: es completa del tot, també en sortir de l'anàlisi
+
 ### Versió 0.1.3
 - Memos de sessió: esborrar amb desfer, ubicació desada en prémer i mostrada com a marcador al mapa, compartir i desar com a (capítols 2, 6, 8)
 - Importació: selector de data i hora, interruptor "Hora del fitxer = final", escaneig per a totes les sessions importades; un escaneig esdevé l'original si l'original és buit, amb Raven a la carpeta (capítol 6)
@@ -463,4 +468,4 @@ La llista completa és a `CHANGELOG.md` del projecte.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — Estat 2026-11-25*
+*PIROL v0.1.4 — ETA Systems GmbH, 5004 Aarau — Estat 2026-11-25*

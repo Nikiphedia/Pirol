@@ -4,7 +4,7 @@
 
 Akustischi Echtziit-Artekennig für Android, gmacht für d Fäldarbet.
 
-*Gilt ab Version v0.1.3 (Stand 2026-11-25). Was sich zwüsche de Versione gänderet het, steit i `CHANGELOG.md`.*
+*Gilt ab Version v0.1.4 (Stand 2026-11-25). Was sich zwüsche de Versione gänderet het, steit i `CHANGELOG.md`.*
 
 Di App het fönf Tab: **Live**, **Analyse**, **Referänze**, **Charte** und **Istellige**. De Knopf **?** (Hilfe) isch kei Tab: Ei Tipp schaltet de Hilfemodus ii, en Doppeltipp öffnet di Aleitig (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
@@ -421,6 +421,11 @@ De Schalter **Experteistellige** (under "Iirichtig starte") blendet im Ii-fach-M
 
 D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
+### Version 0.1.4
+- De Chnopf Artkarte kompakt/usfüehrlich im Live-Tab blybt au während de Ufnahm sichtbar
+- Import vo mehrere Dateie: de Fortschritt zeigt "Session i vo n"; e Meldig, wenn e Scan als Original übernoh wird
+- Memo lösche zverlässiger: s Lösche wird au bim Verlah vo de Analyse ganz abgschlosse
+
 ### Version 0.1.3
 - Session-Memos: lösche mit Rückgängig, Standort bim Drücke gspicheret und als Marker uf de Charte, teile und speichere unter (Kapitel 2, 6, 8)
 - Import: Datums- und Ziitauswahl, Schalter "Dateiziit = Ände", Scan für alli importierte Sessione, e Scan wird Original, wenn s Original läär isch, mit Raven im Ordner (Kapitel 6)
@@ -465,4 +470,4 @@ D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — Stand 2026-11-25*
+*PIROL v0.1.4 — ETA Systems GmbH, 5004 Aarau — Stand 2026-11-25*

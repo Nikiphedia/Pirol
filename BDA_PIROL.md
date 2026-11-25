@@ -2,7 +2,7 @@
 
 Akustische Echtzeit-Artenerkennung für Android, gedacht für die Feldarbeit.
 
-*Gilt ab Version v0.1.3 (Stand 2026-11-25). Was sich zwischen den Versionen geändert hat, steht in `CHANGELOG.md`.*
+*Gilt ab Version v0.1.4 (Stand 2026-11-25). Was sich zwischen den Versionen geändert hat, steht in `CHANGELOG.md`.*
 
 Die App hat fünf Tabs: **Live**, **Analyse**, **Referenzen**, **Karte** und **Settings**. Der Knopf **?** (Hilfe) ist kein Tab: Ein Tipp schaltet den Hilfemodus ein, ein Doppeltipp öffnet diese Anleitung (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
@@ -419,6 +419,11 @@ Der Schalter **Experteneinstellungen** (unter "Einrichtung starten") blendet im 
 
 Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
+### Version 0.1.4
+- Umschalter Artkarte kompakt/ausführlich im Live-Tab bleibt auch während der Aufnahme sichtbar
+- Import mehrerer Dateien: Fortschritt zeigt "Session i von n"; Meldung, wenn ein Scan als Original übernommen wird
+- Memo löschen zuverlässiger: Das Löschen wird auch beim Verlassen der Analyse vollständig abgeschlossen
+
 ### Version 0.1.3
 - Session-Memos: löschen mit Rückgängig, Ort beim Drücken gespeichert und als Marker auf der Karte, Teilen und Speichern unter (Kapitel 2, 6, 8)
 - Import: Datums- und Zeitauswahl, Schalter "Dateizeit = Ende", Scan für alle importierten Sessions, ein Scan wird Original, wenn das Original leer ist, mit Raven im Ordner (Kapitel 6)
@@ -463,4 +468,4 @@ Die vollständige Liste steht in `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — Stand 2026-11-25*
+*PIROL v0.1.4 — ETA Systems GmbH, 5004 Aarau — Stand 2026-11-25*

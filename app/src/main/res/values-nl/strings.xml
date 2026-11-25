@@ -622,15 +622,9 @@
     <string name="settings_whats_new_button">Wat is nieuw</string>
     <string name="settings_info_version">Versie %1$s</string>
     <string-array name="whats_new_items">
-        <item>Sessiememo\'s: verwijderen met ongedaan maken, locatie op de kaart, delen en opslaan als</item>
-        <item>Import: datum- en tijdkeuze, alle geïmporteerde sessies worden gescand; een datumwijziging verplaatst de sessiemap</item>
-        <item>Analyse: zoomen met twee vingers in overzicht en sonogram; uploaden meldt het resultaat in een melding</item>
-        <item>Spectrum: lineair of Mel, gamma ook in het spectrum, tijdvenster in het oscillogram</item>
-        <item>Sneller opnieuw analyseren: meer rekenkernen, het tweede model draait parallel</item>
-        <item>Soortnamen overal in de gekozen taal</item>
-        <item>Automatisch filter zonder GPS: laatste positie tot 30 dagen geldig</item>
-        <item>Statistiek van het tweede model in de expertmodus</item>
-        <item>"PIROL ondersteunen" (vrijwillig) in Instellingen > Info; de hulpmodus dekt meer bedieningselementen</item>
+        <item>De knop compact/uitgebreid voor de soortkaarten op het tabblad Live blijft tijdens de opname zichtbaar</item>
+        <item>Import: de voortgang toont "Sessie i van n"; een melding wanneer een scan als origineel wordt overgenomen</item>
+        <item>Memo\'s verwijderen betrouwbaarder: het verwijderen wordt ook bij het verlaten van de analyse volledig afgerond</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">De doelmap staat in de PIROL-opslag. Kies een map buiten die opslag; er is niets verplaatst.</string>
     <string name="analysis_batch_ziel_gleich_quelle">De doelmap is de gekozen opname zelf of de map ervan. Er is niets verplaatst.</string>
