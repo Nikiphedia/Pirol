@@ -142,19 +142,25 @@ fun SpectrogramSettingsPanel(
             )
 
             if (showWindow) {
-                Text(
-                    AppStrings.get(R.string.ui_zeitfenster_s, settings.windowSec.roundToInt()),
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Slider(
-                    modifier = Modifier.helpTopic(R.string.help_display_window, "3"),
-                    value = settings.windowSec,
-                    onValueChange = { v -> repository.update { it.copy(windowSec = v) } },
-                    valueRange = 5f..30f
-                )
+                WindowSecControl(repository, settings)
             }
         }
     }
+}
+
+/** T290: Zeitfenster-Regler, gemeinsam fuer Sonogramm und Oszillogramm (schreibt dasselbe windowSec). */
+@Composable
+fun WindowSecControl(repository: SpectrogramSettingsRepository, settings: SpectrogramDisplaySettings) {
+    Text(
+        AppStrings.get(R.string.ui_zeitfenster_s, settings.windowSec.roundToInt()),
+        style = MaterialTheme.typography.bodySmall
+    )
+    Slider(
+        modifier = Modifier.helpTopic(R.string.help_display_window, "3"),
+        value = settings.windowSec,
+        onValueChange = { v -> repository.update { it.copy(windowSec = v) } },
+        valueRange = 5f..30f
+    )
 }
 
 /** T193/T198: Moduswahl Sonogramm/Spektrum/Oszillogramm (auch im Spektrum-Panel). */

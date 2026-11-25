@@ -53,6 +53,8 @@ fun WaveformSettingsPanel(
             LiveDisplayModeChips(repository, displaySettings)
 
             SharedDisplayControls(repository, displaySettings, config)
+            // T290: Zeitbasis = Zeitfenster des Sonogramms (gleicher Wert)
+            WindowSecControl(repository, displaySettings)
             Text(
                 stringResource(R.string.waveform_band_hint),
                 style = MaterialTheme.typography.bodySmall,
