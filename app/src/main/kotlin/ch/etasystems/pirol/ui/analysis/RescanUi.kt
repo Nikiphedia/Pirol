@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.analysis
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -94,7 +95,7 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = { viewModel.cancelRescan() }) {
+            IconButton(onClick = { viewModel.cancelRescan() }, modifier = Modifier.helpTopic(R.string.help_rescan_cancel, "6")) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_cancel))
             }
         }
@@ -113,12 +114,14 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
             FilterChip(
                 selected = state.activeVariant == null,
                 onClick = { viewModel.selectVariant(null) },
+                modifier = Modifier.helpTopic(R.string.help_rescan_variant, "6"),
                 label = { Text(stringResource(R.string.analysis_variante_original)) }
             )
             state.variants.forEach { v ->
                 FilterChip(
                     selected = state.activeVariant == v.id,
                     onClick = { viewModel.selectVariant(v.id) },
+                    modifier = Modifier.helpTopic(R.string.help_rescan_variant, "6"),
                     label = { Text(variantLabel(v), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 )
             }
@@ -127,7 +130,7 @@ internal fun RescanVariantBar(state: AnalysisUiState, viewModel: AnalysisViewMod
         val active = state.variants.firstOrNull { it.id == state.activeVariant }
             ?.takeIf { it.status != RescanStatus.RUNNING }
         if (active != null) {
-            IconButton(onClick = { confirmDelete = active }) {
+            IconButton(onClick = { confirmDelete = active }, modifier = Modifier.helpTopic(R.string.help_rescan_variant_delete, "6")) {
                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.analysis_variante_loeschen))
             }
         }
@@ -199,7 +202,10 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.helpTopic(R.string.help_rescan_model, "6")
+                ) {
                     models.forEach { m ->
                         FilterChip(selected = model == m.fileName, onClick = { model = m.fileName }, label = { Text(m.name) })
                     }
@@ -209,7 +215,10 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                 if (secondaryModels.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(stringResource(R.string.analysis_rescan_zweitmodell), style = MaterialTheme.typography.titleSmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.helpTopic(R.string.help_rescan_secondary, "6")
+                    ) {
                         FilterChip(
                             selected = secondaryModels.none { it.fileName == secondary },
                             onClick = { secondary = null },
@@ -230,13 +239,17 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.titleSmall
                 )
                 Slider(
+                    modifier = Modifier.helpTopic(R.string.help_rescan_threshold, "6"),
                     value = threshold,
                     onValueChange = { threshold = (it * 20).roundToInt() / 20f },
                     valueRange = 0.05f..0.95f,
                     steps = 17
                 )
                 Text(stringResource(R.string.analysis_rescan_overlap), style = MaterialTheme.typography.titleSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.helpTopic(R.string.help_rescan_overlap, "6")
+                ) {
                     listOf(0, 50, 67).forEach { p ->
                         FilterChip(selected = overlap == p, onClick = { overlap = p }, label = { Text("$p %") })
                     }
@@ -246,6 +259,7 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(
                 enabled = models.any { it.fileName == model },
+                modifier = Modifier.helpTopic(R.string.help_rescan_start, "6"),
                 onClick = {
                     onDismiss()
                     viewModel.startRescan(RescanOptions(
@@ -256,7 +270,7 @@ internal fun RescanDialog(viewModel: AnalysisViewModel, onDismiss: () -> Unit) {
             ) { Text(stringResource(R.string.analysis_rescan_starten)) }
         },
         dismissButton = {
-            TextButton(onClick = cancel) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = cancel, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "6")) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

@@ -48,6 +48,16 @@ class HelpModeState {
 
     fun show(topic: HelpTopic) { bubble = topic }
 
+    /**
+     * T280: Fuer Bedienelemente ausserhalb von Compose (osmdroid-Marker): im Hilfemodus die Erklaerung
+     * zeigen und true liefern (Aufrufer loest dann nichts aus), sonst false.
+     */
+    fun showIfActive(@StringRes textRes: Int, chapter: String? = null): Boolean {
+        if (!active) return false
+        show(HelpTopic(textRes, chapter))
+        return true
+    }
+
     fun openManual(chapter: String?) {
         bubble = null
         manualChapter = chapter ?: ""

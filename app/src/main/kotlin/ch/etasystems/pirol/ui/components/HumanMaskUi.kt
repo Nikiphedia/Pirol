@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -71,17 +72,17 @@ fun HumanMaskChoiceDialog(
                 if (birdNetModelFile != null) {
                     TextButton(
                         onClick = { onChoice(ch.etasystems.pirol.data.export.HumanExportMask.Choice.BirdNet(birdNetModelFile)) },
-                        modifier = Modifier.heightIn(min = 48.dp)
+                        modifier = Modifier.helpTopic(R.string.help_humanmask_birdnet, "7").heightIn(min = 48.dp)
                     ) { Text(stringResource(R.string.human_mask_wahl_birdnet)) }
                 }
                 TextButton(
                     onClick = { onChoice(ch.etasystems.pirol.data.export.HumanExportMask.Choice.Skip) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    modifier = Modifier.helpTopic(R.string.help_humanmask_skip, "7").heightIn(min = 48.dp)
                 ) { Text(stringResource(R.string.human_mask_wahl_ohne), color = MaterialTheme.colorScheme.error) }
             }
         },
         dismissButton = {
-            TextButton(onClick = { onChoice(null) }, modifier = Modifier.heightIn(min = 48.dp)) {
+            TextButton(onClick = { onChoice(null) }, modifier = Modifier.helpTopic(R.string.help_humanmask_cancel, "7").heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.common_cancel))
             }
         }
@@ -103,7 +104,7 @@ fun HumanScanProgressDialog(progress: Float, onCancel: () -> Unit) {
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp)) {
+            TextButton(onClick = onCancel, modifier = Modifier.helpTopic(R.string.help_humanmask_scan_cancel, "7").heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.common_cancel))
             }
         }

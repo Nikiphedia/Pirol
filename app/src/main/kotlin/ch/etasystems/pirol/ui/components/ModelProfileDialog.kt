@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +49,7 @@ fun ModelProfileDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .helpTopic(R.string.help_modelprofile_choice, "13")
                             .selectable(
                                 selected = selected == profile,
                                 onClick = { selected = profile },
@@ -69,7 +71,7 @@ fun ModelProfileDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(selected) }) { Text(stringResource(R.string.ui_uebernehmen)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
+        confirmButton = { TextButton(onClick = { onConfirm(selected) }, modifier = Modifier.helpTopic(R.string.help_modelprofile_ok, "13")) { Text(stringResource(R.string.ui_uebernehmen)) } },
+        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "13")) { Text(stringResource(R.string.common_cancel)) } }
     )
 }

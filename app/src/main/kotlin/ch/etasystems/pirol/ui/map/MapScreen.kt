@@ -327,6 +327,7 @@ private fun addTrackOverlay(mapView: MapView, track: ch.etasystems.pirol.locatio
 @Composable
 fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsState()
+    val helpState = ch.etasystems.pirol.ui.help.LocalHelpMode.current  // T280: Marker sind osmdroid-Overlays, Abfang im Klick-Listener
     val playingKey by viewModel.playingKey.collectAsState()  // T173
     val colorRepo: SpeciesColorRepository = koinInject()
     val atlasCodeRepo: AtlasCodeRepository = koinInject()
@@ -467,6 +468,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         ctx,
                         object : GestureDetector.SimpleOnGestureListener() {
                             override fun onLongPress(e: MotionEvent) {
+                                if (helpState.active) return  // T280: Hilfemodus, Langdruck loest nichts aus
                                 val clustersNow = longPressClustersRef.value
                                 val proj = mapView.projection
                                 val nearest = clustersNow.minByOrNull { c ->
@@ -580,6 +582,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         mm.icon = memoMarkerIcon(mapView.resources)
                         mm.title = AppStrings.get(R.string.map_memo_marker)
                         mm.setOnMarkerClickListener { _, _ ->
+                            if (helpState.showIfActive(R.string.help_map_marker_memo, "8")) return@setOnMarkerClickListener true
                             viewModel.selectMemo(memo)
                             true
                         }
@@ -600,6 +603,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 marker.title = AppStrings.get(R.string.map_live_2, m.species, (m.confidence * 100).toInt())
                                 // T165: Tap oeffnet das Aktionsmenue (inkl. Position verschieben)
                                 marker.setOnMarkerClickListener { _, _ ->
+                                    if (helpState.showIfActive(R.string.help_map_marker_detection, "8")) return@setOnMarkerClickListener true
                                     viewModel.onMarkerLongPress(m)
                                     true
                                 }
@@ -615,6 +619,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 marker.title = "${m.species} (${(m.confidence * 100).toInt()}%)"
                                 marker.snippet = m.sessionId.take(16)
                                 marker.setOnMarkerClickListener { _, _ ->
+                                    if (helpState.showIfActive(R.string.help_map_marker_detection, "8")) return@setOnMarkerClickListener true
                                     // Fokus: Linkziel waehlen; sonst (T165) Tap oeffnet das Aktionsmenue
                                     if (state.focusMode) viewModel.selectLinkTarget(m)
                                     else viewModel.onMarkerLongPress(m)
@@ -630,6 +635,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             marker.title = AppStrings.get(R.string.ui_detektionen, cluster.items.size)
                             marker.snippet = null
                             marker.setOnMarkerClickListener { _, _ ->
+                                if (helpState.showIfActive(R.string.help_map_marker_cluster, "8")) return@setOnMarkerClickListener true
                                 viewModel.selectCluster(cluster)
                                 true
                             }
@@ -677,13 +683,13 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 onDismissRequest = { viewModel.dismissMemo() },
                 title = { Text(stringResource(R.string.map_memo_titel, time)) },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.toggleMemoPlayback(memo) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    TextButton(onClick = { viewModel.toggleMemoPlayback(memo) }, modifier = Modifier.helpTopic(R.string.help_map_memo_play, "8").heightIn(min = 48.dp)) {
                         Icon(if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow, contentDescription = null)
                         Text(stringResource(R.string.analysis_memo_abspielen))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.dismissMemo() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    TextButton(onClick = { viewModel.dismissMemo() }, modifier = Modifier.helpTopic(R.string.help_dialog_close, "8").heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.common_close))
                     }
                 }
@@ -822,7 +828,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             // T173: Ausschnitt abspielen/stoppen (Dialog bleibt offen, Icon zeigt Stopp)
                             OutlinedButton(
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_card_play, "8").heightIn(min = 48.dp),
                                 onClick = { viewModel.toggleMarkerPlayback(longPressTarget) }
                             ) {
                                 val playing = playingKey == PlaybackKeys.detection(longPressTarget.detectionId)
@@ -834,7 +840,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                                 Text(stringResource(if (playing) R.string.ui_wiedergabe_stoppen else R.string.common_play))
                             }
                             Button(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_map_marker_edit, "8"),
                                 onClick = {
                                     viewModel.dismissLongPressMenu()
                                     viewModel.selectMarkerForEdit(longPressTarget)
@@ -842,7 +848,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             ) { Text(stringResource(R.string.common_edit)) }
                             // T165: Verschieben auch fuer Live-Punkte (ohne Session nur in der Liste -> Hinweis)
                             OutlinedButton(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_map_marker_move, "8"),
                                 onClick = {
                                     viewModel.dismissLongPressMenu()
                                     viewModel.selectMarkerForMove(longPressTarget)
@@ -857,7 +863,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             }
                             if (!longPressTarget.isLive) {
                                 Button(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_map_marker_focus, "8"),
                                     onClick = {
                                         viewModel.dismissLongPressMenu()
                                         viewModel.enterFocusMode(longPressTarget)
@@ -867,7 +873,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { viewModel.dismissLongPressMenu() }) { Text(stringResource(R.string.common_cancel)) }
+                        TextButton(onClick = { viewModel.dismissLongPressMenu() }, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "8")) { Text(stringResource(R.string.common_cancel)) }
                     }
                 )
             }

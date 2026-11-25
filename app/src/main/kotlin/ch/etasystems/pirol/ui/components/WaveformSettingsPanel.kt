@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.help.helpTopic
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 
@@ -48,7 +49,7 @@ fun WaveformSettingsPanel(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
+                TextButton(onClick = onClose, modifier = Modifier.helpTopic(R.string.help_display_panel_done, "3")) { Text(stringResource(R.string.ui_fertig)) }
             }
             LiveDisplayModeChips(repository, displaySettings)
 
@@ -62,7 +63,10 @@ fun WaveformSettingsPanel(
             )
 
             Text(stringResource(R.string.waveform_level), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_waveform_level, "3")
+            ) {
                 WaveformLevelMode.entries.forEach { a ->
                     FilterChip(
                         selected = settings.levelMode == a,
@@ -74,7 +78,10 @@ fun WaveformSettingsPanel(
 
             // Amplitudenskala gilt nur im Modus %; die dBFS-Modi folgen FFT bzw. Sonogramm
             Text(stringResource(R.string.waveform_amplitude), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_waveform_amplitude, "3")
+            ) {
                 WaveformAmplitudeMode.entries.forEach { m ->
                     val label = if (m == WaveformAmplitudeMode.MAX_LEVEL) {
                         stringResource(

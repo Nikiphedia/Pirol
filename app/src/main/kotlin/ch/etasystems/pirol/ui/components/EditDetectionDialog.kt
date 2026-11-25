@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -101,7 +102,7 @@ fun EditDetectionDialog(
                     ) {
                         IconButton(
                             onClick = { if (count > 1) count-- },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.helpTopic(R.string.help_manual_count, "4").size(40.dp)
                         ) {
                             Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.ui_weniger))
                         }
@@ -113,7 +114,7 @@ fun EditDetectionDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(
                             onClick = { if (count < MAX_COUNT) count++ },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.helpTopic(R.string.help_manual_count, "4").size(40.dp)
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.ui_mehr))
                         }
@@ -140,6 +141,7 @@ fun EditDetectionDialog(
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth()
+                                .helpTopic(R.string.help_manual_atlas, "4")
                         )
                         ExposedDropdownMenu(
                             expanded = dropdownExpanded,
@@ -173,7 +175,7 @@ fun EditDetectionDialog(
                         label = { Text(stringResource(R.string.ui_bemerkung)) },
                         maxLines = 5,
                         supportingText = { Text("${note.length}/$MAX_NOTE_LENGTH") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_manual_note, "4")
                     )
                     OutlinedButton(
                         onClick = {
@@ -197,7 +199,7 @@ fun EditDetectionDialog(
                             }
                         },
                         enabled = !municipalityBusy,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp)
+                        modifier = Modifier.helpTopic(R.string.help_municipality, "8").fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp)
                     ) {
                         Icon(Icons.Filled.LocationCity, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -227,11 +229,12 @@ fun EditDetectionDialog(
                 onClick = {
                     onSave(count, selectedCode, note.ifEmpty { null }, currentMemoRelPath)
                 },
-                enabled = hasChanged
+                enabled = hasChanged,
+                modifier = Modifier.helpTopic(R.string.help_edit_save, "4")
             ) { Text(stringResource(R.string.common_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "4")) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

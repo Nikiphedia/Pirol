@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -126,7 +127,7 @@ fun AddManualDetectionDialog(
                             },
                             label = { Text(stringResource(R.string.ui_art_suchen_de_oder_wissenschaftlich)) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_manual_species, "4")
                         )
                         DropdownMenu(
                             expanded = speciesDropdownExpanded,
@@ -171,7 +172,7 @@ fun AddManualDetectionDialog(
                     ) {
                         IconButton(
                             onClick = { if (count > 1) count-- },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.helpTopic(R.string.help_manual_count, "4").size(40.dp)
                         ) {
                             Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.ui_weniger))
                         }
@@ -183,7 +184,7 @@ fun AddManualDetectionDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(
                             onClick = { if (count < MAX_MANUAL_COUNT) count++ },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.helpTopic(R.string.help_manual_count, "4").size(40.dp)
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.ui_mehr))
                         }
@@ -210,6 +211,7 @@ fun AddManualDetectionDialog(
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth()
+                                .helpTopic(R.string.help_manual_atlas, "4")
                         )
                         ExposedDropdownMenu(
                             expanded = atlasDropdownExpanded,
@@ -242,7 +244,7 @@ fun AddManualDetectionDialog(
                     label = { Text(stringResource(R.string.ui_bemerkung)) },
                     maxLines = 3,
                     supportingText = { Text("${note.length}/$MAX_MANUAL_NOTE_LENGTH") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_manual_note, "4")
                 )
 
                 // 5. GPS-Felder (optional)
@@ -255,20 +257,20 @@ fun AddManualDetectionDialog(
                         onValueChange = { latText = it },
                         label = { Text(stringResource(R.string.ui_lat)) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).helpTopic(R.string.help_manual_coords, "4")
                     )
                     OutlinedTextField(
                         value = lonText,
                         onValueChange = { lonText = it },
                         label = { Text(stringResource(R.string.ui_lon)) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).helpTopic(R.string.help_manual_coords, "4")
                     )
                 }
                 if (allowMapPick) {
                     OutlinedButton(
                         onClick = { showMapPicker = true },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_manual_map, "4").heightIn(min = 48.dp)
                     ) { Text(stringResource(R.string.ui_auf_karte_waehlen)) }
                 }
                 // 6. T203: Zeit aus Abspielposition
@@ -289,11 +291,12 @@ fun AddManualDetectionDialog(
                     val lon = lonText.toDoubleOrNull()
                     onAdd(sp.first, count, selectedCode, note.ifEmpty { null }, lat, lon)
                 },
-                enabled = canSave
+                enabled = canSave,
+                modifier = Modifier.helpTopic(R.string.help_manual_add, "4")
             ) { Text(stringResource(R.string.ui_hinzufuegen)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_dialog_cancel, "4")) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 

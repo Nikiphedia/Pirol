@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.components
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -60,7 +61,7 @@ fun MapPointPicker(
         Surface(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize()) {
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().helpTopic(R.string.help_pointpicker_map, "8"),
                     factory = { ctx ->
                         MapView(ctx).apply {
                             setMultiTouchControls(true)
@@ -99,11 +100,11 @@ fun MapPointPicker(
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                        modifier = Modifier.weight(1f).helpTopic(R.string.help_dialog_cancel, "8").heightIn(min = 56.dp)
                     ) { Text(stringResource(R.string.common_cancel)) }
                     Button(
                         onClick = { mapRef[0]?.mapCenter?.let { onPick(it.latitude, it.longitude) } },
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                        modifier = Modifier.weight(1f).helpTopic(R.string.help_pointpicker_ok, "8").heightIn(min = 56.dp)
                     ) { Text(stringResource(R.string.ui_karte_uebernehmen)) }
                 }
             }

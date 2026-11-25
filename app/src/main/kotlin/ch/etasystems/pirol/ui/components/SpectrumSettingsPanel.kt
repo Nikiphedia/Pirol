@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.help.helpTopic
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.audio.dsp.SpectrumAnalyzer
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
@@ -57,7 +58,7 @@ fun SpectrumSettingsPanel(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.ui_fertig)) }
+                TextButton(onClick = onClose, modifier = Modifier.helpTopic(R.string.help_display_panel_done, "3")) { Text(stringResource(R.string.ui_fertig)) }
             }
             LiveDisplayModeChips(repository, displaySettings)
 
@@ -73,6 +74,7 @@ fun SpectrumSettingsPanel(
                 style = MaterialTheme.typography.bodySmall
             )
             Slider(
+                modifier = Modifier.helpTopic(R.string.help_display_gamma, "3"),
                 value = displaySettings.gamma,
                 onValueChange = { v -> repository.update { it.copy(gamma = v) } },
                 valueRange = 0.3f..1f
@@ -80,7 +82,10 @@ fun SpectrumSettingsPanel(
 
             // T275: Frequenzachse Mel / linear
             Text(stringResource(R.string.spectrum_scale), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_spectrum_scale, "3")
+            ) {
                 SpectrumScale.entries.forEach { sc ->
                     FilterChip(
                         selected = settings.scale == sc,
@@ -98,7 +103,10 @@ fun SpectrumSettingsPanel(
                 ),
                 style = MaterialTheme.typography.bodySmall
             )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_spectrum_fft, "3")
+            ) {
                 SpectrumAnalyzer.FFT_SIZES.forEach { n ->
                     FilterChip(
                         selected = settings.fftSize == n,
@@ -109,7 +117,10 @@ fun SpectrumSettingsPanel(
             }
 
             Text(stringResource(R.string.spectrum_averaging), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_spectrum_averaging, "3")
+            ) {
                 SpectrumAveraging.entries.forEach { a ->
                     FilterChip(
                         selected = settings.averaging == a,
@@ -121,7 +132,10 @@ fun SpectrumSettingsPanel(
 
             // T201: rollende Peak-Spuren der letzten N Sekunden
             Text(stringResource(R.string.spectrum_traces), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_spectrum_traces, "3")
+            ) {
                 SPECTRUM_TRACE_OPTIONS.forEach { t ->
                     FilterChip(
                         selected = settings.traceSec == t,
@@ -146,10 +160,15 @@ fun SpectrumSettingsPanel(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
-                OutlinedButton(onClick = onResetPeak, enabled = settings.peakHold) {
+                OutlinedButton(
+                    onClick = onResetPeak,
+                    enabled = settings.peakHold,
+                    modifier = Modifier.helpTopic(R.string.help_spectrum_peak_reset, "3")
+                ) {
                     Text(stringResource(R.string.spectrum_peak_reset))
                 }
                 Switch(
+                    modifier = Modifier.helpTopic(R.string.help_spectrum_peak_hold, "3"),
                     checked = settings.peakHold,
                     onCheckedChange = { v -> repository.updateSpectrum { it.copy(peakHold = v) } }
                 )

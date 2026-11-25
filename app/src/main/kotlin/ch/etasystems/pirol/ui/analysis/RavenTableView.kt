@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.ui.analysis
 
+import ch.etasystems.pirol.ui.help.helpTopic
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -58,7 +59,7 @@ fun RavenTableDialog(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.helpTopic(R.string.help_raven_table_close, "7")) {
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_close))
                     }
                 }

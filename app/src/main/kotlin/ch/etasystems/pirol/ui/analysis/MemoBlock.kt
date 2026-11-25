@@ -69,6 +69,7 @@ fun MemoBlock(
             modifier = Modifier
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 48.dp)
+                .helpTopic(R.string.help_analysis_memo_block, "6")
                 .clickable { expanded = !expanded }
         ) {
             Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -119,6 +120,7 @@ private fun MemoRow(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 48.dp)
+            .helpTopic(R.string.help_analysis_memo_row, "6")
             .clickable { onOpen(item) }
             .padding(start = 4.dp)
     ) {
@@ -132,7 +134,7 @@ private fun MemoRow(
                 )
             }
         }
-        IconButton(onClick = { onPlay(item) }, modifier = Modifier.size(48.dp)) {
+        IconButton(onClick = { onPlay(item) }, modifier = Modifier.helpTopic(R.string.help_analysis_memo_play, "6").size(48.dp)) {
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                 contentDescription = stringResource(R.string.analysis_memo_abspielen)

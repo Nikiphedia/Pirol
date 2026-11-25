@@ -3,6 +3,8 @@ package ch.etasystems.pirol.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RangeSlider
@@ -11,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.etasystems.pirol.R
+import ch.etasystems.pirol.ui.help.helpTopic
 import ch.etasystems.pirol.audio.dsp.SpectrogramConfig
 import ch.etasystems.pirol.data.SpectrogramSettingsRepository
 import java.util.Locale
@@ -76,6 +79,7 @@ fun SharedDisplayControls(
         style = MaterialTheme.typography.bodySmall
     )
     RangeSlider(
+        modifier = Modifier.helpTopic(R.string.help_display_freq_range, "3"),
         value = fLo..fHi,
         onValueChange = { r ->
             val lo = r.start
@@ -98,6 +102,7 @@ fun SharedDisplayControls(
         )
     }
     RangeSlider(
+        modifier = Modifier.helpTopic(R.string.help_display_db_range, "3"),
         value = settings.minDb.coerceIn(SHARED_DB_SLIDER_MIN, SHARED_DB_SLIDER_MAX)..
             settings.maxDb.coerceIn(SHARED_DB_SLIDER_MIN, SHARED_DB_SLIDER_MAX),
         onValueChange = { r -> repository.update { it.withDbRange(r.start, r.endInclusive) } },
@@ -105,7 +110,10 @@ fun SharedDisplayControls(
     )
 
     Text(stringResource(R.string.ui_farbpalette), style = MaterialTheme.typography.bodySmall)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {  // T177: Kacheln, umbrechend
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().helpTopic(R.string.help_display_palette, "3")
+    ) {  // T177: Kacheln, umbrechend
         SpectrogramPalette.entries.forEach { p ->
             FilterChip(
                 selected = settings.palette == p,
