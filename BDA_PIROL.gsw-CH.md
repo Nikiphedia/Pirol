@@ -384,7 +384,7 @@ Istellige > Sprach: Sprach vo de App (Systemsprach oder Uswahl): Dütsch, Ängli
 
 ## 17. Istellige im Überblick
 
-D Istellige si i ufklappbari Sektione gglideret; de Zuestand wird gmerkt. Standardmäßig offe isch nume "Sprach".
+D Istellige si i ufklappbari Sektione gglideret; de Zuestand wird gmerkt. Standardmässig offe isch nume "Sprach".
 
 | Sektion | Inhalt |
 |---------|--------|
