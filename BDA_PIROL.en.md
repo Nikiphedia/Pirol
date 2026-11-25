@@ -421,7 +421,7 @@ The complete list is in `CHANGELOG.md` in the project.
 
 ### Version 0.1.3
 - Session memos: delete with undo, location stored when pressed and shown as a marker on the map, share and Save as (chapters 2, 6, 8)
-- Import: date and time picker, "File time = end" switch, scan for all imported sessions, the first scan becomes the original with Raven in the folder (chapter 6)
+- Import: date and time picker, "File time = end" switch, scan for all imported sessions, a scan becomes the original if the original is empty, with Raven in the folder (chapter 6)
 - Changing the date of an imported session renames the folder and moves it into the right day folder (chapter 5)
 - "+ Species" takes gaps between segments into account (chapter 6)
 - Spectrum: Linear (default) or Mel, gamma also in the spectrum, time window in the oscillogram (chapter 3)

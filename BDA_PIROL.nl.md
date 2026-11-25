@@ -421,7 +421,7 @@ De volledige lijst staat in `CHANGELOG.md` in het project.
 
 ### Versie 0.1.3
 - Sessiememo's: verwijderen met Ongedaan maken, positie bij indrukken opgeslagen en als markering op de kaart, delen en opslaan als (hoofdstuk 2, 6, 8)
-- Import: datum- en tijdkiezer, schakelaar "Bestandstijd = einde van de opname", scan voor alle geïmporteerde sessies, eerste scan wordt origineel met Raven in de map (hoofdstuk 6)
+- Import: datum- en tijdkiezer, schakelaar "Bestandstijd = einde van de opname", scan voor alle geïmporteerde sessies, een scan wordt origineel als het origineel leeg is, met Raven in de map (hoofdstuk 6)
 - Datumwijziging van een geïmporteerde sessie hernoemt de sessiemap en verplaatst die naar de juiste dagmap (hoofdstuk 5)
 - "+ Soort" houdt rekening met gaten tussen segmenten (hoofdstuk 6)
 - Spectrum: frequentie-as Lineair (standaard) of Mel, gamma ook in het spectrum, tijdvenster in het oscillogram (hoofdstuk 3)

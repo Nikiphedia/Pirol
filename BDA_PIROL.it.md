@@ -420,7 +420,7 @@ L'elenco completo si trova in `CHANGELOG.md` nel progetto.
 
 ### Versione 0.1.3
 - Memo di sessione: eliminazione con Annulla, posizione salvata alla pressione e mostrata come marcatore sulla mappa, condivisione e salva con nome (capitoli 2, 6, 8)
-- Importazione: selettori di data e ora, interruttore "Ora file = fine della registrazione", scan per tutte le sessioni importate, il primo scan diventa l'originale con Raven nella cartella (capitolo 6)
+- Importazione: selettori di data e ora, interruttore "Ora file = fine della registrazione", scan per tutte le sessioni importate, uno scan diventa l'originale se l'originale è vuoto, con Raven nella cartella (capitolo 6)
 - Cambiare la data di una sessione importata rinomina la cartella della sessione e la sposta nella cartella giornaliera corretta (capitolo 5)
 - "+ Specie" tiene conto delle pause tra i segmenti (capitolo 6)
 - Spettro: frequenza lineare (standard) o Mel, gamma anche nello spettro, finestra temporale nell'oscillogramma (capitolo 3)

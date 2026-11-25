@@ -423,7 +423,7 @@ D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
 ### Version 0.1.3
 - Session-Memos: lösche mit Rückgängig, Standort bim Drücke gspicheret und als Marker uf de Charte, teile und speichere unter (Kapitel 2, 6, 8)
-- Import: Datums- und Ziitauswahl, Schalter "Dateiziit = Ände", Scan für alli importierte Sessione, dr erscht Scan wird Original mit Raven im Ordner (Kapitel 6)
+- Import: Datums- und Ziitauswahl, Schalter "Dateiziit = Ände", Scan für alli importierte Sessione, e Scan wird Original, wenn s Original läär isch, mit Raven im Ordner (Kapitel 6)
 - Datumsändrig vo ere importierte Session benennt de Ordner um und verschiebt en i de richtige Tagesordner (Kapitel 5)
 - "+ Art" berücksichtigt Lücke zwüsche Segmänt (Kapitel 6)
 - Spektrum: Linear (Standard) oder Mel, Gamma o im Spektrum, Ziitfenster im Oszillogramm (Kapitel 3)

@@ -421,7 +421,7 @@ A lista completa está em `CHANGELOG.md` no projeto.
 
 ### Versão 0.1.3
 - Memorandos de sessão: apagar com anular, local guardado ao premir e mostrado como marcador no mapa, partilhar e guardar como (capítulos 2, 6, 8)
-- Importação: seletor de data e hora, interruptor "Hora do ficheiro = fim", análise de todas as sessões importadas; a primeira análise torna-se o original com Raven na pasta (capítulo 6)
+- Importação: seletor de data e hora, interruptor "Hora do ficheiro = fim", análise de todas as sessões importadas; uma análise torna-se o original se o original estiver vazio, com Raven na pasta (capítulo 6)
 - Alterar a data de uma sessão importada renomeia a pasta e move-a para a pasta do dia certo (capítulo 5)
 - "+ Espécie" tem em conta os intervalos entre segmentos (capítulo 6)
 - Espectro: Linear (predefinição) ou Mel, gama também no espectro, janela temporal no oscilograma (capítulo 3)

@@ -420,7 +420,7 @@ La liste complète figure dans `CHANGELOG.md` du projet.
 
 ### Version 0.1.3
 - Mémos de session : suppression avec Annuler, position enregistrée à l'appui et affichée comme marqueur sur la carte, partage et enregistrer sous (chapitres 2, 6, 8)
-- Import : sélecteurs de date et d'heure, interrupteur « Heure du fichier = fin de l'enregistrement », scan pour toutes les sessions importées, le premier scan devient l'original avec Raven dans le dossier (chapitre 6)
+- Import : sélecteurs de date et d'heure, interrupteur « Heure du fichier = fin de l'enregistrement », scan pour toutes les sessions importées, un scan devient l'original si l'original est vide, avec Raven dans le dossier (chapitre 6)
 - Changer la date d'une session importée renomme le dossier de session et le déplace dans le bon dossier journalier (chapitre 5)
 - « + Espèce » tient compte des lacunes entre les segments (chapitre 6)
 - Spectre : fréquence linéaire (par défaut) ou Mel, gamma aussi dans le spectre, fenêtre temporelle dans l'oscillogramme (chapitre 3)

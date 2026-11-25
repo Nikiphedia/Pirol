@@ -421,7 +421,7 @@ La llista completa és a `CHANGELOG.md` del projecte.
 
 ### Versió 0.1.3
 - Memos de sessió: esborrar amb desfer, ubicació desada en prémer i mostrada com a marcador al mapa, compartir i desar com a (capítols 2, 6, 8)
-- Importació: selector de data i hora, interruptor "Hora del fitxer = final", escaneig per a totes les sessions importades; el primer escaneig esdevé l'original amb Raven a la carpeta (capítol 6)
+- Importació: selector de data i hora, interruptor "Hora del fitxer = final", escaneig per a totes les sessions importades; un escaneig esdevé l'original si l'original és buit, amb Raven a la carpeta (capítol 6)
 - Canviar la data d'una sessió importada reanomena la carpeta i la mou a la carpeta del dia correcte (capítol 5)
 - "+ Espècie" té en compte els buits entre segments (capítol 6)
 - Espectre: Lineal (per defecte) o Mel, gamma també a l'espectre, finestra temporal a l'oscil·lograma (capítol 3)
