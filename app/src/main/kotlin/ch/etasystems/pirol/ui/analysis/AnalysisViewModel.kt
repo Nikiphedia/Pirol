@@ -32,6 +32,8 @@ import ch.etasystems.pirol.ui.components.SpectrogramState
 import ch.etasystems.pirol.data.importer.SessionImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +43,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -548,6 +549,8 @@ class AnalysisViewModel(
 
     /** Ausstehendes Loeschen je Memo-Datei; Undo bricht den Job ab. */
     private val pendingMemoDeletes = mutableMapOf<String, Job>()
+    /** T308: Memo-Dateien, deren Loeschen nach der Undo-Frist begonnen hat (Undo wirkungslos). */
+    private val startedMemoDeletes = mutableSetOf<String>()
 
     /**
      * T272: Session-Memo loeschen. Sofort aus der Anzeige nehmen, Snackbar mit Undo (10 s, >= 5 s). Erst nach
@@ -576,11 +579,14 @@ class AnalysisViewModel(
         pendingMemoDeletes[item.file] = viewModelScope.launch {
             val ok = try {
                 delay(MEMO_DELETE_GRACE_MS)
-                sessionManager.deleteSessionMemo(session.sessionDir, item.file)
+                startedMemoDeletes.add(item.file)  // T308: ab hier kein Undo mehr
+                // T308 (N4): Loeschen samt Raven-Neuschreiben nie halb abbrechen (ViewModel weg)
+                withContext(NonCancellable) { sessionManager.deleteSessionMemo(session.sessionDir, item.file) }
             } finally {  // auch bei Undo/Abbruch (ViewModel weg): Vormerkung nie liegen lassen
                 ch.etasystems.pirol.data.repository.PendingMemoDeletes.remove(session.sessionDir.name, item.file)
             }
             pendingMemoDeletes.remove(item.file)
+            startedMemoDeletes.remove(item.file)
             if (!ok) {
                 if (_uiState.value.selectedSession?.sessionDir == session.sessionDir) {
                     _uiState.update { it.copy(sessionMemos = (it.sessionMemos + removed).sortedBy { m -> m.startedAt }) }
@@ -591,6 +597,7 @@ class AnalysisViewModel(
     }
 
     private fun undoDeleteSessionMemo(sessionDir: File, memo: ch.etasystems.pirol.data.repository.SessionMemo) {
+        if (memo.file in startedMemoDeletes) return  // T308: Loeschen laeuft schon, Memo nicht wieder anzeigen
         val job = pendingMemoDeletes.remove(memo.file) ?: return  // schon endgueltig geloescht: nichts mehr zu tun
         job.cancel()
         ch.etasystems.pirol.data.repository.PendingMemoDeletes.remove(sessionDir.name, memo.file)  // T303
@@ -1212,7 +1219,12 @@ class AnalysisViewModel(
                         correctedSpecies = correctedSpecies,
                         verifiedAtMs = System.currentTimeMillis()
                     )
-                    sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(event) + "\n")
+                    val written = sessionManager.appendVerificationLine(session.sessionDir, variant = variant, line = Json.encodeToString(event) + "\n")
+                    if (!written) {  // T308: Variante inzwischen geloescht, Aktion verworfen
+                        withContext(Dispatchers.Main) {
+                            _uiState.update { it.copy(detections = previousDetections, saveErrorMessage = AppStrings.get(R.string.analysis_variante_geloescht_verworfen)) }
+                        }
+                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(
