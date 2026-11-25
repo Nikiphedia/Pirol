@@ -19,6 +19,7 @@ object ModelProfileJson {
     const val FILE_SUFFIX = ".pirol.json"
 
     private val ID_REGEX = Regex("[a-z0-9_]+")
+    private val TAXON_REGEX = Regex("[a-z0-9_]+")
     private val SHA256_REGEX = Regex("[0-9a-fA-F]{64}")
     private val TRANSFORMS = setOf("none", "sigmoid", "softmax")
     private val ROLES = setOf("scores", "aux", "embedding")
@@ -41,7 +42,17 @@ object ModelProfileJson {
         val license: String? = null,
         val input: InputSpec? = null,
         val outputs: List<OutputSpec>? = null,
-        val labels: Map<String, LabelSpec>? = null
+        val labels: Map<String, LabelSpec>? = null,
+        // T293: Artgruppe und Anzeige (alle optional)
+        val taxonGroup: String? = null,
+        val display: DisplaySpec? = null
+    )
+
+    /** T293: Anzeigehinweise; Auswertung in T294/T295 */
+    @Serializable
+    data class DisplaySpec(
+        val freqRangeHz: List<Double>? = null,
+        val playbackTimeExpansion: Int? = null
     )
 
     @Serializable
@@ -49,7 +60,9 @@ object ModelProfileJson {
         val name: String? = null,
         val sampleRate: Int? = null,
         val windowSec: Double? = null,
-        val layout: String? = null
+        val layout: String? = null,
+        // T293: kleinere Quellen werden nicht hochgesampelt
+        val minSourceRate: Int? = null
     )
 
     @Serializable
@@ -59,7 +72,9 @@ object ModelProfileJson {
         val transform: String? = null,
         val labels: String? = null,
         // T156: nur am scores-Ausgang gueltig, 0.0..1.0
-        val minConfidence: Double? = null
+        val minConfidence: Double? = null,
+        // T293: nur am scores-Ausgang gueltig
+        val ignoreLabels: List<String>? = null
     )
 
     @Serializable
@@ -156,6 +171,20 @@ object ModelProfileJson {
                 if (key !in labels) fail("outputs[$i].labels \"$key\" nicht in labels")
             }
         }
+        input.minSourceRate?.let { if (it !in 1_000..2_000_000) fail("input.minSourceRate $it ausserhalb 1000..2000000") }
+        s.taxonGroup?.let { if (!TAXON_REGEX.matches(it)) fail("taxonGroup \"$it\" erlaubt nur [a-z0-9_]") }
+        s.display?.freqRangeHz?.let {
+            if (it.size != 2 || !(it[0] >= 0.0 && it[0] < it[1] && it[1] <= 1_000_000.0)) {
+                fail("display.freqRangeHz muss [tief, hoch] mit 0 <= tief < hoch <= 1000000 sein")
+            }
+        }
+        s.display?.playbackTimeExpansion?.let { if (it !in 1..100) fail("display.playbackTimeExpansion $it ausserhalb 1..100") }
+        outputs.forEachIndexed { i, o ->
+            if (o.ignoreLabels != null) {
+                if (o.role != "scores") fail("outputs[$i].ignoreLabels nur am scores-Ausgang")
+                if (o.ignoreLabels.any { it.isBlank() }) fail("outputs[$i].ignoreLabels enthaelt leeren Namen")
+            }
+        }
         outputs.firstOrNull { it.role == "scores" }?.minConfidence?.let {
             if (!(it >= 0.0 && it <= 1.0)) fail("minConfidence $it ausserhalb 0..1")
         }
@@ -240,7 +269,12 @@ object ModelProfileJson {
             genericLabels = genericLabels(labelSpec),
             auxOutputNames = outputs.filter { it.role == "aux" }.map { it.name!! },
             source = ModelProfile.Source.IMPORTED,
-            minConfidence = scores.minConfidence?.toFloat()
+            minConfidence = scores.minConfidence?.toFloat(),
+            minSourceRate = input.minSourceRate,
+            taxonGroup = s.taxonGroup,
+            freqRangeHz = s.display?.freqRangeHz?.let { it[0].toInt() to it[1].toInt() },
+            playbackTimeExpansion = s.display?.playbackTimeExpansion,
+            ignoreLabels = scores.ignoreLabels.orEmpty().mapTo(HashSet()) { ModelProfile.normalizeLabel(it) }
         )
     }
 

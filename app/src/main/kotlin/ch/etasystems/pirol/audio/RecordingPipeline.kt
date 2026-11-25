@@ -17,6 +17,7 @@ import ch.etasystems.pirol.ml.InferenceConfig
 import ch.etasystems.pirol.ml.InferenceWorker
 import ch.etasystems.pirol.ml.ListSeason
 import ch.etasystems.pirol.ml.RegionalSpeciesFilter
+import ch.etasystems.pirol.ml.ModelProfile
 import ch.etasystems.pirol.ml.SecondaryCheck
 import ch.etasystems.pirol.ml.SecondaryChecker
 import ch.etasystems.pirol.ml.VerificationEvent
@@ -270,6 +271,10 @@ class RecordingPipeline(
     /** T110: Auto-Fallback hat die Ueberlappung reduziert (neuer Wert in %) */
     val overlapReduced: SharedFlow<Int> = _overlapReduced.asSharedFlow()
 
+    private val _sourceRateTooLow = MutableSharedFlow<Int>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** T293: Primaermodell braucht eine hoehere Quell-Abtastrate als die Aufnahme (Wert = Mindestrate in Hz); einmal pro Start */
+    val sourceRateTooLow: SharedFlow<Int> = _sourceRateTooLow.asSharedFlow()
+
     private val _geoFallback = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** T218: Geomodel-Filter gewaehlt, aber ohne Position/Modell → Ersatzliste (einmal pro Session) */
     val geoFallback: SharedFlow<Unit> = _geoFallback.asSharedFlow()
@@ -431,6 +436,11 @@ class RecordingPipeline(
             axisFedSamples.set(session.recordedSampleCount)  // T264
             axisFedWallMs = 0L
             sessionReady.complete(Unit)
+        }
+
+        // T293: Aufnahme laeuft weiter (WAV), der Worker uebergeht die Fenster (nicht pruefbar, kein Hochsampeln)
+        classifier.minSourceRate?.let { min ->
+            if (!ModelProfile.sourceRateSupported(min, sampleRate)) _sourceRateTooLow.tryEmit(min)
         }
 
         if (!classifier.isModelAvailable()) {

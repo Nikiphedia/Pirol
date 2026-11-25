@@ -195,6 +195,15 @@ class ModelManager(
         }
         appPreferences.activeModelFileName = fileName
         appPreferences.secondaryModelFileName = ModelRoles.secondaryAfterPrimaryChange(fileName, appPreferences.secondaryModelFileName)  // T223
+        // T293: Ultraschall-Zweitmodell passt nicht zu einem Primaermodell ohne Ultraschall-Quelle
+        val secName = appPreferences.secondaryModelFileName
+        if (secName != null) {
+            val secFile = File(File(context.filesDir, MODEL_DIR), secName)
+            val newPrimary = ModelProfile.resolve(file.name, file.length())
+            if (secFile.exists() && !ModelRoles.secondaryAllowed(newPrimary, ModelProfile.resolve(secFile.name, secFile.length()))) {
+                appPreferences.secondaryModelFileName = null
+            }
+        }
         Log.i(TAG, "Aktives Modell gesetzt: $fileName")
     }
 

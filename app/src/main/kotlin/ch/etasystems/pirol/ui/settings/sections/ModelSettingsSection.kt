@@ -260,6 +260,30 @@ internal fun ModelSettingsSection(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            // T293: Ultraschall-Modell / Artgruppe / Frequenzbereich
+                            model.profile.minSourceRate?.let { minRate ->
+                                Text(
+                                    text = stringResource(
+                                        if (model.profile.isUltrasonic) R.string.model_ultrasonic_info else R.string.model_min_source_rate,
+                                        minRate / 1000
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (model.profile.taxonGroup != null || model.profile.freqRangeHz != null) {
+                                val range = model.profile.freqRangeHz?.let { (lo, hi) ->
+                                    stringResource(R.string.model_freq_range, lo / 1000, hi / 1000)
+                                }
+                                Text(
+                                    text = listOfNotNull(
+                                        model.profile.taxonGroup?.let { stringResource(R.string.model_taxon_group, it) },
+                                        range
+                                    ).joinToString(" — "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             // T156: Mindest-Konfidenz des Modells (Profil-JSON)
                             model.profile.minConfidence?.let { min ->
                                 Text(
@@ -285,7 +309,10 @@ internal fun ModelSettingsSection(
                         Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
                             Checkbox(
                                 checked = secondaryFile == model.fileName,
-                                enabled = ModelTableRow.secondaryEnabled(true, model.isActive),
+                                enabled = ModelTableRow.secondaryEnabled(
+                                    true, model.isActive,
+                                    ModelRoles.secondaryAllowed(installedModels.firstOrNull { it.isActive }?.profile, model.profile)  // T293
+                                ),
                                 onCheckedChange = {
                                     secondaryFile = ModelRoles.toggleSecondary(primaryFile, secondaryFile, model.fileName)
                                     appPreferences.secondaryModelFileName = secondaryFile

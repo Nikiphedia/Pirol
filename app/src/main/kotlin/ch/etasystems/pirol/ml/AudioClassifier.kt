@@ -61,6 +61,9 @@ interface AudioClassifier {
     /** T156: Mindest-Konfidenz des aktiven Modells (null = nur globale Schwelle) */
     val minConfidence: Float? get() = null
 
+    /** T293: kleinste Quell-Abtastrate des Modells (null = keine Grenze); kleinere Quellen werden nicht analysiert */
+    val minSourceRate: Int? get() = null
+
     /** T151a: Modell liefert ein Embedding (sonst keine Aehnlichkeitssuche) */
     val hasEmbedding: Boolean get() = true
 

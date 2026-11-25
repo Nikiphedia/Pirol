@@ -294,10 +294,20 @@ class InferenceWorker(
         Log.i(TAG, "T231_PERCH role=$role ms=$ms hop=$hopMs window=${classifier.windowMs} model=${classifier.modelId}")
     }
 
+    private var rateSkipLogged = false
+
     private fun runWindow(job: WindowJob): WindowOutput {
         val window = job.window
         var detections: List<DetectionResult>? = null
         var embedding: FloatArray? = null
+        // T293: Quelle unter der Mindestrate des Modells (z.B. 48 kHz bei Fledermausmodell): nicht pruefbar, nicht hochsampeln
+        if (!ModelProfile.sourceRateSupported(classifier.minSourceRate, window.sampleRate)) {
+            if (!rateSkipLogged) {
+                rateSkipLogged = true
+                Log.w(TAG, "T293 Quelle ${window.sampleRate} Hz < Mindestrate ${classifier.minSourceRate} Hz (Modell ${classifier.modelId}): Fenster nicht geprueft")
+            }
+            return WindowOutput(emptyList(), null)
+        }
         try {
             // 1. Resampling: ShortArray → FloatArray @Modell-Rate (T103a: aus dem Profil, BirdNET 3: 32 kHz)
             val targetRate = classifier.inputSampleRate

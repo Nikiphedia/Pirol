@@ -19,6 +19,11 @@ package ch.etasystems.pirol.ml
  * @param genericLabels T151a: Spaltenbeschreibung bei [LabelFormat.GENERIC_CSV]
  * @param auxOutputNames T151a: weitere Ausgaenge (role "aux"), werden nur geprueft, nicht ausgewertet
  * @param source T151a: Katalog (Code) oder importiert (Profil-JSON pirol-model/1)
+ * @param minSourceRate T293: kleinste Quell-Abtastrate (Hz); kleinere Quellen werden nie hochgesampelt (null = keine Grenze)
+ * @param taxonGroup T293: Artgruppe des Modells (z.B. `bats`, `birds`), Grundlage fuer T295; null = unbekannt
+ * @param freqRangeHz T293: Anzeigebereich [tief, hoch] in Hz (Sonogramm, Raven); Anzeige macht T294/T295
+ * @param playbackTimeExpansion T293: Zeitdehnung beim Abspielen (null = Default, siehe [effectiveTimeExpansion])
+ * @param ignoreLabels T293: Klassen, die nie als Detektion oder Alternative gemeldet werden (z.B. `Background`)
  */
 data class ModelProfile(
     val id: String,
@@ -52,8 +57,25 @@ data class ModelProfile(
     val auxOutputNames: List<String> = emptyList(),
     val source: Source = Source.CATALOG,
     /** T156: Mindest-Konfidenz des Modells (Profil-JSON), null = nur globale Schwelle */
-    val minConfidence: Float? = null
+    val minConfidence: Float? = null,
+    val minSourceRate: Int? = null,
+    val taxonGroup: String? = null,
+    val freqRangeHz: Pair<Int, Int>? = null,
+    val playbackTimeExpansion: Int? = null,
+    val ignoreLabels: Set<String> = emptySet()
 ) {
+    /** T293: Ultraschall-Modell = braucht eine Quelle ueber 48 kHz (Live-Aufnahme reicht nicht) */
+    val isUltrasonic: Boolean get() = (minSourceRate ?: 0) > LIVE_SOURCE_RATE
+
+    /** T293: Zeitdehnung beim Abspielen: Profilwert, sonst 10 bei Ultraschall, sonst 1 (keine) */
+    val effectiveTimeExpansion: Int get() = playbackTimeExpansion ?: if (isUltrasonic) 10 else 1
+
+    /** T293: darf dieses Modell Audio mit dieser Quell-Abtastrate verarbeiten? */
+    fun supportsSourceRate(rateHz: Int): Boolean = sourceRateSupported(minSourceRate, rateHz)
+
+    /** T293: Klasse wird nie gemeldet (Vergleich ohne Gross-/Kleinschreibung, Leerzeichen = Unterstrich) */
+    fun isIgnoredLabel(name: String): Boolean = ignoreLabels.isNotEmpty() && normalizeLabel(name) in ignoreLabels
+
     /** Groesse in MB fuer die UI (gerundet) */
     val expectedSizeMB: Int get() = ((sizeBytes ?: 0L) / 1_000_000L).toInt()
 
@@ -97,6 +119,15 @@ data class ModelProfile(
     enum class ScoreTransform { NONE, SIGMOID, SOFTMAX }
 
     companion object {
+        /** T293: Abtastrate der Live-Aufnahme (Oboe) */
+        const val LIVE_SOURCE_RATE = 48_000
+
+        /** T293: Quelle mit [rateHz] fuer ein Modell mit [minSourceRate] zulaessig (null = immer) */
+        fun sourceRateSupported(minSourceRate: Int?, rateHz: Int): Boolean = minSourceRate == null || rateHz >= minSourceRate
+
+        /** T293: Labelname fuer den Vergleich mit [ignoreLabels] vereinheitlichen */
+        fun normalizeLabel(name: String): String = name.trim().replace(' ', '_').lowercase()
+
         private const val ZENODO_FINAL = "https://zenodo.org/records/24162518/files/"
         private const val ZENODO_PREVIEW31 = "https://zenodo.org/records/20703646/files/"
         private const val LICENSE_BIRDNET3 = "Apache 2.0 (BirdNET+, Cornell Lab / TU Chemnitz)"

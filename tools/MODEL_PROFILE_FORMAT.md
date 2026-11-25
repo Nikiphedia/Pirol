@@ -49,3 +49,24 @@ Regeln:
 - Artnamen laufen wie bisher ueber `SpeciesKey.of(scientificName)`; Namen in der App-Sprache via `SpeciesNameResolver`, sonst `commonColumn`, sonst wissenschaftlich.
 - Layouts ausser `waveform` (z.B. Spektrogramm-Eingang) sind nicht vorgesehen: Vorverarbeitung gehoert ins ONNX-Modell (Aufgabe des Konvertierungsskripts).
 - Datenformate bleiben: detections.jsonl/verifications.jsonl/Raven unveraendert (AMSEL-kompatibel); session.json `modelId` = `id`.
+
+## Erweiterung T293 (additiv, alle Felder optional; alte Pakete bleiben gueltig)
+
+Fuer Ultraschall-Modelle (z.B. Fledermaus-Modell BSG-BAT, 384 kHz):
+
+```json
+{
+  "taxonGroup": "bats",                    // [a-z0-9_]+, Artgruppe (Grundlage fuer die Gruppenwahl, T295)
+  "input": { "...": "...", "minSourceRate": 250000 },
+  "display": { "freqRangeHz": [9000, 150000], "playbackTimeExpansion": 10 },
+  "outputs": [ { "name": "scores", "role": "scores", "transform": "none", "labels": "species",
+                 "ignoreLabels": ["Background"] } ]
+}
+```
+
+- `input.minSourceRate` (Hz, 1000..2'000'000): Quelle mit kleinerer Abtastrate wird fuer dieses Modell **nie** hochgesampelt. Live (Mikrofon 48 kHz): Hinweis, die Aufnahme laeuft weiter, es gibt keine Detektionen. Rescan: Abbruch mit Meldung vor dem Anlegen einer Variante. Ultraschall-Modell = `minSourceRate` > 48000. Hat eine Quelle eine hoehere Rate als `input.sampleRate`, wird wie bisher auf `sampleRate` heruntergerechnet (gleiche Rate: keine Umrechnung).
+- `taxonGroup`: wird geparst und im Profil durchgereicht (T295), in Settings angezeigt.
+- `display.freqRangeHz` `[tief, hoch]` (Hz, 0 <= tief < hoch): Anzeigebereich fuer Sonogramm und Raven-Frequenzen; Auswertung in T294/T295.
+- `display.playbackTimeExpansion` (1..100): Zeitdehnung beim Abspielen; Default 10 bei Ultraschall-Modellen, sonst 1. Auswertung in T294.
+- `outputs[].ignoreLabels` (nur am `scores`-Ausgang): Klassen, die nie als Detektion oder Alternative gemeldet werden. Vergleich mit dem wissenschaftlichen Namen, ohne Gross-/Kleinschreibung, Leerzeichen = Unterstrich.
+- Zweitmodell: Ein Modell mit `minSourceRate` ueber der Quellrate des Primaermodells (Primaer ohne `minSourceRate` = 48 kHz) kann nicht Zweitmodell sein (Checkbox gesperrt, beim Primaerwechsel geleert, beim Rescan/Live ignoriert), da es nie rechnen koennte.

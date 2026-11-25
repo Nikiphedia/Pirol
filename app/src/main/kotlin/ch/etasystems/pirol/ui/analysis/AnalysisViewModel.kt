@@ -1982,6 +1982,8 @@ class AnalysisViewModel(
                             reportError(AppStrings.get(R.string.analysis_rescan_keine_aufnahme))
                         is ch.etasystems.pirol.rescan.RescanEngine.ModelUnavailableException ->
                             reportError(AppStrings.get(R.string.analysis_rescan_modell_fehlt))
+                        is ch.etasystems.pirol.rescan.RescanEngine.SourceRateTooLowException ->
+                            reportError(AppStrings.get(R.string.analysis_rescan_rate_zu_tief, o.error.minRate / 1000, o.error.rate / 1000))
                         else -> reportError(AppStrings.get(R.string.analysis_rescan_fehler))
                         }
                     }

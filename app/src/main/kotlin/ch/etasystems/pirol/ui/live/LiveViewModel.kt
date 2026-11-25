@@ -1278,6 +1278,12 @@ class LiveViewModel(
             }
         }
         viewModelScope.launch {
+            // T293: Ultraschall-Modell, aber Live-Aufnahme mit 48 kHz -> Hinweis, Aufnahme laeuft ohne Erkennung weiter
+            pipeline.sourceRateTooLow.collect { minHz ->
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_modell_braucht_ultraschall, minHz / 1000)))
+            }
+        }
+        viewModelScope.launch {
             // T218: Geomodel-Filter ohne Position/Modell → Ersatzliste, einmal pro Session melden
             pipeline.geoFallback.collect {
                 _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_geo_fallback_hinweis)))

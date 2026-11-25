@@ -16,6 +16,14 @@ object ModelRoles {
     fun secondaryAfterPrimaryChange(newPrimary: String, secondary: String?): String? =
         if (secondary == newPrimary) null else secondary
 
+    /**
+     * T293: Ultraschall-Modell als Zweitmodell nur, wenn auch das Primaermodell Ultraschall-Quellen braucht.
+     * Ohne Ultraschall-Primaermodell ist die Quelle live 48 kHz (und Rescans laufen mit dessen Audio): das
+     * Zweitmodell koennte nie rechnen (Mindestrate nicht erreicht) und die Detektionen blieben ungeprueft.
+     */
+    fun secondaryAllowed(primary: ModelProfile?, secondary: ModelProfile?): Boolean =
+        secondary == null || (secondary.minSourceRate ?: 0) <= (primary?.minSourceRate ?: ModelProfile.LIVE_SOURCE_RATE)
+
     /** Primaermodell ist nicht loeschbar; waehrend einer Aufnahme ebenfalls nicht. */
     fun deleteBlock(fileName: String, primary: String, recording: Boolean): DeleteBlock = when {
         fileName == primary -> DeleteBlock.PRIMARY
