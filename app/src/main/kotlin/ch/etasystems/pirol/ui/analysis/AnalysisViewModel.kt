@@ -63,6 +63,9 @@ import ch.etasystems.pirol.ui.AppStrings
 private const val PLAYBACK_DBFS = -10f
 /** T264: Rand links/rechts um ein Session-Memo beim Sprung (s) */
 private const val MEMO_VIEW_MARGIN_SEC = 2f
+
+/** T272: Frist, in der das Loeschen eines Session-Memos rueckgaengig gemacht werden kann (>= 5 s) */
+private const val MEMO_DELETE_GRACE_MS = 10_000L
 /** T264: Mindestbreite des Ausschnitts beim Sprung zu einem Memo (s) */
 private const val MEMO_VIEW_MIN_SEC = 10f
 
@@ -512,6 +515,92 @@ class AnalysisViewModel(
                     is Uri -> playback.play(key) { audioPlayer.play(source) }
                     else -> reportError(AppStrings.get(R.string.analysis_memo_nicht_gefunden))
                 }
+            }
+        }
+    }
+
+    // --- T272: Session-Memo loeschen, teilen, speichern ---
+
+    private val memoExporter = ch.etasystems.pirol.data.export.MemoExporter(context)
+
+    /** Ausstehendes Loeschen je Memo-Datei; Undo bricht den Job ab. */
+    private val pendingMemoDeletes = mutableMapOf<String, Job>()
+
+    /**
+     * T272: Session-Memo loeschen. Sofort aus der Anzeige nehmen, Snackbar mit Undo (10 s, >= 5 s). Erst nach
+     * Ablauf werden Eintrag und WAV endgueltig entfernt; bei Undo bleibt auf der Platte alles unveraendert.
+     * Wird die App in der Frist beendet, bleibt das Memo erhalten (sicherer Fehlerfall).
+     */
+    fun deleteSessionMemo(item: MemoItem) {
+        if (!item.isSessionMemo) return
+        val session = _uiState.value.selectedSession ?: return
+        val removed = _uiState.value.sessionMemos.firstOrNull { it.file == item.file } ?: return
+        if (pendingMemoDeletes.containsKey(item.file)) return
+        if (playback.isPlaying(PlaybackKeys.memo(item.key))) playback.stop()
+        _uiState.update { st ->
+            st.copy(
+                sessionMemos = st.sessionMemos.filter { it.file != item.file },
+                undoOffer = UndoOffer(
+                    message = AppStrings.get(R.string.analysis_memo_geloescht),
+                    actionLabel = AppStrings.get(R.string.common_undo),
+                    onUndo = { undoDeleteSessionMemo(session.sessionDir, removed) }
+                )
+            )
+        }
+        pendingMemoDeletes[item.file] = viewModelScope.launch {
+            delay(MEMO_DELETE_GRACE_MS)
+            val ok = sessionManager.deleteSessionMemo(session.sessionDir, item.file)
+            pendingMemoDeletes.remove(item.file)
+            if (!ok) {
+                if (_uiState.value.selectedSession?.sessionDir == session.sessionDir) {
+                    _uiState.update { it.copy(sessionMemos = (it.sessionMemos + removed).sortedBy { m -> m.startedAt }) }
+                }
+                reportError(AppStrings.get(R.string.analysis_memo_loeschen_fehler))
+            }
+        }
+    }
+
+    private fun undoDeleteSessionMemo(sessionDir: File, memo: ch.etasystems.pirol.data.repository.SessionMemo) {
+        val job = pendingMemoDeletes.remove(memo.file) ?: return  // schon endgueltig geloescht: nichts mehr zu tun
+        job.cancel()
+        if (_uiState.value.selectedSession?.sessionDir == sessionDir) {
+            _uiState.update { it.copy(sessionMemos = (it.sessionMemos + memo).sortedBy { m -> m.startedAt }) }
+        }
+    }
+
+    /** T272: Name des Memo-Exports `yyyyMMddHHmmss_Memo_Bemerkung` (ohne Endung); Zeit unbekannt = jetzt. */
+    fun memoExportName(item: MemoItem): String =
+        ch.etasystems.pirol.data.export.ExportNames.memoName(item.startMs ?: System.currentTimeMillis(), item.note)
+
+    /** T272: Einzelnes Memo ueber das Share-Sheet teilen (Datei unveraendert). */
+    fun shareMemo(item: MemoItem) {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val source = sessionManager.memoSource(dir, item.file)
+                if (source == null) { reportError(AppStrings.get(R.string.analysis_memo_nicht_gefunden)); return@launch }
+                val copy = memoExporter.copyToShareCache(source, memoExportName(item))
+                withContext(Dispatchers.Main) { memoExporter.share(copy) }
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "T272: Memo teilen fehlgeschlagen", e)
+                reportError(AppStrings.get(R.string.analysis_memo_export_fehler))
+            }
+        }
+    }
+
+    /** T272: Einzelnes Memo in die per System-Dialog gewaehlte Datei speichern. */
+    fun saveMemoTo(item: MemoItem, target: Uri) {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val source = sessionManager.memoSource(dir, item.file)
+                if (source == null) { reportError(AppStrings.get(R.string.analysis_memo_nicht_gefunden)); return@launch }
+                memoExporter.saveTo(source, target)
+                reportError(AppStrings.get(R.string.analysis_memo_gespeichert))  // reportError = Hinweis-Snackbar
+            } catch (e: Exception) {
+                Log.e("AnalysisVM", "T272: Memo speichern fehlgeschlagen", e)
+                runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, target) }
+                reportError(AppStrings.get(R.string.analysis_memo_export_fehler))
             }
         }
     }

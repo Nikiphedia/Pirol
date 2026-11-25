@@ -81,4 +81,36 @@ class SessionMemosTest {
     fun memos_jsonl_is_exported() {
         assertFalse(SessionExportRules.isExcluded(SessionMemos.FILE))
     }
+
+    @Test
+    fun position_roundtrip_and_old_lines_without_fix() {
+        val m = SessionMemos.create("session_a.wav", t0, t0 + 4000, 1f, zone, 47.3769, 8.5417, 5.5f)
+        val back = SessionMemos.parse(SessionMemos.encode(m)).single()
+        assertTrue(back.hasPosition)
+        assertEquals(47.3769, back.lat!!, 1e-9)
+        assertEquals(8.5417, back.lon!!, 1e-9)
+        assertEquals(5.5f, back.accuracyM!!, 1e-6f)
+        // ohne Fix: Felder fehlen in der Zeile
+        val noFix = SessionMemos.encode(SessionMemos.create("session_b.wav", t0, t0 + 4000, 1f, zone))
+        assertFalse(noFix.contains("lat"))
+        assertFalse(SessionMemos.parse(noFix).single().hasPosition)
+    }
+
+    @Test
+    fun half_position_is_dropped() {
+        val m = SessionMemos.create("session_a.wav", t0, t0 + 4000, 1f, zone, lat = 47.0, lon = null, accuracyM = 5f)
+        assertFalse(m.hasPosition)
+        assertNull(m.accuracyM)
+    }
+
+    @Test
+    fun withoutFile_removes_only_that_entry() {
+        val a = SessionMemos.create("session_a.wav", t0, t0 + 4000, 1f, zone)
+        val b = SessionMemos.create("session_b.wav", t0 + 9000, t0 + 13000, 10f, zone)
+        val text = SessionMemos.encode(a) + SessionMemos.encode(b)
+        val rest = SessionMemos.parse(SessionMemos.withoutFile(text, "memos/session_a.wav"))
+        assertEquals(listOf("memos/session_b.wav"), rest.map { it.file })
+        assertEquals("", SessionMemos.withoutFile(SessionMemos.encode(a), "memos/session_a.wav"))
+        assertEquals("", SessionMemos.withoutFile(null, "memos/x.wav"))
+    }
 }

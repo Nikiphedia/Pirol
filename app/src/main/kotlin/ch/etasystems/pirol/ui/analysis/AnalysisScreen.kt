@@ -1051,9 +1051,21 @@ private fun SessionDetailContent(
         val memoItems = remember(state.sessionMemos, state.detections, state.artMemoSpans) {
             MemoList.build(state.sessionMemos, state.detections, state.artMemoSpans)
         }
+        // T272: Speichern unter fuer ein einzelnes Memo (Ziel per System-Dialog)
+        var memoToSave by remember { mutableStateOf<MemoItem?>(null) }
+        val saveMemoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.CreateDocument("audio/wav")
+        ) { uri ->
+            val m = memoToSave
+            memoToSave = null
+            if (uri != null && m != null) viewModel.saveMemoTo(m, uri)
+        }
         if (memoItems.isNotEmpty()) {
             MemoBlock(
                 items = memoItems,
+                onShare = { viewModel.shareMemo(it) },
+                onSaveAs = { memoToSave = it; saveMemoLauncher.launch(viewModel.memoExportName(it) + ".wav") },
+                onDelete = { viewModel.deleteSessionMemo(it) },
                 playingKey = state.playingKey,
                 displayName = { detailResolver.displayName(it) },
                 onPlay = { viewModel.playMemo(it) },

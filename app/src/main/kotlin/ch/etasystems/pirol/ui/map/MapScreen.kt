@@ -523,7 +523,7 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                 // T115: Overlays nur neu aufbauen, wenn sich die Eingaben wirklich geaendert haben
                 val overlayKey = listOf(
                     moveTarget, clusters, state.simultaneousLinks, state.linkAnchor?.detectionId,
-                    state.lockedSpecies, state.focusMode, sourceMode, visibleTracks
+                    state.lockedSpecies, state.focusMode, sourceMode, visibleTracks, state.memoMarkers
                 )
                 if (lastOverlayKey[0] == overlayKey) return@AndroidView
                 lastOverlayKey[0] = overlayKey
@@ -570,6 +570,20 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
                             isAntiAlias = true
                         }
                         mapView.overlays.add(polyline)
+                    }
+
+                    // T272: Session-Memos mit Position (Mikrofon-Marker)
+                    for (memo in state.memoMarkers) {
+                        val mm = Marker(mapView)
+                        mm.position = GeoPoint(memo.latitude, memo.longitude)
+                        mm.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        mm.icon = memoMarkerIcon(mapView.resources)
+                        mm.title = AppStrings.get(R.string.map_memo_marker)
+                        mm.setOnMarkerClickListener { _, _ ->
+                            viewModel.selectMemo(memo)
+                            true
+                        }
+                        mapView.overlays.add(mm)
                     }
 
                     for (cluster in clusters) {
@@ -651,6 +665,30 @@ fun MapScreen(viewModel: MapViewModel = koinViewModel()) {
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 72.dp)
         )
+
+        // T272: Session-Memo: Zeit + Abspielen
+        state.selectedMemo?.let { memo ->
+            val playing = playingKey == PlaybackKeys.memo(memo.key)
+            val time = memo.startMs?.let {
+                java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
+                    .format(java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()))
+            } ?: ""
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissMemo() },
+                title = { Text(stringResource(R.string.map_memo_titel, time)) },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.toggleMemoPlayback(memo) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow, contentDescription = null)
+                        Text(stringResource(R.string.analysis_memo_abspielen))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissMemo() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.common_close))
+                    }
+                }
+            )
+        }
 
         if (!inMoveMode) {
             // Cluster-Dialog

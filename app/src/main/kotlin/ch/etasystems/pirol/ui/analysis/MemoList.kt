@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter
  * @param scientificName  Art-Memo: angezeigte Art (Korrektur vor Original)
  * @param sessionStartSec Session-Memo: Beginn auf der Session-Achse (Sprungziel); null = unbekannt
  * @param sessionEndSec   Session-Memo: Ende auf der Session-Achse
+ * @param note            T272: Art-Memo: Bemerkung der Detektion (Teil des Exportnamens)
  */
 data class MemoItem(
     val key: String,
@@ -29,9 +30,15 @@ data class MemoItem(
     val detectionId: String?,
     val scientificName: String?,
     val sessionStartSec: Float?,
-    val sessionEndSec: Float?
+    val sessionEndSec: Float?,
+    val note: String? = null  // T272: Bemerkung der Detektion (Art-Memo) fuer den Exportnamen
 ) {
     val isSessionMemo: Boolean get() = detectionId == null
+
+    companion object {
+        /** Schluessel eines Session-Memos (Memo-Block, Karte und Wiedergabe teilen ihn) */
+        fun sessionKey(file: String): String = "session:$file"
+    }
 }
 
 /** T264: Liste des Memo-Blocks (reine Logik, unit-testbar). */
@@ -50,7 +57,7 @@ object MemoList {
     ): List<MemoItem> {
         val session = sessionMemos.map { m ->
             MemoItem(
-                key = "session:" + m.file,
+                key = MemoItem.sessionKey(m.file),
                 file = m.file,
                 startMs = m.startEpochMs,
                 endMs = m.endEpochMs,
@@ -72,7 +79,8 @@ object MemoList {
                 detectionId = d.id,
                 scientificName = d.correctedSpecies?.takeIf { it.isNotBlank() } ?: d.scientificName,
                 sessionStartSec = null,
-                sessionEndSec = null
+                sessionEndSec = null,
+                note = d.note
             )
         }
         return (session + art).sortedWith(

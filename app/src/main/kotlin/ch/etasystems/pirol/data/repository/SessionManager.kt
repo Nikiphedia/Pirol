@@ -712,6 +712,37 @@ class SessionManager(
     }
 
     /**
+     * T272: Session-Memo endgueltig loeschen: Eintrag aus memos.jsonl (atomar neu geschrieben, keine Marker-Zeile)
+     * und memos/session_*.wav. Datei zuerst aus dem Verzeichnis nehmen waere unumkehrbar; deshalb zuerst die Liste,
+     * dann die WAV (bleibt im Fehlerfall als verwaiste Datei, nie als Eintrag ohne Datei).
+     * Nur Dateien unter memos/ werden angefasst.
+     */
+    suspend fun deleteSessionMemo(sessionDir: File, memoFile: String): Boolean = withContext(Dispatchers.IO) {
+        if (!memoFile.startsWith(SessionMemos.DIR + "/") || memoFile.contains("..")) return@withContext false
+        try {
+            fileMutex.withLock {
+                val a = active
+                val files = if (a != null && a.matches(sessionDir)) a.files().also { a.flushWritersLocked() } else accessFor(sessionDir)
+                val old = files.readText(SessionMemos.FILE)
+                val updated = SessionMemos.withoutFile(old, memoFile)
+                if (updated != (old ?: "")) files.writeReplacing(SessionMemos.FILE, updated)
+            }
+            val doc = docFor(sessionDir)
+            if (doc != null) {
+                var cur: DocumentFile? = doc
+                for (part in memoFile.split('/').filter { it.isNotEmpty() }) cur = cur?.findFile(part)
+                cur?.delete()
+            } else {
+                File(sessionDir, memoFile).takeIf { it.isFile }?.delete()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "T272: Session-Memo nicht geloescht", e)
+            false
+        }
+    }
+
+    /**
      * T264: Art-Memo-Zeitraeume (Wanduhr) je Detektion aus den MEMO_RECORDED-Events des Originals
      * (nur noch vorhandene Memos mit gespeichertem Beginn und Ende).
      */

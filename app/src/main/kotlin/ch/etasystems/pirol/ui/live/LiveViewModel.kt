@@ -204,6 +204,8 @@ class LiveViewModel(
     private val sessionMemoMutex = Mutex()
     private var sessionMemoTarget: SessionManager.SessionMemoTarget? = null
     private var sessionMemoStartSec: Float? = null
+    /** T272: Position beim Druecken (aktueller Fix des LocationProvider); null = kein Fix */
+    private var sessionMemoFix: ch.etasystems.pirol.location.LocationData? = null
 
     /** T264: Knopf gedrueckt: Session-Memo starten (nur bei laufender Aufnahme). */
     fun startSessionMemo() {
@@ -237,6 +239,9 @@ class LiveViewModel(
                 // Lage auf der Session-Achse: aktuelle Position minus die seit dem Mikrofon-Start vergangene Zeit
                 val now = System.currentTimeMillis()
                 sessionMemoStartSec = pipeline.sessionPositionSec(now)?.let { (it - (now - startMs) / 1000f).coerceAtLeast(0f) }
+                // T272: kein eigenes GNSS; Fix aelter als 2 min zaehlt als kein Fix
+                sessionMemoFix = locationProvider.location.value
+                    ?.takeIf { System.currentTimeMillis() - it.timestampMs <= 120_000L }
                 sessionMemoTarget = target
                 _sessionMemoStartedAtMs.value = startMs
             }
@@ -259,7 +264,9 @@ class LiveViewModel(
             _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_memo_gedrueckt_halten)))
             return@withLock
         }
-        val memo = SessionMemos.create(target.fileName, span.startMs, span.endMs, sessionMemoStartSec, java.time.ZoneId.systemDefault())
+        val memo = SessionMemos.create(target.fileName, span.startMs, span.endMs, sessionMemoStartSec, java.time.ZoneId.systemDefault(),
+            lat = sessionMemoFix?.latitude, lon = sessionMemoFix?.longitude, accuracyM = sessionMemoFix?.accuracyM)
+        sessionMemoFix = null
         try {
             sessionManager.appendSessionMemo(target.sessionKey, memo)
             Log.i(TAG, "T264_MEMO file=${memo.file} dur=${"%.1f".format(memo.durationSec)} startSec=${memo.startSec}")

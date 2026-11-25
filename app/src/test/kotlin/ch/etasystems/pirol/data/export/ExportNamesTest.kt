@@ -95,4 +95,12 @@ class ExportNamesTest {
         val taken = setOf("20260101120000_Wald", "20260101120000_Wald-2")
         assertEquals("20260101120000_Wald-3", ExportNames.uniqueFolderName("20260101120000_Wald") { it in taken })
     }
+
+    @Test
+    fun memoName_with_and_without_note() {
+        val tz = java.util.TimeZone.getTimeZone("Europe/Zurich")
+        val t = java.time.ZonedDateTime.of(2026, 11, 24, 14, 30, 5, 0, tz.toZoneId()).toInstant().toEpochMilli()
+        assertEquals("20261124143005_Memo", ExportNames.memoName(t, null, tz))
+        assertEquals("20261124143005_Memo_Rotmilan_Nest", ExportNames.memoName(t, "Rotmilan Nest", tz))
+    }
 }
