@@ -1572,6 +1572,119 @@
           "taxon_group": "orthoptera"
         }
       }
+    },
+    {
+      "id": "ch_bats",
+      "name_de": "CH Fledermäuse",
+      "name_en": "CH Bats",
+      "description_de": "Fledermausarten der Schweiz, vom Modell BSG-BAT erkennbar (20 Arten). Vorkommen nach Artenliste Schweiz (Fledermausschutz Schweiz / info fauna - CSCF, https://www.fledermaus.ch, https://www.infofauna.ch); Abgleich der Klassenliste von BSG-BAT v0.21 (Bericht T291), Vorkommen Stand 2026-11-25 nicht einzeln nachgeprüft. Rhinolophus euryale (Mausohr-Hufeisennase) ist im Modell, in der Schweiz aber nicht aktuell nachgewiesen und daher nicht enthalten",
+      "description_en": "Bat species of Switzerland recognised by the BSG-BAT model (20 species). Occurrence per the Swiss species list (Fledermausschutz Schweiz / info fauna - CSCF); each occurrence not individually re-verified as of 2026-11-25. Rhinolophus euryale is in the model but not currently recorded in Switzerland and is left out",
+      "source": "Fledermausschutz Schweiz (https://www.fledermaus.ch), info fauna - CSCF (https://www.infofauna.ch); Modell: bsg-bat team (2025), BSG-BAT v0.21, CC BY 4.0, https://doi.org/10.5281/zenodo.15495676",
+      "taxon_group": "chiroptera",
+      "species": [
+        "Barbastella_barbastellus",
+        "Eptesicus_nilssonii",
+        "Eptesicus_serotinus",
+        "Hypsugo_savii",
+        "Miniopterus_schreibersii",
+        "Myotis_alcathoe",
+        "Myotis_crypticus",
+        "Myotis_daubentonii",
+        "Nyctalus_leisleri",
+        "Nyctalus_noctula",
+        "Pipistrellus_kuhlii",
+        "Pipistrellus_nathusii",
+        "Pipistrellus_pipistrellus",
+        "Pipistrellus_pygmaeus",
+        "Plecotus_auritus",
+        "Plecotus_austriacus",
+        "Rhinolophus_ferrumequinum",
+        "Rhinolophus_hipposideros",
+        "Tadarida_teniotis",
+        "Vespertilio_murinus"
+      ],
+      "species_info": {
+        "Barbastella_barbastellus": {
+          "common_name": "Mopsfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Eptesicus_nilssonii": {
+          "common_name": "Nordfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Eptesicus_serotinus": {
+          "common_name": "Breitflügelfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Hypsugo_savii": {
+          "common_name": "Alpenfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Miniopterus_schreibersii": {
+          "common_name": "Langflügelfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Myotis_alcathoe": {
+          "common_name": "Nymphenfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Myotis_crypticus": {
+          "common_name": "Kryptische Fledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Myotis_daubentonii": {
+          "common_name": "Wasserfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Nyctalus_leisleri": {
+          "common_name": "Kleiner Abendsegler",
+          "taxon_group": "chiroptera"
+        },
+        "Nyctalus_noctula": {
+          "common_name": "Grosser Abendsegler",
+          "taxon_group": "chiroptera"
+        },
+        "Pipistrellus_kuhlii": {
+          "common_name": "Weissrandfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Pipistrellus_nathusii": {
+          "common_name": "Rauhautfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Pipistrellus_pipistrellus": {
+          "common_name": "Zwergfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Pipistrellus_pygmaeus": {
+          "common_name": "Mückenfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Plecotus_auritus": {
+          "common_name": "Braunes Langohr",
+          "taxon_group": "chiroptera"
+        },
+        "Plecotus_austriacus": {
+          "common_name": "Graues Langohr",
+          "taxon_group": "chiroptera"
+        },
+        "Rhinolophus_ferrumequinum": {
+          "common_name": "Grosse Hufeisennase",
+          "taxon_group": "chiroptera"
+        },
+        "Rhinolophus_hipposideros": {
+          "common_name": "Kleine Hufeisennase",
+          "taxon_group": "chiroptera"
+        },
+        "Tadarida_teniotis": {
+          "common_name": "Bulldoggfledermaus",
+          "taxon_group": "chiroptera"
+        },
+        "Vespertilio_murinus": {
+          "common_name": "Zweifarbfledermaus",
+          "taxon_group": "chiroptera"
+        }
+      }
     }
   ]
 }

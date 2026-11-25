@@ -90,7 +90,7 @@ object SetupProfile {
             threshold = 0.3f, alternativesFloor = 0.05f, overlapPercent = 50, secondary = true,
             compactCard = false,
             groups = mapOf(TaxonGroup.ORTHOPTERA to GroupSource.AUTO, TaxonGroup.AMPHIBIANS to GroupSource.AUTO,
-                TaxonGroup.MAMMALS to GroupSource.ALL)
+                TaxonGroup.MAMMALS to GroupSource.ALL, TaxonGroup.BATS to GroupSource.ALL)
         )
     }
 
@@ -110,9 +110,10 @@ object SetupProfile {
         val wantSecondary = choices.secondaryOverride ?: vs.any { it.secondary }
         val secondary = choices.secondaryModel?.takeIf { it in secondaryCandidates }
             ?: secondaryCandidates.firstOrNull()
-        val groups = (TaxonGroup.entries - TaxonGroup.BIRDS).associateWith { g ->
+        // T295: Fledermaeuse nur setzen, wenn ein Profil sie will (sonst bleibt der Standard "Alle")
+        val groups = (TaxonGroup.entries - TaxonGroup.BIRDS - TaxonGroup.BATS).associateWith { g ->
             first { it.groups[g] } ?: GroupSource.OFF
-        }
+        } + listOfNotNull(first { it.groups[TaxonGroup.BATS] }?.let { TaxonGroup.BATS to it })
         return SetupSettings(
             birdsSource = choices.list.regionId,
             groupSources = groups,

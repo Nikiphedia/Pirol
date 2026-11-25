@@ -1903,7 +1903,15 @@ class AnalysisViewModel(
 
 
     /** Installierte Modelle fuer den Rescan-Dialog */
-    fun rescanModels(): List<ch.etasystems.pirol.ml.ModelManager.InstalledModel> = rescanEngine.models()
+    fun rescanModels(): List<ch.etasystems.pirol.ml.ModelManager.InstalledModel> = rescanModelOffer().offered
+
+    /** T295: Abtastrate der geoeffneten Session in Hz (0 = unbekannt) */
+    fun rescanSessionRateHz(): Int = _uiState.value.selectedSession?.metadata?.sampleRate ?: 0
+
+    /** T295: Modelle nach Abtastrate der Session aufgeteilt (Ultraschall-Modelle fuer zu kleine Rate ausgeblendet) */
+    fun rescanModelOffer(): ch.etasystems.pirol.rescan.RescanModelOffer.Offer =
+        ch.etasystems.pirol.rescan.RescanModelOffer.split(
+            rescanEngine.models(), _uiState.value.selectedSession?.metadata?.sampleRate ?: 0)
 
     /** Listen (Assets und eigene) fuer den Rescan-Dialog */
     suspend fun rescanRegions(): List<ch.etasystems.pirol.ml.RegionInfo> = rescanEngine.regions()
