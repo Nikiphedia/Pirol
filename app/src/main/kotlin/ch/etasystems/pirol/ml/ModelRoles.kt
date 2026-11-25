@@ -33,4 +33,17 @@ object ModelRoles {
 
     fun secondaryAfterDelete(deleted: String, secondary: String?): String? =
         if (secondary == deleted) null else secondary
+
+    /** T304: Ergebnis von [afterBatsOff] */
+    data class Roles(val primary: String, val secondary: String?)
+
+    /**
+     * T304: Fledermaus-Schalter aus -> Ultraschall-Modell als Primaer auf [fallbackPrimary] (Standardmodell),
+     * als Sekundaer auf keins. [isUltrasonic] liefert je Dateiname, ob das Modell Ultraschall braucht.
+     */
+    fun afterBatsOff(primary: String, secondary: String?, fallbackPrimary: String, isUltrasonic: (String) -> Boolean): Roles {
+        val newPrimary = if (isUltrasonic(primary)) fallbackPrimary else primary
+        val newSecondary = secondary?.takeUnless { isUltrasonic(it) || it == newPrimary }
+        return Roles(newPrimary, newSecondary)
+    }
 }

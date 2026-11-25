@@ -87,6 +87,10 @@ internal fun InfoSettingsSection(
                     Toast.makeText(context, AppStrings.get(
                         if (appPreferences.experimentalBats) R.string.experimental_bats_on else R.string.experimental_bats_off
                     ), Toast.LENGTH_SHORT).show()
+                    // T304: Ultraschall-Modell als Primaer-/Sekundaermodell zuruecksetzen
+                    if (!appPreferences.experimentalBats && modelManager.resetUltrasonicModels()) {
+                        Toast.makeText(context, AppStrings.get(R.string.experimental_bats_models_reset), Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         )

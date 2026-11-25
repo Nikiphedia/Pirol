@@ -1093,4 +1093,5 @@
     <string name="help_analysis_memo_row">Mémo : un appui saute à sa position dans l\'enregistrement.</string>
     <string name="help_analysis_memo_play">Lire le mémo ; un second appui arrête la lecture.</string>
     <string name="settings_info_developer">Développeur : ETA Systems GmbH, 5004 Aarau, Suisse</string>
+    <string name="experimental_bats_models_reset">Modèle ultrasons réinitialisé (modèle par défaut / aucun second modèle).</string>
 </resources>

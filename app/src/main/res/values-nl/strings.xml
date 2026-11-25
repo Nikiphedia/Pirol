@@ -1094,4 +1094,5 @@
     <string name="help_analysis_memo_row">Memo: tikken springt naar de plek in de opname.</string>
     <string name="help_analysis_memo_play">Memo afspelen; een tweede tik stopt.</string>
     <string name="settings_info_developer">Ontwikkelaar: ETA Systems GmbH, 5004 Aarau, Zwitserland</string>
+    <string name="experimental_bats_models_reset">Ultrageluidsmodel teruggezet (standaardmodel / geen tweede model).</string>
 </resources>

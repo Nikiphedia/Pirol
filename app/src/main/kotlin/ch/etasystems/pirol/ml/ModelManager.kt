@@ -188,6 +188,27 @@ class ModelManager(
             ?: emptyList()
     }
 
+    /**
+     * T304: Fledermaus-Schalter wurde ausgeschaltet -> aktives Ultraschall-Modell zuruecksetzen
+     * (Primaer -> Standardmodell, Sekundaer -> keins). Gibt true zurueck, wenn etwas geaendert wurde.
+     */
+    fun resetUltrasonicModels(): Boolean {
+        val dir = File(context.filesDir, MODEL_DIR)
+        fun ultrasonic(name: String): Boolean {
+            val f = File(dir, name)
+            return f.exists() && ModelProfile.resolve(f.name, f.length()).isUltrasonic
+        }
+        val primary = appPreferences.activeModelFileName
+        val secondary = appPreferences.secondaryModelFileName
+        val default = "birdnet_v3.onnx"
+        val roles = ModelRoles.afterBatsOff(primary, secondary, default, ::ultrasonic)
+        if (roles.primary == primary && roles.secondary == secondary) return false
+        appPreferences.activeModelFileName = roles.primary
+        appPreferences.secondaryModelFileName = roles.secondary
+        Log.i(TAG, "Ultraschall-Modelle zurueckgesetzt: ${roles.primary} / ${roles.secondary}")
+        return true
+    }
+
     /** Aktives Modell umschalten (Preference setzen) */
     fun setActiveModel(fileName: String) {
         val file = File(File(context.filesDir, MODEL_DIR), fileName)
