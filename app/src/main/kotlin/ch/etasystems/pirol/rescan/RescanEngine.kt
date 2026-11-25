@@ -95,14 +95,23 @@ class RescanEngine(
      * T260: [variantId] = Kennung der schon sichtbaren Variante (null bis sie angelegt ist),
      * [version] zaehlt die Flushes (UI laedt die Liste je Flush neu).
      */
-    data class Active(val sessionDir: File, val progress: Float, val variantId: String? = null, val version: Int = 0)
+    data class Active(
+        val sessionDir: File,
+        val progress: Float,
+        val variantId: String? = null,
+        val version: Int = 0,
+        /** T273: Stelle in der Warteschlange (0-basiert) und deren Laenge (mehrere importierte Sessions) */
+        val batchIndex: Int = 0,
+        val batchSize: Int = 1
+    )
     private val _active = MutableStateFlow<Active?>(null)
     val active: StateFlow<Active?> = _active.asStateFlow()
 
     /** Ende eines Rescans: Erfolg, Abbruch oder Fehler (Ausnahme zur Meldungswahl) */
     sealed class Outcome {
         abstract val sessionDir: File
-        data class Done(override val sessionDir: File, val info: RescanInfo) : Outcome()
+        /** T273: [promoted] = erster Scan einer importierten Session wurde zum Original (keine Variante mehr) */
+        data class Done(override val sessionDir: File, val info: RescanInfo, val promoted: Boolean = false) : Outcome()
         /** T260: [variantId] = behaltenes Teilergebnis (ABORTED), null = Abbruch vor dem Anlegen */
         data class Cancelled(override val sessionDir: File, val variantId: String? = null) : Outcome()
         data class Failed(override val sessionDir: File, val error: Throwable, val variantId: String? = null) : Outcome()
@@ -110,33 +119,54 @@ class RescanEngine(
     private val _outcomes = MutableSharedFlow<Outcome>(extraBufferCapacity = 4)
     val outcomes: SharedFlow<Outcome> = _outcomes.asSharedFlow()
 
-    /** Rescan im Engine-Scope starten; ignoriert, wenn bereits einer laeuft. */
-    fun start(sessionDir: File, options: RescanOptions) {
+    /**
+     * Rescan im Engine-Scope starten; ignoriert, wenn bereits einer laeuft.
+     * T273 (B8): [then] = weitere Sessions mit denselben Einstellungen nacheinander (Import mehrerer Dateien).
+     * Abbruch (Knopf) oder gestartete Aufnahme beendet die ganze Warteschlange; andere Fehler nur die Session.
+     */
+    fun start(sessionDir: File, options: RescanOptions, then: List<File> = emptyList()) {
         synchronized(this) {
             if (job?.isActive == true || _active.value != null) return
-            _active.value = Active(sessionDir, 0f)
+            val queue = (listOf(sessionDir) + then).distinctBy { it.path }
+            _active.value = Active(sessionDir, 0f, batchSize = queue.size)
             job = scope.launch {
-                var lastPct = -1
-                val outcome = try {
-                    Outcome.Done(sessionDir, run(sessionDir, options) { p ->
-                        val pct = (p * 100).toInt()
-                        if (pct != lastPct) {
-                            lastPct = pct
-                            _active.update { it?.copy(progress = p) }
+                try {
+                    for ((index, dir) in queue.withIndex()) {
+                        _active.value = Active(dir, 0f, batchIndex = index, batchSize = queue.size)
+                        var lastPct = -1
+                        val outcome = try {
+                            val info = run(dir, options) { p ->
+                                val pct = (p * 100).toInt()
+                                if (pct != lastPct) {
+                                    lastPct = pct
+                                    _active.update { it?.copy(progress = p) }
+                                }
+                            }
+                            Outcome.Done(dir, info, promoted = isPromoted(dir, info))
+                        } catch (e: CancellationException) {
+                            Outcome.Cancelled(dir, _active.value?.variantId)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Rescan fehlgeschlagen", e)
+                            Outcome.Failed(dir, e, _active.value?.variantId)
                         }
-                    })
-                } catch (e: CancellationException) {
-                    Outcome.Cancelled(sessionDir, _active.value?.variantId)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Rescan fehlgeschlagen", e)
-                    Outcome.Failed(sessionDir, e, _active.value?.variantId)
+                        val stop = outcome is Outcome.Cancelled || (outcome is Outcome.Failed &&
+                            (outcome.error is RecordingActiveException || outcome.error is RescanAbortedException))
+                        if (stop || index == queue.lastIndex) _active.value = null
+                        _outcomes.tryEmit(outcome)
+                        if (stop) break
+                    }
                 } finally {
                     _active.value = null
                 }
-                _outcomes.tryEmit(outcome)
             }
         }
     }
+
+    /** T273: fertige Variante wurde zum Original (Metadaten der Variante sind weg) */
+    private suspend fun isPromoted(sessionDir: File, info: RescanInfo): Boolean =
+        info.status == RescanStatus.DONE && runCatching {
+            sessionManager.withSessionFiles(sessionDir) { RescanFiles.meta(info.id) !in it.listNames() }
+        }.getOrDefault(false)
 
     /** Laufenden Rescan abbrechen; T260: das Teilergebnis bleibt als Variante (ABORTED) */
     fun cancel() { job?.cancel() }
@@ -185,7 +215,18 @@ class RescanEngine(
      * einer Session mit liegengebliebener Zusatzdatei (T251).
      */
     suspend fun variants(sessionDir: File): List<RescanInfo> {
-        val list = runCatching { sessionManager.withSessionFiles(sessionDir) { RescanStore.list(it) } }.getOrElse { emptyList() }
+        var list = runCatching { sessionManager.withSessionFiles(sessionDir) { RescanStore.list(it) } }.getOrElse { emptyList() }
+        // T273: abgebrochene Uebernahme ins Original zu Ende fuehren
+        val promoting = RescanPromotion.pending(list)
+        if (promoting.isNotEmpty()) {
+            for (info in promoting) {
+                runCatching {
+                    val ok = sessionManager.withSessionFiles(sessionDir) { RescanPromotion.promote(it, info) }
+                    if (ok) sessionManager.exportRavenSelectionTable(sessionDir, appPreferences)
+                }.onFailure { Log.w(TAG, "T273 Uebernahme der Variante ${info.id} nicht abgeschlossen", it) }
+            }
+            list = runCatching { sessionManager.withSessionFiles(sessionDir) { RescanStore.list(it) } }.getOrElse { emptyList() }
+        }
         val stale = RescanStatus.stale(list, runningVariant(sessionDir))
         if (stale.isEmpty()) return list
         for (info in stale) {
@@ -228,14 +269,33 @@ class RescanEngine(
             RescanVerification.countTransferred(f.readText(RescanFiles.verifications(id)))
         }
         val done = RescanStatus.finished(info, status, scannedSec, current.size, transferred)
-        sessionManager.withSessionFiles(sessionDir) { RescanStore.writeMeta(it, done) }
-        runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = id) }
+        // T273: erster vollstaendiger Scan einer importierten Session ohne Original-Detektionen -> Original
+        val promoted = sessionManager.withSessionFiles(sessionDir) { f ->
+            RescanStore.writeMeta(f, done)
+            status == RescanStatus.DONE && promoteIfFirst(f, done)
+        }
+        if (promoted) Log.i(TAG, "T273: Scan $id als Original uebernommen (importierte Session)")
+        runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = if (promoted) null else id) }
             .onFailure { Log.w(TAG, "Raven-Export der Variante fehlgeschlagen", it) }
         return done
     }
 
+    /** T273: Variante ins Original uebernehmen, wenn sie der erste Scan einer importierten Session ist (unter fileMutex). */
+    private fun promoteIfFirst(files: ch.etasystems.pirol.data.repository.SessionFiles, info: RescanInfo): Boolean {
+        val meta = files.readText("session.json")?.let {
+            runCatching { SessionJson.lenient.decodeFromString<ch.etasystems.pirol.data.repository.SessionMetadata>(it) }.getOrNull()
+        }
+        val first = RescanPromotion.shouldPromote(
+            meta, info.id,
+            files.readText(RescanFiles.DETECTIONS), files.readText(RescanFiles.VERIFICATIONS),
+            RescanStore.list(files)
+        )
+        return first && RescanPromotion.promote(files, info)
+    }
+
     /**
-     * Rescan ausfuehren und als neue Variante speichern (Original bleibt unveraendert).
+     * Rescan ausfuehren und als neue Variante speichern (Original bleibt unveraendert; T273: Ausnahme erster
+     * Scan einer importierten Session, siehe [RescanPromotion]).
      * @return Metadaten der neuen Variante
      */
     suspend fun run(sessionDir: File, options: RescanOptions, onProgress: (Float) -> Unit): RescanInfo {

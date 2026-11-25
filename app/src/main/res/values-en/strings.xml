@@ -956,4 +956,6 @@
     <string name="help_settings_map_gps">Map and GPS: GPS mode, route recording, interval and accuracy.</string>
     <string name="help_settings_export">Export and upload: Raven fields, upload target (folder or NAS), privacy for human voices.</string>
     <string name="help_settings_info">Info: version, sources, what is new, diagnostics.</string>
+    <string name="analysis_angaben_upload_laeuft">Upload of this session in progress. Change the start time afterwards.</string>
+    <string name="analysis_rescan_alle_importierten">Applies to all %1$d imported sessions (one after another).</string>
 </resources>

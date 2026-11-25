@@ -1338,6 +1338,8 @@ class AnalysisViewModel(
             reportError(AppStrings.get(R.string.analysis_angaben_rescan_laeuft))
             return
         }
+        // T273: neue Startzeit benennt den Ordner um -> laufende Wiedergabe vorher stoppen
+        if (ch.etasystems.pirol.data.repository.SessionInfoEdit.deltaMs(current.metadata.startedAt, start)?.let { it != 0L } == true) playback.stop()
         viewModelScope.launch(Dispatchers.IO) {
             val dir = current.sessionDir
             val result = sessionManager.updateImportedSessionInfo(dir, start, lat, lon, note.take(200), appPreferences)
@@ -1346,9 +1348,20 @@ class AnalysisViewModel(
                 SessionManager.InfoEditResult.Active -> {
                     reportError(AppStrings.get(R.string.analysis_angaben_aufnahme_laeuft)); return@launch
                 }
+                SessionManager.InfoEditResult.Busy -> {
+                    reportError(AppStrings.get(R.string.analysis_angaben_upload_laeuft)); return@launch
+                }
                 else -> {
                     reportError(AppStrings.get(R.string.analysis_angaben_fehler)); return@launch
                 }
+            }
+            // T273: Ordner umbenannt/verschoben -> Liste neu laden und die Session am neuen Ort oeffnen
+            val newDir = (result as SessionManager.InfoEditResult.Ok).sessionDir
+            if (newDir != null && newDir.path != dir.path) {
+                loadSessionsNow()
+                val summary = _uiState.value.sessions.firstOrNull { it.sessionDir.path == newDir.path }
+                if (summary != null && _uiState.value.selectedSession?.sessionDir == dir) openSession(summary)
+                return@launch
             }
             _uiState.update { st ->
                 st.copy(
@@ -1719,6 +1732,18 @@ class AnalysisViewModel(
     /** Rescan-Dialog wurde geoeffnet (Anfrage nach Fremdaudio-Import) */
     fun consumeRescanRequest() { _uiState.update { it.copy(rescanRequest = false) } }
 
+    /** T273 (B8): Sessions des letzten Fremdaudio-Imports (erste = geoeffnete); der Rescan-Dialog scannt alle */
+    @Volatile private var importBatch: List<File> = emptyList()
+
+    /** T273: Zahl der Sessions, die der Rescan-Dialog scannt (1 = nur die geoeffnete) */
+    fun rescanBatchSize(): Int {
+        val dir = _uiState.value.selectedSession?.sessionDir ?: return 1
+        return importBatch.takeIf { it.firstOrNull() == dir }?.size ?: 1
+    }
+
+    /** T273: Rescan-Dialog ohne Start geschlossen -> Import-Warteschlange verwerfen */
+    fun clearImportBatch() { importBatch = emptyList() }
+
     /** Ende des Imports: Liste neu laden, erste neue Session oeffnen; nach Fremdaudio den Rescan-Dialog anbieten. */
     private fun observeImport() {
         viewModelScope.launch {
@@ -1737,6 +1762,10 @@ class AnalysisViewModel(
                     }
                 }
                 val first = o.sessionIds.firstOrNull()?.let { id -> _uiState.value.sessions.firstOrNull { it.metadata.sessionId == id } }
+                // T273 (B8): alle importierten Sessions fuer den Rescan-Dialog merken (Reihenfolge des Imports)
+                importBatch = if (o is SessionImporter.Outcome.Done && o.kind == SessionImporter.Kind.AUDIO) {
+                    o.sessionIds.mapNotNull { id -> _uiState.value.sessions.firstOrNull { it.metadata.sessionId == id }?.sessionDir }
+                } else emptyList()
                 if (o is SessionImporter.Outcome.Done && first != null && !_uiState.value.selectionMode) {
                     _uiState.update { it.copy(rescanRequest = o.kind == SessionImporter.Kind.AUDIO) }
                     openSession(first)
@@ -1778,7 +1807,10 @@ class AnalysisViewModel(
         }
         playback.stop()
         _uiState.update { it.copy(rescanProgress = 0f, rescanSessionDir = dir) }
-        rescanEngine.start(dir, options)  // T250/M4: laeuft im Engine-Scope, ueberlebt das ViewModel
+        // T273 (B8): nach Import mehrerer Dateien alle neuen Sessions nacheinander scannen
+        val more = importBatch.takeIf { it.firstOrNull() == dir }?.drop(1) ?: emptyList()
+        importBatch = emptyList()
+        rescanEngine.start(dir, options, more)  // T250/M4: laeuft im Engine-Scope, ueberlebt das ViewModel
         // T252: Vordergrund-Dienst haelt den Prozess am Leben (auch bei ausgeschaltetem Bildschirm)
         runCatching { ch.etasystems.pirol.rescan.RescanService.start(context) }
             .onFailure { Log.w("AnalysisViewModel", "Rescan-Dienst nicht gestartet", it) }
@@ -1806,8 +1838,16 @@ class AnalysisViewModel(
                             rescanReloadJob?.cancel()
                             val variants = rescanEngine.variants(o.sessionDir)
                             _uiState.update { it.copy(variants = variants) }
-                            verificationMutex.withLock { loadVariant(o.sessionDir, info.id) }
+                            // T273: erster Scan einer importierten Session ist jetzt das Original
+                            verificationMutex.withLock { loadVariant(o.sessionDir, if (o.promoted) null else info.id) }
+                            if (o.promoted) sessionManager.loadMetadata(o.sessionDir)?.let { m ->
+                                _uiState.update { st ->
+                                    if (st.selectedSession?.sessionDir != o.sessionDir) st
+                                    else st.copy(selectedSession = st.selectedSession.copy(metadata = m))
+                                }
+                            }
                         }
+                        if (o.promoted) loadSessions()
                         reportError(AppStrings.get(R.string.analysis_rescan_fertig, info.detectionCount, info.transferredVerifications))
                     }
                     is ch.etasystems.pirol.rescan.RescanEngine.Outcome.Cancelled -> {

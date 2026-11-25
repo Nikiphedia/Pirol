@@ -46,7 +46,9 @@ data class SessionInfoEditPlan(
     /** SHA-256 der alten session.json: nur ersetzen, solange sie noch unveraendert ist */
     val oldSessionJsonHash: String? = null,
     /** Dateiname -> SHA-256 des Inhalts vor der Bearbeitung; nur unveraenderte Dateien werden umgerechnet */
-    val originalHashes: Map<String, String> = emptyMap()
+    val originalHashes: Map<String, String> = emptyMap(),
+    /** T273: Ordner umbenennen/verschieben (neue Session-ID aus der Startzeit); null = Ordner bleibt */
+    val rename: SessionRenameTarget? = null
 )
 
 /**
@@ -163,6 +165,14 @@ object SessionInfoEdit {
             metadata = meta
         )
     }
+
+    /**
+     * T273: Auftrag um die Ordner-Umbenennung ergaenzen: session.json bekommt die neue Session-ID (= neuer
+     * Ordnername). [target] null = Auftrag unveraendert.
+     */
+    fun withRename(plan: SessionInfoEditPlan, target: SessionRenameTarget?): SessionInfoEditPlan =
+        if (target == null) plan
+        else plan.copy(rename = target, metadata = plan.metadata.copy(sessionId = target.newName))
 
     /** Muessen Dateien ausser session.json umgerechnet werden? */
     fun touchesFiles(plan: SessionInfoEditPlan): Boolean = plan.deltaMs != 0L || plan.relocate
@@ -331,12 +341,20 @@ object SessionInfoEdit {
 
     /**
      * Auftrag ausfuehren (Aufrufer haelt den fileMutex). Reihenfolge: Detektionen/Verifikationen/Varianten/Track,
-     * dann session.json, dann Auftragsdatei loeschen. Jede Datei wird nur umgerechnet, solange ihr Inhalt noch
+     * dann session.json, T273: dann Ordner umbenennen/verschieben ([folder], die Auftragsdatei wandert mit),
+     * dann Auftragsdatei loeschen. Jede Datei wird nur umgerechnet, solange ihr Inhalt noch
      * dem Stand vor der Bearbeitung entspricht (Hash) — ein Wiederholen nach Abbruch verschiebt nie doppelt.
      * Jede einzelne Datei wird atomar ersetzt ([SessionFiles.writeReplacing]).
+     * T273: Ohne [folder] bleibt ein Auftrag mit Umbenennung liegen (wird beim naechsten Oeffnen nachgeholt).
      * @return Anzahl umgeschriebener Dateien (ohne session.json)
      */
-    fun execute(files: SessionFiles, plan: SessionInfoEditPlan, sessionJsonName: String = "session.json"): Int {
+    fun execute(
+        files: SessionFiles,
+        plan: SessionInfoEditPlan,
+        sessionJsonName: String = "session.json",
+        folder: SessionFolder? = null,
+        onRename: (SessionRename.Outcome) -> Unit = {}
+    ): Int {
         var written = 0
         for ((name, hash) in plan.originalHashes) {
             val text = files.readText(name) ?: continue
@@ -352,19 +370,31 @@ object SessionInfoEdit {
         if (plan.oldSessionJsonHash == null || currentJson == null || sha256(currentJson) == plan.oldSessionJsonHash) {
             files.writeReplacing(sessionJsonName, SessionJson.pretty.encodeToString(plan.metadata))
         }
-        files.delete(JOURNAL_FILE)
+        val rename = plan.rename
+        if (rename == null) {
+            files.delete(JOURNAL_FILE)
+            return written
+        }
+        if (folder == null) return written  // T273: Ordner nicht greifbar -> Auftrag bleibt liegen
+        onRename(SessionRename.apply(folder, rename))
+        folder.files().delete(JOURNAL_FILE)  // Auftrag liegt jetzt im umbenannten Ordner
         return written
     }
 
     /** Liegengebliebenen Auftrag zu Ende fuehren; null = keiner vorhanden. Unlesbarer Auftrag wird verworfen. */
-    fun resumePending(files: SessionFiles, sessionJsonName: String = "session.json"): SessionInfoEditPlan? {
+    fun resumePending(
+        files: SessionFiles,
+        sessionJsonName: String = "session.json",
+        folder: SessionFolder? = null,
+        onRename: (SessionRename.Outcome) -> Unit = {}
+    ): SessionInfoEditPlan? {
         val text = files.readText(JOURNAL_FILE) ?: return null
         val plan = decodePlan(text)
         if (plan == null) {
             files.delete(JOURNAL_FILE)
             return null
         }
-        execute(files, plan, sessionJsonName)
+        execute(files, plan, sessionJsonName, folder, onRename)
         return plan
     }
 
@@ -380,7 +410,7 @@ object SessionInfoEdit {
             oldSessionJsonHash = files.readText(sessionJsonName)?.let { sha256(it) },
             originalHashes = hashes
         )
-        if (hashes.isNotEmpty()) files.writeReplacing(JOURNAL_FILE, encodePlan(full))
+        if (hashes.isNotEmpty() || full.rename != null) files.writeReplacing(JOURNAL_FILE, encodePlan(full))
         return full
     }
 }
