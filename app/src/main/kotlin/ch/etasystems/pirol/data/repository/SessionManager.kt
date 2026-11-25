@@ -68,7 +68,10 @@ class SessionManager(
     private val context: Context,
     private val appPreferences: AppPreferences,
     /** T251 (Zusatz T249, M1): Live-Liste der aktiven Session; Aenderungen von aussen setzen dort auf. */
-    private val liveDetections: DetectionListState? = null
+    private val liveDetections: DetectionListState? = null,
+    /** T304: WorkManager-Abfrage fuer eingereihte Uploads (Tests: Fake) */
+    private val uploadQueue: ch.etasystems.pirol.data.sync.UploadQueueProbe =
+        ch.etasystems.pirol.data.sync.WorkManagerUploadQueue(context)
 ) {
 
     companion object {
@@ -1193,7 +1196,8 @@ class SessionManager(
     private fun uploadPending(sessionName: String): Boolean {
         val s = ch.etasystems.pirol.data.sync.UploadStatusHolder.status.value
         return (s is ch.etasystems.pirol.data.sync.UploadStatus.InProgress && s.sessionId == sessionName) ||
-            (s is ch.etasystems.pirol.data.sync.UploadStatus.AwaitingDecision && s.sessionId == sessionName)
+            (s is ch.etasystems.pirol.data.sync.UploadStatus.AwaitingDecision && s.sessionId == sessionName) ||
+            uploadQueue.hasPendingUpload(sessionName)  // T304: auch eingereihte/wartende Uploads
     }
 
     /**

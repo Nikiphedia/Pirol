@@ -260,7 +260,9 @@ data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
     fun usesAuto(): Boolean = TaxonGroup.entries.any { sourceOf(it) == GroupSource.AUTO }
 
     /** Fuer session.json (Schluessel = Gruppen-Code) */
-    fun toMap(): Map<String, String> = TaxonGroup.entries.associate { it.code to sourceOf(it) }
+    fun toMap(): Map<String, String> =
+        TaxonGroup.entries.filter { it != TaxonGroup.BATS || FeatureFlags.bats }  // T304: ohne Schalter kein "bats"-Schluessel
+            .associate { it.code to sourceOf(it) }
 
     fun encode(): String = toMap().entries.joinToString("\n") { "${it.key}=${it.value}" }
 

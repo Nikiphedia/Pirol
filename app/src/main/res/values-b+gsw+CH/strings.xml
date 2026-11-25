@@ -1094,4 +1094,5 @@
     <string name="help_analysis_memo_row">Memo: Antippe springt zu dr Schtell i dr Ufnahm.</string>
     <string name="help_analysis_memo_play">Memo abspiele; en zweite Tipp stoppt.</string>
     <string name="settings_info_developer">Entwickler: ETA Systems GmbH, 5004 Aarau, Schwiiz</string>
+    <string name="experimental_bats_models_reset">Ultraschall-Modäll zrüggsetzt (Standardmodäll bzw. kein Zwöitmodäll).</string>
 </resources>

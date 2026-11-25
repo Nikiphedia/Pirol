@@ -1093,4 +1093,5 @@
     <string name="help_analysis_memo_row">Memo: en tocar-lo salta al punt corresponent de la gravació.</string>
     <string name="help_analysis_memo_play">Reprodueix el memo; un segon toc l\'atura.</string>
     <string name="settings_info_developer">Desenvolupador: ETA Systems GmbH, 5004 Aarau, Suïssa</string>
+    <string name="experimental_bats_models_reset">Model d\'ultrasons restablert (model per defecte / sense segon model).</string>
 </resources>
