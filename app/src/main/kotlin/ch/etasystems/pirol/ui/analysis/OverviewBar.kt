@@ -82,9 +82,11 @@ fun OverviewBar(
     val currentWidth = if (viewStartSec != null && viewEndSec != null) viewEndSec - viewStartSec else null
     // waehrend des Ziehens lokaler Start, damit das Rechteck mitlaeuft; erst beim Loslassen wird neu gerendert
     var dragStart by remember { mutableStateOf<Float?>(null) }
-    val width = OverviewBarGeometry.windowWidth(totalSec, currentWidth)
-    val shownStart = dragStart ?: viewStartSec ?: 0f
-    val shownEnd = if (dragStart != null || currentWidth != null) shownStart + width else totalSec
+    // T276: waehrend des Pinch lokaler Ausschnitt (Start, Breite); gemeldet wird beim Loslassen
+    var pinchWindow by remember { mutableStateOf<Pair<Float, Float>?>(null) }
+    val width = pinchWindow?.second ?: OverviewBarGeometry.windowWidth(totalSec, currentWidth)
+    val shownStart = pinchWindow?.first ?: dragStart ?: viewStartSec ?: 0f
+    val shownEnd = if (pinchWindow != null || dragStart != null || currentWidth != null) shownStart + width else totalSec
     val primary = MaterialTheme.colorScheme.primary
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val markColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -95,6 +97,20 @@ fun OverviewBar(
             .clip(RoundedCornerShape(6.dp))
             .background(trackColor)
             .semantics { this.contentDescription = contentDescription }
+            // T276: Pinch-Zoom um den Schwerpunkt der Finger (Initial-Pass, nur ab zwei Fingern)
+            .pinchZoom(
+                onPinch = { zoom, frac ->
+                    val (cs, cw) = pinchWindow
+                        ?: ((viewStartSec ?: 0f) to OverviewBarGeometry.windowWidth(totalSec, currentWidth ?: totalSec))
+                    val focus = (frac * totalSec).coerceIn(cs, cs + cw)
+                    pinchWindow = TimeZoom.zoom(totalSec, cs, cw, zoom, focus)
+                },
+                onEnd = {
+                    val w = pinchWindow
+                    pinchWindow = null
+                    if (w != null) onWindowChange(w.first, w.second)
+                }
+            )
             .pointerInput(totalSec, currentWidth) {
                 detectTapGestures { pos ->
                     val w = OverviewBarGeometry.windowWidth(totalSec, currentWidth)

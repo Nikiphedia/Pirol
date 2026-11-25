@@ -1209,6 +1209,8 @@ class AnalysisViewModel(
         uploadManager.autoUpload = appPreferences.autoUpload
         uploadManager.enqueue(dir, manual = true, maskChoice = maskChoice)
         awaitingUploadDecision = true
+        uploadFromHere = true
+        lastReportedUpload = null
         if (uploadDecisionObserver == null) {
             uploadDecisionObserver = viewModelScope.launch {
                 uploadManager.status.collect { s ->
@@ -1218,6 +1220,25 @@ class AnalysisViewModel(
                     } else if (s is ch.etasystems.pirol.data.sync.UploadStatus.Success ||
                         s is ch.etasystems.pirol.data.sync.UploadStatus.Failed
                     ) awaitingUploadDecision = false
+                    // T276: Rueckmeldung nur fuer von hier ausgeloeste Uploads (Status-Wechsel, einmal pro Status)
+                    if (uploadFromHere && s != lastReportedUpload) {
+                        when (s) {
+                            is ch.etasystems.pirol.data.sync.UploadStatus.Success -> {
+                                uploadFromHere = false
+                                reportError(AppStrings.get(R.string.analysis_upload_hochgeladen))
+                            }
+                            is ch.etasystems.pirol.data.sync.UploadStatus.Failed -> {
+                                uploadFromHere = false
+                                reportError(AppStrings.get(R.string.analysis_upload_fehlgeschlagen, s.error))
+                            }
+                            is ch.etasystems.pirol.data.sync.UploadStatus.AwaitingDecision -> if (!s.manual) {
+                                uploadFromHere = false
+                                reportError(AppStrings.get(R.string.live_upload_wartet_entscheid))
+                            }
+                            else -> {}
+                        }
+                        lastReportedUpload = s
+                    }
                 }
             }
         }
@@ -1226,6 +1247,8 @@ class AnalysisViewModel(
 
     // T263: Warten auf den Entscheid bei Modell ohne Mensch-Klasse (nur fuer von hier ausgeloeste Uploads)
     private var awaitingUploadDecision = false
+    private var uploadFromHere = false  // T276
+    private var lastReportedUpload: ch.etasystems.pirol.data.sync.UploadStatus? = null
     private var uploadDecisionObserver: Job? = null
 
     /** T263: BirdNET-3-Datei fuer den Ersatz-Scan (null = nicht installiert oder Aufnahme laeuft) */

@@ -974,4 +974,6 @@
     <string name="analysis_memo_loeschen_gesperrt">Delete (recording in progress)</string>
     <string name="analysis_angaben_upload_laeuft">Upload of this session in progress. Change the start time afterwards.</string>
     <string name="analysis_rescan_alle_importierten">Applies to all %1$d imported sessions (one after another).</string>
+    <string name="analysis_upload_hochgeladen">Uploaded</string>
+    <string name="analysis_upload_fehlgeschlagen">Upload failed: %1$s</string>
 </resources>

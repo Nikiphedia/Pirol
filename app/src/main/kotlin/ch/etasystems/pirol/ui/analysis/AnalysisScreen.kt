@@ -878,6 +878,7 @@ private fun SessionDetailContent(
             val sessionRange = rememberStaticRange(state.spectrogramState, settings)
             // T116: Zoom auf den abgespielten Detektions-Ausschnitt
             val zoom = state.zoomRange
+            var pinchLive by remember { mutableStateOf<Pair<Float, Float>?>(null) }  // T276
             val zoomRangeDb = rememberStaticRange(state.zoomSpectrogramState, settings)
             // T200: Achse und Bin-Zuschnitt aus derselben Config wie die Mel-Berechnung (bis Nyquist)
             val mainState = if (zoom != null) state.zoomSpectrogramState else state.spectrogramState
@@ -899,6 +900,20 @@ private fun SessionDetailContent(
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (settings.palette.isLight) Color.White else Color.Black)
                     .helpTopic(R.string.help_analysis_sonogram, "6")
+                    // T276: Pinch-Zoom der Zeitachse (nur Sonogramm); Basis ist der zuletzt angeforderte Ausschnitt
+                    .pinchZoom(
+                        onPinch = { scale, frac ->
+                            val total = state.recordingDurationSec
+                            if (mode == LiveDisplayMode.SONOGRAM && total > 0f) {
+                                val (cs, cw) = pinchLive ?: ((zoom?.startSec ?: 0f) to (zoom?.durationSec ?: total))
+                                val next = TimeZoom.zoom(total, cs, cw, scale, cs + frac * cw)
+                                pinchLive = next
+                                if (TimeZoom.isWhole(total, next.second)) viewModel.clearZoom()
+                                else viewModel.showWindow(next.first, next.second)
+                            }
+                        },
+                        onEnd = { pinchLive = null }
+                    )
                     // T210: Tippen setzt die Wiedergabe (nur Sonogramm; das Oszillogramm meldet selbst), Langdruck = Panel
                     .pointerInput(mode, zoom, state.recordingDurationSec) {
                         detectTapGestures(
@@ -1008,7 +1023,10 @@ private fun SessionDetailContent(
                 viewEndSec = zoom?.endSec,
                 markers = markers,
                 contentDescription = stringResource(R.string.analysis_uebersichtsleiste),
-                onWindowChange = { start, width -> viewModel.showWindow(start, width) },
+                onWindowChange = { start, width ->
+                    if (TimeZoom.isWhole(state.recordingDurationSec, width)) viewModel.clearZoom()  // T276
+                    else viewModel.showWindow(start, width)
+                },
                 modifier = Modifier.helpTopic(R.string.help_analysis_overview_bar, "6")
             )
             if (showPanel) {
