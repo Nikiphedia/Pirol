@@ -8,6 +8,8 @@ import kotlinx.serialization.encodeToString
 
 /**
  * T273: Erster Scan einer importierten Session wird zum Original (reine Logik ueber [SessionFiles], JVM-testbar).
+ * T306: Regel erweitert - jeder vollstaendig fertige Scan wird Original, wenn das Original leer ist (auch bei
+ * aelteren Varianten und Live-Sessions ohne Detektionen); bestehende Sessions beim Oeffnen ([promoteNewestIfEmpty]).
  *
  * Vorher (T255/T260): Der Scan nach dem Audio-Import landete nur als Variante `detections.rescan-<id>.jsonl`;
  * `detections.jsonl` blieb leer, `recording.selections.txt` fehlte. Jetzt: Hat die importierte Session keine
@@ -28,21 +30,59 @@ object RescanPromotion {
     /** Status einer Variante, die gerade ins Original uebernommen wird */
     const val PROMOTING = "PROMOTING"
 
+    /** T306: Toleranz fuer "ganze Aufnahme gescannt" (Float-Sekunden) */
+    private const val COMPLETE_TOLERANCE_SEC = 0.5f
+
     /**
-     * Wird die Variante [id] zum Original? Importierte Session ([SessionMetadata.importedFrom]), Original ohne
-     * Detektionen und Verifikationen, keine andere fertige Variante.
+     * T306: Vollstaendig fertiger Scan: DONE und ganze Aufnahme gescannt (scannedSec >= totalSec).
+     * Alte Varianten ohne Sekundenangaben (vor T260, fehlender Status = DONE) gelten als vollstaendig.
+     * ABORTED, RUNNING und PROMOTING nie.
      */
-    fun shouldPromote(
-        meta: SessionMetadata?,
-        id: String,
-        originalDetections: String?,
-        originalVerifications: String?,
-        variants: List<RescanInfo>
-    ): Boolean =
-        meta?.importedFrom != null &&
-            originalDetections.isNullOrBlank() &&
-            originalVerifications.isNullOrBlank() &&
-            variants.none { it.id != id && it.status == RescanStatus.DONE }
+    fun isComplete(info: RescanInfo): Boolean {
+        if (info.status != RescanStatus.DONE) return false
+        val scanned = info.scannedSec ?: return true
+        val total = info.totalSec ?: return true
+        return scanned >= total - COMPLETE_TOLERANCE_SEC
+    }
+
+    /**
+     * T306: Original leer = keine Detektionen und keine Verifikationen im Original. Updates ohne Zeile fallen beim
+     * Zusammenfuehren weg ([DetectionUpdateLog.applyTo]), also ist leeres detections.jsonl = leerer Gesamtstand.
+     */
+    fun isOriginalEmpty(originalDetections: String?, originalVerifications: String?): Boolean =
+        originalDetections.isNullOrBlank() && originalVerifications.isNullOrBlank()
+
+    /**
+     * Wird die Variante [info] zum Original? T306 (ersetzt T273-Regel "importiert + keine andere fertige Variante"):
+     * Original leer und Variante vollstaendig fertig - unabhaengig von aelteren Varianten und davon, ob die
+     * Session importiert ist. Aeltere Varianten bleiben Varianten (nach der Uebernahme ist das Original belegt).
+     */
+    fun shouldPromote(info: RescanInfo, originalDetections: String?, originalVerifications: String?): Boolean =
+        isComplete(info) && isOriginalEmpty(originalDetections, originalVerifications)
+
+    /** T306: Beim Oeffnen zu uebernehmende Variante: die neueste vollstaendig fertige ([list] aelteste zuerst). */
+    fun newestComplete(list: List<RescanInfo>, runningId: String?): RescanInfo? =
+        list.lastOrNull { it.id != runningId && isComplete(it) }
+
+    /** T306: Variante [info] uebernehmen, falls [shouldPromote] (Aufrufer haelt den fileMutex). */
+    fun promoteIfEmpty(files: SessionFiles, info: RescanInfo): Boolean =
+        shouldPromote(info, files.readText(RescanFiles.DETECTIONS), files.readText(RescanFiles.VERIFICATIONS)) &&
+            promote(files, info)
+
+    /**
+     * T306: Bestehende Session mit leerem Original (z.B. Scans vor T306): neueste vollstaendig fertige Variante
+     * uebernehmen. Nichts tun, solange eine Uebernahme liegengeblieben ist ([PROMOTING], erst wiederherstellen)
+     * oder eine Variante noch RUNNING ist (laufender Scan entscheidet selbst bei seinem Ende).
+     * Aufrufer haelt den fileMutex. Idempotent: danach ist das Original belegt.
+     * @return uebernommene Variante oder null
+     */
+    fun promoteNewestIfEmpty(files: SessionFiles, runningId: String?): RescanInfo? {
+        val list = RescanStore.list(files)
+        if (list.any { it.status == PROMOTING || it.status == RescanStatus.RUNNING }) return null
+        if (!isOriginalEmpty(files.readText(RescanFiles.DETECTIONS), files.readText(RescanFiles.VERIFICATIONS))) return null
+        val pick = newestComplete(list, runningId) ?: return null
+        return pick.takeIf { promote(files, it) }
+    }
 
     /** session.json nach der Uebernahme: Einstellungen des Scans wie bei einer Live-Session. */
     fun metadataAfter(meta: SessionMetadata, info: RescanInfo, detectionCount: Int): SessionMetadata = meta.copy(
