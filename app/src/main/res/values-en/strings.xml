@@ -527,15 +527,15 @@
     <string name="settings_whats_new_button">What\'s new</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven: one row per episode, new Memo column</item>
-        <item>Rescan and import: results visible and verifiable as they arrive; cancel keeps the partial result</item>
-        <item>Edit details of imported sessions afterwards; Save as ZIP or folder</item>
-        <item>Human voices are hidden in the export (default on)</item>
-        <item>Session memo by press-and-hold; Memos block in the analysis</item>
-        <item>Calmer live species cards: changes at most every 5 s, top 5 hits flash blue</item>
-        <item>Help button "?": help mode and manual offline</item>
-        <item>Municipality via Google only as an option, default off</item>
-        <item>App fully translated: French, Italian, Catalan, Portuguese, Dutch, Bernese German (draft)</item>
+        <item>Session memos: delete with undo, location on the map, share and save as</item>
+        <item>Import: date and time picker, all imported sessions are scanned; changing the date moves the session folder</item>
+        <item>Analysis: two-finger zoom in the overview and the sonogram; upload reports its result in a snackbar</item>
+        <item>Spectrum: linear or mel, gamma also in the spectrum, time window in the oscillogram</item>
+        <item>Faster rescan: more processor cores, secondary model runs in parallel</item>
+        <item>Species names throughout in the chosen language</item>
+        <item>Auto filter without GPS: last position valid for up to 30 days</item>
+        <item>Secondary model statistics in expert mode</item>
+        <item>"Support PIROL" (voluntary) in Settings > Info; help mode covers more controls</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Target folder is inside the PIROL storage. Please choose a folder outside it; nothing was moved.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Target folder is the selected recording itself or its parent folder. Nothing was moved.</string>

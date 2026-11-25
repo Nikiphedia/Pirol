@@ -4,7 +4,7 @@
 
 Akustischi Echtziit-Artekennig für Android, gmacht für d Fäldarbet.
 
-*Gilt ab Version v0.1.2 (Stand 2026-11-24). Was sich zwüsche de Versione gänderet het, steit i `CHANGELOG.md`.*
+*Gilt ab Version v0.1.3 (Stand 2026-11-25). Was sich zwüsche de Versione gänderet het, steit i `CHANGELOG.md`.*
 
 Di App het fönf Tab: **Live**, **Analyse**, **Referänze**, **Charte** und **Istellige**. De Knopf **?** (Hilfe) isch kei Tab: Ei Tipp schaltet de Hilfemodus ii, en Doppeltipp öffnet di Aleitig (Kapitel 1, Abschnitt "Hilfe-Knopf").
 
@@ -465,4 +465,4 @@ D vollständig Lischte stoht i `CHANGELOG.md` im Projekt.
 
 ---
 
-*PIROL v0.1.2 — ETA Systems — Stand 2026-11-24*
+*PIROL v0.1.3 — ETA Systems — Stand 2026-11-25*

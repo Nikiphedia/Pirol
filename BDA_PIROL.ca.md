@@ -2,7 +2,7 @@
 
 Reconeixement acústic d'espècies en temps real per a Android, pensat per al treball de camp.
 
-*Vàlid des de la versió v0.1.2 (estat 2026-11-24). Els canvis entre versions són a `CHANGELOG.md`.*
+*Vàlid des de la versió v0.1.3 (estat 2026-11-25). Els canvis entre versions són a `CHANGELOG.md`.*
 
 L'app té cinc pestanyes: **Live**, **Anàlisi**, **Referències**, **Mapa** i **Configuració**. El botó **?** (Ajuda) no és una pestanya: un toc activa el mode d'ajuda, i un doble toc obre aquest manual (capítol 1, apartat "Botó d'ajuda").
 
@@ -463,4 +463,4 @@ La llista completa és a `CHANGELOG.md` del projecte.
 
 ---
 
-*PIROL v0.1.2 — ETA Systems — Estat 2026-11-24*
+*PIROL v0.1.3 — ETA Systems — Estat 2026-11-25*

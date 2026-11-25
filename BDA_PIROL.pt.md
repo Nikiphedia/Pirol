@@ -2,7 +2,7 @@
 
 Reconhecimento acústico de espécies em tempo real para Android, pensado para o trabalho de campo.
 
-*Válido a partir da versão v0.1.2 (estado 2026-11-24). As alterações entre versões estão em `CHANGELOG.md`.*
+*Válido a partir da versão v0.1.3 (estado 2026-11-25). As alterações entre versões estão em `CHANGELOG.md`.*
 
 A app tem cinco separadores: **Live**, **Análise**, **Referências**, **Mapa** e **Definições**. O botão **?** (Ajuda) não é um separador: um toque ativa o modo de ajuda, um duplo toque abre este manual (capítulo 1, secção "Botão de ajuda").
 
@@ -463,4 +463,4 @@ A lista completa está em `CHANGELOG.md` no projeto.
 
 ---
 
-*PIROL v0.1.2 — ETA Systems — Estado 2026-11-24*
+*PIROL v0.1.3 — ETA Systems — Estado 2026-11-25*

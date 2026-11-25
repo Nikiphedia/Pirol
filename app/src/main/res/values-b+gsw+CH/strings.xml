@@ -622,15 +622,15 @@
     <string name="settings_whats_new_button">Was isch neu</string>
     <string name="settings_info_version">Version %1$s</string>
     <string-array name="whats_new_items">
-        <item>Raven: eini Zile pro Episode, neui Spalte Memo</item>
-        <item>Rescan und Import: Ergäbnis louffend sichtbar und verifizierbar; Abbräche bhaltet s Teilergäbnis</item>
-        <item>Aagabe vo importierte Sessione nachträglich bearbeite; Speichere under als ZIP oder Ordner</item>
-        <item>Menschlichi Stimme wärde im Export usbländet (Standard a)</item>
-        <item>Session-Memo dur Drückt-bhalte; Block Memos i dr Analyse</item>
-        <item>Ruhigeri Live-Artkarte: Wächsel höchstens alli 5 s, Träffer i dr Top 5 blinke blau</item>
-        <item>Hilf-Chnopf "?": Hilfemodus und Aleitig offline</item>
-        <item>Gmeind übers Google nume no als Option, Standard us</item>
-        <item>App vollständig übersetzt: Französisch, Italienisch, Katalanisch, Portugiesisch, Niderländisch, Bärndütsch (Entwurf)</item>
+        <item>Session-Memo: lösche mit Rückgängig, Standort uf de Charte, teile und speichere under</item>
+        <item>Import: Datums- und Ziitauswahl, alli importierte Sessione wärde gscannt; e Datumsänderig verschiibt de Session-Ordner</item>
+        <item>Analyse: Zoom mit zwöi Finger in Übersicht und Sonogramm; Upload meldet s Ergebnis per Meldig</item>
+        <item>Spektrum: Linear oder Mel, Gamma o im Spektrum, Ziitfänster im Oszillogramm</item>
+        <item>Rescan schneller: meh Rächekärne, Zweitmodell louft parallel</item>
+        <item>Arte-Name durchgehend in dr gwählte Sprach</item>
+        <item>Auto-Filter ohni GPS: letschti Position bis 30 Tag gültig</item>
+        <item>Zweitmodell-Statistik im Expertemodus</item>
+        <item>Knopf "PIROL unterstütze" (fräiwillig) under Istellige > Info; Hilfemodus deckt meh Bedienelemänt ab</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">Dr Zielordner lit i dr PIROL-Ablag. Bitte ei Ordner usserhalb wähle, es isch nüt verschoben wore.</string>
     <string name="analysis_batch_ziel_gleich_quelle">Dr Zielordner isch d gwählt Ufnahm sälber oder dr Ordner dervo. Es isch nüt verschoben wore.</string>
