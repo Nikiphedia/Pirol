@@ -1,6 +1,7 @@
 package ch.etasystems.pirol.ml
 
 import android.content.Context
+import ch.etasystems.pirol.data.FeatureFlags
 import android.util.Log
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -89,6 +90,12 @@ object TaxonGroups {
 
     /** Gruppe einer Art (Name oder Schluessel). Ohne Eintrag: Gattung (nur eindeutige), sonst OTHER. */
     fun of(name: String): TaxonGroup {
+        val g = ofRaw(name)
+        // T297: ohne Fledermaus-Schalter wie bis v0.1.2 unter Saeugetiere
+        return if (g == TaxonGroup.BATS && !FeatureFlags.bats) TaxonGroup.MAMMALS else g
+    }
+
+    private fun ofRaw(name: String): TaxonGroup {
         val key = SpeciesKey.of(name)
         if (key.substringBefore('_', "") in BAT_GENERA) return TaxonGroup.BATS
         index[key]?.let { return it }
@@ -242,6 +249,7 @@ data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
      * Auto gibt es fuer Fledermaeuse nicht (das Geomodel kennt keine): gespeichertes Auto gilt als Alle.
      */
     fun sourceOf(g: TaxonGroup): String {
+        if (g == TaxonGroup.BATS && !FeatureFlags.bats) return GroupSource.OFF  // T297
         val v = sources[g] ?: return GroupSource.OFF
         return if (g == TaxonGroup.BATS && v == GroupSource.AUTO) GroupSource.ALL else v
     }
@@ -287,6 +295,7 @@ data class SpeciesGroupSelection(val sources: Map<TaxonGroup, String>) {
             sourceLabel: (String) -> String
         ): String = TaxonGroup.entries
             .filter { it != TaxonGroup.OTHER || sel.sourceOf(it) != GroupSource.OFF }
+            .filter { it != TaxonGroup.BATS || FeatureFlags.bats }  // T297
             .joinToString(" ") { g -> "${letters[g] ?: g.code}:${sourceLabel(sel.sourceOf(g))}" }
     }
 }

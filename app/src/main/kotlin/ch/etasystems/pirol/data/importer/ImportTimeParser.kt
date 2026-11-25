@@ -1,5 +1,6 @@
 package ch.etasystems.pirol.data.importer
 
+import ch.etasystems.pirol.data.FeatureFlags
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -91,7 +92,7 @@ object ImportTimeParser {
             val value = line.substring(colon + 1).trim()
             when (key) {
                 "Timestamp" -> time = parseFlexible(value, zone)
-                "TE" -> value.toDoubleOrNull()?.let { d ->
+                "TE" -> if (FeatureFlags.bats) value.toDoubleOrNull()?.let { d ->
                     // GUANO: "TE: 10"; krumme Werte (0, negativ, > 1000) ignorieren
                     if (d >= 1.0 && d <= 1000.0 && d == Math.rint(d)) te = d.toInt()
                 }

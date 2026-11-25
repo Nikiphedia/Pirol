@@ -67,7 +67,7 @@ class ImportSegmenterTest {
         assertEquals(listOf(listOf("a", "b")), ImportPlanner.groups(files, true) { it.t }.map { g -> g.map { it.name } })
         assertEquals(listOf(listOf("a"), listOf("b")), ImportPlanner.groups(files, false) { it.t }.map { g -> g.map { it.name } })
         assertEquals(44_100, ImportPlanner.targetRate(44_100))
-        assertEquals(384_000, ImportPlanner.targetRate(384_000))  // T292
+        assertEquals(48_000, ImportPlanner.targetRate(384_000))  // T297: Schalter aus
         assertEquals(48_000, ImportPlanner.targetRate(600_000))
         assertEquals("2024-05-01T05-00-00_abc123", ImportPlanner.sessionId(t0, "abc123"))
         assertEquals("2024-05-01", ImportPlanner.dayDir(t0))

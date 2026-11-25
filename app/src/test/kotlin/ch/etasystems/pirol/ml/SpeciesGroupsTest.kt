@@ -15,6 +15,7 @@ class SpeciesGroupsTest {
     companion object {
         /** Zuordnung aus den echten Assets aufbauen (gleiche Reihenfolge wie TaxonGroups.load) */
         @BeforeClass @JvmStatic fun loadAssets() {
+            ch.etasystems.pirol.data.FeatureFlags.bats = true  // T297
             SpeciesKey.setAliases(emptyMap())
             val idx = HashMap<String, TaxonGroup>()
             TaxonGroups.parseLabelCsv(File("src/main/assets/models/birdnet_v3_labels.csv").readText(Charsets.UTF_8))
@@ -33,7 +34,7 @@ class SpeciesGroupsTest {
             })
         }
 
-        @AfterClass @JvmStatic fun reset() = TaxonGroups.setIndex(emptyMap())
+        @AfterClass @JvmStatic fun reset() { TaxonGroups.setIndex(emptyMap()); ch.etasystems.pirol.data.FeatureFlags.bats = false }
     }
 
     @Test fun `Gruppenzuordnung aus Assets`() {

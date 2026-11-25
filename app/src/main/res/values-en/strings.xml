@@ -1028,4 +1028,7 @@
     <string name="help_analysis_time_expansion">Only for recordings above 96 kHz. Time expansion plays slower and lower so ultrasound becomes audible (10× = 40 kHz sounds like 4 kHz). Normal downsamples to 48 kHz; ultrasound is then inaudible.</string>
     <string name="import_zeitdehnung_info">Time-expanded %1$d× detected · true rate %2$s kHz</string>
     <string name="import_ultraschall_info">Ultrasound recording · %1$s kHz</string>
+    <string name="model_unsupported">Model is not supported</string>
+    <string name="experimental_bats_on">Experimental: bats on</string>
+    <string name="experimental_bats_off">Experimental: bats off</string>
 </resources>

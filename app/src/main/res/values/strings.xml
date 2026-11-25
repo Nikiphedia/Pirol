@@ -1029,4 +1029,7 @@
     <string name="help_analysis_time_expansion">Nur bei Aufnahmen über 96 kHz. Zeitdehnung spielt langsamer und tiefer ab, damit Ultraschall hörbar wird (10× = 40 kHz klingt wie 4 kHz). Normal rechnet auf 48 kHz herunter, Ultraschall ist dann nicht hörbar.</string>
     <string name="import_zeitdehnung_info">Zeitgedehnt %1$d× erkannt · wahre Rate %2$s kHz</string>
     <string name="import_ultraschall_info">Ultraschall-Aufnahme · %1$s kHz</string>
+    <string name="model_unsupported">Modell wird nicht unterstützt</string>
+    <string name="experimental_bats_on">Experimentell: Fledermäuse an</string>
+    <string name="experimental_bats_off">Experimentell: Fledermäuse aus</string>
 </resources>

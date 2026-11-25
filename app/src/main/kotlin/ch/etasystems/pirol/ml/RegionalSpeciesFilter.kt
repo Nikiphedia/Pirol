@@ -1,6 +1,7 @@
 package ch.etasystems.pirol.ml
 
 import android.content.Context
+import ch.etasystems.pirol.data.FeatureFlags
 import android.util.Log
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -263,9 +264,9 @@ class RegionalSpeciesFilter(
     fun getSpeciesList(): Set<String> = state.species
 
     /** Alle verfuegbaren Region-Sets */
-    fun getAvailableRegions(): List<RegionInfo> = regionSets.infos + customLists.map {
+    fun getAvailableRegions(): List<RegionInfo> = (regionSets.infos + customLists.map {
         RegionInfo(it.id, it.nameDe, it.nameEn, it.species.size, isCustom = true)
-    }
+    }).filter { FeatureFlags.bats || it.id != "ch_bats" }  // T297
 
     /** T238: region_sets.json einmal lesen; Fehler = leer (Asset fehlt dauerhaft). */
     private fun parseRegionSets(): RegionSets {

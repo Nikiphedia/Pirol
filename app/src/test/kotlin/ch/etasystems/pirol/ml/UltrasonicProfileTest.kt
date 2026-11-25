@@ -11,6 +11,10 @@ import java.io.File
 
 /** T293: Profil-Erweiterung Ultraschall (minSourceRate, taxonGroup, display, ignoreLabels) */
 class UltrasonicProfileTest {
+    // T297: Fledermaus-Funktionen an
+    @org.junit.Before fun flagOn() { ch.etasystems.pirol.data.FeatureFlags.bats = true }
+    @org.junit.After fun flagOff() { ch.etasystems.pirol.data.FeatureFlags.bats = false }
+
 
     private val sha = "a".repeat(64)
 

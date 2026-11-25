@@ -17,6 +17,7 @@ class AppPreferences(context: Context) {
     private val prefs = context.getSharedPreferences("pirol_prefs", Context.MODE_PRIVATE)
 
     init {
+        FeatureFlags.bats = prefs.getBoolean("pirol_experimental_bats", false)  // T297
         // T240: Reste entfernter Einstellungen aufraeumen (T225: Top-K-Schwelle)
         if (prefs.contains("pirol_topk_threshold")) prefs.edit().remove("pirol_topk_threshold").apply()
         // T246: Einzelregion und Geomodel-Verknuepfung entfernt; die Begleitliste wird einmalig zur Vogel-Ersatzliste
@@ -658,6 +659,14 @@ class AppPreferences(context: Context) {
     fun setSettingsSectionExpanded(key: String, expanded: Boolean) {
         prefs.edit().putBoolean("pirol_settings_section_$key", expanded).apply()
     }
+
+    /** T297: versteckter Schalter fuer Fledermaus-/Ultraschall-Funktionen (Default aus), setzt [FeatureFlags.bats] */
+    var experimentalBats: Boolean
+        get() = prefs.getBoolean("pirol_experimental_bats", false)
+        set(value) {
+            prefs.edit().putBoolean("pirol_experimental_bats", value).apply()
+            FeatureFlags.bats = value
+        }
 
     /** T129: freigegebener PIROL-Ordner (SAF-Tree-URI, persistierbar); null = keine Freigabe */
     var pirolFolderUri: String?
