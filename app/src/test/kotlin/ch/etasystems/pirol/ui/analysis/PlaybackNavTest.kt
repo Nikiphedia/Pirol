@@ -75,4 +75,11 @@ class PlaybackNavTest {
         assertEquals(null, PlaybackNav.playheadFraction(null, 10f, 10f))
         assertEquals(null, PlaybackNav.playheadFraction(5f, 0f, 0f))
     }
+
+    @Test
+    fun `T301 Memo-Zeiger auf Session-Achse`() {
+        assertEquals(17.5f, PlaybackNav.memoPlayheadSec(2.5f, 15f)!!, 1e-4f)
+        assertNull(PlaybackNav.memoPlayheadSec(2.5f, null))
+        assertNull(PlaybackNav.memoPlayheadSec(null, 15f))
+    }
 }

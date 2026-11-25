@@ -6,6 +6,10 @@ import ch.etasystems.pirol.ml.DetectionResult
  * T210: Reine Logik fuer Analyse-Wiedergabe (Vor/Zurueck zwischen Detektionen, Tippen -> Sekunde).
  */
 object PlaybackNav {
+
+    /** T301: Zeiger bei Memo-Wiedergabe = Memo-Beginn (Session-Sekunde) + Position in der Memo-Datei; ohne Beginn kein Zeiger. */
+    fun memoPlayheadSec(posInMemoSec: Float?, memoStartSec: Float?): Float? =
+        if (posInMemoSec == null || memoStartSec == null) null else memoStartSec + posInMemoSec
     /** Zeiten, die naeher beieinander liegen, gelten als gleich (kein Haengenbleiben auf derselben Detektion). */
     const val EPS_SEC = 0.05f
 

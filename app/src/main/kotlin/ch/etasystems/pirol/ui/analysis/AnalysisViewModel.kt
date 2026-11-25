@@ -134,7 +134,7 @@ class AnalysisViewModel(
                     positionJob = viewModelScope.launch {
                         while (isActive) {
                             _uiState.update { s ->
-                                val p = audioPlayer.currentPositionSec()
+                                val p = playheadForCurrent(audioPlayer.currentPositionSec())
                                 s.copy(playbackPositionSec = p, lastPlaybackPositionSec = p ?: s.lastPlaybackPositionSec)
                             }
                             delay(100)
@@ -507,6 +507,8 @@ class AnalysisViewModel(
             playback.stop()
             return
         }
+        // T301: Zeiger auf die Session-Zeit des Memos legen (Memo-Datei beginnt bei 0 s)
+        memoPlayhead = key to item.sessionStartSec
         viewModelScope.launch(Dispatchers.IO) {
             val source = sessionManager.memoSource(dir, item.file)
             withContext(Dispatchers.Main) {
@@ -517,6 +519,19 @@ class AnalysisViewModel(
                 }
             }
         }
+    }
+
+    /** T301: Schluessel der Memo-Wiedergabe und Session-Sekunde des Memo-Beginns (null = keine Lage bekannt). */
+    private var memoPlayhead: Pair<String, Float?>? = null
+
+    /**
+     * T301: Zeigerposition fuer das Sonogramm. Bei Memo-Wiedergabe = Memo-Beginn (Session-Achse) + Position in
+     * der Memo-Datei; ohne bekannte Lage kein Zeiger. Sonst unveraendert die Player-Position.
+     */
+    private fun playheadForCurrent(posSec: Float?): Float? {
+        val mp = memoPlayhead ?: return posSec
+        if (playback.playingKey.value != mp.first) return posSec
+        return PlaybackNav.memoPlayheadSec(posSec, mp.second)
     }
 
     // --- T272: Session-Memo loeschen, teilen, speichern ---
