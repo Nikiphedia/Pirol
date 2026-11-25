@@ -167,9 +167,10 @@ class RescanEngine(
 
     /** T273: fertige Variante wurde zum Original (Metadaten der Variante sind weg) */
     private suspend fun isPromoted(sessionDir: File, info: RescanInfo): Boolean =
-        info.status == RescanStatus.DONE && runCatching {
+        // T303: Abbruch nach erfolgter Uebernahme darf nicht als "nicht uebernommen" gemeldet werden
+        PromotionCheck.isPromoted(info.status, PromotedVariants.contains(sessionDir, info.id)) {
             sessionManager.withSessionFiles(sessionDir) { RescanFiles.meta(info.id) !in it.listNames() }
-        }.getOrDefault(false)
+        }
 
     /** Laufenden Rescan abbrechen; T260: das Teilergebnis bleibt als Variante (ABORTED) */
     fun cancel() { job?.cancel() }
@@ -224,7 +225,10 @@ class RescanEngine(
         if (promoting.isNotEmpty()) {
             for (info in promoting) {
                 runCatching {
-                    val ok = sessionManager.withSessionFiles(sessionDir) { RescanPromotion.promote(it, info) }
+                    val ok = sessionManager.withSessionFiles(sessionDir) {
+                        // T303: unter derselben Sperre vermerken (Schreibzugriffe auf die Variante -> Original)
+                        RescanPromotion.promote(it, info).also { done -> if (done) PromotedVariants.add(sessionDir, info.id) }
+                    }
                     if (ok) sessionManager.exportRavenSelectionTable(sessionDir, appPreferences)
                 }.onFailure { Log.w(TAG, "T273 Uebernahme der Variante ${info.id} nicht abgeschlossen", it) }
             }
@@ -275,7 +279,8 @@ class RescanEngine(
         // T273: erster vollstaendiger Scan einer importierten Session ohne Original-Detektionen -> Original
         val promoted = sessionManager.withSessionFiles(sessionDir) { f ->
             RescanStore.writeMeta(f, done)
-            status == RescanStatus.DONE && promoteIfFirst(f, done)
+            (status == RescanStatus.DONE && promoteIfFirst(f, done))
+                .also { if (it) PromotedVariants.add(sessionDir, id) }  // T303: unter derselben Sperre
         }
         if (promoted) Log.i(TAG, "T273: Scan $id als Original uebernommen (importierte Session)")
         runCatching { sessionManager.exportRavenSelectionTable(sessionDir, appPreferences, variant = if (promoted) null else id) }

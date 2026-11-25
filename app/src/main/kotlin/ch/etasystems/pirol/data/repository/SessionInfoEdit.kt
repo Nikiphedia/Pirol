@@ -376,9 +376,27 @@ object SessionInfoEdit {
             return written
         }
         if (folder == null) return written  // T273: Ordner nicht greifbar -> Auftrag bleibt liegen
-        onRename(SessionRename.apply(folder, rename))
-        folder.files().delete(JOURNAL_FILE)  // Auftrag liegt jetzt im umbenannten Ordner
+        val outcome = SessionRename.apply(folder, rename)
+        // T303: session.json traegt immer den tatsaechlichen Ordnernamen als ID (gescheitertes Umbenennen: alte ID,
+        // Zeitdaten bleiben umgerechnet). Erst danach den Auftrag loeschen; ein Abbruch dazwischen wiederholt nur das.
+        val here = folder.files()
+        alignSessionId(here, sessionJsonName, folder.name)
+        onRename(outcome)
+        here.delete(JOURNAL_FILE)  // Auftrag liegt jetzt im (ggf. umbenannten) Ordner
         return written
+    }
+
+    /**
+     * T303: `sessionId` in session.json auf [folderName] setzen, falls abweichend (Ordnername == Session-ID).
+     * Unlesbare session.json bleibt unveraendert. @return true = neu geschrieben
+     */
+    fun alignSessionId(files: SessionFiles, sessionJsonName: String, folderName: String): Boolean {
+        if (folderName.isEmpty()) return false
+        val text = files.readText(sessionJsonName) ?: return false
+        val meta = try { SessionJson.lenient.decodeFromString<SessionMetadata>(text) } catch (_: Exception) { return false }
+        if (meta.sessionId == folderName) return false
+        files.writeReplacing(sessionJsonName, SessionJson.pretty.encodeToString(meta.copy(sessionId = folderName)))
+        return true
     }
 
     /** Liegengebliebenen Auftrag zu Ende fuehren; null = keiner vorhanden. Unlesbarer Auftrag wird verworfen. */

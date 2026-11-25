@@ -8,7 +8,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -86,11 +85,14 @@ class SessionRenameTest {
     @Test fun apply_refuses_occupied_target_before_any_change() {
         val t = SessionRenameTarget(oldId, "new_abcdef", "2026-04-20", "2026-04-21")
         val f = FakeFolder(oldId, "2026-04-20", occupied = setOf("2026-04-20" to "new_abcdef"))
-        try { SessionRename.apply(f, t); fail() } catch (_: IllegalStateException) { }
+        // T303: keine Ausnahme mehr, sondern renameError (Aufrufer faellt auf den Ordnernamen zurueck)
+        val o = SessionRename.apply(f, t)
+        assertNotNull(o.renameError)
+        assertFalse(o.renamed || o.moved)
         assertTrue(f.ops.isEmpty())
         // fremder Ordnername: nie umbenennen
         val other = FakeFolder("fremd", "2026-04-20")
-        try { SessionRename.apply(other, t); fail() } catch (_: IllegalStateException) { }
+        assertNotNull(SessionRename.apply(other, t).renameError)
         assertTrue(other.ops.isEmpty())
     }
 

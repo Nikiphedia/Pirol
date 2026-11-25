@@ -15,6 +15,7 @@ import ch.etasystems.pirol.ml.DetectionResult
 import ch.etasystems.pirol.ml.VerificationEvent
 import ch.etasystems.pirol.ml.VerificationStatus
 import ch.etasystems.pirol.rescan.RescanFiles
+import ch.etasystems.pirol.rescan.VariantWriteTarget
 import ch.etasystems.pirol.ui.analysis.DetectionOccurrences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -550,17 +551,42 @@ class SessionManager(
         }
     }
 
+    /**
+     * T303 (Befund 3): tatsaechliches Schreibziel fuer [variant] (unter dem fileMutex): Variante vorhanden -> sie,
+     * ins Original uebernommen -> Original (Write(null)), geloescht -> Drop (Aktion verwerfen, nichts anlegen).
+     */
+    private fun writeTargetLocked(sessionDir: File, variant: String?): VariantWriteTarget.Target {
+        if (variant == null) return VariantWriteTarget.Target.Write(null)
+        val t = VariantWriteTarget.resolve(
+            variant,
+            metaExists = accessFor(sessionDir).exists(RescanFiles.meta(variant)),
+            promoted = ch.etasystems.pirol.rescan.PromotedVariants.contains(sessionDir, variant)
+        )
+        when (t) {
+            is VariantWriteTarget.Target.Write ->
+                if (t.variant == null) Log.i(TAG, "T303: Variante $variant ist uebernommen, schreibe ins Original")
+            VariantWriteTarget.Target.Drop -> Log.w(TAG, "T303: Variante $variant existiert nicht mehr, Aktion verworfen")
+        }
+        return t
+    }
+
     /** Fertige JSONL-Zeile (inkl. Zeilenende) an verifications.jsonl der Session (T221: oder Variante) anhaengen. */
     suspend fun appendVerificationLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
-        fileMutex.withLock { accessFor(sessionDir).append(RescanFiles.verifications(variant), line) }
+        fileMutex.withLock {
+            val t = writeTargetLocked(sessionDir, variant)
+            if (t is VariantWriteTarget.Target.Write) accessFor(sessionDir).append(RescanFiles.verifications(t.variant), line)
+        }
     }
 
     /** Fertige JSONL-Zeile an detections.jsonl der Session (T221: oder der Variante) anhaengen. */
     suspend fun appendDetectionLine(sessionDir: File, line: String, variant: String? = null) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
             val a = active
+            val t = writeTargetLocked(sessionDir, variant)  // T303
+            val v = (t as? VariantWriteTarget.Target.Write)?.variant
             when {
-                variant != null -> accessFor(sessionDir).append(RescanFiles.detections(variant), line)
+                t !is VariantWriteTarget.Target.Write -> Unit
+                v != null -> accessFor(sessionDir).append(RescanFiles.detections(v), line)
                 a != null && a.matches(sessionDir) && a.appendDetectionLineLocked(line) -> Unit  // offener Writer
                 else -> accessFor(sessionDir).append(DETECTIONS_FILE, line)
             }
@@ -576,7 +602,10 @@ class SessionManager(
         actionType: String? = null
     ) = withContext(Dispatchers.IO) {
         fileMutex.withLock {
-            removeLastStatusEventLocked(accessFor(sessionDir), RescanFiles.verifications(variant), detectionId, actionType)
+            val t = writeTargetLocked(sessionDir, variant)  // T303
+            if (t is VariantWriteTarget.Target.Write) {
+                removeLastStatusEventLocked(accessFor(sessionDir), RescanFiles.verifications(t.variant), detectionId, actionType)
+            }
         }
     }
 
@@ -595,8 +624,11 @@ class SessionManager(
         transform: (DetectionResult) -> DetectionResult
     ): DetectionResult? = withContext(Dispatchers.IO) {
         fileMutex.withLock {
+            // T303: uebernommene Variante -> Original, geloeschte -> nichts schreiben
+            val target = writeTargetLocked(sessionDir, variant) as? VariantWriteTarget.Target.Write ?: return@withLock null
+            val v = target.variant
             val a = active
-            if (variant == null && a != null && a.matches(sessionDir)) {
+            if (v == null && a != null && a.matches(sessionDir)) {
                 val list = liveDetections
                 val live = list?.modifyDetection(id) { transform(it) }
                 val next = if (list != null && live != null) {
@@ -610,10 +642,10 @@ class SessionManager(
                 return@withLock next
             }
             val access = accessFor(sessionDir)
-            if (variant != null) {
+            if (v != null) {
                 // T221/T260: Variante (auch waehrend des Rescans) auf dem zusammengefuehrten Stand aendern und
                 // mit ihrer Zusatzdatei in einem Rewrite uebernehmen (File atomar, SAF Schattenkopie)
-                val name = RescanFiles.detections(variant)
+                val name = RescanFiles.detections(v)
                 val text = DetectionUpdateLog.mergedText(access, name) ?: return@withLock null
                 val next = findDetection(text, id)?.let(transform) ?: return@withLock null
                 DetectionUpdateLog.consolidate(access, mapOf(id to next), name)
@@ -719,34 +751,68 @@ class SessionManager(
     /**
      * T272: Session-Memo endgueltig loeschen: Eintrag aus memos.jsonl (atomar neu geschrieben, keine Marker-Zeile)
      * und memos/session_*.wav. Datei zuerst aus dem Verzeichnis nehmen waere unumkehrbar; deshalb zuerst die Liste,
-     * dann die WAV (bleibt im Fehlerfall als verwaiste Datei, nie als Eintrag ohne Datei).
-     * Nur Dateien unter memos/ werden angefasst.
+     * dann die WAV. Nur Dateien unter memos/ werden angefasst.
+     * T303: Scheitert das Loeschen der WAV (delete() = false), wird der Eintrag wiederhergestellt und false
+     * gemeldet (Memo bleibt sichtbar und erneut loeschbar). Fehlt die Datei schon, gilt das Memo als geloescht;
+     * eine nicht referenzierte WAV geht nie in einen Export ([SessionExportRules.referencedMemos]).
+     * Danach Raven-Dateien (Original und Varianten, nur vorhandene) neu schreiben (Memo-Zeile entfaellt).
      */
     suspend fun deleteSessionMemo(sessionDir: File, memoFile: String): Boolean = withContext(Dispatchers.IO) {
         if (!memoFile.startsWith(SessionMemos.DIR + "/") || memoFile.contains("..")) return@withContext false
         // Die gerade aufgenommene Session wird nie umgeschrieben: ein Neuschreiben koennte ein parallel angehaengtes Memo verlieren
         if (isActiveSession(sessionDir)) return@withContext false
+        var removedLines = ""
+        var entryRemoved = false
         try {
             fileMutex.withLock {
                 val a = active
                 val files = if (a != null && a.matches(sessionDir)) a.files().also { a.flushWritersLocked() } else accessFor(sessionDir)
                 val old = files.readText(SessionMemos.FILE)
                 val updated = SessionMemos.withoutFile(old, memoFile)
-                if (updated != (old ?: "")) files.writeReplacing(SessionMemos.FILE, updated)
+                removedLines = SessionMemos.linesOfFile(old, memoFile)
+                if (updated != (old ?: "")) {
+                    files.writeReplacing(SessionMemos.FILE, updated)
+                    entryRemoved = true
+                }
             }
             val doc = docFor(sessionDir)
-            if (doc != null) {
+            val deleted = if (doc != null) {
                 var cur: DocumentFile? = doc
                 for (part in memoFile.split('/').filter { it.isNotEmpty() }) cur = cur?.findFile(part)
-                cur?.delete()
+                cur?.delete() ?: true  // nicht (mehr) vorhanden
             } else {
-                File(sessionDir, memoFile).takeIf { it.isFile }?.delete()
+                File(sessionDir, memoFile).takeIf { it.isFile }?.delete() ?: true
+            }
+            if (!deleted) {
+                // T303: Eintrag zurueck, damit das Memo sichtbar und erneut loeschbar bleibt (kein stilles Weiterexportieren)
+                restoreMemoEntry(sessionDir, entryRemoved, removedLines)
+                Log.e(TAG, "T303: Memo-Datei nicht geloescht, Eintrag wiederhergestellt: $memoFile")
+                return@withContext false
             }
             _sessionMemoEvents.tryEmit(SessionMemoEvent.Removed(sessionDir.name, memoFile))  // T299
-            true
         } catch (e: Exception) {
             Log.e(TAG, "T272: Session-Memo nicht geloescht", e)
-            false
+            restoreMemoEntry(sessionDir, entryRemoved, removedLines)  // T303: auch wenn das Loeschen wirft
+            return@withContext false
+        }
+        rewriteRavenTables(sessionDir)  // T303 (Befund 6)
+        true
+    }
+
+    /** T303: entfernten memos.jsonl-Eintrag wieder anhaengen (WAV liegt noch da); Fehler nur protokolliert. */
+    private suspend fun restoreMemoEntry(sessionDir: File, entryRemoved: Boolean, lines: String) {
+        if (!entryRemoved || lines.isEmpty()) return
+        try { fileMutex.withLock { accessFor(sessionDir).append(SessionMemos.FILE, lines) } }
+        catch (e: Exception) { Log.e(TAG, "T303: Memo-Eintrag nicht wiederhergestellt (WAV wird nicht exportiert)", e) }
+    }
+
+    /** T303: vorhandene Raven-Dateien (Original und Varianten) neu schreiben; Fehler nur protokolliert. */
+    private suspend fun rewriteRavenTables(sessionDir: File) {
+        val names = try { accessFor(sessionDir).listNames() } catch (e: Exception) { return }
+        for (v in listOf<String?>(null) + RescanFiles.idsIn(names)) {
+            if (RescanFiles.raven(v) !in names) continue
+            try { exportRavenSelectionTable(sessionDir, appPreferences, v) }
+            catch (e: Exception) { Log.e(TAG, "Raven-Re-Export nach Memo-Loeschen fehlgeschlagen (${v ?: "Original"})", e) }
         }
     }
 
@@ -1009,8 +1075,11 @@ class SessionManager(
 
     /** T257: Ergebnis von [updateImportedSessionInfo] */
     sealed class InfoEditResult {
-        /** T273: [sessionDir] = Schluessel nach Umbenennen/Verschieben (sonst der bisherige) */
-        data class Ok(val metadata: SessionMetadata, val sessionDir: File? = null) : InfoEditResult()
+        /**
+         * T273: [sessionDir] = Schluessel nach Umbenennen/Verschieben (sonst der bisherige).
+         * T303: [renameFailed] = Zeitdaten gespeichert, Ordner aber nicht umbenannt (Session behaelt ihre ID).
+         */
+        data class Ok(val metadata: SessionMetadata, val sessionDir: File? = null, val renameFailed: Boolean = false) : InfoEditResult()
         /** T273: Upload dieser Session laeuft/wartet; Datum (Ordnername) erst danach aenderbar */
         data object Busy : InfoEditResult()
         /** Session ist die laufende Aufnahme */
@@ -1070,16 +1139,22 @@ class SessionManager(
                 if (target != null && uploadPending(target.oldName)) return@withLock InfoEditResult.Busy
                 val plan = SessionInfoEdit.withRename(basePlan, target)
                 val prepared = SessionInfoEdit.prepare(access, plan, SESSION_JSON)
-                val n = SessionInfoEdit.execute(access, prepared, SESSION_JSON, folder) { logRename(dir, it) }
+                var renameFailed = false  // T303
+                val n = SessionInfoEdit.execute(access, prepared, SESSION_JSON, folder) {
+                    logRename(dir, it)
+                    if (it.renameError != null) renameFailed = true
+                }
                 if (folder != null && target != null) {
                     relocated(dir, folder)
                     dir = folder.key
-                    oldSessionId = target.oldName
+                    if (!renameFailed) oldSessionId = target.oldName
                 }
                 exportNameChanged = target != null || ExportNames.sessionName(old.startedAt, old.note, old.sessionId) !=
                     ExportNames.sessionName(prepared.metadata.startedAt, prepared.metadata.note, old.sessionId)
                 Log.i(TAG, "Angaben bearbeitet: ${old.sessionId} -> ${dir.name} delta=${plan.deltaMs} ms, Ort=${plan.relocate}, $n Dateien")
-                InfoEditResult.Ok(prepared.metadata, dir)
+                // T303: gescheitertes Umbenennen -> session.json traegt den Ordnernamen als ID
+                if (renameFailed && folder != null) InfoEditResult.Ok(prepared.metadata.copy(sessionId = folder.name), dir, renameFailed = true)
+                else InfoEditResult.Ok(prepared.metadata, dir)
             }
         } catch (e: Exception) {
             Log.e(TAG, "updateImportedSessionInfo fehlgeschlagen: ${sessionDir.name}", e)
@@ -1109,7 +1184,8 @@ class SessionManager(
     }
 
     private fun logRename(dir: File, o: SessionRename.Outcome) {
-        if (o.moveError != null) Log.w(TAG, "T273: Session ${dir.name} umbenannt, Verschieben in den Tagesordner nicht moeglich", o.moveError)
+        if (o.renameError != null) Log.w(TAG, "T303: Session-Ordner ${dir.name} nicht umbenannt, Session behaelt ihre ID", o.renameError)
+        else if (o.moveError != null) Log.w(TAG, "T273: Session ${dir.name} umbenannt, Verschieben in den Tagesordner nicht moeglich", o.moveError)
         else Log.i(TAG, "T273: Session-Ordner ${dir.name} umbenannt=${o.renamed} verschoben=${o.moved}")
     }
 

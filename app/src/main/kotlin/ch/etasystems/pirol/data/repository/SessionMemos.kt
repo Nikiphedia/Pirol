@@ -127,6 +127,17 @@ object SessionMemos {
         return if (kept.isEmpty()) "" else kept.joinToString("\n", postfix = "\n")
     }
 
+    /**
+     * T303: Zeilen von memos.jsonl, die zum Eintrag [file] gehoeren (mit Zeilenumbruch; leer = keine).
+     * Damit wird ein entfernter Eintrag wiederhergestellt, wenn die WAV nicht geloescht werden konnte.
+     */
+    fun linesOfFile(text: String?, file: String): String {
+        if (text.isNullOrBlank()) return ""
+        return text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.filter { line ->
+            runCatching { SessionJson.lenient.decodeFromString(SessionMemo.serializer(), line) }.getOrNull()?.file == file
+        }.joinToString("") { it + "\n" }
+    }
+
     /** Alle lesbaren Eintraege aus memos.jsonl; kaputte Zeilen werden uebersprungen */
     fun parse(text: String?): List<SessionMemo> {
         if (text.isNullOrBlank()) return emptyList()

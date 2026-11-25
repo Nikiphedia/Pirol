@@ -10,6 +10,21 @@ object PlaybackNav {
     /** T301: Zeiger bei Memo-Wiedergabe = Memo-Beginn (Session-Sekunde) + Position in der Memo-Datei; ohne Beginn kein Zeiger. */
     fun memoPlayheadSec(posInMemoSec: Float?, memoStartSec: Float?): Float? =
         if (posInMemoSec == null || memoStartSec == null) null else memoStartSec + posInMemoSec
+
+    /** T303: Wiedergabe-Schluessel eines Memos (Memo-Block oder Artkarte, `memo:<id>`) */
+    fun isMemoKey(key: String?): Boolean = key != null && key.startsWith(ch.etasystems.pirol.audio.PlaybackKeys.memo(""))
+
+    /**
+     * T303 (Befund 9): Zeiger fuer die laufende Wiedergabe [playingKey]. Kein Memo -> [posSec] unveraendert.
+     * Memo (auch von der Artkarte gestartet): Session-Beginn aus [remembered] (Memo-Block, T301) oder aus [items]
+     * (gleicher Schluessel); ohne bekannte Session-Lage kein Zeiger (nie die Position in der Memo-Datei).
+     */
+    fun playheadSec(posSec: Float?, playingKey: String?, remembered: Pair<String, Float?>?, items: () -> List<MemoItem>): Float? {
+        if (!isMemoKey(playingKey)) return posSec
+        val start = if (remembered != null && remembered.first == playingKey) remembered.second
+        else items().firstOrNull { ch.etasystems.pirol.audio.PlaybackKeys.memo(it.key) == playingKey }?.sessionStartSec
+        return memoPlayheadSec(posSec, start)
+    }
     /** Zeiten, die naeher beieinander liegen, gelten als gleich (kein Haengenbleiben auf derselben Detektion). */
     const val EPS_SEC = 0.05f
 

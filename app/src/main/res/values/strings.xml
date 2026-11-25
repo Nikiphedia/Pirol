@@ -1110,4 +1110,5 @@
     <string name="help_analysis_memo_row">Memo: Antippen springt zur Stelle in der Aufnahme.</string>
     <string name="help_analysis_memo_play">Memo abspielen; ein zweiter Tipp stoppt.</string>
     <string name="settings_info_developer">Entwickler: ETA Systems GmbH, 5004 Aarau, Schweiz</string>
+    <string name="analysis_angaben_ordner_nicht_umbenannt">Angaben gespeichert. Der Ordner konnte nicht umbenannt werden, die Session behält ihre bisherige Kennung.</string>
 </resources>

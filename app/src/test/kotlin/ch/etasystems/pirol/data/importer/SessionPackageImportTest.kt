@@ -51,7 +51,8 @@ class SessionPackageImportTest {
 
     @Test fun ownZip_roundtrip_withoutCollision() {
         File(src, "session.json").writeText(sessionJson())
-        File(src, "detections.jsonl").writeText(line("a", 1) + "\n")
+        // T303: Art-Memo mit Bezug (voiceMemoFile), sonst gehoert es nicht ins ZIP
+        File(src, "detections.jsonl").writeText(line("a", 1).dropLast(1) + ",\"voiceMemoFile\":\"memos/a.wav\"}\n")
         File(src, "recording.wav").writeBytes(ByteArray(100) { it.toByte() })
         File(src, "memos").mkdirs(); File(src, "memos/a.wav").writeBytes(ByteArray(10))
         val zip = File(src.parentFile, "t255.zip").also { createZip(src, it) }

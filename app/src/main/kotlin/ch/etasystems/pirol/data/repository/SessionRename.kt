@@ -54,8 +54,17 @@ object SessionRename {
 
     enum class Step { RENAME, MOVE }
 
-    /** Ergebnis von [apply]: [moveError] = Verschieben gescheitert (Session gueltig, bleibt im alten Tagesordner). */
-    data class Outcome(val renamed: Boolean, val moved: Boolean, val moveError: Exception? = null)
+    /**
+     * Ergebnis von [apply]: [moveError] = Verschieben gescheitert (Session gueltig, bleibt im alten Tagesordner).
+     * T303: [renameError] = Umbenennen gescheitert oder verweigert (Ziel belegt, fremder Ordnername, Provider);
+     * der Ordner behaelt seinen Namen, der Aufrufer gleicht session.json an den Ordnernamen an.
+     */
+    data class Outcome(
+        val renamed: Boolean,
+        val moved: Boolean,
+        val moveError: Exception? = null,
+        val renameError: Exception? = null
+    )
 
     /** Zufallsteil der Session-ID; null = ID hat nicht das Standardformat (dann keine Umbenennung). */
     fun suffixOf(sessionId: String): String? = ID.matchEntire(sessionId)?.groupValues?.get(1)
@@ -91,16 +100,22 @@ object SessionRename {
 
     /**
      * Fehlende Schritte ausfuehren. Umbenennen nur, wenn der Ordner noch den alten Namen traegt und das Ziel frei
-     * ist (sonst Ausnahme, Auftrag bleibt liegen). Scheitert nur das Verschieben (Ziel belegt, SAF-Provider ohne
-     * Move), ist die Session trotzdem gueltig (ID und Ordnername stimmen ueberein): Ergebnis mit [Outcome.moveError].
+     * ist. T303: sonst, oder wenn das Umbenennen selbst scheitert, keine Ausnahme mehr, sondern Ergebnis mit
+     * [Outcome.renameError] (nichts verschoben); der Aufrufer faellt auf den Ordnernamen als Session-ID zurueck.
+     * Scheitert nur das Verschieben (Ziel belegt, SAF-Provider ohne Move), ist die Session trotzdem gueltig
+     * (ID und Ordnername stimmen ueberein): Ergebnis mit [Outcome.moveError].
      */
     fun apply(folder: SessionFolder, t: SessionRenameTarget): Outcome {
         val steps = remaining(folder.name, folder.day, t)
         var renamed = false
         if (Step.RENAME in steps) {
-            check(folder.name == t.oldName) { "Session-Ordner ${folder.name} passt nicht zum Auftrag (${t.oldName})" }
-            check(!folder.exists(t.newName, folder.day)) { "Session-Ordner existiert bereits: ${t.newName}" }
-            folder.rename(t.newName)
+            val error: Exception? = when {
+                folder.name != t.oldName ->
+                    IllegalStateException("Session-Ordner ${folder.name} passt nicht zum Auftrag (${t.oldName})")
+                folder.exists(t.newName, folder.day) -> IllegalStateException("Session-Ordner existiert bereits: ${t.newName}")
+                else -> try { folder.rename(t.newName); null } catch (e: Exception) { e }
+            }
+            if (error != null) return Outcome(renamed = false, moved = false, renameError = error)
             renamed = true
         }
         if (Step.MOVE !in steps) return Outcome(renamed, moved = false)
