@@ -314,7 +314,7 @@ fun SpeciesCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (sciMode) nameResolver.displayName(detection.scientificName) else detection.commonName,
+                        text = if (sciMode) nameResolver.displayName(detection.scientificName) else nameResolver.storedName(detection.scientificName, detection.commonName),  // T287
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -691,7 +691,7 @@ fun SpeciesCard(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (sciMode) nameResolver.displayName(candidate.scientificName) else candidate.commonName,
+                                        text = if (sciMode) nameResolver.displayName(candidate.scientificName) else nameResolver.storedName(candidate.scientificName, candidate.commonName),  // T287
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -856,7 +856,7 @@ private fun CompactRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (status == VerificationStatus.CORRECTED && detection.correctedSpecies != null)
-                        detection.correctedSpecies!! else detection.commonName,
+                        detection.correctedSpecies!! else ch.etasystems.pirol.ml.StoredSpeciesNames.of(detection.scientificName, detection.commonName),  // T287
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = statusColor ?: MaterialTheme.colorScheme.onSurface,

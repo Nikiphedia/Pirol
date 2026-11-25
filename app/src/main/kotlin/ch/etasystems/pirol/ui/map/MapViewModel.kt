@@ -162,7 +162,7 @@ class MapViewModel(
                             sessionId = "",
                             latitude = det.latitude,
                             longitude = det.longitude,
-                            species = det.commonName,
+                            species = ch.etasystems.pirol.ml.StoredSpeciesNames.of(det.scientificName, det.commonName),  // T287
                             scientificName = det.scientificName,
                             confidence = det.confidence,
                             timestampMs = det.timestampMs,
@@ -236,7 +236,7 @@ class MapViewModel(
                                 sessionId = meta.sessionId,
                                 latitude = det.latitude,
                                 longitude = det.longitude,
-                                species = det.commonName,
+                                species = ch.etasystems.pirol.ml.StoredSpeciesNames.of(det.scientificName, det.commonName),  // T287
                                 scientificName = det.scientificName,
                                 confidence = det.confidence,
                                 timestampMs = det.timestampMs,

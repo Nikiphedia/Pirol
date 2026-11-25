@@ -191,7 +191,7 @@ object RavenExporter {
                     w.appendLine(row.joinToString("\t"))
                     continue
                 }
-                if (on(FIELD_SPECIES))         { row += sanitize(d.scientificName); row += sanitize(d.commonName) }
+                if (on(FIELD_SPECIES))         { row += sanitize(d.scientificName); row += sanitize(ch.etasystems.pirol.ml.StoredSpeciesNames.of(d.scientificName, d.commonName)) }  // T287
                 if (on(FIELD_CONFIDENCE))      row += ep.confidence?.let { String.format(Locale.US, "%.3f", it) } ?: ""
                 if (on(FIELD_LAT))             row += d.latitude?.let  { String.format(Locale.US, "%.6f", it) } ?: ""
                 if (on(FIELD_LON))             row += d.longitude?.let { String.format(Locale.US, "%.6f", it) } ?: ""

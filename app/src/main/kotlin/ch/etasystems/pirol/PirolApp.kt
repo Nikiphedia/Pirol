@@ -51,6 +51,18 @@ class PirolApp : Application() {
 
         // T238: Artgruppen (Label-CSV ~0,8 MB) und region_sets.json auf IO vorladen, nicht beim ersten
         // Filter-Laden auf dem Main-Thread (TaxonGroups.load haelt dabei die Klassen-Sperre)
+        // T287: Artnamen-Sprache ab Prozessstart (nicht erst mit dem Live-ViewModel), species_master vorladen
+        // und fuer das Neu-Aufloesen gespeicherter Namen registrieren (Analyse, Karte, Raven)
+        appScope.launch {
+            try {
+                val names = org.koin.core.context.GlobalContext.get().get<ch.etasystems.pirol.ml.SpeciesNameResolver>()
+                names.language = ch.etasystems.pirol.data.AppPreferences(this@PirolApp).effectiveSpeciesLanguage()
+                ch.etasystems.pirol.ml.StoredSpeciesNames.resolver = names
+                names.load()
+            } catch (e: Exception) {
+                android.util.Log.w("PirolApp", "Vorladen der Artnamen fehlgeschlagen", e)
+            }
+        }
         appScope.launch {
             try {
                 org.koin.core.context.GlobalContext.get().get<ch.etasystems.pirol.ml.RegionalSpeciesFilter>().warmUp()
