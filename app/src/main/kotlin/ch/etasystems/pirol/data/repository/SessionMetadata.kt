@@ -43,7 +43,9 @@ data class ImportedSource(
     /** Aufnahmebeginn dieser Datei (ISO 8601 mit Offset) */
     val startedAt: String,
     /** Herkunft der Zeit: guano, audiomoth, bext, metadata, info, filename, modified, manual */
-    val timeSource: String
+    val timeSource: String,
+    /** T292: Zeitdehnungsfaktor (GUANO TE), null = keine. [sampleRate] ist die Header-Rate, wahre Rate = x Faktor. */
+    val timeExpansion: Int? = null
 )
 
 /**
@@ -67,7 +69,9 @@ data class SessionMetadata(
     val note: String? = null,       // T109: Freitext-Bemerkung zur Session (null = keine; alte session.json ohne Feld)
     val modelId: String? = null,    // T103a: Profil-ID des Modells (z.B. "v3_final_fp16")
     val speciesFilter: SpeciesFilterInfo? = null,  // T218/T246: Gruppenwahl und Geomodel-Angaben
-    val importedFrom: List<ImportedSource>? = null  // T255: importierte Fremdaudio-Dateien (null = Aufnahme mit PIROL)
+    val importedFrom: List<ImportedSource>? = null,  // T255: importierte Fremdaudio-Dateien (null = Aufnahme mit PIROL)
+    /** T292: Zeitdehnung der importierten Quelle (GUANO TE, nur > 1); [sampleRate] ist bereits die wahre Rate */
+    val timeExpansion: Int? = null
 )
 
 /**

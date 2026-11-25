@@ -70,12 +70,19 @@ object ImportTimeParser {
     }
 
     /** GUANO-Text ("Key: Value" je Zeile): Zeit ("Timestamp") und Position ("Loc Position: lat lon"). */
-    data class GuanoInfo(val time: ZonedDateTime?, val latitude: Double?, val longitude: Double?)
+    data class GuanoInfo(
+        val time: ZonedDateTime?,
+        val latitude: Double?,
+        val longitude: Double?,
+        /** T292: Zeitdehnung "TE" (ganzzahlig >= 1; fehlend/ungueltig = 1) */
+        val timeExpansion: Int = 1
+    )
 
     fun parseGuano(text: String, zone: ZoneId): GuanoInfo {
         var time: ZonedDateTime? = null
         var lat: Double? = null
         var lon: Double? = null
+        var te = 1
         text.lineSequence().forEach { raw ->
             val line = raw.trim()
             val colon = line.indexOf(':')
@@ -84,13 +91,17 @@ object ImportTimeParser {
             val value = line.substring(colon + 1).trim()
             when (key) {
                 "Timestamp" -> time = parseFlexible(value, zone)
+                "TE" -> value.toDoubleOrNull()?.let { d ->
+                    // GUANO: "TE: 10"; krumme Werte (0, negativ, > 1000) ignorieren
+                    if (d >= 1.0 && d <= 1000.0 && d == Math.rint(d)) te = d.toInt()
+                }
                 "Loc Position" -> {
                     val parts = value.split(Regex("[\\s,]+")).mapNotNull { it.toDoubleOrNull() }
                     if (parts.size >= 2 && validLatLon(parts[0], parts[1])) { lat = parts[0]; lon = parts[1] }
                 }
             }
         }
-        return GuanoInfo(time, lat, lon)
+        return GuanoInfo(time, lat, lon, te)
     }
 
     /** AudioMoth-Kommentar (WAV ICMT) mit Zeitzone; null = kein AudioMoth-Text. */
