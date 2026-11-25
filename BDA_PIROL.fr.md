@@ -2,7 +2,7 @@
 
 Reconnaissance acoustique des espèces en temps réel pour Android, conçue pour le travail sur le terrain.
 
-*Valable à partir de la version v0.1.3 (état 2026-11-25). Les changements entre les versions figurent dans `CHANGELOG.md`.*
+*Valable à partir de la version v0.1.4 (état 2026-11-25). Les changements entre les versions figurent dans `CHANGELOG.md`.*
 
 L'application comporte cinq onglets : **Live**, **Analyse**, **Références**, **Carte** et **Réglages**. Le bouton **?** (Aide) n'est pas un onglet : un appui active le mode aide, un double appui ouvre ce mode d'emploi (chapitre 1, section « Bouton d'aide »).
 
@@ -418,6 +418,11 @@ L'interrupteur **Réglages experts** (sous « Lancer la configuration ») masque
 
 La liste complète figure dans `CHANGELOG.md` du projet.
 
+### Version 0.1.4
+- Le bouton compact/détaillé des cartes d'espèces dans l'onglet Live reste visible pendant l'enregistrement
+- Import de plusieurs fichiers : la progression affiche « Session i sur n » ; un message apparaît lorsqu'un scan est repris comme original
+- Suppression des mémos plus fiable : elle est entièrement terminée, même en quittant l'analyse
+
 ### Version 0.1.3
 - Mémos de session : suppression avec Annuler, position enregistrée à l'appui et affichée comme marqueur sur la carte, partage et enregistrer sous (chapitres 2, 6, 8)
 - Import : sélecteurs de date et d'heure, interrupteur « Heure du fichier = fin de l'enregistrement », scan pour toutes les sessions importées, un scan devient l'original si l'original est vide, avec Raven dans le dossier (chapitre 6)
@@ -462,4 +467,4 @@ La liste complète figure dans `CHANGELOG.md` du projet.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — état 2026-11-25*
+*PIROL v0.1.4 — ETA Systems GmbH, 5004 Aarau — état 2026-11-25*

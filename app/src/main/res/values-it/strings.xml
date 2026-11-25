@@ -621,15 +621,9 @@
     <string name="settings_whats_new_button">Novità</string>
     <string name="settings_info_version">Versione %1$s</string>
     <string-array name="whats_new_items">
-        <item>Memo di sessione: eliminazione con annulla, posizione sulla mappa, condivisione e salva con nome</item>
-        <item>Importazione: selezione di data e ora, tutte le sessioni importate vengono analizzate; cambiando la data si sposta la cartella della sessione</item>
-        <item>Analisi: zoom a due dita nella panoramica e nel sonogramma; il caricamento mostra il risultato in un messaggio</item>
-        <item>Spettro: lineare o Mel, gamma anche nello spettro, finestra temporale nell\'oscillogramma</item>
-        <item>Riesame più veloce: più core di calcolo, il modello secondario gira in parallelo</item>
-        <item>Nomi delle specie sempre nella lingua scelta</item>
-        <item>Filtro automatico senza GPS: ultima posizione valida fino a 30 giorni</item>
-        <item>Statistiche del modello secondario in modalità esperto</item>
-        <item>«Sostieni PIROL» (facoltativo) in Impostazioni > Info; la modalità guida copre più elementi</item>
+        <item>Il pulsante compatto/dettagliato delle schede specie nella scheda Live resta visibile durante la registrazione</item>
+        <item>Importazione: l\'avanzamento mostra «Sessione i di n»; un avviso quando uno scan viene adottato come originale</item>
+        <item>Eliminazione dei memo più affidabile: viene completata del tutto anche uscendo dall\'analisi</item>
     </string-array>
     <string name="analysis_batch_ziel_in_basis">La cartella di destinazione si trova nell\'archivio PIROL. Scegli una cartella esterna; nulla è stato spostato.</string>
     <string name="analysis_batch_ziel_gleich_quelle">La cartella di destinazione è la registrazione selezionata stessa o la sua cartella. Nulla è stato spostato.</string>

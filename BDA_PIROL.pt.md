@@ -2,7 +2,7 @@
 
 Reconhecimento acústico de espécies em tempo real para Android, pensado para o trabalho de campo.
 
-*Válido a partir da versão v0.1.3 (estado 2026-11-25). As alterações entre versões estão em `CHANGELOG.md`.*
+*Válido a partir da versão v0.1.4 (estado 2026-11-25). As alterações entre versões estão em `CHANGELOG.md`.*
 
 A app tem cinco separadores: **Live**, **Análise**, **Referências**, **Mapa** e **Definições**. O botão **?** (Ajuda) não é um separador: um toque ativa o modo de ajuda, um duplo toque abre este manual (capítulo 1, secção "Botão de ajuda").
 
@@ -419,6 +419,11 @@ O interruptor **Modo especialista** (sob "Iniciar configuração") oculta no mod
 
 A lista completa está em `CHANGELOG.md` no projeto.
 
+### Versão 0.1.4
+- O botão compacto/detalhado dos cartões de espécies no separador Live continua visível durante a gravação
+- Importação de vários ficheiros: o progresso mostra «Sessão i de n»; uma mensagem quando uma análise passa a ser o original
+- Eliminação de memorandos mais fiável: fica totalmente concluída, mesmo ao sair da análise
+
 ### Versão 0.1.3
 - Memorandos de sessão: apagar com anular, local guardado ao premir e mostrado como marcador no mapa, partilhar e guardar como (capítulos 2, 6, 8)
 - Importação: seletor de data e hora, interruptor "Hora do ficheiro = fim", análise de todas as sessões importadas; uma análise torna-se o original se o original estiver vazio, com Raven na pasta (capítulo 6)
@@ -463,4 +468,4 @@ A lista completa está em `CHANGELOG.md` no projeto.
 
 ---
 
-*PIROL v0.1.3 — ETA Systems GmbH, 5004 Aarau — Estado 2026-11-25*
+*PIROL v0.1.4 — ETA Systems GmbH, 5004 Aarau — Estado 2026-11-25*
