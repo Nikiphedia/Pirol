@@ -975,4 +975,7 @@
     <string name="analysis_memo_loeschen_gesperrt">Löschen (Aufnahme läuft)</string>
     <string name="analysis_angaben_upload_laeuft">Upload dieser Session läuft. Startzeit erst danach ändern.</string>
     <string name="analysis_rescan_alle_importierten">Gilt für alle %1$d importierten Sessions (nacheinander).</string>
+    <string name="live_geo_letzte_position">Standort unbekannt – Filter nutzt die letzte Position vom %1$s</string>
+    <string name="settings_geo_basis_letzte">Ohne GPS gilt die letzte Position vom %1$s (höchstens 30 Tage), sonst die Ersatzliste.</string>
+    <string name="settings_geo_basis_ersatz">Keine aktuelle Position: Es gilt die Ersatzliste der Gruppe.</string>
 </resources>

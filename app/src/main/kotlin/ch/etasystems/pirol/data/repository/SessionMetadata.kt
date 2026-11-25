@@ -88,5 +88,7 @@ data class SpeciesFilterInfo(
     /** T246: Ersatzliste je Gruppe auf Auto (Gruppen-Code -> Liste): ohne Position/Geomodel und fuer dem Geomodel unbekannte Arten */
     val fallbacks: Map<String, String>? = null,
     /** T232: Quelle je Artgruppe (birds/orthoptera/amphibians/mammals/other -> off/all/auto_geo/Region-ID) */
-    val groups: Map<String, String>? = null
+    val groups: Map<String, String>? = null,
+    /** T278: Zeitpunkt (ms) der gespeicherten Position, nur bei source "saved" (Grundlage: letzte Position) */
+    val positionAtMs: Long? = null
 )

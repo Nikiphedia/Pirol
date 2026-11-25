@@ -1271,6 +1271,13 @@ class LiveViewModel(
             }
         }
         viewModelScope.launch {
+            // T278: Auto-Filter nutzt die letzte bekannte Position
+            pipeline.geoSavedPosition.collect { at ->
+                val d = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(at))
+                _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_geo_letzte_position, d)))
+            }
+        }
+        viewModelScope.launch {
             // T218: Geomodel-Filter ohne Position/Modell → Ersatzliste, einmal pro Session melden
             pipeline.geoFallback.collect {
                 _snackbarChannel.trySend(SnackbarEvent(AppStrings.get(R.string.live_geo_fallback_hinweis)))

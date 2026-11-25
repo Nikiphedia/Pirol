@@ -273,6 +273,9 @@ class RecordingPipeline(
     private val _geoFallback = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** T218: Geomodel-Filter gewaehlt, aber ohne Position/Modell → Ersatzliste (einmal pro Session) */
     val geoFallback: SharedFlow<Unit> = _geoFallback.asSharedFlow()
+    // T278: Auto-Filter laeuft auf der letzten gespeicherten Position (Zeitpunkt ms)
+    private val _geoSavedPosition = MutableSharedFlow<Long>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val geoSavedPosition: SharedFlow<Long> = _geoSavedPosition.asSharedFlow()
 
     private val _embeddingAdded = MutableSharedFlow<EmbeddingAdded>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** Neues Embedding (fuer Aehnlichkeitssuche + Marquee im Live-UI; ohne UI ungenutzt) */
@@ -400,6 +403,7 @@ class RecordingPipeline(
                         Log.w(TAG, "Geomodel-Filter nicht vorbereitet", e); null
                     }
                     if (filterInfo?.source == "fallback") _geoFallback.tryEmit(Unit)
+                    filterInfo?.positionAtMs?.let { if (filterInfo.source == "saved") _geoSavedPosition.tryEmit(it) }
                     currentSessionId = session.startSession(
                         sampleRate = sampleRate,
                         latitude = loc?.latitude,

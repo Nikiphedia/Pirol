@@ -31,6 +31,7 @@ import ch.etasystems.pirol.data.AppPreferences
 import ch.etasystems.pirol.ml.GeoModelFiles
 import ch.etasystems.pirol.ml.ModelManager
 import ch.etasystems.pirol.ml.RegionInfo
+import ch.etasystems.pirol.ml.GeoLogic
 import ch.etasystems.pirol.ui.AppStrings
 import kotlinx.coroutines.launch
 
@@ -96,6 +97,18 @@ fun ColumnScope.GeoFilterSettings(
     }
 
     if (!active) return
+
+    // T278: aktuelle Grundlage ohne frischen Fix
+    val savedAt = appPreferences.geoLastAtMs
+    val basis = GeoLogic.basisWithoutFix(savedAt > 0, savedAt, System.currentTimeMillis())
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        if (basis == GeoLogic.Basis.SAVED) {
+            val d = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(savedAt))
+            AppStrings.get(R.string.settings_geo_basis_letzte, d)
+        } else stringResource(R.string.settings_geo_basis_ersatz),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 
     // Schwelle
     Spacer(modifier = Modifier.height(8.dp))
