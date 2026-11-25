@@ -80,6 +80,9 @@ class RescanEngine(
     class ModelUnavailableException : Exception("Modell nicht verfuegbar")
     class RecordingActiveException : Exception("Aufnahme laeuft")
 
+    /** T293: Aufnahme-Abtastrate unter der Mindestrate des Modells (Ultraschall-Modell auf 48-kHz-Session) */
+    class SourceRateTooLowException(val minRate: Int, val rate: Int) : Exception("Quelle $rate Hz < Mindestrate $minRate Hz")
+
     /** Aufnahme laeuft → Rescan nicht moeglich */
     val recording: StateFlow<Boolean> get() = pipeline.runningState
 
@@ -327,6 +330,10 @@ class RescanEngine(
             val cls = BirdNetV3Classifier(context, modelManager, null, options.modelFileName, BirdNetV3Classifier.RESCAN_THREADS)  // T289
             classifier = cls
             if (!cls.isModelAvailable()) throw ModelUnavailableException()
+            // T293: nicht pruefbar statt Unsinn (kein Hochsampeln); vor dem Anlegen der Variante
+            if (!profile.supportsSourceRate(recording.sampleRate)) {
+                throw SourceRateTooLowException(profile.minSourceRate ?: 0, recording.sampleRate)
+            }
             // T187: Live-Session freigeben (RAM), sie laedt beim naechsten Bedarf neu
             liveClassifier.releaseIfIdle()
 
@@ -355,7 +362,7 @@ class RescanEngine(
             // T248: Zweitmodell wie live (nur Anzeige, Felder secondary*); nicht ladbar -> Rescan ohne
             var secondary: SecondaryChecker? = null
             if (secondaryFile != null) {
-                secondary = runCatching { openSecondary(secondaryFile, filter, config, epoch0) }
+                secondary = runCatching { openSecondary(secondaryFile, options.modelFileName, filter, config, epoch0) }
                     .onFailure { Log.w(TAG, "T248 Zweitmodell nicht geoeffnet", it) }.getOrNull()
                     ?.also { secondaryClassifier = it.first }?.second
             }
@@ -467,11 +474,17 @@ class RescanEngine(
      */
     private suspend fun openSecondary(
         fileName: String,
+        primaryFileName: String,
         filter: RegionalSpeciesFilter,
         config: InferenceConfig,
         epoch0: Long
     ): Pair<BirdNetV3Classifier, SecondaryChecker>? {
         val file = modelManager.getModelFile(fileName) ?: return null
+        // T293: Zweitmodell mit hoeherer Mindestrate als das Hauptmodell kann nie rechnen -> ohne Zweitmodell
+        val secProfile = ch.etasystems.pirol.ml.ModelProfile.resolve(file.name, file.length())
+        val primFile = modelManager.getModelFile(primaryFileName)
+        val primProfile = primFile?.let { ch.etasystems.pirol.ml.ModelProfile.resolve(it.name, it.length()) }
+        if (!ch.etasystems.pirol.ml.ModelRoles.secondaryAllowed(primProfile, secProfile)) return null
         modelManager.ensureLabels(ch.etasystems.pirol.ml.ModelProfile.resolve(file.name, file.length()))
         val cls = BirdNetV3Classifier(context, modelManager, null, fileName, BirdNetV3Classifier.RESCAN_THREADS)  // T289
         if (!cls.isModelAvailable()) { cls.close(); return null }

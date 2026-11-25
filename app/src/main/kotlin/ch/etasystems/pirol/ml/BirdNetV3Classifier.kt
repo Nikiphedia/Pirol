@@ -57,12 +57,14 @@ class BirdNetV3Classifier(
             labels: List<Pair<String, String>>,
             topK: Int,
             threshold: Float,
-            windowSec: Float = 3.0f
+            windowSec: Float = 3.0f,
+            ignoreLabels: Set<String> = emptySet()  // T293: normalisierte Namen ([ModelProfile.normalizeLabel])
         ): List<AudioClassifier.ClassifierResult> {
             val results = mutableListOf<AudioClassifier.ClassifierResult>()
             for (i in scores.indices) {
                 if (scores[i] >= threshold && i < labels.size) {
                     val (sciName, comName) = labels[i]
+                    if (ignoreLabels.isNotEmpty() && ModelProfile.normalizeLabel(sciName) in ignoreLabels) continue
                     results.add(
                         AudioClassifier.ClassifierResult(
                             scientificName = sciName,
@@ -142,6 +144,8 @@ class BirdNetV3Classifier(
     override val modelId: String get() = profile.id
 
     override val minConfidence: Float? get() = profile.minConfidence
+
+    override val minSourceRate: Int? get() = profile.minSourceRate
 
     override val inputSampleRate: Int get() = profile.sampleRate
 
@@ -245,7 +249,7 @@ class BirdNetV3Classifier(
 
             // 4. Top-K filtern und sortieren (via extrahierte Companion-Funktion, T71)
             AudioClassifier.ClassificationOutput(
-                filterAndRank(scores, labels, topK, threshold, p.windowSec),
+                filterAndRank(scores, labels, topK, threshold, p.windowSec, p.ignoreLabels),
                 embedding,
                 humanScore = if (scores.size == labelNameList.size) HumanLabels.score(scores, humanIndices()) else null  // T261
             )

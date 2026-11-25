@@ -1011,4 +1011,10 @@
     <string name="settings_donate_hint">Voluntary: PIROL stays free and complete, with or without a donation.</string>
     <string name="settings_donate_failed">No browser found.</string>
     <string name="help_settings_donate">Opens the donation page in the browser. Donating is voluntary; PIROL stays free and complete.</string>
+    <string name="live_modell_braucht_ultraschall">This model needs recordings of %1$d kHz or more. Nothing is detected with the microphone (48 kHz); recording continues anyway.</string>
+    <string name="analysis_rescan_rate_zu_tief">This model needs recordings of %1$d kHz or more, this session has %2$d kHz. Re-analysis is not possible.</string>
+    <string name="model_ultrasonic_info">Ultrasonic model, needs recordings of %1$d kHz or more</string>
+    <string name="model_min_source_rate">Needs recordings of %1$d kHz or more</string>
+    <string name="model_taxon_group">Species group: %1$s</string>
+    <string name="model_freq_range">Frequency range %1$d–%2$d kHz</string>
 </resources>

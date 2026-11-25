@@ -16,7 +16,8 @@ object ModelTableRow {
     /** Primaer (Radio) und Sekundaer (Checkbox) sind nur bei installierten Modellen waehlbar; Sekundaer nie beim Primaermodell. */
     fun primaryEnabled(installed: Boolean): Boolean = installed
 
-    fun secondaryEnabled(installed: Boolean, isPrimary: Boolean): Boolean = installed && !isPrimary
+    fun secondaryEnabled(installed: Boolean, isPrimary: Boolean, rateAllowed: Boolean = true): Boolean =
+        installed && !isPrimary && rateAllowed  // T293: rateAllowed = ModelRoles.secondaryAllowed
 
     /** Katalogmodelle mit Download-URL, die noch nicht installiert sind (erscheinen als Zeile mit Lade-Symbol). */
     fun missingCatalog(catalog: List<ModelProfile>, installedFiles: Set<String>): List<ModelProfile> =

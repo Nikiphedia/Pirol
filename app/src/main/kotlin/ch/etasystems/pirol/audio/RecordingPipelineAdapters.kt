@@ -266,6 +266,17 @@ class AndroidPipelineHooks(
                 return null
             }
         }
+        // T293: Ultraschall-Zweitmodell nur zu einem Ultraschall-Primaermodell
+        val secFile = mm.getModelFile(fileName)
+        val primFile = mm.getActiveModelFile()
+        if (secFile != null && primFile != null &&
+            !ch.etasystems.pirol.ml.ModelRoles.secondaryAllowed(
+                ch.etasystems.pirol.ml.ModelProfile.resolve(primFile.name, primFile.length()),
+                ch.etasystems.pirol.ml.ModelProfile.resolve(secFile.name, secFile.length())
+            )) {
+            Log.w("RecordingPipeline", "T293 Zweitmodell $fileName braucht Ultraschall-Quelle, Primaermodell nicht: kein Zweitmodell")
+            return null
+        }
         val cls = ch.etasystems.pirol.ml.BirdNetV3Classifier(ctx, mm, null, fileName)
         if (!cls.isModelAvailable()) return null
         mm.markInUse(fileName)  // T239: Datei waehrend der Aufnahme nicht loeschbar
